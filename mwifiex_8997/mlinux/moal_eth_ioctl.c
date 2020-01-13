@@ -4135,13 +4135,15 @@ done:
  *
  * @return         0 --success, otherwise fail
  */
+
+#define CMD_SCANCFG_DATA_LEN	8
 int
 woal_priv_set_get_scancfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
 	int ret = 0;
 	int user_data_len = 0;
-	int arg_len = 8;
-	int data[arg_len];
+#define CMD_SCANCFG_DATA_LEN	8
+	int data[CMD_SCANCFG_DATA_LEN];
 	mlan_ds_scan *scan = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;

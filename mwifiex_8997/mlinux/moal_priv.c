@@ -4814,8 +4814,8 @@ static int
 woal_set_get_scan_cfg(moal_private *priv, struct iwreq *wrq)
 {
 	int ret = 0;
-	int arg_len = 7;
-	int data[arg_len], copy_len;
+#define	WOAL_SCAN_CFG_DATA_LEN	7
+	int data[WOAL_SCAN_CFG_DATA_LEN], copy_len;
 	mlan_ds_scan *scan = NULL;
 	mlan_ioctl_req *req = NULL;
 	int data_length = wrq->u.data.length;
@@ -4828,7 +4828,7 @@ woal_set_get_scan_cfg(moal_private *priv, struct iwreq *wrq)
 		ret = -ENOMEM;
 		goto done;
 	}
-	if (data_length > arg_len) {
+	if (data_length > WOAL_SCAN_CFG_DATA_LEN) {
 		ret = -EINVAL;
 		goto done;
 	}

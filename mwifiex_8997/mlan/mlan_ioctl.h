@@ -1214,7 +1214,7 @@ typedef struct _mlan_ds_bss {
 
 /** Type definition of mlan_ds_custom_reg_domain */
 typedef struct _mlan_ds_custom_reg_domain {
-	t_u8 cfg_len;
+	t_u16 cfg_len;
 	t_u8 cfg_buf[0];
 } mlan_ds_custom_reg_domain;
 /*-----------------------------------------------------------------*/
