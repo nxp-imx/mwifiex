@@ -1192,24 +1192,28 @@ const struct wiphy_vendor_command vendor_commands[] = {
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_set_drvdbg,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_drvdbg,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_get_valid_channels,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_get_valid_channels,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_set_scan_mac_oui,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_scan_mac_oui,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 #ifdef STA_CFG80211
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_rssi_monitor,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_rssi_monitor,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 #endif
 	{
@@ -1217,6 +1221,7 @@ const struct wiphy_vendor_command vendor_commands[] = {
 		  sub_cmd_set_roaming_offload_key,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_roaming_offload_key,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 
 	{
@@ -1224,6 +1229,7 @@ const struct wiphy_vendor_command vendor_commands[] = {
 		  sub_cmd_dfs_capability,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_dfs_offload,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 
 	{
@@ -1231,36 +1237,42 @@ const struct wiphy_vendor_command vendor_commands[] = {
 		  sub_cmd_get_correlated_time,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_get_correlated_time,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_nd_offload},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_11k_cfg,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_get_drv_version,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_get_drv_version,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_get_fw_version,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_get_fw_version,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_get_wifi_supp_feature_set,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_get_supp_feature_set,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_set_country_code,},
 	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_country_code,
+	 .policy = VENDOR_CMD_RAW_DATA,
 	 },
 
 };

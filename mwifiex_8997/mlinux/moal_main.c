@@ -344,9 +344,14 @@ struct net_device_stats *woal_get_stats(struct net_device *dev);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
+u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb,
+		      struct net_device *sb_dev);
+#else
 u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb,
 		      struct net_device *sb_dev,
 		      select_queue_fallback_t fallback);
+#endif
 #else
 u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb,
 		      void *accel_priv, select_queue_fallback_t fallback);
@@ -4662,7 +4667,7 @@ woal_select_queue(struct net_device *dev, struct sk_buff *skb
 #else
 		  , void *accel_priv
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
 		  , select_queue_fallback_t fallback
 #endif
 #endif

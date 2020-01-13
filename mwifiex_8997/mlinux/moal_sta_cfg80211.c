@@ -2309,6 +2309,15 @@ done:
 		if (ieee80211_is_assoc_resp
 		    (((struct ieee80211_mgmt *)ssid_bssid.assoc_rsp.
 		      assoc_resp_buf)->frame_control))
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
+			cfg80211_rx_assoc_resp(priv->netdev, req->bss,
+					       ssid_bssid.assoc_rsp.
+					       assoc_resp_buf,
+					       ssid_bssid.assoc_rsp.
+					       assoc_resp_len, -1,
+					       NULL, 0);
+#else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 			cfg80211_rx_assoc_resp(priv->netdev, req->bss,
 					       ssid_bssid.assoc_rsp.
@@ -2328,6 +2337,7 @@ done:
 					       assoc_resp_buf,
 					       ssid_bssid.assoc_rsp.
 					       assoc_resp_len);
+#endif
 #endif
 #endif
 	}
