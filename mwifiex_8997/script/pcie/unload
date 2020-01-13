@@ -1,0 +1,17 @@
+ifconfig mlan0 down
+ifconfig uap0 down
+ifconfig uap1 down
+ifconfig wfd0 down
+ifconfig wfd1 down
+ifconfig nan0 down
+for (( i = 0; i <= 30; i++ ))
+do
+    rmmod pcie8xxx 2> /dev/null
+    lsmod 2>&1 | grep pcie8xxx > /dev/null
+    if [ ! $? -eq 0 ]; then
+        break
+    fi
+    sleep 1
+done
+rmmod mlan
+sleep 5

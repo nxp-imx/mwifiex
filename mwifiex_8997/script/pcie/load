@@ -1,0 +1,15 @@
+if echo $1 2>&1 | grep dbg > /dev/null; then
+    insmod mlan-dbg.ko
+else
+    insmod mlan.ko
+fi
+insmod $1.ko $2 $3 $4 $5 $6 $7 $8
+for (( i = 1; i <= 10; i++ ))
+do
+    ifconfig -a 2>&1 | grep -E "(mlan0|uap0|wfd0)" > /dev/null
+    if [ $? -eq 0 ]; then
+        exit
+    fi
+    sleep 1
+done
+
