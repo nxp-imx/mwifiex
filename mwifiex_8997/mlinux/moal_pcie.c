@@ -25,6 +25,7 @@ Change log:
 ********************************************************/
 
 #include <linux/firmware.h>
+#include <linux/pm_qos.h>
 
 #include	"moal_pcie.h"
 
@@ -33,6 +34,7 @@ Change log:
 ********************************************************/
 #define DRV_NAME        "Marvell mdriver PCIe"
 
+static struct pm_qos_request woal_pcie_pm_qos_req;
 /* PCIE resume handler */
 static int woal_pcie_resume(struct pci_dev *pdev);
 
@@ -956,9 +958,11 @@ woal_bus_register(void)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
 
+	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 	/* API registers the Marvell PCIE driver */
 	if (pci_register_driver(&wlan_pcie)) {
 		PRINTM(MFATAL, "PCIE Driver Registration Failed \n");
+		pm_qos_remove_request(&woal_pcie_pm_qos_req);
 		ret = MLAN_STATUS_FAILURE;
 	}
 
@@ -978,6 +982,7 @@ woal_bus_unregister(void)
 
 	/* PCIE Driver Unregistration */
 	pci_unregister_driver(&wlan_pcie);
+	pm_qos_remove_request(&woal_pcie_pm_qos_req);
 
 	LEAVE();
 }
