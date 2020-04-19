@@ -1,0 +1,1125 @@
+===============================================================================
+			U S E R  M A N U A L
+
+ Copyright 2014-2020 NXP
+
+
+1) FOR DRIVER BUILD
+
+	Goto source code directory wlan_src/.
+	make [clean] build
+	The driver and utility binaries can be found in ../bin_xxxx directory.
+	The driver code supports Linux kernel from 2.6.32 to 5.5.2.
+
+2) FOR DRIVER INSTALL
+
+	a) Copy firmware image to /lib/firmware/nxp/, copy wifi_mod_para.conf to /lib/firmware/nxp/.
+	b) Install WLAN driver
+	   There are drv_mode, max_sta_bss, max_uap_bss etc. module parameters.
+		The bit settings of drv_mode are,
+			Bit 0 :  STA
+			Bit 1 :  uAP
+			Bit 2 :  WIFIDIRECT
+
+		max_sta_bss: Maximum number of STA BSS (default 1, max 1)
+		sta_name: Name of the STA interface (default: "mlan")
+		max_uap_bss: Maximum number of uAP BSS (default 1, max 1)
+		uap_name: Name of the uAP interface (default: "uap")
+		uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 64)
+		max_wfd_bss: Maximum number of WIFIDIRECT BSS (default 1, max 1)
+		wfd_name: Name of the WIFIDIRECT interface (default: "wfd")
+		max_vir_bss: Number of Virtual interfaces (default 0)
+		uap_oper_ctrl: uAP operation control when in-STA disconnect with ext-AP
+                               0: default do nothing, 2: uAP stops and restarts automatically
+	   For example, to install multi-chip driver,
+		insmod mlan.ko
+		insmod moal.ko mod_para=nxp/wifi_mod_para.conf [drvdbg=0x7]
+	   wifi_mod_para.conf is used to support multi-chips which has different load module parameters. It contains
+           the module parameters for different chips.
+	c) Uninstall WLAN driver,
+		ifconfig mlanX down
+		ifconfig uapX down
+		rmmod moal
+		rmmod mlan
+
+	To load driver with MFG firmware file, use mfg_mode=1 when insmod WLAN driver and
+	specify MFG firmware name if needed.
+
+	There are some other parameters for debugging purpose etc. Use modinfo to check details.
+	  drvdbg=<bit mask of driver debug message control>
+	  dev_cap_mask=<Bit mask of the device capability>
+	  mac_addr=xx:xx:xx:xx:xx:xx <override the MAC address (in hex)>
+	  auto_ds=0|1|2 <use MLAN default | enable auto deepsleep | disable auto deepsleep>
+	  ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
+	  max_tx_buf=2048|4096|8192 <maximum AMSDU Tx buffer size>
+	  pm_keep_power=1|0 <PM keep power in suspend (default) | PM no power in suspend>
+	  shutdown_hs=1|0 <Enable HS when shutdown | No HS when shutdown (default)>
+	  cfg_11d=0|1|2 <use MLAN default | enable 11d | disable 11d>
+	  dts_enable=0|1 <Disable DTS | Enable DTS (default)>
+	  fw_name = <FW file name>
+		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin
+	  fw_region <Enable create channel regulatory domain from FW (default) | disable create channel regulatory domain from FW>
+	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
+	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
+	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
+	  antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
+	  slew_rate: Slew Rate Control value = 0|1|2|3 (0 is the slowest slew rate and 03 has the highest slew rate (default))
+	  init_cfg=<init config (MAC addresses, registers etc.) file name>
+		e.g. copy init_cfg.conf to firmware directory, init_cfg=nxp/init_cfg.conf
+	  cal_data_cfg=<CAL data config file name>
+		e.g. copy cal_data.conf to firmware directory, cal_data_cfg=nxp/cal_data.conf
+	 dpd_data_cfg=<DPD data config file name>
+	   e.g. copy dpd_data.conf to firmware directory, dpd_data_cfg=nxp/dpd_data.conf
+	  txpwrlimit_cfg=<Tx power limit config file name>
+		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=nxp/txpwrlimit_cfg_set.conf
+	  cntry_txpwr=<Enable setting tx power table of country | Disable setting tx power table of country (default)>
+	  init_hostcmd_cfg=<init hostcmd config file name>
+		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=nxp/init_hostcmd_cfg.conf
+	  sdio_rx_aggr=1|0 <Enable SDIO rx aggr (default) | Disable SDIO rx aggr>
+	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
+		Bit 0: STA WEXT
+		Bit 1: uAP WEXT
+		Bit 2: STA CFG80211
+		Bit 3: uAP CFG80211
+	  reg_alpha2=<Regulatory alpha2 (default NULL)>
+	  skip_fwdnld=0|1 <enable FW download support (default) | disable FW download support>
+	  wq_sched_prio: Priority for work queue
+	  wq_sched_policy: Scheduling policy for work queue
+		(0: SCHED_NORMAL, 1: SCHED_FIFO, 2: SCHED_RR, 3: SCHED_BATCH, 5: SCHED_IDLE)
+		Please note that, both wq_sched_prio and wq_sched_policy should be provided
+		as module parameters. If wq_sched_policy is (0, 3 or 5), then wq_sched_prio
+		must be 0. wq_sched_prio should be 1 to 99 otherwise.
+	  rx_work=0|1|2 <default | Enable rx_work_queue | Disable rx_work_queue>
+	  pcie_int_mode=0|1|2 <Legacy mode, MSI mode (default), MSI-X mode>
+	  pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
+	wakelock_timeout=<set wakelock_timeout value (ms)>
+	defined(SD9098)||defined(USB9098) || defined(PCIE9098) || defined(SD9097) || defined(USB9097)|| defined(PCIE9097)||defined(SD8978)
+	pmic=0|1 <No pmic configure cmd sent to firmware | Send pmic configure cmd to firmware>
+	indication_gpio=0xXY <GPIO to indicate wakeup source and its level; high four bits X:
+                  level(0/1) for normal wakeup; low four bits Y: GPIO pin number. This parameter
+                  only works with specific board and firmware.>
+	hs_wake_interval=<Host sleep wakeup interval,it will round to nearest multiple dtim*beacon_period in fw>
+	disconnect_on_suspend=0|1 <Disable disconnect wifi on suspend (default) | Enable disconnect wifi on suspend>
+	hs_mimo_switch=0|1 <Disable dynamic MIMO-SISO switch during host sleep (default) | Enable dynamic MIMO-SISO switch during host sleep>
+	  usb_aggr=0|1|2 <use MLAN default (disabled) | enable USB aggr | disable USB aggr>
+	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
+	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
+	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
+      indrstcfg=<2-byte IR configuration>
+      gpio pin (high byte): GPIO pin no to be used as trigger for out band reset
+        (0xFF: default pin configuration)
+      ir_mode (low byte) : independent reset mode
+        (0: disable, 1: enable out band, 2: enable in band)
+      For example, to enable out band reset via gpio_pin 14
+       indrstcfg=0x0e01
+      To enable out band reset via default gpio_pin
+       indrstcfg=0xff01
+      To enable in band reset and disable out band reset
+       indrstcfg=0x02
+	fixed_beacon_buffer=0|1 <allocate default buffer size (default) | allocate max buffer size>
+	GoAgeoutTime=0|x <use default ageout time (default) | set Go age out time xTU(TU 100ms)>
+	multi_dtim=0|x <use default DTIM interval (default) | set x*beacon_period as DTIM interval>
+	inact_tmo=0|x <use default IEEE ps inactivity timout value (default) | use IEEE ps inactivity timeout value x ms>
+	host_mlme=0|1 <Disable Host MLME support (default)| Enable Host MLME support>
+	country_ie_ignore=0|1 <Follow countryIE from AP and beacon hint enable (default) | Ignore countryIE from AP and beacon hint disable>
+	beacon_hints=0|1 <enable beacon hints(default) | disable beacon hints>
+
+	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
+	for module parameters.
+		insmod sdxxx.ko "<para1> <para2> ..."
+
+3) FOR DRIVER PROC & DEBUG
+
+	The following info are provided in /proc/net/mwlan/adapterX/mlanY/info,
+	on kernel 2.6.24 or later, the entry is /proc/mwlan/adapterX/mlanY/info.
+
+	driver_name = "wlan"
+	driver_version = <chip id, firmware version and driver version>
+	interface_name = "mlanX"
+	bss_mode = "Ad-hoc" | "Managed" | "Auto" | "Unknown"
+	media_state = "Disconnected" | "Connected"
+	mac_address = <6-byte adapter MAC address>
+	multicase_count = <multicast address count>
+	essid = <current SSID>
+	bssid = <current BSSID>
+	channel = <current channel>
+	region_code = <current region code>
+	multicast_address[n] = <multicast address>
+	num_tx_bytes = <number of bytes sent to device>
+	num_rx_bytes = <number of bytes received from device and sent to kernel>
+	num_tx_pkts = <number of packets sent to device>
+	num_rx_pkts = <number of packets received from device and sent to kernel>
+	num_tx_pkts_dropped = <number of Tx packets dropped by driver>
+	num_rx_pkts_dropped = <number of Rx packets dropped by driver>
+	num_tx_pkts_err = <number of Tx packets failed to send to device>
+	num_rx_pkts_err = <number of Rx packets failed to receive from device>
+	carrier "on" | "off"
+	tx queue "stopped" | "started"
+
+	The following debug info are provided in /proc/net/mwlan/adapterX/mlanY/debug,
+	on kernel 2.6.24 or later, the entry is /proc/mwlan/adapterX/mlanY/debug.
+
+	drvdbg = <bit mask of driver debug message control>
+	wmm_ac_vo = <number of packets sent to device from WMM AcVo queue>
+	wmm_ac_vi = <number of packets sent to device from WMM AcVi queue>
+	wmm_ac_be = <number of packets sent to device from WMM AcBE queue>
+	wmm_ac_bk = <number of packets sent to device from WMM AcBK queue>
+	max_tx_buf_size = <maximum Tx buffer size>
+	tx_buf_size = <current Tx buffer size>
+	curr_tx_buf_size = <current Tx buffer size in FW>
+	ps_mode = <0/1, CAM mode/PS mode>
+	ps_state = <0/1/2/3, awake state/pre-sleep state/sleep-confirm state/sleep state>
+	is_deep_sleep = <0/1, not deep sleep state/deep sleep state>
+	wakeup_dev_req = <0/1, wakeup device not required/required>
+	wakeup_tries = <wakeup device count, cleared when device awake>
+	hs_configured = <0/1, host sleep not configured/configured>
+	hs_activated = <0/1, extended host sleep not activated/activated>
+	tx_pkts_queued = <number of Tx packets queued>
+	pps_uapsd_mode = <0/1, PPS/UAPSD mode disabled/enabled>
+	sleep_pd = <sleep period in milliseconds>
+	qos_cfg = <WMM QoS info>
+	tx_lock_flag = <0/1, Tx lock flag>
+	port_open = <0/1, port open flag>
+	scan_processing = <0/1, scan processing flag>
+	num_tx_timeout = <number of Tx timeout>
+	num_cmd_timeout = <number of timeout commands>
+	timeout_cmd_id = <command id of the last timeout command>
+	timeout_cmd_act = <command action of the last timeout command>
+	last_cmd_id = <command id of the last several commands sent to device>
+	last_cmd_act = <command action of the last several commands sent to device>
+	last_cmd_index = <0 based last command index>
+	last_cmd_resp_id = <command id of the last several command responses received from device>
+	last_cmd_resp_index = <0 based last command response index>
+	last_event = <event id of the last several events received from device>
+	last_event_index = <0 based last event index>
+	num_cmd_h2c_fail = <number of commands failed to send to device>
+	num_cmd_sleep_cfm_fail = <number of sleep confirm failed to send to device>
+	num_tx_h2c_fail = <number of data packets failed to send to device>
+	num_cmdevt_c2h_fail = <number of commands/events failed to receive from device>
+	num_rx_c2h_fail = <number of data packets failed to receive from device>
+	num_int_read_fail = <number of interrupt read failures>
+	last_int_status = <last interrupt status>
+	num_evt_deauth = <number of deauthenticated events received from device>
+	num_evt_disassoc = <number of disassociated events received from device>
+	num_evt_link_lost = <number of link lost events received from device>
+	num_cmd_deauth = <number of deauthenticate commands sent to device>
+	num_cmd_assoc_ok = <number of associate commands with success return>
+	num_cmd_assoc_fail = <number of associate commands with failure return>
+	cmd_sent = <0/1, send command resources available/sending command to device>
+	data_sent = <0/1, send data resources available/sending data to device>
+	mp_rd_bitmap = <SDIO multi-port read bitmap>
+	curr_rd_port = <SDIO multi-port current read port>
+	mp_wr_bitmap = <SDIO multi-port write bitmap>
+	curr_wr_port = <SDIO multi-port current write port>
+	txbd_rdptr = <PCIE transmit read pointer>
+	txbd_wrptr = <PCIE transmit write pointer>
+	rxbd_rdptr = <PCIE recieve read pointer>
+	rxbd_wrptr = <PCIE recieve write pointer>
+	eventbd_rdptr = <PCIE event read pointer>
+	eventbd_wrptr = <PCIE event write pointer>
+	cmd_resp_received = <0/1, no cmd response to process/response received and yet to process>
+	event_received = <0/1, no event to process/event received and yet to process>
+	tx_cmd_urb_pending = <number of URB pending for cmd transmit>
+	tx_data_urb_pending = <number of URB pending for data transmit>
+	rx_cmd_urb_pending = <number of URB pending for cmd receive>
+	rx_data_urb_pending = <number of URB pending for data receive>
+	ioctl_pending = <number of ioctl pending>
+	tx_pending = <number of Tx packet pending>
+	rx_pending = <number of Rx packet pending>
+	lock_count = <number of lock used>
+	malloc_count = <number of malloc done>
+	mbufalloc_count = <number of mlan_buffer allocated>
+	malloc_cons_count = <number of consistent malloc done>
+	main_state = <current state of the main process>
+	sdiocmd53w = <SDIO Cmd53 write status>
+	sdiocmd53r = <SDIO Cmd52 read status>
+	hs_skip_count = <number of skipped suspends>
+	hs_force_count = <number of forced suspends>
+
+	Issue SDIO cmd52 read/write through proc.
+	Usage:
+		echo "sdcmd52rw=<func> <reg> [data]" > /proc/mwlan/adapterX/config
+	where the parameters:
+		func: The function number to use (0-7)
+		reg:  The address of the register
+		data: The value to write, read if the value is absent
+		For SDIO MMC driver, only function 0 and WLAN function access is allowed.
+		And there is a limitation for function 0 write, only vendor specific CCCR
+		registers (0xf0 -0xff) are permiited.
+	Examples:
+		echo "sdcmd52rw= 0 4" > /proc/mwlan/adapterX/config      # read func 0 address 4
+		cat /proc/mwlan/adapterX/config                          # display the register value
+		echo "sdcmd52rw= 1 3 0xf" > /proc/mwlan/adapterX/config  # write 0xf to func 1 address 3
+
+	Use dmesg or cat /var/log/debug to check driver debug messages.
+	To log driver debug messages to file,
+	a) Edit /etc/syslog.conf, add one line "*.debug		/var/log/debug"
+	   on kernel 2.6.24 or later, edit /etc/rsyslog.conf instead
+	b) touch /var/log/debug (if the file doesn't exist)
+	c) service syslog restart
+	   on kernel 2.6.24 or later, service rsyslog restart
+
+	Update /proc/sys/kernel/printk to change message log levels.
+	For example,
+	echo 6 > /proc/sys/kernel/printk    (messages with a higher priority than 6
+	                                     will be printed to the console)
+	echo 15 > /proc/sys/kernel/printk   (all messages will be printed to console)
+
+4) FOR IWPRIV COMMAND
+
+NAME
+	This manual describes the usage of private commands used in NXP MLAN
+	Linux Driver.
+
+	To use parameters as hex format, a '0x' must precede it for the parameters to
+	be parsed properly.
+
+SYNOPSIS
+	iwpriv <mlanX> <command> [sub-command] ...
+
+	iwpriv mlanX version
+	iwpriv mlanX verext
+	iwpriv mlanX getsignal [m] [n]
+	iwpriv mlanX antcfg [m] [n]
+	iwpriv mlanX regioncode [n]
+	iwpriv mlanX cfpcode [m] [n]
+	iwpriv mlanX wwscfg [m]
+	iwpriv mlanX esuppmode
+	iwpriv mlanX passphrase <ssid/psk/passphrase>
+	iwpriv mlanX httxcfg [<m>] [<n>]
+	iwpriv mlanX htcapinfo [<m>] [<n>]
+	iwpriv mlanX addbapara <m> <n> <o> <p> <q>
+	iwpriv mlanX aggrpriotbl <n>
+	iwpriv mlanX addbareject <n>
+	iwpriv mlanX txbufcfg
+	iwpriv mlanX amsduaggrctrl <n>
+	iwpriv mlanX httxbfcap [cap]
+	iwpriv mlanX httxbfcfg "<action>[;GlobalData/tsData/interval/txPeerData/snrData]"
+	iwpriv mlanX mpactrl [tx_ena] [rx_ena] [tx_size] [rx_size] [tx_ports] [rx_ports]
+	iwpriv mlanX deepsleep [n] [m]
+	iwpriv mlanX usbsuspend
+	iwpriv mlanX usbresume
+	iwpriv mlanX hscfg [condition [[GPIO# [gap]]]]
+	iwpriv mlanX hssetpara condition [GPIO# [gap]]
+	iwpriv mlanX deauth [n]
+	iwpriv mlanX radioctrl
+	iwpriv mlanX reassoctrl [n]
+	iwpriv mlanX bandcfg [l] [m] [n]
+	iwpriv mlanX getlog
+	iwpriv mlanX 11dcfg
+	iwpriv mlanX 11dclrtbl
+	iwpriv mlanX wmmcfg [n]
+	iwpriv mlanX hotspotcfg [n]
+	iwpriv mlanX txpowercfg [<RateIndex> [<MinPwr> [<MaxPwr> <step>]]]
+	iwpriv mlanX qoscfg
+	iwpriv mlanX getdatarate
+	iwpriv mlanX txratecfg [n]
+	iwpriv mlanX bcninterval [n]
+	iwpriv mlanX sysclock [clk1] [clk2] [clk3] [clk4]
+	iwpriv mlanX drvdbg [n]
+	iwpriv mlanX mgmtframectrl
+	iwpriv mlanX warmreset
+	iwpriv mlanX regrdwr <type> <offset> [value]
+	iwpriv mlanX rdeeprom <offset> <length>
+	iwpriv mlanX memrdwr <address> [value]
+	iwpriv mlanX inactivityto <n> <m> <l> [k]
+	iwpriv mlanX sdioclock <n>
+	iwpriv mlanX sdcmd52rw <FN no.> <address> [data]
+	iwpriv mlanX scancfg [t] [m] [p] [s] [a] [b] [ext]
+	iwpriv mlanX sleeppd [n]
+	iwpriv mlanX pscfg [k] [d] [l] ...
+	iwpriv mlanX getkey
+	iwpriv mlanX associate "<bssid> <ssid>"
+	iwpriv mlanX sleepparams [<p1> <p2> <p3> <p4> <p5> <p6>]
+	iwpriv mlanX authtype [n]
+	iwpriv mlanX powercons [n]
+	iwpriv mlanX htstreamcfg [n]
+	iwpriv mlanX ipaddr ["<op>;<ipaddr>"]
+	iwpriv mlanX macctrl [n]
+	iwpriv mlanX dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
+	iwpriv mlanX thermal
+    iwpriv mlanX indrstcfg <ir_mode> [gpio_pin]
+
+DESCRIPTION
+	Those commands are used to send additional commands to the NXP MLAN
+	card via the Linux device driver.
+
+	The mlanX parameter specifies the network device that is to be used to
+	perform this command on. It could be mlan0, mlan1 etc.
+
+version
+	This is used to get the current version of the driver and the firmware.
+
+verext
+	Retrieve and display an extended version string from the firmware
+
+	Usage:
+		iwpriv mlanX verext [#]
+
+	where [#] is an optional argument to retrieve a specific version string,
+	omission of the argument retrieves the 0 indexed string.
+
+getsignal
+	This command gets the last and average value of RSSI, SNR and NF of
+	Beacon and Data.
+	Note: This command is available only when STA is connected.
+
+	where value of m is:
+		1   -- RSSI (Receive Signal Strength Indication)
+		2   -- SNR (Signal to Noise Ratio)
+		3   -- NF (Noise Floor)
+	where value of n is:
+		1   -- Beacon last
+		2   -- Beacon average
+		3   -- Data last
+		4   -- Data average
+
+	Examples:
+		iwpriv mlan0 getsignal 1        : Get the RSSI info (beacon last, beacon
+		                                  average, data last and data average)
+		iwpriv mlan0 getsignal 3 4      : Get the NF of data average
+		iwpriv mlan0 getsignal 2 1      : Get the SNR of beacon last
+		iwpriv mlan0 getsignal          : Get all of the signal info
+		mlan0     getsignal:-32  -33  -35  -36  67  59  63  56  -99  -92  -98  -92
+		RSSI info: beacon last -32, beacon average -33, data last -35, data average -36
+		SNR info: beacon last 67, beacon average 59, data last 63, data average 56
+		NF info: beacon last -99, beacon average -92, data last -98, data average -92
+
+antcfg
+	This command is used to set/get the mode of Tx/Rx path.
+
+	where value of m is:
+		Bit 0   -- Tx Path A
+		Bit 1   -- Tx Path B
+		Bit 0-1 -- Tx Path A+B
+		For 9097/9098, LOW BYTE for 2G setting
+		Bit 8   -- Tx Path A
+		Bit 9   -- Tx Path B
+		Bit 8-9 -- Tx Path A+B
+		For 9097/9098, HIGH BYTE for 5G setting
+
+	where value of n is:
+		Bit 0   -- Rx Path A
+		Bit 1   -- Rx Path B
+		Bit 0-1 -- Rx Path A+B
+		For 9097/9098, LOW BYTE for 2G setting
+		Bit 8   -- Rx Path A
+		Bit 9   -- Rx Path B
+		Bit 8-9 -- Rx Path A+B
+		For 9097/9098, HIGH BYTE for 5G setting
+	The Tx path setting (m) is used if Rx path (n) is not provided.
+
+	Examples:
+		iwpriv mlan0 antcfg             : Get Tx and Rx path
+		iwpriv mlan0 antcfg 3           : Set Tx and Rx path to A+B
+		iwpriv mlan0 antcfg 1 3         : Set Tx path to A and Rx path to A+B
+		mlanutl mlan0 antcfg 0x103       : Set Tx and Rx path to A+B on 2G and Tx and Rx path to A on 5G
+		mlanutl mlan0 antcfg 0x103 0x103     : Set Tx path to A+B and Rx path to A+B on 2G, and Tx and Rx path to A on 5G
+
+regioncode
+	This command is used to set/get the region code in the station.
+	Note: This command should be issued at beginning before band/channel selection
+	and association.
+
+	where value is 'region code' for various regions like
+	USA FCC, Canada IC, Europe ETSI, Japan ...
+	The special code (0xff) is used for Japan to support channel 1-14 in B/G/N mode.
+
+	Examples:
+		iwpriv mlan0 regioncode         : Get region code
+		iwpriv mlan0 regioncode 0x10    : Set region code to USA (0x10)
+
+	Note : in some case regioncode will be 0 after updated countycode or 80211d
+		i.e. mlanutl mlanX countrycode  (CA, JP, CN, DE, ES AT, BR, RU)
+		or uaputl.exe sys_cfg_80211d state 1 country (CA, JP, CN, DE, ES AT, BR, RU)
+		Please use cfp instead of it.
+
+cfpcode
+	This command is used to set/get the Channel-Frequency-Power table codes.
+	The region table can be selected through region code.
+	The current configuration is returned if no parameter provided.
+
+	where the parameters are,
+		[m]: code of the CFP table for 2.4GHz (0: unchanged)
+		[n]: code of the CFP table for 5GHz (0 or not provided: unchanged)
+
+	Examples:
+		iwpriv mlan0 cfpcode            : Get current configuration
+		iwpriv mlan0 cfpcode 0x30       : Set 2.4GHz CFP table code 0x30 (EU),
+		                                  keep 5GHz table unchanged
+		iwpriv mlan0 cfpcode 0x10 5     : Set 2.4GHz CFP table code 0x10 (USA)
+		                                  and 5GHz table code 5
+
+wwscfg
+	This command is used to set/get the WWS (World Wide Safe) mode.
+
+	where value of m is:
+		0       -- Disable WWS mode (default)
+		1       -- Enable WWS mode
+
+	Examples:
+		iwpriv mlan0 wwscfg             : Get WWS mode
+		iwpriv mlan0 wwscfg 1           : Enable WWS mode
+		iwpriv mlan0 wwscfg 0           : Disable WWS mode
+
+esuppmode
+	This command is used to get the current RSN mode and active pairwise/group
+    cipher for WPA/WPA2 mode.
+	Note: This command is available only when STA is connected.
+
+	These are bits settings used to indicate each RSN mode.
+		Bit 0    : No RSN
+		Bit 1-2  : RFU
+		Bit 3    : WPA
+		Bit 4    : WPA-NONE
+		Bit 5    : WPA2
+		Bit 6    : AES
+		Bit 7-15 : RFU
+
+	These are bits settings used to indicate each pairwise and group cipher.
+		Bit 0    : RFU
+		Bit 1    : RFU
+		Bit 2    : TKIP
+		Bit 3    : AES
+		Bit 2-7  : RFU
+
+	Example:
+		iwpriv mlan0 esuppmode          : Get RSN mode and pairwise/group cipher
+		8 4 4
+		(The current RSN mode is WPA, active pairwise cipher is TKIP and
+		 active group cipher is TKIP.)
+
+passphrase
+	This command is used to set/get passphrase for WPA-PSK/WPA2-PSK mode.
+
+	Where <n>
+		ASCII string for ssid/passphrase/psk.
+
+	This passphrase is used as password if WPA3 SAE protocol is configured, so please
+	use extremely difficult to guess password to protect from attacks.
+
+	Also setting psk for WPA3 SAE protocol is not possible, as new psk gets generated
+	everytime in protocol flow.
+
+	1) "0;<ssid=valid ssid>" - This will get the passphrase, AKMP
+	   for specified ssid, if none specified then it will get all.
+
+	Example:
+		iwpriv mlan0 passphrase "0;ssid=nxp"
+
+	2) "1;<psk=64 byte hexpsk>;<passphrase=1-63 byte passphare>
+	   <ssid=valid ssid>" - Passphrase and psk cannot be provided for the same SSID.
+	   This command takes only one SSID at a time, If ssid= is present it should contain
+	   a passphrase or psk. If no arguments are provided then AKMP=802.1x, and passphrase
+	   should be provided after association.
+	   End of each parameter should be followed by a ';'(except for the last parameter)
+	   as the delimiter. If ';' or '/' has to be used in an SSID then a '/' should be preceded
+	   to ';' or '/' as a escape.
+
+	Examples:
+		iwpriv mlan0 passphrase "1;ssid=nxpAP;passphrase=abcdefgd"
+		iwpriv mlan0 passphrase "1;ssid=nxp AP;psk=<64 bytes hexpsk>"
+
+		If user wants to input the ssid as "nxp; AP" then command has to be
+		iwpriv mlan0 passphrase "1;ssid=nxp/; AP;passphrase=abcdefgh"
+
+		If user wants to input the ssid as "//;" then command has to be
+		iwpriv mlan0 passphrase "1;ssid=/////;;passphrase=abcdefgh"
+
+	3) "2;<ssid=valid ssid>" - This will clear the passphrase
+	   for specified ssid, if none specified then it will clear all.
+
+	Examples:
+		iwpriv mlan0 passphrase "2;ssid=nxp"
+		iwpriv mlan0 passphrase "2"     : Clear all profiles and disable embedded supplicant
+
+httxcfg
+	This command is used to configure various 11n specific configuration
+	for transmit (such as Short GI, Channel BW and Green field support)
+
+	where <m> is <txcfg>
+	This is a bitmap and should be used as following
+		Bit 15-8: Reserved set to 0
+		Bit 7: STBC enable/disable
+		Bit 6: Short GI in 40 Mhz enable/disable
+		Bit 5: Short GI in 20 Mhz enable/disable
+		Bit 4: Green field enable/disable
+		Bit 3-2: Reserved set to 1
+		Bit 1: 20/40 Mhz enable disable.
+		Bit 0: LDPC enable/disable
+
+	When Bit 1 is set then firmware could transmit in 20Mhz or 40Mhz based
+	on rate adaptation. When this bit is reset then firmware will only
+	transmit in 20Mhz.
+
+	where <n> is <band>
+	<band> - This is the band info for <txcfg> settings.
+		0: Settings for both 2.4G and 5G bands
+		1: Settings for 2.4G band
+		2: Settings for 5G band
+
+	Examples:
+		iwpriv mlanX httxcfg
+		This will display HT Tx configuration.
+		If the configurations for 2.4G and 5G are different,
+		the first value is for 2.4G and the second value is for 5G.
+		Otherwise, it will display a single value for both bands.
+
+		iwpriv mlanX httxcfg 0x62
+		This will enable 20/40 and Short GI but will disable Green field for 2.4G and 5G band.
+
+		iwpriv mlanX httxcfg 0x30 1
+		This will enable Short GI 20 Mhz and Green field for 2.4G band.
+
+	The default value is 0x20 for 2.4G and 0x62 for 5G.
+
+	Note:- If 20/40 MHz support is disabled in htcapinfo, device will not transmit
+	in 40 MHz even 20/40 MHz is enabled in httxcfg.
+
+htcapinfo
+	This command is used to configure some of parameters in HTCapInfo IE
+	(such as Short GI, Channel BW, and Green field support)
+
+	where <m> is <capinfo>
+	<capinfo> - This is a bitmap and should be used as following
+		Bit 29: Green field enable/disable
+		Bit 26: Rx STBC Support enable/disable. (As we support
+			single spatial stream only 1 bit is used for Rx STBC)
+		Bit 24: Short GI in 40 Mhz enable/disable
+		Bit 23: Short GI in 20 Mhz enable/disable
+		Bit 17: 20/40 Mhz enable disable.
+		Bit  8: Enable/disable 40Mhz Intolarent bit in ht capinfo.
+		        0 will reset this bit and 1 will set this bit in
+		        htcapinfo attached in assoc request.
+		All others are reserved and should be set to 0.
+
+	Setting of any other bits will return error.
+
+	where <n> is <band>
+	<band> - This is the band info for <capinfo> settings.
+		0: Settings for both 2.4G and 5G bands
+		1: Settings for 2.4G band
+		2: Settings for 5G band
+
+	Examples:
+		iwpriv mlanX htcapinfo
+		This will display HT capabilties information.
+		If the information for 2.4G and 5G is different,
+		the first value is for 2.4G and the second value is for 5G.
+		Otherwise, it will display a single value for both bands.
+
+		iwpriv mlanX htcapinfo 0x1820000
+		This will enable Short GI, Channel BW to 20/40 and disable Green field support for 2.4G and 5G band.
+
+		iwpriv mlanX htcapinfo 0x800000 2
+		This will enable Short GI, Channel BW to 20 only, No Rx STBC support and disable Green field support for 5G band.
+
+	The default value is 0x4800000 for 2.4G and 0x5820000 for 5G.
+
+	Note:- This command can be issued any time but it will only come to effect from
+	next association. (as HTCapInfo is sent only during Association).
+
+addbapara
+	This command can be used to update the default ADDBA parameters.
+
+	where <m> is <timeout>
+	<timeout> - This is the block ack timeout for ADDBA request.
+		0 : Disable (recommended for throughput test)
+		1 - 65535 : Block Ack Timeout in TU
+
+	where <n> is <txwinsize>
+	<txwinsize> - Window size for ADDBA request. (16 is recommended and default value)
+
+	where <o> is <rxwinsize>
+	<rxwinsize> - Window size for ADDBA response. (48 is recommended and 32 is default value)
+	              (16 is recommended for IWNCOMM AP in WAPI throughput test)
+
+	Current window size limit for Tx as well as Rx is 1023.
+
+	where <p> is <txamsdu>
+	<txamsdu> - amsdu support for ADDBA request. (1 is default value)
+            0: disable amsdu in ADDBA request
+            1: enable amsdu in ADDBA request
+
+	where <q> is <rxamsdu>
+	<rxamsdu> - amsdu support for ADDBA response. (1 is default value)
+            0: disable amsdu in ADDBA response
+            1: enable amsdu in ADDBA response
+
+	eg:
+	iwpriv mlanX addbapara - This command will get the current addba params
+	iwpriv mlanX addbapara 1000 64 8 0 0 - This will change the ADDBA timeout to (1000 * 1024) us,
+			txwinsize to 64 and rxwinsize to 8 and disable amdsu in ADDBA request/response.
+
+	The default setting is 65535 16 32 1 1.
+
+	In case the ADDBA timeout value is updated then a ADDBA is sent for all streams
+	to update the timeout value.
+
+	In case txwinsize and/or rxwinsize is updated, the effect could only be seen on
+	next ADDBA request/response. The current streams will not be affected with this
+	change.
+
+	In case of txamsdu/rxamsdu is updated, the effect could only be seen on
+	next ADDBA request/response. The current streams will not be affected with this
+	change. AMSDU in AMPDU stream will be enabled when AP support this feature
+	and AMSDU is enabled in aggrpriotbl.
+
+aggrpriotbl
+	This command is used set/get the priority table for AMPDU/AMSDU traffic per tid.
+	This command can also be used to disable AMPDU/AMSDU for a given tid.
+	In case of AMPDU this priority table will be used to setup block ack (to make
+	sure the highest priority tid always uses AMPDU as we have limited AMPDU streams)
+
+	where <m0> <n0> <m1> <n1> ... <m7> <n7>
+
+	<mx> - This is priority for Tid0 for AMPDU packet. A priority could be any
+		   values between 0 - 7, 0xff to disable aggregation.
+	<nx> - This is priority for Tid0 for AMSDU packet. A priority could be any
+		   values between 0 - 7, 0xff to disable aggregation.
+
+	eg:
+	iwpriv mlanX aggrpriotbl - This command will get the current Priority table for AMPDU and AMSDU.
+						  <2 2 0 0 1 1 3 3 4 4 5 5 255 255 255 255>. This is read as
+						  <"Prio for AMPDU for Tid0" "Prio for AMSDU for Tid0"
+						   "Prio for AMPDU for Tid1" "Prio for AMSDU for Tid1" and so on
+	iwpriv mlanX aggrpriotbl 2 2 0 0 1 1 3 3 4 4 5 5 255 255 255 255 -
+						This will set the priority table for AMPDU and AMSDU
+						Priority for Tid0/AMPDU = 2, Tid0/AMSDU = 2, Tid1/AMPDU = 0, Tid1/AMSDU = 0
+						and so on. Aggregation for Tid6 and Tid7 are disabled.
+						Here higher the priority number, higher the priority (i.e. 7
+						has higher priority than 6). Similarly for AMSDU.
+	iwpriv mlanX aggrpriotbl 0xff 2 0xff 0 0xff 1 0xff 3 0xff 4 0xff 5 0xff 0xff 0xff 0xff - This will disable
+						AMPDU for all the TIDs but will still keep AMSDU enabled to Tid0 to Tid5
+
+	The default setting is 2 255 0 255 1 255 3 255 4 255 5 255 255 255 255 255.
+
+	A delBA should be seen in case a disable happens on a TID for which AMPDU stream
+	is currently setup.
+
+	Note:- This command should only be issue in disconnected state.
+
+addbareject
+	This command is used set/get the addbareject table for all the TIDs.
+	This command can also be used to enable rejection of ADDBA requests for a given tid.
+
+	where <m0> <m1> ... <m7>
+
+	<mX> - This can be 0/1 for TidX. 1 enables rejection of ADDBA request for TidX and
+		   0 would accept any ADDBAs for TidX.
+
+	eg:
+	iwpriv mlanX addbareject - This command will get the current table.
+	    [0 0 0 0 0 0 0 0]. ADDBA would be accepted for all TIDs. This is the default state.
+
+	iwpriv mlanX addbareject 0 0 1 1 0 0 0 0 - This command will accept ADDBA requests for
+		Tid [0,1,4,5,6,7] and reject ADDBA requests for Tid [2,3]
+
+	iwpriv mlanX addbareject 1 1 1 1 1 1 1 1 - This will enable rejection of ADDBA requests for
+		all Tids.
+
+	Note:- This command should only be issue in disconnected state.
+
+txbufcfg
+	This command can be used to get current buffer size.
+
+	eg:
+	iwpriv mlanX txbufcfg 	  - This will display the current buffer size.
+
+	Note:- The actual tx buf size will depends on AP's capability and max transmit buffer size.
+
+amsduaggrctrl
+	This command could be used to enable/disable a feature where firmware gives feedback to driver
+	regarding the optimal AMSDU buffer size to use with the current rate. Firmware will use the
+	current rate to decide the buffer size we could transmit. The max buffer size will still be
+	limited by buffer size provided in txbufcfg. (i.e. if the txbufcfg is 4K, then we could only transmit
+	4K/2K AMSDU packets, if the txbufcfg is 8K then we could transmit 8k/4k/2k based on current rate)
+
+	If enabled AMSDU buffer size at various rates will be as follows
+
+	1.	Legacy B/G rate.
+		No AMSDU aggregation.
+
+	2.	BW20 HT Rate:
+		When TX rate goes down,
+		MCS 7, 6, 5, 4:
+			a	8K aggregation size (if TX buffer size is 8K)
+			b	4K aggregation size (if TX buffer size is 4K)
+			c	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 3, 2:
+			a	4K aggregation size (if TX buffer size is 8K/4K)
+			b	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 1, 0:
+			a	No aggregation
+
+		When TX rate goes up,
+		MCS 7, 6, 5:
+			a	8K aggregation size (if TX buffer size is 8K)
+			b	4K aggregation size (if TX buffer size is 4K)
+			c	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 4, 3:
+			a	4K aggregation size (if TX buffer size is 8K/4K)
+			b	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 2, 1, 0:
+			a	No aggregation
+
+	3.	BW40 HT Rate:
+		When TX rate goes down,
+		MCS 7, 6, 5, 4, 3, 2, 1:
+			a	8K aggregation size (if TX buffer size is 8K)
+			b	4K aggregation size (if TX buffer size is 4K)
+			c	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 0:
+			a	No aggregation
+
+		When TX rate goes up,
+		MCS 7, 6, 5, 4, 3:
+			a	8K aggregation size (if TX buffer size is 8K)
+			b	4K aggregation size (if TX buffer size is 4K)
+			c	2K aggregation size (if TX buffer size is 2K)
+
+		MCS 2, 1, 0:
+			a	No aggregation
+
+	where <n> is 0/1 (for disable/enable)
+
+	eg:
+	iwpriv mlanx amsduaggrctrl 1 - Enable this feature
+	iwpriv mlanx amsduaggrctrl 0 - Disable this feature
+	iwpriv mlanx amsduaggrctrl - This will get the enable/disable flag
+	and the current AMSDU buffer size). The AMSDU buffer size returned is only
+	valid after association as before association there is no rate info.
+
+	Note:- This command to enable/disable could be given anytime (before/after
+			association). This feature is enabled by default by the driver during
+			initialization.
+
+httxbfcap
+	This command is used to set/get the TX beamforming capabilities.
+
+	Usage:
+		iwpriv mlanX httxbfcap [cap]
+
+	where the parameters are,
+		cap: TX beamforming capabilities
+			 Bit 0    : Implicit TX BF receiving capable
+			 Bit 1    : RX staggered sounding capable
+			 Bit 2    : TX staggered sounding capable
+			 Bit 3    : RX NDP capable
+			 Bit 4    : TX NDP capable
+			 Bit 5    : Implicit TX BF capable
+			 Bit 6-7  : Calibration
+			         0: - not supported
+			         1: - STA can respond to a calibration request using
+			              the CSI Report, but cannot initiate calibration
+			         2: - reserved
+			         3: - STA can both initiate and respond to a calibration request
+			 Bit 8    : Explicit CSI TX BF capable
+			 Bit 9    : Explicit non-compressed steering capable
+			 Bit 10   : Explicit compressed steering capable
+			 Bit 11-12: Explicit TX BF CSI feedback
+			         0: - not supported
+			         1: - delayed feedback
+			         2: - immediate feedback
+			         3: - delayed and immediate feedback
+			 Bit 13-14: Explicit non-compressed BF feedback capable
+			         0: - not supported
+			         1: - delayed feedback
+			         2: - immediate feedback
+			         3: - delayed and immediate feedback
+			 Bit 15-16: Explicit compressed BF feedback capable
+			         0: - not supported
+			         1: - delayed feedback
+			         2: - immediate feedback
+			         3: - delayed and immediate feedback
+			 Bit 17-18: Minimal grouping
+			         0: - no grouping (STA supports groups of 1)
+			         1: - groups of 1, 2
+			         2: - groups of 1, 4
+			         3: - groups of 1, 2, 4
+			 Bit 19-20: CSI number of beamformer antennas supported
+			         0: - single TX antenna sounding
+			         1: - 2 TX antenna sounding
+			         2: - 3 TX antenna sounding
+			         3: - 4 TX antenna sounding
+			 Bit 21-22: Non-compressed steering number of beamformer antennas supported
+			         0: - single TX antenna sounding
+			         1: - 2 TX antenna sounding
+			         2: - 3 TX antenna sounding
+			         3: - 4 TX antenna sounding
+			 Bit 23-24: Compressed steering number of beamformer antennas supported
+			         0: - single TX antenna sounding
+			         1: - 2 TX antenna sounding
+			         2: - 3 TX antenna sounding
+			         3: - 4 TX antenna sounding
+			 Bit 25-26: CSI max number of rows beamformer supported
+			         0: - single row of CSI
+			         1: - 2 rows of CSI
+			         2: - 3 rows of CSI
+			         3: - 4 rows of CSI
+			 Bit 27-28: Channel estimation capability
+			         0: - 1 space time stream
+			         1: - 2 space time streams
+			         2: - 3 space time streams
+			         3: - 4 space time streams
+			 Bit 29-31: Reserved
+
+	Examples:
+		iwpriv mlan0 httxbfcap             : Get the current TX BF capabilities
+		iwpriv mlan0 httxbfcap 0x0000001F  : Set the TX BF capabilities of the
+		                                     Implicit TX BF receiving capable,
+		                                     RX staggered sounding capable,
+		                                     TX staggered sounding capable,
+		                                     RX NDP capable and TX NDP capable
+
+httxbfcfg
+	This command is used to configure the TX beamforming options.
+	Note: Any new subcommand should be inserted in the second
+		argument and each argument of the sub command should be
+		separated by semicolon. For global configuration, the
+		arguments should be separated by space.
+
+	Usage:
+		iwpriv mlanX httxbfcfg "<action>[;GlobalData/tsData/interval/txPeerData/snrData]"
+
+	where the parameters are,
+		action: TX beamforming action
+			0: Control global parameters for beamforming
+		        1: Performs NDP Sounding for PEER
+		        2: TX BF interval in milliseconds
+		        3: Enable/Disable beamforming/sounding for a particular peer
+		        4: TX BF SNR Threshold for peer
+		        .. <for new subcommand>
+		GlobalData: Global parameter arguments.
+		    It contains beamforming enable, sounding enable, FB type, snr_threshold
+		    sounding interval, Beamformig mode values seperated by space.
+		    Syntax:
+			iwpriv mlanX httxbfcfg <action>;<beamforming enable> <sounding enable> <FB type>
+			                       <snr_threshold>  <sounding interval> <Beamforming mode>
+		tsData: Trigger sounding for PEER specific arguments,
+		        it contains PEER MAC and status
+		interval: TX BF interval in milliseconds
+		txPeerData: Enable/Disable beamforming/sounding for the indicated peer,
+		          it contains PEER MAC, sounding, beamfoming options and FB type;
+		snrData: TX BF SNR Threshold for peer, it contains PEER MAC and SNR
+
+	Examples:
+		iwpriv mlan0 httxbfcfg "0"                          : Get current global configuration parameter
+		iwpriv mlan0 httxbfcfg "2;00:50:43:20:BF:64"        : Get the TX BF periodicity for a given peer
+		iwpriv mlan0 httxbfcfg "3"                          : Get the list of MAC addresses that have
+		                                                      beamforming and/or sounding enabled
+		iwpriv mlan0 httxbfcfg "4"                          : Get the list of PEER MAC, SNR tuples
+		                                                      programmed into the firmware.
+		iwpriv mlan0 httxbfcfg "0;0 0 3 10 500 5"           : Disable beamforming, sounding, set FB type
+		                                                      to 3, snr threshold to 10, sounding interval
+		                                                      to 500 ms and beamforming mode to 5
+		iwpriv mlan0 httxbfcfg "1;00:50:43:20:BF:64"        : Perform NDP Trigger sounding to peer
+		                                                      00:50:43:20:BF:64
+		iwpriv mlan0 httxbfcfg "2;00:50:43:20:BF:64;500"    : Set TX BF periodicity for peer 00:50:43:20:BF:64
+		                                                      to 500 milliseconds
+		iwpriv mlan0 httxbfcfg "3;00:50:43:20:BF:43;1;0;3"  : Enable beamforming, disable sounding and set
+		                                                      FB type to 3 for peer 00:50:43:20:BF:43
+		iwpriv mlan0 httxbfcfg "4;00:50:43:20:BF:24;43"     : Set TX BF SNR threshold to peer
+		                                                      00:50:43:20:BF:24 with SNR 43
+
+mgmtframectrl
+	This command is used to get/set mask for the management frames which needs to be forwarded to application layer.
+
+	Usage:
+		iwpriv mlanX mgmtframectrl [m]
+
+	where the parameter [m] is the bit mask of management frame reception.
+		Following are the bit definitions.
+		Bit 0 : Association Request
+		Bit 1 : Association Response
+		Bit 2 : Re-Association Request
+		Bit 3 : Re-Association Response
+		Bit 4 : Probe Request
+		Bit 5 : Probe Response
+		Bit 8 : Beacon Frames
+
+	Examples:
+		iwpriv mlan0 mgmtframectrl         : Get the current Mgmt Frame forwarding mask
+		iwpriv mlan0 mgmtframectrl 0x0020  : Bit 5 is set, Forward probe response
+											 frames to application layer
+
+mpactrl
+	This command is used to set/get the Tx, Rx SDIO aggregation parameters.
+	Note: The parameters can be set only in disconnected state.
+
+	Usage:
+		iwpriv mlanX mpactrl [tx_ena] [rx_ena] [tx_size] [rx_size] [tx_ports] [rx_ports]
+
+	where the parameter are:
+		[tx_ena]: Enable/disable (1/0) Tx MP-A
+		[rx_ena]: Enable/disable (1/0) Rx MP-A
+		[tx_size]: Size of Tx MP-A buffer
+		[rx_size]: Size of Rx MP-A buffer
+		[tx_ports]: Max ports (1-16) for Tx MP-A
+		[rx_ports]: Max ports (1-16) for Rx MP-A
+	default values are 1 1 16384 32768 16 16
+	The MP-A may be disabled by default at build time if the MMC driver byte mode patch
+	is not available in kernel.
+
+	Examples:
+		iwpriv mlan0 mpactrl       : Get MP aggregation parameters
+		iwpriv mlan0 mpactrl 0 0
+		                           : Disable MP aggregation for Tx, Rx respectively
+		iwpriv mlan0 mpactrl 1 1 8192 8192 8 8
+		                           : Enable MP aggregation for Tx, Rx
+		                           : Set Tx, Rx buffer size to 8192 bytes
+		                           : Set maximum Tx, Rx ports to 8
+
+deepsleep
+	This command is used to set/get auto deep sleep mode.
+
+	Usage:
+		iwpriv mlanX deepsleep [n] [m]
+
+	where the parameters are:
+		[n]: Enable/disable auto deep sleep mode (1/0)
+		[m]: Idle time in milliseconds after which firmware will put the device
+		     in deep sleep mode. Default value is 100 ms.
+
+	Examples:
+		iwpriv mlan0 deepsleep          : Display auto deep sleep mode
+		iwpriv mlan0 deepsleep 1        : Enable auto deep sleep mode, idle time unchanged
+		iwpriv mlan0 deepsleep 0        : Disable auto deep sleep mode
+		iwpriv mlan0 deepsleep 1 500    : Enable auto deep sleep mode with idle time 500 ms
+        Note:
+            Deepsleep must be disabled before changing idle time.
+
+usbsuspend
+	This command is used to put device to suspend mode.
+	Note: It's only valid on kernel 2.6.24 or later.
+
+usbresume
+	This command is used to resume the device from suspend mode.
+	Note: It's only valid on kernel 2.6.24 or later.
+
+hscfg
+	This command is used to configure the host sleep parameters.
+
+	Usage:
+		iwpriv mlanX hscfg [condition [[GPIO# [gap]]]]
+
+	This command takes one (condition), two (condition and GPIO#) or three
+	(condition, GPIO# and gap) parameters for set. If no parameter provided,
+	get is performed.
+
+	where Condition is:
+		bit 0 = 1   -- broadcast data
+		bit 1 = 1   -- unicast data
+		bit 2 = 1   -- mac event
+		bit 3 = 1   -- multicast data
+		bit 6 = 1  --  Wakeup when mgmt frame received.
+		bit 7 = 1  --  Reserved
+		bit 8 = 1  --  Disable non maskable data wakeup.
+
+	The host sleep mode will be canceled if condition is set to -1. The default is 0x7.
+
+	where GPIO is the pin number of GPIO used to wakeup the host. It could be any valid
+	GPIO pin# (e.g. 0-7) or 0xff (interface, e.g. SDIO will be used instead).
+	The default is 0xff.
+
+	where Gap is the gap in milliseconds between wakeup signal and wakeup event or 0xff
+	for special setting (host acknowledge required) when GPIO is used to wakeup host.
+	The default is 200.
+
+	The host sleep set except for cancellation will be blocked if host sleep is
+	already activated.
+
+	Please note hssetpara and usbsuspend/usbresume commands should be used for USB
+	host sleep related tests.
+
+	Examples:
+		iwpriv mlan0 hscfg              : Get current host sleep mode
+		iwpriv mlan0 hscfg -1           : Cancel host sleep mode
+		iwpriv mlan0 hscfg 3            : Broadcast and unicast data
+		                                  Use GPIO and gap set previously
+		iwpriv mlan0 hscfg 2 3          : Unicast data
+		                                  Use GPIO 3 and gap set previously
+		iwpriv mlan0 hscfg 2 1 0xa0     : Unicast data
+		                                  Use GPIO 1 and gap 160 ms
+		iwpriv mlan0 hscfg 2 0xff       : Unicast data
+		                                  Use interface (e.g. SDIO)
+		                                  Use gap set previously
+		iwpriv mlan0 hscfg 4 3 0xff     : MAC event
+		                                  Use GPIO 3
+		                                  Special host sleep mode
+		iwpriv mlan0 hscfg 1 0xff 0xff  : Broadcast data
+		                                  Use interface (e.g. SDIO)
+		                                  Use gap 255ms
+
+hssetpara
+	This command is used to set host sleep parameters.
+
+	Usage:
+		iwpriv mlanX hssetpara Condition [GPIO# [gap]]
+
+	Note:
+	1) The usages of parameters are the same as "hscfg" command.
+	2) The parameters will be saved in the driver and be used when host suspends.
+
+deauth
+	This command is used to send a de-authentication to an arbitrary AP.
+	If [n] is omitted, the driver will deauth the associated AP.
+	If in ad-hoc mode this command is used to stop beacon transmission
+	from the station and go into idle state.
+
+	When <n> is supplied as a MAC address, the driver will deauth the
+	  specified AP.  If the AP address matches the driver's associated AP,
+	  the driver will disconnect. Otherwise, the driver remains connected.
+
+radioctrl
+	This command is used to turn on/off the radio.
+	Note: The radio can be disabled only in disconnected state.
+
+	where value of n is:
+		0   -- Disable
+		1   -- Enable
+
+	Examples:
+		iwpriv mlan0 radioctrl 1        : Turn the radio on
+		iwpriv mlan0 radioctrl          : Get radio status
+
+reassoctrl
+	This command is used to turn on/off re-association in driver.
+
+	Usage:
+		iwpriv mlanX reassoctrl [n]
+
+	Where value of n is:
+		0   -- Disable
+		1   -- Enable
+
+	Examples:
+		iwpriv mlan0 reassoctrl         : Get re-association status
+		iwpriv mlan0 reassoctrl 1       : Turn re-association on
+
+bandcfg
+	This command is used to set/get infra/ad-hoc band.
+	Note: This command is only available in disconnected state.
+
+	Usage:
+		iwpriv mlanX bandcfg [l] [m] [n]
+
+	where the parameters:
+		[l]: Infrastructure band
+		     bit 0: B
+		     bit 1: G
+		     bit 2: A
+		     bit 3: GN
+		     bit 4: AN
+
+			 bit 5: AC 2.4G
+			 bit 6: AC 5G
+		[m]: Ad-hoc start band
+		     bit 0: B
+		     bit 1: G
+		     bit 2: A
