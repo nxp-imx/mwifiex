@@ -22,8 +22,6 @@ CFLAGS := $(filter-out -I$(KERNELDIR)%, $(CFLAGS))
 #
 # List of application executables to create
 #
-libobjs:= mlanconfig.o mlanhostcmd.o mlanmisc.o
-exectarget=mlanconfig
 TARGETS := $(exectarget)
 
 #

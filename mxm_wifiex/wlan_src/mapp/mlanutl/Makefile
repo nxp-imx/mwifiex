@@ -31,7 +31,6 @@ HEADERS = mlanutl.h
 
 
 
-
 exectarget=mlanutl
 TARGET := $(exectarget)
 
