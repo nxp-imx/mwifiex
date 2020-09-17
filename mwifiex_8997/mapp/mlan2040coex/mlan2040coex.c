@@ -53,6 +53,11 @@ Change log:
 /** Maximum number of total private ioctl calls supported */
 #define IW_MAX_PRIV_NUM     1024
 
+/** Legacy APs channel list */
+chan_intol_t leg_ap_chan_list[WLAN_IOCTL_USER_SCAN_CHAN_MAX];
+/** Total number of channel present in Legacy APs channel list */
+t_u8 num_leg_ap_chan;
+
 /********************************************************
 		Local Variables
 ********************************************************/

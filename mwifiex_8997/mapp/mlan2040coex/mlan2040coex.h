@@ -222,9 +222,9 @@ struct eth_priv_cmd {
 #endif
 
 /** Legacy APs channel list */
-chan_intol_t leg_ap_chan_list[WLAN_IOCTL_USER_SCAN_CHAN_MAX];
+extern chan_intol_t leg_ap_chan_list[WLAN_IOCTL_USER_SCAN_CHAN_MAX];
 /** Total number of channel present in Legacy APs channel list */
-t_u8 num_leg_ap_chan;
+extern t_u8 num_leg_ap_chan;
 int get_region_code(int *reg_code);
 int process_host_cmd(int cmd, t_u8 *chan_list, t_u8 chan_num, t_u8 reg_class,
 		     t_u8 is_intol_ap_present);
