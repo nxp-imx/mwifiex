@@ -47,7 +47,7 @@ Change log:
 #define HT_STREAM_MODE_2X2 0x22
 
 /** mlanutl version number */
-#define MLANUTL_VER "M1.3.01"
+#define MLANUTL_VER "M1.3.02"
 
 /** Initial number of total private ioctl calls */
 #define IW_INIT_PRIV_NUM 128
@@ -56,13 +56,6 @@ Change log:
 
 /** Termination flag */
 int terminate_flag = 0;
-
-typedef struct {
-	t_u8 chanNum; /**< Channel Number */
-	t_u8 chanLoad; /**< Channel Load fraction */
-	t_s16 anpi; /**< Channel ANPI */
-
-} ChanRptInfo_t;
 
 /********************************************************
 			Local Variables
@@ -116,10 +109,15 @@ static int process_drvdbg(int argc, char *argv[]);
 #endif
 static int process_datarate(int argc, char *argv[]);
 static int process_getlog(int argc, char *argv[]);
+static int process_get_txpwrlimit(int argc, char *argv[]);
 #ifdef STA_SUPPORT
 static int process_get_signal(int argc, char *argv[]);
+static int process_get_signal_ext(int argc, char *argv[]);
+static int process_signalext_cfg(int argc, char *argv[]);
 #endif
-static int process_get_txpwrlimit(int argc, char *argv[]);
+static int process_addbapara(int argc, char *argv[]);
+static int process_aggrpriotbl(int argc, char *argv[]);
+static int process_addbareject(int argc, char *argv[]);
 
 struct command_node command_list[] = {
 	{"version", process_version},
@@ -130,10 +128,16 @@ struct command_node command_list[] = {
 #endif
 	{"getdatarate", process_datarate},
 	{"getlog", process_getlog},
+	{"get_txpwrlimit", process_get_txpwrlimit},
 #ifdef STA_SUPPORT
 	{"getsignal", process_get_signal},
+	{"getsignalext", process_get_signal_ext},
+	{"getsignalextv2", process_get_signal_ext},
+	{"signalextcfg", process_signalext_cfg},
 #endif
-	{"get_txpwrlimit", process_get_txpwrlimit},
+	{"addbapara", process_addbapara},
+	{"aggrpriotbl", process_aggrpriotbl},
+	{"addbareject", process_addbareject},
 };
 
 static char *usage[] = {
@@ -151,10 +155,16 @@ static char *usage[] = {
 #endif
 	"         getdatarate",
 	"         getlog",
+	"         get_txpwrlimit",
 #ifdef STA_SUPPORT
 	"         getsignal",
+	"         signalextcfg",
+	"         getsignalext",
+	"         getsignalextv2",
 #endif
-	"         get_txpwrlimit",
+	"         aggrpriotbl",
+	"         addbapara",
+	"         addbareject",
 };
 
 /** Socket */
@@ -176,7 +186,6 @@ int num_ssid_filter = 0;
 /********************************************************
 			Local Functions
 ********************************************************/
-
 /**
  *  @brief Convert char to hex integer
  *
@@ -255,7 +264,7 @@ t_u32 a2hex(char *s)
 		s += 2;
 	}
 
-	while (*s && isxdigit(*s)) {
+	while (*s && isxdigit((unsigned char)*s)) {
 		val = (val << 4) + hexc2bin(*s++);
 	}
 
@@ -288,7 +297,7 @@ char *convert2hex(char *ptr, t_u8 *chr)
 {
 	t_u8 val;
 
-	for (val = 0; *ptr && isxdigit(*ptr); ptr++) {
+	for (val = 0; *ptr && isxdigit((unsigned char)*ptr); ptr++) {
 		val = (val * 16) + hexval(*ptr);
 	}
 
@@ -312,7 +321,7 @@ int ishexstring(char *s)
 		s += 2;
 	}
 	while (*s) {
-		tmp = toupper(*s);
+		tmp = toupper((unsigned char)*s);
 		if (((tmp >= 'A') && (tmp <= 'F')) ||
 		    ((tmp >= '0') && (tmp <= '9'))) {
 			ret = MLAN_STATUS_SUCCESS;
@@ -388,13 +397,13 @@ int string2raw(char *str, unsigned char *raw)
 	int len = (strlen(str) + 1) / 2;
 
 	do {
-		if (!isxdigit(*str)) {
+		if (!isxdigit((unsigned char)*str)) {
 			return -1;
 		}
-		*str = toupper(*str);
+		*str = toupper((unsigned char)*str);
 		*raw = CHAR2INT(*str) << 4;
 		++str;
-		*str = toupper(*str);
+		*str = toupper((unsigned char)*str);
 		if (*str == '\0')
 			break;
 		*raw |= CHAR2INT(*str);
@@ -466,7 +475,7 @@ char *trim_spaces(char *str)
 		return NULL;
 
 	/* Trim leading spaces */
-	while (!*str && isspace(*str))
+	while (!*str && isspace((unsigned char)*str))
 		str++;
 
 	if (*str == 0) /* All spaces? */
@@ -474,7 +483,7 @@ char *trim_spaces(char *str)
 
 	/* Trim trailing spaces */
 	str_end = str + strlen(str) - 1;
-	while (str_end > str && isspace(*str_end))
+	while (str_end > str && isspace((unsigned char)*str_end))
 		str_end--;
 
 	/* null terminate the string */
@@ -546,6 +555,7 @@ static int process_version(int argc, char *argv[])
 
 	return MLAN_STATUS_SUCCESS;
 }
+
 /**
  *  @brief Process extended version
  *  @param argc   Number of arguments
@@ -941,7 +951,6 @@ static int process_hostcmd(int argc, char *argv[])
 	if (!strcmp(cmdname, "generate_raw")) {
 		call_ioctl = FALSE;
 	}
-
 	if (call_ioctl) {
 		printf("Error: invalid no of arguments\n");
 		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> generate_raw <raw_data_file>\n");
@@ -950,7 +959,8 @@ static int process_hostcmd(int argc, char *argv[])
 	}
 	if (!call_ioctl && argc != 6) {
 		printf("Error: invalid no of arguments\n");
-		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> generate_raw <raw_data_file>\n");
+		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> %s <raw_data_file>\n",
+		       cmdname);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -1102,6 +1112,7 @@ static int process_hostcmd(int argc, char *argv[])
 		fclose(fp_raw);
 		fclose(fp);
 	}
+
 done:
 	while (header) {
 		command = header;
@@ -1643,7 +1654,8 @@ static int process_get_signal(int argc, char *argv[])
 
 	/* Process result */
 	copy_size = MIN(cmd->used_len, DATA_SIZE * sizeof(int));
-	memcpy(&data, buffer, copy_size);
+	if (copy_size > 0)
+		memcpy(&data, buffer, copy_size);
 	printf("Get signal output is\t");
 	for (i = 0; i < (int)(copy_size / sizeof(int)); i++)
 		printf("%d\t", data[i]);
@@ -1657,7 +1669,201 @@ done:
 
 	return ret;
 }
+
+/**
+ *  @brief Set signalext cfg
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_signalext_cfg(int argc, char *argv[])
+{
+	int ret = 0;
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	memset(buffer, 0, BUFFER_LENGTH);
+
+	/* Sanity tests */
+	if (argc != 4) {
+		printf("Error: invalid no of arguments\n");
+		printf("mlanutl mlanX signalextcfg [#]\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: signalext cfg fail\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+done:
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return ret;
+}
+
+/**
+ *  @brief Get signal
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_get_signal_ext(int argc, char *argv[])
+{
+#define MAX_NUM_PATH 3
+#define PATH_SIZE 13
+#define PATH_A 1
+#define PATH_B 2
+#define PATH_AB 3
+	int ret = 0, data[PATH_SIZE * MAX_NUM_PATH] = {0};
+	int i = 0, copy_size = 0;
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	t_u8 num_path = 0;
+
+	memset(data, 0, sizeof(data));
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	memset(buffer, 0, BUFFER_LENGTH);
+
+	/* Sanity tests */
+	if (argc != 3 && argc != 4) {
+		printf("Error: invalid no of arguments\n");
+		if (strncmp(argv[2], "getsignalextv2",
+			    strlen("getsignalextv2")) == 0)
+			printf("mlanutl mlanX getsignalextv2 [m]\n");
+		else if (strncmp(argv[2], "getsignalext",
+				 strlen("getsignalext")) == 0)
+			printf("mlanutl mlanX getsignalext [m]\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: getsignal fail\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Process result */
+	copy_size = cmd->used_len;
+	if (copy_size > 0)
+		memcpy(&data, (int *)buffer, copy_size);
+
+	num_path = copy_size / sizeof(int) / PATH_SIZE;
+	for (i = 0; i < num_path; i++) {
+		if (data[i * PATH_SIZE] == PATH_A)
+			printf("PATH A:   %d %d %d %d %d %d %d %d %d %d %d %d\n",
+			       data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2],
+			       data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4],
+			       data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6],
+			       data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8],
+			       data[i * PATH_SIZE + 9],
+			       data[i * PATH_SIZE + 10],
+			       data[i * PATH_SIZE + 11],
+			       data[i * PATH_SIZE + 12]);
+		else if (data[i * PATH_SIZE] == PATH_B)
+			printf("PATH B:   %d %d %d %d %d %d %d %d %d %d %d %d\n",
+			       data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2],
+			       data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4],
+			       data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6],
+			       data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8],
+			       data[i * PATH_SIZE + 9],
+			       data[i * PATH_SIZE + 10],
+			       data[i * PATH_SIZE + 11],
+			       data[i * PATH_SIZE + 12]);
+		else if (data[i * PATH_SIZE] == PATH_AB)
+			printf("PATH A+B: %d %d %d %d %d %d %d %d %d %d %d %d\n",
+			       data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2],
+			       data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4],
+			       data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6],
+			       data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8],
+			       data[i * PATH_SIZE + 9],
+			       data[i * PATH_SIZE + 10],
+			       data[i * PATH_SIZE + 11],
+			       data[i * PATH_SIZE + 12]);
+	}
+	printf("\n");
+
+done:
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return ret;
+}
 #endif /* #ifdef STA_SUPPORT */
+
 /**
  * @brief      Get txpwrlimit
  *
@@ -1837,14 +2043,10 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
-		if (ret)
-			break;
 		ret = get_txpwrlimit(fp_raw, argv, 0x11, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
-		if (ret)
-			break;
 		ret = get_txpwrlimit(fp_raw, argv, 0x12, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
@@ -1855,20 +2057,14 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
-		if (ret)
-			break;
 		ret = get_txpwrlimit(fp_raw, argv, 0x10, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
-		if (ret)
-			break;
 		ret = get_txpwrlimit(fp_raw, argv, 0x11, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
-		if (ret)
-			break;
 		ret = get_txpwrlimit(fp_raw, argv, 0x12, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
@@ -1887,6 +2083,222 @@ done:
 	if (cmd)
 		free(cmd);
 	return ret;
+}
+
+/**
+ *  @brief Process HT Add BA parameters
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_addbapara(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	struct eth_priv_addba *addba = NULL;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: addbapara fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (argc == 3) {
+		/* Get */
+		addba = (struct eth_priv_addba *)buffer;
+		printf("Add BA configuration: \n");
+		printf("    Time out : %d\n", addba->time_out);
+		printf("    TX window: %d\n", addba->tx_win_size);
+		printf("    RX window: %d\n", addba->rx_win_size);
+		printf("    TX AMSDU : %d\n", addba->tx_amsdu);
+		printf("    RX AMSDU : %d\n", addba->rx_amsdu);
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process Aggregation priority table parameters
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_aggrpriotbl(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	int i;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: aggrpriotbl fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (argc == 3) {
+		/* Get */
+		printf("Aggregation priority table cfg: \n");
+		printf("    TID      AMPDU      AMSDU \n");
+		for (i = 0; i < MAX_NUM_TID; i++) {
+			printf("     %d        %3d        %3d \n", i,
+			       buffer[2 * i], buffer[2 * i + 1]);
+		}
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process HT Add BA reject configurations
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_addbareject(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	int i;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: addbareject fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (argc == 3) {
+		/* Get */
+		printf("Add BA reject configuration: \n");
+		printf("    TID      Reject \n");
+		for (i = 0; i < MAX_NUM_TID; i++) {
+			printf("     %d        %d\n", i, buffer[i]);
+		}
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
 }
 
 /********************************************************

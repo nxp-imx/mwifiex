@@ -159,6 +159,9 @@ enum _mlan_act_ioctl {
 /** Action field value : set */
 #define ACTION_SET 1
 
+/** Maximum number of TID */
+#define MAX_NUM_TID 8
+
 /** Device name */
 extern char dev_name[IFNAMSIZ + 1];
 
@@ -223,6 +226,7 @@ struct eth_priv_data_rate {
 	t_u32 tx_rate_format;
 	t_u32 rx_rate_format;
 };
+
 /** data structure for cmd getlog */
 struct eth_priv_get_log {
 	/** Multicast transmitted frame count */
@@ -392,7 +396,13 @@ typedef enum _IEEEtypes_ElementId_e {
 
 	WPA_IE = VENDOR_SPECIFIC_221,
 	RSN_IE = 48,
+	EXTENSION = 255,
 } __ATTRIB_PACK__ IEEEtypes_ElementId_e;
+
+typedef enum _IEEEtypes_Ext_ElementId_e {
+	HE_CAPABILITY = 35,
+	HE_OPERATION = 36
+} IEEEtypes_Ext_ElementId_e;
 
 /** Capability Bit Map*/
 #ifdef BIG_ENDIAN_SUPPORT
@@ -457,6 +467,7 @@ typedef struct _IEEEtypes_Header_t {
 
 /** IEEE IE header */
 #define IEEE_HEADER_LEN sizeof(IEEEtypes_Header_t)
+
 /** Maximum size of IEEE Information Elements */
 #define IEEE_MAX_IE_SIZE 256
 
@@ -543,6 +554,7 @@ enum { CHAN_BW_20MHZ = 0,
        CHAN_BW_40MHZ,
        CHAN_BW_80MHZ,
 };
+
 /** Band_Config_t */
 typedef struct _Band_Config_t {
 #ifdef BIG_ENDIAN_SUPPORT
@@ -640,5 +652,13 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 	/** trpc buf */
 	t_u8 trpc_buf[BUFFER_LENGTH];
 } __ATTRIB_PACK__ mlan_ds_misc_chan_trpc_cfg;
+
+struct eth_priv_addba {
+	t_u32 time_out;
+	t_u32 tx_win_size;
+	t_u32 rx_win_size;
+	t_u32 tx_amsdu;
+	t_u32 rx_amsdu;
+};
 
 #endif /* _MLANUTL_H_ */
