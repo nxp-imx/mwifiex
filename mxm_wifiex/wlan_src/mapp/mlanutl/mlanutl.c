@@ -115,6 +115,10 @@ static int process_get_signal(int argc, char *argv[]);
 static int process_get_signal_ext(int argc, char *argv[]);
 static int process_signalext_cfg(int argc, char *argv[]);
 #endif
+static int process_vhtcfg(int argc, char *argv[]);
+static int process_dyn_bw(int argc, char *argv[]);
+static int process_httxcfg(int argc, char *argv[]);
+static int process_htcapinfo(int argc, char *argv[]);
 static int process_addbapara(int argc, char *argv[]);
 static int process_aggrpriotbl(int argc, char *argv[]);
 static int process_addbareject(int argc, char *argv[]);
@@ -135,9 +139,13 @@ struct command_node command_list[] = {
 	{"getsignalextv2", process_get_signal_ext},
 	{"signalextcfg", process_signalext_cfg},
 #endif
+	{"vhtcfg", process_vhtcfg},
+	{"dyn_bw", process_dyn_bw},
 	{"addbapara", process_addbapara},
 	{"aggrpriotbl", process_aggrpriotbl},
 	{"addbareject", process_addbareject},
+	{"httxcfg", process_httxcfg},
+	{"htcapinfo", process_htcapinfo},
 };
 
 static char *usage[] = {
@@ -162,6 +170,10 @@ static char *usage[] = {
 	"         getsignalext",
 	"         getsignalextv2",
 #endif
+	"         vhtcfg",
+	"         dyn_bw",
+	"         httxcfg",
+	"         htcapinfo",
 	"         aggrpriotbl",
 	"         addbapara",
 	"         addbareject",
@@ -2083,6 +2095,332 @@ done:
 	if (cmd)
 		free(cmd);
 	return ret;
+}
+
+/**
+ *  @brief Process VHT configuration
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_vhtcfg(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct eth_priv_vhtcfg vhtcfg;
+	struct ifreq ifr;
+	t_u8 i, num = 0;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Sanity tests */
+	if (argc < 5) {
+		printf("Insufficient parameters\n");
+		printf("For STA interface: mlanutl mlanX vhtcfg <band> <txrx> [bwcfg] [vhtcap]\n");
+		printf("For uAP interface: mlanutl uapX vhtcfg <band> <txrx> [bwcfg] [vhtcap] [vht_tx_mcs] [vht_rx_mcs]\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: vhtcfg fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process result */
+	/* the first attribute is the number of vhtcfg entries */
+	num = *buffer;
+	if (argc == 5) {
+		/* GET operation */
+		printf("11AC VHT Configuration: \n");
+		for (i = 0; i < num; i++) {
+			memcpy(&vhtcfg, buffer + 1 + i * sizeof(vhtcfg),
+			       sizeof(vhtcfg));
+			/* Band */
+			if (vhtcfg.band == 1)
+				printf("Band: 2.4G\n");
+			else
+				printf("Band: 5G\n");
+			/* BW confi9 */
+
+			if (vhtcfg.bwcfg == 0)
+				printf("    BW config: Follow BW in the 11N config\n");
+			else
+				printf("    BW config: Follow BW in VHT Capabilities\n");
+
+			/* Tx/Rx */
+			if (vhtcfg.txrx & 0x1)
+				printf("    VHT operation for Tx: 0x%08x\n",
+				       vhtcfg.vht_cap_info);
+			if (vhtcfg.txrx & 0x2)
+				/* VHT capabilities */
+				printf("    VHT Capabilities Info: 0x%08x\n",
+				       vhtcfg.vht_cap_info);
+			/* MCS */
+			if (vhtcfg.txrx & 0x2) {
+				printf("    Tx MCS set: 0x%04x\n",
+				       vhtcfg.vht_tx_mcs);
+				printf("    Rx MCS set: 0x%04x\n",
+				       vhtcfg.vht_rx_mcs);
+			}
+		}
+	} else {
+		/* SET operation */
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process dynamic bandwidth set/get
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_dyn_bw(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	int dyn_bw = 0;
+
+	/* Check arguments */
+	if (argc < 3 || argc > 4) {
+		printf("ERR:Incorrect number of arguments!\n");
+		printf("Syntax: ./mlanutl mlanX dyn_bw <bw>\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: dyn_bw fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process result */
+	dyn_bw = *(int *)buffer;
+	printf("Dynamic bandwidth: 0x%02x\n", dyn_bw);
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process HT Tx configuration
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_httxcfg(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	t_u32 *data = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: httxcfg fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (argc == 3) {
+		/* Get result */
+		data = (t_u32 *)buffer;
+		printf("HT Tx cfg: \n");
+		printf("    BG band:  0x%08x\n", data[0]);
+		printf("     A band:  0x%08x\n", data[1]);
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process HT capability configuration
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_htcapinfo(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct eth_priv_htcapinfo *ht_cap = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: htcapinfo fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process result */
+	if (argc == 3) {
+		ht_cap = (struct eth_priv_htcapinfo *)buffer;
+		printf("HT cap info: \n");
+		printf("    BG band:  0x%08x\n", ht_cap->ht_cap_info_bg);
+		printf("     A band:  0x%08x\n", ht_cap->ht_cap_info_a);
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
 }
 
 /**

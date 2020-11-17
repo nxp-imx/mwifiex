@@ -196,11 +196,6 @@ struct eth_priv_cmd {
 };
 #endif
 
-struct eth_priv_htcapinfo {
-	t_u32 ht_cap_info_bg;
-	t_u32 ht_cap_info_a;
-};
-
 /** data structure for cmd getdatarate */
 struct eth_priv_data_rate {
 	/** Tx data rate */
@@ -659,6 +654,31 @@ struct eth_priv_addba {
 	t_u32 rx_win_size;
 	t_u32 tx_amsdu;
 	t_u32 rx_amsdu;
+};
+
+struct eth_priv_htcapinfo {
+	t_u32 ht_cap_info_bg;
+	t_u32 ht_cap_info_a;
+};
+
+/** data_structure for cmd vhtcfg */
+struct eth_priv_vhtcfg {
+	/** Band (1: 2.4G, 2: 5 G, 3: both 2.4G and 5G) */
+	t_u32 band;
+	/** TxRx (1: Tx, 2: Rx, 3: both Tx and Rx) */
+	t_u32 txrx;
+	/** BW CFG (0: 11N CFG, 1: vhtcap) */
+	t_u32 bwcfg;
+	/** VHT capabilities. */
+	t_u32 vht_cap_info;
+	/** VHT Tx mcs */
+	t_u32 vht_tx_mcs;
+	/** VHT Rx mcs */
+	t_u32 vht_rx_mcs;
+	/** VHT rx max rate */
+	t_u16 vht_rx_max_rate;
+	/** VHT max tx rate */
+	t_u16 vht_tx_max_rate;
 };
 
 #endif /* _MLANUTL_H_ */
