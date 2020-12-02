@@ -1499,6 +1499,28 @@ static int process_getlog(int argc, char *argv[])
 	       stats->wep_icv_error[0], stats->wep_icv_error[1],
 	       stats->wep_icv_error[2], stats->wep_icv_error[3],
 	       stats->bcn_rcv_cnt, stats->bcn_miss_cnt);
+
+	printf("rxStuckIssueCount-1                %u\n"
+	       "rxStuckIssueCount-2                %u\n"
+	       "rxStuckRecoveryCount               %u\n"
+	       "rxStuckTsf-1                       %llu\n"
+	       "rxStuckTsf-2                       %llu\n"
+	       "txWatchdogRecoveryCount            %u\n"
+	       "txWatchdogTsf-1                    %llu\n"
+	       "txWatchdogTsf-2                    %llu\n"
+	       "channelSwitchAnnouncementSent      %u\n"
+	       "channelSwitchState                 %u\n"
+	       "registerClass                      %u\n"
+	       "channelNumber                      %u\n"
+	       "channelSwitchMode                  %u\n",
+	       stats->rx_stuck_issue_cnt[0], stats->rx_stuck_issue_cnt[1],
+	       stats->rx_stuck_recovery_cnt, stats->rx_stuck_tsf[0],
+	       stats->rx_stuck_tsf[1], stats->tx_watchdog_recovery_cnt,
+	       stats->tx_watchdog_tsf[0], stats->tx_watchdog_tsf[1],
+	       stats->channel_switch_ann_sent, stats->channel_switch_state,
+	       stats->reg_class, stats->channel_number,
+	       stats->channel_switch_mode);
+
 	if (cmd->used_len == sizeof(struct eth_priv_get_log)) {
 		printf("dot11TransmittedFragmentCount      %u\n",
 		       stats->tx_frag_cnt);
