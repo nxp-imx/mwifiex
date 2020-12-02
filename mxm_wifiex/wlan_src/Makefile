@@ -18,7 +18,7 @@
 
 COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
 ifeq ($(CC),)
-CC=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
+CC ?=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
 endif
 ifeq ($(LD),)
 LD=		$(CROSS_COMPILE)ld
@@ -39,7 +39,7 @@ CONFIG_SD8978=n
 CONFIG_USB8978=n
 CONFIG_SD8997=n
 CONFIG_USB8997=n
-CONFIG_PCIE8997=n
+CONFIG_PCIE8997=y
 CONFIG_SD8987=y
 CONFIG_SD9097=n
 CONFIG_USB9097=n
@@ -99,8 +99,9 @@ CONFIG_DFS_TESTING_SUPPORT=y
 
 
 
-CONFIG_ANDROID_KERNEL=n
 
+# Use static link for app build
+CONFIG_ANDROID_KERNEL=n
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
@@ -112,7 +113,7 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 ccflags-y += -DLINUX
 
-KERNELVERSION_X86 := 	$(shell uname -r)
+KERNELVERSION_X86 :=   $(shell uname -r)
 KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
 
@@ -281,14 +282,28 @@ ifeq ($(CONFIG_PCIE),y)
 	ccflags-y += -DPCIE
 endif
 
+ifeq ($(CONFIG_MAC80211_SUPPORT),y)
+	ccflags-y += -DMAC80211_SUPPORT
+endif
+ifeq ($(CONFIG_MAC80211_SUPPORT_UAP),y)
+	ccflags-y += -DMAC80211_SUPPORT_UAP
+endif
+ifeq ($(CONFIG_MAC80211_SUPPORT_MESH),y)
+	ccflags-y += -DMAC80211_SUPPORT_MESH
+endif
 
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
 	ccflags-y += -Wno-packed-bitfield-compat
 endif
-	ccflags-y += -Wno-stringop-overflow
-	ccflags-y += -Wno-tautological-compare
+WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
+ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
+ccflags-y += -Wimplicit-fallthrough=3
+endif
+ccflags-y += -Wno-stringop-overflow
+ccflags-y += -Wno-tautological-compare
+ccflags-y += -Wno-stringop-truncation
 
 #############################################################################
 # Make Targets
@@ -409,7 +424,7 @@ endif
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) modules
 
 endif
 
@@ -417,36 +432,12 @@ endif
 
 export		CC LD ccflags-y KERNELDIR
 
-ifeq ($(CONFIG_STA_SUPPORT),y)
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-.PHONY: mapp/mlanconfig mapp/mlan2040coex mapp/mlanevent mapp/uaputl mapp/mlanutl clean distclean
-else
-.PHONY: mapp/mlanconfig mapp/mlanevent mapp/mlan2040coex mapp/mlanutl clean distclean
-endif
-else
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-.PHONY: mapp/mlanevent mapp/uaputl clean distclean
-endif
-endif
+.PHONY: mapp/mlanconfig mapp/mlanutl clean distclean
 	@echo "Finished Making NXP Wlan Linux Driver"
 
-ifeq ($(CONFIG_STA_SUPPORT),y)
 mapp/mlanconfig:
 	$(MAKE) -C $@
 mapp/mlanutl:
-	$(MAKE) -C $@
-mapp/mlan2040coex:
-	$(MAKE) -C $@
-endif
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-mapp/uaputl:
-	$(MAKE) -C $@
-endif
-ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
-mapp/wifidirectutl:
-	$(MAKE) -C $@
-endif
-mapp/mlanevent:
 	$(MAKE) -C $@
 
 echo:
@@ -459,35 +450,11 @@ build:		echo default
 
 	cp -rpf script/load $(BINDIR)/
 	cp -rpf script/unload $(BINDIR)/
-ifeq ($(CONFIG_MUSB),y)
-	cp -rpf script/usbconfig $(BINDIR)/
-endif
 
-ifeq ($(CONFIG_STA_SUPPORT),y)
-	cp -f README $(BINDIR)
 	cp -f README_MLAN $(BINDIR)
-	#cp -f README_RBC $(BINDIR)
 ifneq ($(APPDIR),)
 	$(MAKE) -C mapp/mlanconfig $@ INSTALLDIR=$(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
-	$(MAKE) -C mapp/mlan2040coex $@ INSTALLDIR=$(BINDIR)
-endif
-endif
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-	#cp -f README_UAP $(BINDIR)
-ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/uaputl $@ INSTALLDIR=$(BINDIR)
-endif
-endif
-ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
-	#cp -f README_WIFIDIRECT $(BINDIR)
-	cp -rpf script/wifidirect $(BINDIR)
-ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/wifidirectutl $@ INSTALLDIR=$(BINDIR)
-endif
-endif
-ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanevent $@ INSTALLDIR=$(BINDIR)
 endif
 
 clean:
@@ -503,18 +470,8 @@ clean:
 	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
-ifeq ($(CONFIG_STA_SUPPORT),y)
 	$(MAKE) -C mapp/mlanconfig $@
 	$(MAKE) -C mapp/mlanutl $@
-	$(MAKE) -C mapp/mlan2040coex $@
-endif
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-	$(MAKE) -C mapp/uaputl $@
-endif
-ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
-	$(MAKE) -C mapp/wifidirectutl $@
-endif
-	$(MAKE) -C mapp/mlanevent $@
 endif
 #ifdef SDIO
 #endif // SDIO
@@ -541,18 +498,8 @@ distclean:
 	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
-ifeq ($(CONFIG_STA_SUPPORT),y)
 	$(MAKE) -C mapp/mlanconfig $@
 	$(MAKE) -C mapp/mlanutl $@
-	$(MAKE) -C mapp/mlan2040coex $@
-endif
-ifeq ($(CONFIG_UAP_SUPPORT),y)
-	$(MAKE) -C mapp/uaputl $@
-endif
-ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
-	$(MAKE) -C mapp/wifidirectutl $@
-endif
-	$(MAKE) -C mapp/mlanevent $@
 endif
 
 # End of file
