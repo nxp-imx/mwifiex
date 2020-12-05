@@ -111,6 +111,8 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 # Select Platform Tools
 #############################################################################
 
+MODEXT = ko
+ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
 KERNELVERSION_X86 :=   $(shell uname -r)
@@ -304,6 +306,7 @@ endif
 ccflags-y += -Wno-stringop-overflow
 ccflags-y += -Wno-tautological-compare
 ccflags-y += -Wno-stringop-truncation
+ccflags-y += -Wno-packed-bitfield-compat
 
 #############################################################################
 # Make Targets
@@ -420,11 +423,111 @@ endif
 endif
 endif
 
+
+
+
+
+MOALOBJS =	mlinux/moal_main.o \
+		mlinux/moal_ioctl.o \
+		mlinux/moal_shim.o \
+		mlinux/moal_eth_ioctl.o \
+		mlinux/moal_init.o
+
+MLANOBJS =	mlan/mlan_shim.o mlan/mlan_init.o \
+		mlan/mlan_txrx.o \
+		mlan/mlan_cmdevt.o mlan/mlan_misc.o \
+		mlan/mlan_cfp.o \
+		mlan/mlan_module.o
+
+MLANOBJS += mlan/mlan_wmm.o
+ifeq ($(CONFIG_MUSB),y)
+MLANOBJS += mlan/mlan_usb.o
+endif
+ifeq ($(CONFIG_SDIO),y)
+MLANOBJS += mlan/mlan_sdio.o
+endif
+ifeq ($(CONFIG_PCIE),y)
+MLANOBJS += mlan/mlan_pcie.o
+endif
+MLANOBJS += mlan/mlan_11n_aggr.o
+MLANOBJS += mlan/mlan_11n_rxreorder.o
+MLANOBJS += mlan/mlan_11n.o
+MLANOBJS += mlan/mlan_11ac.o
+MLANOBJS += mlan/mlan_11ax.o
+MLANOBJS += mlan/mlan_11d.o
+MLANOBJS += mlan/mlan_11h.o
+ifeq ($(CONFIG_STA_SUPPORT),y)
+MLANOBJS += mlan/mlan_meas.o
+MLANOBJS += mlan/mlan_scan.o \
+			mlan/mlan_sta_ioctl.o \
+			mlan/mlan_sta_rx.o \
+			mlan/mlan_sta_tx.o \
+			mlan/mlan_sta_event.o \
+			mlan/mlan_sta_cmd.o \
+			mlan/mlan_sta_cmdresp.o \
+			mlan/mlan_join.o
+ifeq ($(CONFIG_STA_WEXT),y)
+MOALOBJS += mlinux/moal_priv.o \
+            mlinux/moal_wext.o
+endif
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+MLANOBJS += mlan/mlan_uap_ioctl.o
+MLANOBJS += mlan/mlan_uap_cmdevent.o
+MLANOBJS += mlan/mlan_uap_txrx.o
+MOALOBJS += mlinux/moal_uap.o
+ifeq ($(CONFIG_UAP_WEXT),y)
+MOALOBJS += mlinux/moal_uap_priv.o
+MOALOBJS += mlinux/moal_uap_wext.o
+endif
+endif
+ifeq ($(CONFIG_STA_CFG80211),y)
+MOALOBJS += mlinux/moal_cfg80211.o
+MOALOBJS += mlinux/moal_cfg80211_util.o
+MOALOBJS += mlinux/moal_sta_cfg80211.o
+endif
+ifeq ($(CONFIG_UAP_CFG80211),y)
+MOALOBJS += mlinux/moal_cfg80211.o
+MOALOBJS += mlinux/moal_cfg80211_util.o
+MOALOBJS += mlinux/moal_uap_cfg80211.o
+endif
+
+ifdef CONFIG_PROC_FS
+MOALOBJS += mlinux/moal_proc.o
+MOALOBJS += mlinux/moal_debug.o
+endif
+
+ifeq ($(CONFIG_MAC80211_SUPPORT),y)
+MOALOBJS += mlinux/moal_mac80211.o
+MLANOBJS += mlan/mlan_mac80211.o
+endif
+
+
+
+
+
+
+
+obj-m := mlan.o
+mlan-objs := $(MLANOBJS)
+
+ifeq ($(CONFIG_MUSB),y)
+MOALOBJS += mlinux/moal_usb.o
+endif
+ifeq ($(CONFIG_SDIO),y)
+MOALOBJS += mlinux/moal_sdio_mmc.o
+endif
+ifeq ($(CONFIG_PCIE),y)
+MOALOBJS += mlinux/moal_pcie.o
+endif
+obj-m += moal.o
+moal-objs := $(MOALOBJS)
+
 # Otherwise we were called directly from the command line; invoke the kernel build system.
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
 
 endif
 
@@ -448,6 +551,9 @@ build:		echo default
 		mkdir $(BINDIR); \
 	fi
 
+	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
+
+	cp -f moal.$(MODEXT) $(BINDIR)/moal$(DBG).$(MODEXT)
 	cp -rpf script/load $(BINDIR)/
 	cp -rpf script/unload $(BINDIR)/
 
@@ -478,6 +584,8 @@ endif
 
 install: default
 
+	cp -f mlan.$(MODEXT) $(INSTALLDIR)/mlan$(DBG).$(MODEXT)
+	cp -f moal.$(MODEXT) $(INSTALLDIR)/moal$(DBG).$(MODEXT)
 	echo $(INSTALLDIR)
 	echo "MX Driver Installed"
 
