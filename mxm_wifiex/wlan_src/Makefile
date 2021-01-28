@@ -116,7 +116,7 @@ ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
 KERNELVERSION_X86 :=   $(shell uname -r)
-KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
+KERNELDIR ?= $(KERNEL_DIR)
 LD += -S
 
 BINDIR = ../bin_mxm_wifiex
@@ -297,16 +297,16 @@ endif
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
-	ccflags-y += -Wno-packed-bitfield-compat
+#ccflags-y += -Wno-packed-bitfield-compat
 endif
 WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
-ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
-ccflags-y += -Wimplicit-fallthrough=3
-endif
-ccflags-y += -Wno-stringop-overflow
-ccflags-y += -Wno-tautological-compare
-ccflags-y += -Wno-stringop-truncation
-ccflags-y += -Wno-packed-bitfield-compat
+#ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
+#ccflags-y += -Wimplicit-fallthrough=3
+#endif
+#ccflags-y += -Wno-stringop-overflow
+#ccflags-y += -Wno-tautological-compare
+#ccflags-y += -Wno-stringop-truncation
+#ccflags-y += -Wno-packed-bitfield-compat
 
 #############################################################################
 # Make Targets
