@@ -2390,6 +2390,7 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 	     */
 	    && !moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 		upd->interface_stypes &= ~BIT(IEEE80211_STYPE_AUTH >> 4);
+	priv->mgmt_subtype_mask = upd->interface_stypes;
 	woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET, &upd->interface_stypes,
 			     MOAL_NO_WAIT);
 #else
