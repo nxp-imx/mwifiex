@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 802.11D.
  *
  *
- *  Copyright 2014-2020 NXP
+ *  Copyright 2008-2020 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991

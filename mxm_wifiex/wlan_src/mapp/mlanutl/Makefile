@@ -1,6 +1,6 @@
 # File : mlanutl/Makefile
 #
-# Copyright 2014-2020 NXP
+# Copyright 2011-2020 NXP
 
 # Path to the top directory of the wlan distribution
 PATH_TO_TOP = ../..

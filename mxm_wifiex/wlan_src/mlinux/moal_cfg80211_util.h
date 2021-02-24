@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2014-2020 NXP
+ * Copyright 2015-2020 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
