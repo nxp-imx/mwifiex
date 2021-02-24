@@ -1,7 +1,7 @@
 #
 # File : mlanconfig/Makefile
 #
-# Copyright 2014-2020 NXP
+# Copyright 2008-2020 NXP
 
 # Path to the top directory of the mlandriver distribution
 PATH_TO_TOP = ../..
