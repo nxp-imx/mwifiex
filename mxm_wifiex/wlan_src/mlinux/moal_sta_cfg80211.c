@@ -1535,8 +1535,10 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+	rcu_read_lock();
 	country_ie = (u8 *)ieee80211_bss_get_ie(bss, WLAN_EID_COUNTRY);
 	if (!country_ie) {
+		rcu_read_unlock();
 		PRINTM(MIOCTL, "No country IE found!\n");
 		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
 		LEAVE();
@@ -1545,6 +1547,7 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 
 	country_ie_len = country_ie[1];
 	if (country_ie_len < IEEE80211_COUNTRY_IE_MIN_LEN) {
+		rcu_read_unlock();
 		PRINTM(MIOCTL, "Wrong Country IE length!\n");
 		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
 		LEAVE();
@@ -1554,6 +1557,7 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	priv->phandle->country_code[1] = country_ie[3];
 	priv->phandle->country_code[2] = ' ';
 	if (is_cfg80211_special_region_code(priv->phandle->country_code)) {
+		rcu_read_unlock();
 		PRINTM(MIOCTL, "Skip special region code in CountryIE");
 		LEAVE();
 		return 0;
@@ -1565,6 +1569,7 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11d_cfg));
 	if (req == NULL) {
+		rcu_read_unlock();
 		PRINTM(MERROR, "Fail to allocate mlan_ds_11d_cfg buffer\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -1599,6 +1604,8 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	PRINTM(MCMND, "11D: Country IE: %c%c band=%d no_of_sub_band=%d\n",
 	       country_ie[2], country_ie[3], priv->phandle->band,
 	       cfg_11d->param.domain_info.no_of_sub_band);
+	rcu_read_unlock();
+
 	/* Send domain info command to FW */
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -2366,11 +2373,13 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	priv->auth_alg = 0xFFFF;
 
 	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	rcu_read_lock();
 	ssid_ie = ieee80211_bss_get_ie(req->bss, WLAN_EID_SSID);
 	moal_memcpy_ext(priv->phandle, ssid_bssid.bssid, req->bss->bssid,
 			ETH_ALEN, sizeof(ssid_bssid.bssid));
 
 	if (!ssid_ie) {
+		rcu_read_unlock();
 		ret = -EINVAL;
 		goto done;
 	}
@@ -2378,6 +2387,7 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	moal_memcpy_ext(priv->phandle, ssid_bssid.ssid.ssid, ssid_ie + 2,
 			ssid_ie[1], sizeof(ssid_bssid.ssid.ssid));
 	ssid_bssid.ssid.ssid_len = ssid_ie[1];
+	rcu_read_unlock();
 
 	if (ssid_bssid.ssid.ssid_len > MW_ESSID_MAX_SIZE) {
 		PRINTM(MERROR, "Invalid SSID - aborting\n");
