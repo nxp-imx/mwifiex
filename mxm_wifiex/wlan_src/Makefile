@@ -405,12 +405,6 @@ endif
 endif
 endif
 
-# Otherwise we were called directly from the command line; invoke the kernel build system.
-else
-
-default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-
 endif
 
 ###############################################################
@@ -451,7 +445,7 @@ mapp/mlanevent:
 
 echo:
 
-build:		echo default
+build:
 
 	@if [ ! -d $(BINDIR) ]; then \
 		mkdir $(BINDIR); \
