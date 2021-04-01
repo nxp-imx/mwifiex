@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode ioctls
  *
  *
- *  Copyright 2009-2020 NXP
+ *  Copyright 2009-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -42,7 +42,6 @@ Change log:
 /********************************************************
 			Global Variables
 ********************************************************/
-extern t_u8 tos_to_tid_inv[];
 
 /********************************************************
 			Local Functions
@@ -342,6 +341,9 @@ static mlan_status wlan_uap_bss_ioctl_reset(pmlan_adapter pmadapter,
 		pmpriv->aggr_prio_tbl[i].amsdu = tos_to_tid_inv[i];
 		pmpriv->addba_reject[i] = ADDBA_RSP_STATUS_ACCEPT;
 	}
+	pmpriv->aggr_prio_tbl[6].amsdu = BA_STREAM_NOT_ALLOWED;
+	pmpriv->aggr_prio_tbl[7].amsdu = BA_STREAM_NOT_ALLOWED;
+
 	pmpriv->aggr_prio_tbl[6].ampdu_user =
 		pmpriv->aggr_prio_tbl[7].ampdu_user = BA_STREAM_NOT_ALLOWED;
 	pmpriv->addba_reject[6] = pmpriv->addba_reject[7] =
@@ -371,8 +373,8 @@ static mlan_status wlan_uap_bss_ioctl_reset(pmlan_adapter pmadapter,
  *
  *  @return            	  MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
  */
-mlan_status wlan_uap_bss_ioctl_add_station(pmlan_adapter pmadapter,
-					   pmlan_ioctl_req pioctl_req)
+static mlan_status wlan_uap_bss_ioctl_add_station(pmlan_adapter pmadapter,
+						  pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -437,13 +439,11 @@ static mlan_status wlan_uap_bss_ioctl_uap_wmm_param(pmlan_adapter pmadapter,
 						    pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u16 cmd_action = 0;
 
 	ENTER();
 
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -472,13 +472,11 @@ wlan_uap_bss_ioctl_uap_scan_channels(pmlan_adapter pmadapter,
 				     pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u16 cmd_action = 0;
 
 	ENTER();
 
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -506,13 +504,11 @@ static mlan_status wlan_uap_bss_ioctl_uap_channel(pmlan_adapter pmadapter,
 						  pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u16 cmd_action = 0;
 
 	ENTER();
 
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
@@ -540,7 +536,6 @@ static mlan_status wlan_uap_bss_ioctl_uap_oper_ctrl(pmlan_adapter pmadapter,
 						    pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u16 cmd_action = 0;
 
@@ -548,7 +543,6 @@ static mlan_status wlan_uap_bss_ioctl_uap_oper_ctrl(pmlan_adapter pmadapter,
 
 	if (pmadapter->fw_ver == HOST_API_VERSION_V15 &&
 	    pmadapter->fw_min_ver >= FW_MINOR_VERSION_1) {
-		bss = (mlan_ds_bss *)pioctl_req->pbuf;
 		if (pioctl_req->action == MLAN_ACT_SET)
 			cmd_action = HostCmd_ACT_GEN_SET;
 		else
@@ -1763,8 +1757,8 @@ mlan_status wlan_uap_get_beacon_dtim(pmlan_private pmpriv)
  *
  *  @return		MLAN_STATUS_PENDING --success, otherwise fail
  */
-mlan_status wlan_uap_snmp_mib_ctrl_deauth(pmlan_adapter pmadapter,
-					  pmlan_ioctl_req pioctl_req)
+static mlan_status wlan_uap_snmp_mib_ctrl_deauth(pmlan_adapter pmadapter,
+						 pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -2072,6 +2066,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG)
 			status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(
 				pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_HAL_PHY_CFG)
+			status = wlan_misc_hal_phy_cfg(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RATE_ADAPT_CFG)
 			status = wlan_misc_ioctl_rate_adapt_cfg(pmadapter,
 								pioctl_req);

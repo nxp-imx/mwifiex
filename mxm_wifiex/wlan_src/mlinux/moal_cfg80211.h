@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -63,6 +63,16 @@
 #define IE_MASK_EXTCAP 0x0010
 
 #define MRVL_PKT_TYPE_MGMT_FRAME 0xE5
+
+mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
+				  t_u32 cipher, const t_u8 *key, int key_len,
+				  const t_u8 *seq, int seq_len, t_u8 key_index,
+				  const t_u8 *addr, int disable,
+				  t_u8 wait_option);
+
+mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
+				       int key_len, t_u8 index,
+				       t_u8 wait_option);
 
 /**
  * If multiple wiphys are registered e.g. a regular netdev with
@@ -299,6 +309,10 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
+#if defined(WIFI_DIRECT_SUPPORT)
+void woal_remove_virtual_interface(moal_handle *handle);
+#endif
+
 #ifdef WIFI_DIRECT_SUPPORT
 /* Group Owner Negotiation Req */
 #define P2P_GO_NEG_REQ 0
@@ -338,9 +352,6 @@ int woal_cfg80211_init_p2p_client(moal_private *priv);
 int woal_cfg80211_init_p2p_go(moal_private *priv);
 
 int woal_cfg80211_deinit_p2p(moal_private *priv);
-
-void woal_remove_virtual_interface(moal_handle *handle);
-
 #endif /* KERNEL_VERSION */
 #endif /* WIFI_DIRECT_SUPPORT */
 
@@ -430,7 +441,7 @@ void woal_csa_work_queue(struct work_struct *work);
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 #if KERNEL_VERSION(3, 5, 0) <= CFG80211_VERSION_CODE
 void woal_cfg80211_notify_channel(moal_private *priv,
-				  pchan_band_info pchan_info);
+				  chan_band_info *pchan_info);
 void woal_channel_switch_event(moal_private *priv, chan_band_info *pchan_info);
 #endif
 #endif
@@ -440,6 +451,12 @@ void woal_channel_switch_event(moal_private *priv, chan_band_info *pchan_info);
 void woal_bgscan_stop_event(moal_private *priv);
 void woal_cfg80211_notify_sched_scan_stop(moal_private *priv);
 #endif
+#endif
+
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+
+void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
+				 mlan_ds_radio_cfg *radio);
 #endif
 
 void woal_deauth_event(moal_private *priv, int reason_code);

@@ -125,6 +125,8 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 				MRVDRV_TxPD_POWER_MGMT_LAST_PACKET;
 		}
 	}
+	if (pmbuf->flags & MLAN_BUF_FLAG_TDLS)
+		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TDLS_PACKET;
 	/* Offset of actual data */
 	plocal_tx_pd->tx_pkt_offset = (t_u16)(
 		(t_ptr)pmbuf->pbuf + pmbuf->data_offset - (t_ptr)plocal_tx_pd);

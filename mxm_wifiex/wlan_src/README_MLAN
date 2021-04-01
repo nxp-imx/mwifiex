@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright 2008-2020 NXP
+ Copyright 2008-2021 NXP
 
 
 1) FOR DRIVER BUILD
@@ -73,7 +73,10 @@
 	   e.g. copy dpd_data.conf to firmware directory, dpd_data_cfg=nxp/dpd_data.conf
 	  txpwrlimit_cfg=<Tx power limit config file name>
 		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=nxp/txpwrlimit_cfg_set.conf
-	  cntry_txpwr=<Enable setting tx power table of country | Disable setting tx power table of country (default)>
+      cntry_txpwr=0|1|2
+                  0: Disable setting tx power table of country (default)
+                  1: Enable setting tx power table of country
+                  2: Enable setting rgpower table of country
 	  init_hostcmd_cfg=<init hostcmd config file name>
 		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=nxp/init_hostcmd_cfg.conf
 	  band_steer_cfg=<band steer config file name>
@@ -101,7 +104,6 @@
 	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
 	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
 	wakelock_timeout=<set wakelock_timeout value (ms)>
-	defined(SD9098)||defined(USB9098) || defined(PCIE9098) || defined(SD9097) || defined(USB9097)|| defined(PCIE9097)||defined(SD8978)
 	pmic=0|1 <No pmic configure cmd sent to firmware | Send pmic configure cmd to firmware>
 	indication_gpio=0xXY <GPIO to indicate wakeup source and its level; high four bits X:
                   level(0/1) for normal wakeup; low four bits Y: GPIO pin number. This parameter
@@ -340,6 +342,9 @@
     Set RF channel
 	echo "channel=6" > /proc/mwlan/adapterX/config
 
+    Set Radio Mode
+        echo "radio_mode=14 4" > /proc/mwlan/adapterX/config
+
     Get and reset packet error rate
 	echo "get_and_reset_per" > /proc/mwlan/adapterX/config
 
@@ -407,6 +412,7 @@ SYNOPSIS
 	mlanutl mlanX verext
 	mlanutl mlanX version
 	mlanutl mlanX hostcmd <conf> generate_raw <raw_data_file>
+	mlanutl mlanX hostcmd <send_om.conf> send_om_set
 	mlanutl mlanX getdatarate
 	mlanutl uapX getdatarate
 	mlanutl mlanX drvdbg [n]
@@ -427,6 +433,10 @@ SYNOPSIS
 	mlanutl uapX vhtcfg <j> <k> [l] [m] [n] [o]
 	mlanutl mlanX httxcfg [<m>] [<n>]
 	mlanutl mlanX htcapinfo [<m>] [<n>]
+        mlanutl mlanX 11axcfg [config/11axcfg.conf]
+	mlanutl mlanX 11axcmd <subcmd> <value>
+	mlanutl mlanX txratecfg [l] [m] [n] [o]
+	mlanutl uapX txratecfg [l] [m] [n] [o]
 
 DESCRIPTION
 	Those commands are used to send additional commands to the NXP MLAN
@@ -500,6 +510,12 @@ hostcmd generate_raw
 
 	Usage:
 		mlanutl mlanX hostcmd <conf_file> generate_raw <raw_data_file>
+
+hostcmd send_om_set
+	This command is used to configure the STAUT to include OM control subfield
+
+	Usage:
+		mlanutl mlanX hostcmd <send_om.conf> send_om_set
 
 getdatarate
 	This command is used to get the data rate being used in last Tx
@@ -1067,4 +1083,208 @@ htcapinfo
 
 	Note:- This command can be issued any time but it will only come to effect from
 	next association. (as HTCapInfo is sent only during Association).
+
+11axcfg
+	This command is used to config 11ax HE capability using conf file.
+
+     Usage:
+             mlanutl mlanX 11axcfg [conf file]
+
+     Example:
+        mlanutl mlan0 11axcfg config/11axcfg.conf
+        mlanutl uap0  11axcfg config/11axcfg.conf
+
+11axcmd
+    This command is used to config 11ax HE capability using command.
+
+    Usage:
+            mlanutl <mlanX|uapX> 11axcmd <subcmd> [value_1] [value_2]
+            <subcmd = tx_omi > :     set/get omi value
+                                     used for OMI transmission in MAC header HTC+ field, please see 11ax spec for OMI definition
+                                     set OMI when [value_1 = <omi>], where <omi> is defined as:
+                                       Bit 0-2: Rx NSS
+                                       Bit 3-4: Channel Width
+                                       Bit 6  : Tx NSTS (applies to client mode only)
+                                       All other bits are not supported currently.
+                                     get OMI without value_1 and value_2
+
+            <subcmd = obssnbru_toltime> :  set/get OBSS narrow band RU tolerance time value in seconds
+                                           set tolerance time when [value_1 = <time>], where <time> indicates:
+                                           the minimum time that needs to pass since the reception of the last beacon frame from an OBSS AP that
+                                           did not indicate tolerance to narrow bandwidth RU in OFDMA before the STA transmits an HE TB PPDU in a
+                                           26-tine RU allocated by a trigger frame from the HE AP.
+                                           valid value range [1..3600] in seconds. Any value more than 3600 will disable this feature.
+                                           By default this feature is currently disabled.
+    Example :
+            mlanutl mlan0 11axcmd tx_omi 0x41            : set omi value to 0x41
+            mlanutl mlan0 11axcmd tx_omi                 : get omi value
+            mlanutl mlan0 11axcmd obssnbru_toltime 1800  : set OBSSNBRU tolerance time to 1800 seconds
+            mlanutl mlan0 11axcmd obssnbru_toltime 3601  : disable OBSSNBRU tolerance time
+            mlanutl mlan0 11axcmd obssnbru_toltime       : get OBSSNBRU tolerance time
+
+txratecfg
+	This command is used to set/get the transmit data rate.
+
+	Note:
+	1) The data rate can be set only after association.
+
+	2) If the reassoc is OFF driver reset the data rate to auto if the connection state is disconnected.
+	Please note that user has to re-issue the set data rate command if the driver is disconnected.
+
+	3) If the reassoc is ON driver remembers the data rate set by the user, if the driver is
+	disconnected user does not have to re-issue the set data rate again.
+
+	4) Parameter [o] is optional. If [o] is not given, it will be set as 0xffff.
+
+	Where
+	[l] is <format>
+	<format> - This parameter specifies the data rate format used in this command
+		0:    LG
+		1:    HT
+		2:    VHT
+		3:    HE
+		0xff: Auto
+
+	[m] is <index>
+	<index> - This parameter specifies the rate or MCS index
+	If <format> is 0 (LG),
+		0	1 Mbps
+		1	2 Mbps
+		2	5.5 Mbps
+		3	11 Mbps
+		4	6 Mbps
+		5	9 Mbps
+		6	12 Mbps
+		7	18 Mbps
+		8	24 Mbps
+		9	36 Mbps
+		10	48 Mbps
+		11	54 Mbps
+	If <format> is 1 (HT),
+		0	MCS0
+		1	MCS1
+		2	MCS2
+		3	MCS3
+		4	MCS4
+		5	MCS5
+		6	MCS6
+		7	MCS7
+		8	MCS8
+		9	MCS9
+		10	MCS10
+		11	MCS11
+		12	MCS12
+		13	MCS13
+		14	MCS14
+		15	MCS15
+	If <format> is 2 (VHT),
+		0	MCS0
+		1	MCS1
+		2	MCS2
+		3	MCS3
+		4	MCS4
+		5	MCS5
+		6	MCS6
+		7	MCS7
+		8	MCS8
+		9	MCS9
+	If <format> is 3 (HE),
+		0	MCS0
+		1	MCS1
+		2	MCS2
+		3	MCS3
+		4	MCS4
+		5	MCS5
+		6	MCS6
+		7	MCS7
+		8	MCS8
+		9	MCS9
+		10	MCS10
+		11	MCS11
+	[n] is <nss>
+	<nss> - This parameter specifies the NSS. It is valid for VHT
+	If <format> is 2 (VHT),
+		1	NSS1
+		2	NSS2
+	[n] is <nss>
+	<nss> - This parameter specifies the NSS. It is valid for HE
+	If <format> is 3 (HE),
+		1	NSS1
+		2	NSS2
+	[o] is <rate setting, only support 9098/9097/9xxx chips>
+        Bit0 - 1: indicate preambleType
+          For legacy 11b: preemble type
+             00    = long
+             01    = short
+             10/11  = reserved
+          For legacy 11g: reserved
+          For 11n: Green field PPDU indicator
+             00 = HT-mix
+             01 = HT-GF
+             10/11 = reserved.
+          For 11ac: reserved.
+          For 11ax:
+             00 = HE-SU
+             01 = HE-EXT-SU
+             others are reserved
+
+        Bit 2 - 4 : indicate BW:
+          For HE ER:
+            0 = 242-tone RU
+            1 =  upper frequency 106-tone RU within the primary 20 MHz
+          Otherwise:
+            0 = 20 MHz
+            1 = 40 MHz
+            2 = 80 MHz
+            3 = 160 MHz
+
+        Bit 5 -6: indicate LTF + GI size
+          For HT:
+            0 = normal
+            1 = Short GI
+          For VHT:
+            01 = Short GI
+            11 = Short GI and Nsym mod 10=9
+            00 = otherwise
+          For HE:
+            0 = 1xHELTF + GI0.8us
+            1 = 2xHELTF + GI0.8us
+            2 = 2xHELTF + GI1.6us
+            3 = 4xHELTF + GI0.8us if DCM = 1 and STBC = 1
+                4xHELTF + GI3.2us, otherwise.
+
+        Bit 7: Indicate  STBC:
+            0 = no STBC
+            1 = STBC
+
+        Bit 8: indicate DCM:
+            0 = no DCM
+            1 = DCM
+
+        Bit 9: indicate coding:
+            0 = BCC
+            1 = LDPC
+
+        Bit 10 - 11: reserved.
+
+        Bit 12 - 13: Indicate maxPE
+            Max packet extension
+            0 - 0 usec
+            1 - 8 usec
+            2 - 16 usec.
+
+        Bit 14 - 15: reserved.
+
+        0xffff: Auto
+
+	Examples:
+		mlanutl mlan0 txratecfg          : Read the current data rate setting
+		mlanutl mlan0 txratecfg 0 3      : Set fixed Tx rate to 11 Mbps
+		mlanutl mlan0 txratecfg 0 11     : Set fixed Tx rate to 54 Mbps
+		mlanutl mlan0 txratecfg 1 3      : Set fixed Tx rate to MCS3
+		mlanutl mlan0 txratecfg 2 3 2    : Set fixed Tx rate to MCS3 for NSS2
+		mlanutl mlan0 txratecfg 3 3 2    : Set 11AX fixed Tx rate to MCS3 for NSS2
+		mlanutl mlan0 txratecfg 3 5 2 0x2282   : Set 11AX fixed Tx rate to MCS5 for NSS2, and Preamble type is 2, BW is 0, LTF + GI size 0
+                                                         STBC is 1, DMC is 0, Coding is 1, maxPE is 2.
+		mlanutl mlan0 txratecfg 0xff     : Disable fixed rate and uses auto rate
 

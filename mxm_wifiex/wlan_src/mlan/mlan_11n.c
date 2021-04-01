@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n handling.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -350,6 +350,81 @@ static mlan_status wlan_11n_ioctl_coex_rx_winsize(pmlan_adapter pmadapter,
 	else if (pioctl_req->action == MLAN_ACT_SET)
 		pmadapter->coex_rx_winsize = (t_u8)cfg->param.coex_rx_winsize;
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function will send delba request to
+ *          the peer in the TxBAStreamTbl
+ *
+ *  @param priv     A pointer to mlan_private
+ *  @param ra       MAC Address to send DELBA
+ *
+ *  @return         N/A
+ */
+void wlan_11n_send_delba_to_peer(mlan_private *priv, t_u8 *ra)
+{
+	TxBAStreamTbl *ptx_tbl;
+
+	ENTER();
+	wlan_request_ralist_lock(priv);
+	ptx_tbl = (TxBAStreamTbl *)util_peek_list(priv->adapter->pmoal_handle,
+						  &priv->tx_ba_stream_tbl_ptr,
+						  MNULL, MNULL);
+	if (!ptx_tbl) {
+		wlan_release_ralist_lock(priv);
+		LEAVE();
+		return;
+	}
+
+	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
+		if (!memcmp(priv->adapter, ptx_tbl->ra, ra,
+			    MLAN_MAC_ADDR_LENGTH)) {
+			PRINTM(MIOCTL, "Tx:Send delba to tid=%d, " MACSTR "\n",
+			       ptx_tbl->tid, MAC2STR(ptx_tbl->ra));
+			wlan_send_delba(priv, MNULL, ptx_tbl->tid, ptx_tbl->ra,
+					1);
+		}
+		ptx_tbl = ptx_tbl->pnext;
+	}
+	wlan_release_ralist_lock(priv);
+	/* Signal MOAL to trigger mlan_main_process */
+	wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING, MNULL);
+	LEAVE();
+	return;
+}
+
+/**
+ *  @brief Set/Get control to TX AMPDU configuration on infra link
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
+ */
+static mlan_status wlan_11n_ioctl_txaggrctrl(pmlan_adapter pmadapter,
+					     pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_11n_cfg *cfg = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+
+	ENTER();
+
+	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cfg->param.txaggrctrl = pmpriv->txaggrctrl;
+	else if (pioctl_req->action == MLAN_ACT_SET)
+		pmpriv->txaggrctrl = (t_u8)cfg->param.txaggrctrl;
+
+	if (pmpriv->media_connected == MTRUE) {
+		if (pioctl_req->action == MLAN_ACT_SET && !pmpriv->txaggrctrl &&
+		    pmpriv->adapter->tdls_status != TDLS_NOT_SETUP)
+			wlan_11n_send_delba_to_peer(
+				pmpriv, pmpriv->curr_bss_params.bss_descriptor
+						.mac_address);
+	}
 	LEAVE();
 	return ret;
 }
@@ -956,7 +1031,7 @@ static void wlan_send_delba_txbastream_tbl(pmlan_private priv, t_u8 tid)
  *
  *  @return		N/A
  */
-void wlan_update_all_stations_ampdu(mlan_private *priv)
+static void wlan_update_all_stations_ampdu(mlan_private *priv)
 {
 	sta_node *sta_ptr;
 	mlan_adapter *pmadapter = priv->adapter;
@@ -1319,6 +1394,7 @@ static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
+
 	/* SM power save */
 	if (ISSUPP_MIMOPS(priv->adapter->hw_dot_11n_dev_cap))
 		RESETHT_SM_POWERSAVE(ht_cap->ht_cap_info); /* Enable HT SMPS*/
@@ -1761,6 +1837,9 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 				disable_station_ampdu(
 					priv, tid, padd_ba_rsp->peer_mac_addr);
 #endif /* UAP_SUPPORT */
+			if (ra_list && ra_list->is_tdls_link)
+				disable_station_ampdu(
+					priv, tid, padd_ba_rsp->peer_mac_addr);
 			priv->aggr_prio_tbl[tid].ampdu_ap =
 				BA_STREAM_NOT_ALLOWED;
 
@@ -2159,7 +2238,7 @@ mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			txbf->no_of_peers = *(t_u8 *)&txbfcfg->body;
 			tx_bf_peer = (bf_peer_args *)((t_u8 *)&txbfcfg->body +
 						      sizeof(t_u8));
-			for (i = 0; i < txbf->no_of_peers; i++) {
+			for (i = 0; i < (int)txbf->no_of_peers; i++) {
 				memcpy_ext(pmadapter,
 					   txbf->body.tx_bf_peer[i].peer_mac,
 					   (t_u8 *)tx_bf_peer->peer_mac,
@@ -2178,7 +2257,7 @@ mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			txbf->no_of_peers = *(t_u8 *)&txbfcfg->body;
 			bf_snr = (bf_snr_thr_t *)((t_u8 *)&txbfcfg->body +
 						  sizeof(t_u8));
-			for (i = 0; i < txbf->no_of_peers; i++) {
+			for (i = 0; i < (int)txbf->no_of_peers; i++) {
 				memcpy_ext(pmadapter,
 					   txbf->body.bf_snr[i].peer_mac,
 					   (t_u8 *)bf_snr->peer_mac,
@@ -2387,7 +2466,6 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
 	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
-	t_u32 usr_vht_cap_info;
 	t_u8 usr_dot_11ac_bw;
 	int ret_len = 0;
 
@@ -2412,10 +2490,6 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	else
 		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
-	if (pbss_desc->bss_band & BAND_A)
-		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_a;
-	else
-		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_bg;
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
 		usr_dot_11ac_bw = BW_FOLLOW_VHTCAP;
 	else
@@ -2544,6 +2618,8 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			   (t_u8 *)pext_cap + sizeof(MrvlIEtypesHeader_t),
 			   (t_u8 *)&pmpriv->ext_cap, sizeof(ExtCap_t),
 			   pext_cap->header.len);
+		if (pbss_desc && pbss_desc->multi_bssid_ap)
+			SET_EXTCAP_MULTI_BSSID(pext_cap->ext_cap);
 		if (!pmadapter->ecsa_enable)
 			RESET_EXTCAP_EXT_CHANNEL_SWITCH(pext_cap->ext_cap);
 		else
@@ -2637,6 +2713,9 @@ mlan_status wlan_11n_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_11N_CFG_COEX_RX_WINSIZE:
 		status = wlan_11n_ioctl_coex_rx_winsize(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_11N_CFG_TX_AGGR_CTRL:
+		status = wlan_11n_ioctl_txaggrctrl(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_11N_CFG_IBSS_AMPDU_PARAM:
 		status = wlan_11n_ioctl_ibss_ampdu_param(pmadapter, pioctl_req);
@@ -3024,7 +3103,7 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 		ptxtbl = ptxtbl->pnext;
 		ptbl++;
 		count++;
-		if (count >= bastream_max)
+		if (count >= (int)bastream_max)
 			break;
 	}
 	wlan_release_ralist_lock(priv);

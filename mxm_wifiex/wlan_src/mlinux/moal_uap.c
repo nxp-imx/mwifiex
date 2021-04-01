@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -58,7 +58,7 @@ static int woal_uap_addba_param(struct net_device *dev, struct ifreq *req)
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
-	addba_param param;
+	uap_addba_param param;
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -137,7 +137,7 @@ static int woal_uap_aggr_priotbl(struct net_device *dev, struct ifreq *req)
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
-	aggr_prio_tbl param;
+	uap_aggr_prio_tbl param;
 	int ret = 0;
 	int i = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -281,7 +281,7 @@ done:
 static int woal_uap_get_fw_info(struct net_device *dev, struct ifreq *req)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	fw_info fw;
+	uap_fw_info fw;
 	mlan_fw_info fw_info;
 	int ret = 0;
 
@@ -887,7 +887,7 @@ static int woal_uap_domain_info(struct net_device *dev, struct ifreq *req)
 			goto done;
 		}
 		tlv_data_len = ((t_u16 *)(tlv))[1];
-		if ((TLV_HEADER_LEN + tlv_data_len) > sizeof(tlv)) {
+		if ((TLV_HEADER_LEN + tlv_data_len) > (int)sizeof(tlv)) {
 			PRINTM(MERROR, "TLV buffer is overflowed");
 			ret = -EINVAL;
 			goto done;
@@ -1002,7 +1002,7 @@ static int woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 		/* Set mib value to MLAN */
 		ioctl_req->action = MLAN_ACT_SET;
 		cfg11h->param.dfs_testing.usr_cac_period_msec =
-			param.usr_cac_period;
+			param.usr_cac_period * 1000;
 		cfg11h->param.dfs_testing.usr_nop_period_sec =
 			param.usr_nop_period;
 		cfg11h->param.dfs_testing.usr_no_chan_change =
@@ -1011,8 +1011,7 @@ static int woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 			param.fixed_new_chan;
 		cfg11h->param.dfs_testing.usr_cac_restart = param.cac_restart;
 		priv->phandle->cac_restart = param.cac_restart;
-		priv->phandle->cac_period_jiffies =
-			param.usr_cac_period * HZ / 1000;
+		priv->phandle->cac_period_jiffies = param.usr_cac_period * HZ;
 		priv->user_cac_period_msec =
 			cfg11h->param.dfs_testing.usr_cac_period_msec;
 	}
@@ -1024,7 +1023,7 @@ static int woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 
 	if (!param.action) { /* GET */
 		param.usr_cac_period =
-			cfg11h->param.dfs_testing.usr_cac_period_msec;
+			cfg11h->param.dfs_testing.usr_cac_period_msec / 1000;
 		param.usr_nop_period =
 			cfg11h->param.dfs_testing.usr_nop_period_sec;
 		param.no_chan_change =
@@ -1883,6 +1882,15 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 		mreq->action = MLAN_ACT_SET;
 		radio->param.ant_cfg.tx_antenna = antenna_config.tx_mode;
 		radio->param.ant_cfg.rx_antenna = antenna_config.rx_mode;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		if (IS_CARD9098(priv->phandle->card_type) ||
+		    IS_CARD9097(priv->phandle->card_type)) {
+			if (IS_STA_CFG80211(
+				    priv->phandle->params.cfg80211_wext))
+				woal_cfg80211_notify_antcfg(
+					priv, priv->phandle->wiphy, radio);
+		}
+#endif
 	}
 
 	status = woal_request_ioctl(priv, mreq, MOAL_IOCTL_WAIT);
@@ -3204,9 +3212,9 @@ done:
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_uap_get_bss_param(moal_private *priv,
-				   mlan_uap_bss_param *sys_cfg,
-				   t_u8 wait_option)
+static mlan_status woal_uap_get_bss_param(moal_private *priv,
+					  mlan_uap_bss_param *sys_cfg,
+					  t_u8 wait_option)
 {
 	mlan_ds_bss *info = NULL;
 	mlan_ioctl_req *req = NULL;
@@ -3556,8 +3564,8 @@ done:
  *
  *  @return         0 --success, otherwise fail
  */
-int woal_uap_ap_cfg_parse_data(moal_private *priv, mlan_uap_bss_param *ap_cfg,
-			       char *buf)
+static int woal_uap_ap_cfg_parse_data(moal_private *priv,
+				      mlan_uap_bss_param *ap_cfg, char *buf)
 {
 	int ret = 0, atoi_ret;
 	int set_sec = 0, set_key = 0, set_chan = 0;
@@ -3875,8 +3883,9 @@ done:
  *
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_set_get_ap_scan_channels(moal_private *priv, t_u16 action,
-					  mlan_uap_scan_channels *scan_channels)
+static mlan_status
+woal_set_get_ap_scan_channels(moal_private *priv, t_u16 action,
+			      mlan_uap_scan_channels *scan_channels)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_bss *bss = NULL;
@@ -3971,7 +3980,7 @@ done:
  *
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_start_acs_scan(moal_private *priv)
+static mlan_status woal_start_acs_scan(moal_private *priv)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_bss *bss = NULL;
@@ -4014,7 +4023,7 @@ done:
  *
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_do_acs_check(moal_private *priv)
+static mlan_status woal_do_acs_check(moal_private *priv)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_uap_bss_param *sys_config = NULL;

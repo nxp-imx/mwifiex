@@ -3,7 +3,7 @@
  * @brief This file contains the functions for uAP CFG80211.
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -154,7 +154,7 @@ static t_u8 woal_check_rsn_ie(IEEEtypes_Rsn_t *rsn_ie,
 	int i = 0;
 	wpa_suite_auth_key_mgmt_t *key_mgmt = NULL;
 	left = rsn_ie->len + 2;
-	if (left < sizeof(IEEEtypes_Rsn_t))
+	if (left < (int)sizeof(IEEEtypes_Rsn_t))
 		return MFALSE;
 	sys_config->wpa_cfg.group_cipher = 0;
 	sys_config->wpa_cfg.pairwise_cipher_wpa2 = 0;
@@ -185,15 +185,15 @@ static t_u8 woal_check_rsn_ie(IEEEtypes_Rsn_t *rsn_ie,
 		}
 	}
 	left -= sizeof(IEEEtypes_Rsn_t) + (count - 1) * sizeof(wpa_suite);
-	if (left < sizeof(wpa_suite_auth_key_mgmt_t))
+	if (left < (int)sizeof(wpa_suite_auth_key_mgmt_t))
 		return MFALSE;
 	key_mgmt =
 		(wpa_suite_auth_key_mgmt_t *)((u8 *)rsn_ie +
 					      sizeof(IEEEtypes_Rsn_t) +
 					      (count - 1) * sizeof(wpa_suite));
 	count = le16_to_cpu(key_mgmt->count);
-	if (left < (sizeof(wpa_suite_auth_key_mgmt_t) +
-		    (count - 1) * sizeof(wpa_suite)))
+	if (left < (int)(sizeof(wpa_suite_auth_key_mgmt_t) +
+			 (count - 1) * sizeof(wpa_suite)))
 		return MFALSE;
 	for (i = 0; i < count; i++) {
 		switch (key_mgmt->list[i].type) {
@@ -233,7 +233,7 @@ static t_u8 woal_check_wpa_ie(IEEEtypes_Wpa_t *wpa_ie,
 	int i = 0;
 	wpa_suite_auth_key_mgmt_t *key_mgmt = NULL;
 	left = wpa_ie->len + 2;
-	if (left < sizeof(IEEEtypes_Wpa_t))
+	if (left < (int)sizeof(IEEEtypes_Wpa_t))
 		return MFALSE;
 	sys_config->wpa_cfg.group_cipher = 0;
 	sys_config->wpa_cfg.pairwise_cipher_wpa = 0;
@@ -262,15 +262,15 @@ static t_u8 woal_check_wpa_ie(IEEEtypes_Wpa_t *wpa_ie,
 		}
 	}
 	left -= sizeof(IEEEtypes_Wpa_t) + (count - 1) * sizeof(wpa_suite);
-	if (left < sizeof(wpa_suite_auth_key_mgmt_t))
+	if (left < (int)sizeof(wpa_suite_auth_key_mgmt_t))
 		return MFALSE;
 	key_mgmt =
 		(wpa_suite_auth_key_mgmt_t *)((u8 *)wpa_ie +
 					      sizeof(IEEEtypes_Wpa_t) +
 					      (count - 1) * sizeof(wpa_suite));
 	count = le16_to_cpu(key_mgmt->count);
-	if (left < (sizeof(wpa_suite_auth_key_mgmt_t) +
-		    (count - 1) * sizeof(wpa_suite)))
+	if (left < (int)(sizeof(wpa_suite_auth_key_mgmt_t) +
+			 (count - 1) * sizeof(wpa_suite)))
 		return MFALSE;
 	for (i = 0; i < count; i++) {
 		switch (key_mgmt->list[i].type) {
@@ -426,8 +426,8 @@ static t_void woal_set_wmm_ies(moal_private *priv, const t_u8 *ie, int len,
  * @param params          A pointer to cfg80211_ap_settings structure
  * @return                0 -- success, otherwise fail
  */
-t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band,
-				struct cfg80211_ap_settings *params)
+static t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band,
+				       struct cfg80211_ap_settings *params)
 #else
 /**
  * @brief initialize AP or GO bss config
@@ -435,7 +435,7 @@ t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band,
  * @param priv            A pointer to moal private structure
  * @return                0 -- success, otherwise fail
  */
-t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band)
+static t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band)
 #endif
 {
 	mlan_fw_info fw_info;
@@ -478,8 +478,8 @@ t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band)
  * @param params          A pointer to cfg80211_ap_settings structure
  * @return                0 -- success, otherwise fail
  */
-t_u8 woal_check_11ax_capability(moal_private *priv, t_u8 band,
-				struct cfg80211_ap_settings *params)
+static t_u8 woal_check_11ax_capability(moal_private *priv, t_u8 band,
+				       struct cfg80211_ap_settings *params)
 {
 	mlan_fw_info fw_info;
 	t_u8 enable_11ax = MFALSE;
@@ -1338,9 +1338,10 @@ static void woal_virt_if_setup(struct net_device *dev)
  *
  *  @return                 A pointer to the new priv structure
  */
-moal_private *woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index,
-					unsigned char name_assign_type,
-					t_u8 bss_type, const char *name)
+static moal_private *woal_alloc_virt_interface(moal_handle *handle,
+					       t_u8 bss_index,
+					       unsigned char name_assign_type,
+					       t_u8 bss_type, const char *name)
 #else
 /**
  * @brief This function adds a new interface. It will
@@ -1441,11 +1442,11 @@ error:
  *
  * @return                  0 -- success, otherwise fail
  */
-int woal_cfg80211_add_virt_if(struct wiphy *wiphy, const char *name,
-			      unsigned char name_assign_type,
-			      enum nl80211_iftype type, u32 *flags,
-			      struct vif_params *params,
-			      struct net_device **new_dev)
+static int woal_cfg80211_add_virt_if(struct wiphy *wiphy, const char *name,
+				     unsigned char name_assign_type,
+				     enum nl80211_iftype type, u32 *flags,
+				     struct vif_params *params,
+				     struct net_device **new_dev)
 #else
 /**
  * @brief Request the driver to add a virtual interface
@@ -1587,7 +1588,7 @@ done:
  *  @return              MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success,
  * otherwise fail
  */
-mlan_status woal_bss_remove(moal_private *priv)
+static mlan_status woal_bss_remove(moal_private *priv)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
@@ -2339,12 +2340,12 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 #endif
 	/* if the bss is still running, then stop it */
 	if (priv->bss_started == MTRUE) {
-		if (MLAN_STATUS_FAILURE ==
+		if ((int)MLAN_STATUS_FAILURE ==
 		    woal_uap_bss_ctrl(priv, MOAL_NO_WAIT, UAP_BSS_STOP)) {
 			ret = -EFAULT;
 			goto done;
 		}
-		if (MLAN_STATUS_FAILURE ==
+		if ((int)MLAN_STATUS_FAILURE ==
 		    woal_uap_bss_ctrl(priv, MOAL_NO_WAIT, UAP_BSS_RESET)) {
 			ret = -EFAULT;
 			goto done;
@@ -2911,7 +2912,7 @@ void woal_cac_timer_func(void *context)
  *
  * @return           N/A
  */
-void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
+static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 {
 	chan_band_info uap_channel;
 	t_u8 chan2Offset = SEC_CHAN_NONE;

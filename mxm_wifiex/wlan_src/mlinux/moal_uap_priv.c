@@ -3,7 +3,7 @@
  * @brief This file contains standard ioctl functions
  *
  *
- * Copyright 2010-2020 NXP
+ * Copyright 2010-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -102,8 +102,9 @@ int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_WL_FW_RELOAD:
 			break;
 		case WOAL_AP_SET_CFG:
-			ret = woal_uap_set_ap_cfg(priv, wrq->u.data.pointer,
-						  wrq->u.data.length);
+			ret = woal_uap_set_ap_cfg(
+				priv, (t_u8 __force *)wrq->u.data.pointer,
+				wrq->u.data.length);
 			break;
 		default:
 			ret = -EINVAL;
@@ -141,7 +142,8 @@ int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 	case WOAL_UAP_FROYO_WL_FW_RELOAD:
 		break;
 	case WOAL_UAP_FROYO_AP_SET_CFG:
-		ret = woal_uap_set_ap_cfg(priv, wrq->u.data.pointer,
+		ret = woal_uap_set_ap_cfg(priv,
+					  (t_u8 __force *)wrq->u.data.pointer,
 					  wrq->u.data.length);
 		break;
 	default:

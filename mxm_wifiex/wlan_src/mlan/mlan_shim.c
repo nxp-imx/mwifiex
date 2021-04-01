@@ -3,7 +3,7 @@
  *  @brief This file contains APIs to MOAL module.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -56,7 +56,7 @@ Change log:
 			Global Variables
 ********************************************************/
 #ifdef STA_SUPPORT
-mlan_operations mlan_sta_ops = {
+static mlan_operations mlan_sta_ops = {
 	/* init cmd handler */
 	wlan_ops_sta_init_cmd,
 	/* ioctl handler */
@@ -76,7 +76,7 @@ mlan_operations mlan_sta_ops = {
 };
 #endif
 #ifdef UAP_SUPPORT
-mlan_operations mlan_uap_ops = {
+static mlan_operations mlan_uap_ops = {
 	/* init cmd handler */
 	wlan_ops_uap_init_cmd,
 	/* ioctl handler */
@@ -140,7 +140,7 @@ extern mlan_status wlan_get_usb_device(pmlan_adapter pmadapter);
  *  @param pmadapter  A pointer to mlan_adapter structure
  *
  */
-void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
+static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 {
 	pmlan_ioctl_req pioctl_buf;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -192,15 +192,6 @@ void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 /********************************************************
 			Global Functions
 ********************************************************/
-#ifdef USB
-extern mlan_adapter_operations mlan_usb_ops;
-#endif
-#ifdef PCIE
-extern mlan_adapter_operations mlan_pcie_ops;
-#endif
-#ifdef SDIO
-extern mlan_adapter_operations mlan_sdio_ops;
-#endif
 
 /**
  *  @brief This function registers MOAL to MLAN module.
@@ -327,6 +318,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_spin_lock);
 	MASSERT(pcb->moal_spin_unlock);
 	MASSERT(pcb->moal_hist_data_add);
+	MASSERT(pcb->moal_updata_peer_signal);
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
@@ -444,7 +436,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
-	pmadapter->init_para.fw_region = pmdevice->fw_region;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
@@ -573,20 +564,20 @@ exit_register:
 /**
  *  @brief This function unregisters MOAL from MLAN module.
  *
- *  @param pmlan_adapter   A pointer to a mlan_device structure
+ *  @param padapter  A pointer to a mlan_device structure
  *                         allocated in MOAL
  *
  *  @return                MLAN_STATUS_SUCCESS
  *                             The deregistration succeeded.
  */
-mlan_status mlan_unregister(t_void *pmlan_adapter)
+mlan_status mlan_unregister(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_callbacks pcb;
 	t_s32 i = 0;
 
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 
 	ENTER();
 
@@ -620,7 +611,7 @@ mlan_status mlan_unregister(t_void *pmlan_adapter)
 /**
  *  @brief This function downloads the firmware
  *
- *  @param pmlan_adapter   A pointer to a t_void pointer to store
+ *  @param padapter   A pointer to a t_void pointer to store
  *                         mlan_adapter structure pointer
  *  @param pmfw            A pointer to firmware image
  *
@@ -629,13 +620,13 @@ mlan_status mlan_unregister(t_void *pmlan_adapter)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware download failed.
  */
-mlan_status mlan_dnld_fw(t_void *pmlan_adapter, pmlan_fw_image pmfw)
+mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
 	ENTER();
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 
 	/* Download helper/firmware */
 	if (pmfw) {
@@ -654,20 +645,20 @@ mlan_status mlan_dnld_fw(t_void *pmlan_adapter, pmlan_fw_image pmfw)
 /**
  *  @brief This function pass init param to MLAN
  *
- *  @param pmlan_adapter  A pointer to a t_void pointer to store
+ *  @param padapter  A pointer to a t_void pointer to store
  *                        mlan_adapter structure pointer
  *  @param pparam         A pointer to mlan_init_param structure
  *
  *  @return               MLAN_STATUS_SUCCESS
  *
  */
-mlan_status mlan_set_init_param(t_void *pmlan_adapter, pmlan_init_param pparam)
+mlan_status mlan_set_init_param(t_void *padapter, pmlan_init_param pparam)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
 	ENTER();
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 
 	/** Save DPD data in MLAN */
 	if ((pparam->pdpd_data_buf) || (pparam->dpd_data_len > 0)) {
@@ -691,7 +682,7 @@ mlan_status mlan_set_init_param(t_void *pmlan_adapter, pmlan_init_param pparam)
 /**
  *  @brief This function initializes the firmware
  *
- *  @param pmlan_adapter   A pointer to a t_void pointer to store
+ *  @param padapter   A pointer to a t_void pointer to store
  *                         mlan_adapter structure pointer
  *
  *  @return                MLAN_STATUS_SUCCESS
@@ -701,13 +692,13 @@ mlan_status mlan_set_init_param(t_void *pmlan_adapter, pmlan_init_param pparam)
  *                         MLAN_STATUS_FAILURE
  *                             The firmware initialization failed.
  */
-mlan_status mlan_init_fw(t_void *pmlan_adapter)
+mlan_status mlan_init_fw(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
 	ENTER();
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 
 	pmadapter->hw_status = WlanHardwareStatusGetHwSpec;
 
@@ -722,7 +713,7 @@ mlan_status mlan_init_fw(t_void *pmlan_adapter)
 /**
  *  @brief Shutdown firmware
  *
- *  @param pmlan_adapter    A pointer to mlan_adapter structure
+ *  @param padapter    A pointer to mlan_adapter structure
  *
  *  @return     MLAN_STATUS_SUCCESS
  *                              The firmware shutdown call succeeded.
@@ -731,10 +722,10 @@ mlan_status mlan_init_fw(t_void *pmlan_adapter)
  *              MLAN_STATUS_FAILURE
  *                              The firmware shutdown call failed.
  */
-mlan_status mlan_shutdown_fw(t_void *pmlan_adapter)
+mlan_status mlan_shutdown_fw(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_buffer pmbuf;
 	pmlan_ioctl_req pioctl_buf;
 	pmlan_callbacks pcb;
@@ -742,7 +733,7 @@ mlan_status mlan_shutdown_fw(t_void *pmlan_adapter)
 
 	ENTER();
 
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 	/* MLAN already shutdown */
 	if (pmadapter->hw_status == WlanHardwareStatusNotReady) {
 		LEAVE();
@@ -934,23 +925,24 @@ void mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
 /**
  *  @brief The receive process
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param rx_pkts              A pointer to save receive pkts number
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status mlan_rx_process(t_void *pmlan_adapter, t_u8 *rx_pkts)
+mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_callbacks pcb;
 	pmlan_buffer pmbuf;
 	t_u8 limit = 0;
 	t_u8 rx_num = 0;
+	t_u32 in_ts_sec, in_ts_usec;
 
 	ENTER();
 
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 	pcb = &pmadapter->callbacks;
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pmadapter->prx_proc_lock);
 	if (pmadapter->mlan_rx_processing || pmadapter->rx_lock_flag) {
@@ -1004,10 +996,15 @@ rx_process_start:
 			pmadapter->rx_data_queue.plock);
 
 		// rx_trace 6
-		if (pmadapter->tp_state_on)
+		if (pmadapter->tp_state_on) {
 			pmadapter->callbacks.moal_tp_accounting(
 				pmadapter->pmoal_handle, pmbuf,
 				6 /*RX_DROP_P2*/);
+			pcb->moal_get_system_time(pmadapter->pmoal_handle,
+						  &in_ts_sec, &in_ts_usec);
+			pmbuf->extra_ts_sec = in_ts_sec;
+			pmbuf->extra_ts_usec = in_ts_usec;
+		}
 		if (pmadapter->tp_state_drop_point == 6 /*RX_DROP_P2*/) {
 			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
 			goto rx_process_start;
@@ -1043,19 +1040,19 @@ exit_rx_proc:
 /**
  *  @brief The main process
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status mlan_main_process(t_void *pmlan_adapter)
+mlan_status mlan_main_process(t_void *padapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_callbacks pcb;
 
 	ENTER();
 
-	MASSERT(pmlan_adapter);
+	MASSERT(padapter);
 
 	pcb = &pmadapter->callbacks;
 
@@ -1158,11 +1155,15 @@ process_start:
 				break;
 
 			if (pmadapter->data_sent ||
+			    wlan_is_tdls_link_chan_switching(
+				    pmadapter->tdls_status) ||
 			    (wlan_bypass_tx_list_empty(pmadapter) &&
 			     wlan_wmm_lists_empty(pmadapter)) ||
 			    wlan_11h_radar_detected_tx_blocked(pmadapter)) {
 				if (pmadapter->cmd_sent ||
 				    pmadapter->curr_cmd ||
+				    !wlan_is_send_cmd_allowed(
+					    pmadapter->tdls_status) ||
 				    !wlan_is_cmd_pending(pmadapter)) {
 					break;
 				}
@@ -1219,7 +1220,8 @@ process_start:
 				pmadapter->vdll_ctrl.pending_block_len);
 			pmadapter->vdll_ctrl.pending_block = MNULL;
 		}
-		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd) {
+		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
+		    wlan_is_send_cmd_allowed(pmadapter->tdls_status)) {
 			if (wlan_exec_next_cmd(pmadapter) ==
 			    MLAN_STATUS_FAILURE) {
 				ret = MLAN_STATUS_FAILURE;
@@ -1229,6 +1231,7 @@ process_start:
 
 		if (!pmadapter->data_sent &&
 		    !wlan_11h_radar_detected_tx_blocked(pmadapter) &&
+		    !wlan_is_tdls_link_chan_switching(pmadapter->tdls_status) &&
 		    !wlan_bypass_tx_list_empty(pmadapter)) {
 			PRINTM(MINFO, "mlan_send_pkt(): deq(bybass_txq)\n");
 			wlan_process_bypass_tx(pmadapter);
@@ -1242,7 +1245,8 @@ process_start:
 		}
 
 		if (!pmadapter->data_sent && !wlan_wmm_lists_empty(pmadapter) &&
-		    !wlan_11h_radar_detected_tx_blocked(pmadapter)) {
+		    !wlan_11h_radar_detected_tx_blocked(pmadapter) &&
+		    !wlan_is_tdls_link_chan_switching(pmadapter->tdls_status)) {
 			wlan_wmm_process_tx(pmadapter);
 			if (pmadapter->hs_activated == MTRUE) {
 				pmadapter->is_hs_configured = MFALSE;
@@ -1293,22 +1297,24 @@ exit_main_proc:
 /**
  *  @brief Function to send packet
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param pmbuf		A pointer to mlan_buffer structure
  *
  *  @return			MLAN_STATUS_PENDING
  */
-mlan_status mlan_send_packet(t_void *pmlan_adapter, pmlan_buffer pmbuf)
+mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	mlan_private *pmpriv;
 	t_u16 eth_type = 0;
+	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
+	tdlsStatus_e tdls_status;
 
 	ENTER();
-	MASSERT(pmlan_adapter && pmbuf);
+	MASSERT(padapter && pmbuf);
 
-	if (!pmlan_adapter || !pmbuf) {
+	if (!padapter || !pmbuf) {
 		return MLAN_STATUS_FAILURE;
 	}
 
@@ -1323,9 +1329,19 @@ mlan_status mlan_send_packet(t_void *pmlan_adapter, pmlan_buffer pmbuf)
 	     ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
 	      (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
 	      (eth_type == MLAN_ETHER_PKT_TYPE_WAPI))) ||
+	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
 
 	) {
+		if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {
+			memcpy_ext(pmadapter, ra,
+				   pmbuf->pbuf + pmbuf->data_offset,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+			tdls_status = wlan_get_tdls_link_status(pmpriv, ra);
+			if (MTRUE == wlan_is_tdls_link_setup(tdls_status) ||
+			    !pmpriv->media_connected)
+				pmbuf->flags |= MLAN_BUF_FLAG_TDLS;
+		}
 		if (eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) {
 			PRINTM_NETINTF(MMSG, pmpriv);
 			PRINTM(MMSG, "wlan: Send EAPOL pkt to " MACSTR "\n",
@@ -1391,19 +1407,18 @@ exit:
 /**
  *  @brief Packet send completion callback
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param pmbuf		A pointer to mlan_buffer structure
  *  @param port			Data port
  *  @param status		Callback status
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status mlan_write_data_async_complete(t_void *pmlan_adapter,
-					   pmlan_buffer pmbuf, t_u32 port,
-					   mlan_status status)
+mlan_status mlan_write_data_async_complete(t_void *padapter, pmlan_buffer pmbuf,
+					   t_u32 port, mlan_status status)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
 	ENTER();
 
@@ -1424,17 +1439,17 @@ mlan_status mlan_write_data_async_complete(t_void *pmlan_adapter,
 /**
  *  @brief Packet receive handler
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param pmbuf		A pointer to mlan_buffer structure
  *  @param port			Data port
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE or
  * MLAN_STATUS_PENDING
  */
-mlan_status mlan_recv(t_void *pmlan_adapter, pmlan_buffer pmbuf, t_u32 port)
+mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	t_u8 *pbuf;
 	t_u32 len, recv_type;
 	t_u32 event_cause;
@@ -1445,7 +1460,7 @@ mlan_status mlan_recv(t_void *pmlan_adapter, pmlan_buffer pmbuf, t_u32 port)
 
 	ENTER();
 
-	MASSERT(pmlan_adapter && pmbuf);
+	MASSERT(padapter && pmbuf);
 
 	if (pmadapter->hs_activated == MTRUE)
 		wlan_process_hs_config(pmadapter);
@@ -1576,16 +1591,16 @@ mlan_status mlan_recv(t_void *pmlan_adapter, pmlan_buffer pmbuf, t_u32 port)
 /**
  *  @brief Packet receive completion callback handler
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param pmbuf		A pointer to mlan_buffer structure
  *  @param status		Callback status
  *
  *  @return			MLAN_STATUS_SUCCESS
  */
-mlan_status mlan_recv_packet_complete(t_void *pmlan_adapter, pmlan_buffer pmbuf,
+mlan_status mlan_recv_packet_complete(t_void *padapter, pmlan_buffer pmbuf,
 				      mlan_status status)
 {
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 
 	ENTER();
 	wlan_recv_packet_complete(pmadapter, pmbuf, status);
@@ -1596,15 +1611,15 @@ mlan_status mlan_recv_packet_complete(t_void *pmlan_adapter, pmlan_buffer pmbuf,
 /**
  *  @brief select wmm queue
  *
- *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param padapter	A pointer to mlan_adapter structure
  *  @param bss_num		BSS number
  *  @param tid			TID
  *
  *  @return			wmm queue priority (0 - 3)
  */
-t_u8 mlan_select_wmm_queue(t_void *pmlan_adapter, t_u8 bss_num, t_u8 tid)
+t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
 {
-	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	pmlan_private pmpriv = pmadapter->priv[bss_num];
 	t_u8 ret;
 	ENTER();

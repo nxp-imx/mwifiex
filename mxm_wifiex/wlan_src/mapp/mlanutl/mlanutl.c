@@ -3,7 +3,7 @@
  * @brief Program to control parameters in the mlandriver
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -117,6 +117,9 @@ static int process_signalext_cfg(int argc, char *argv[]);
 #endif
 static int process_vhtcfg(int argc, char *argv[]);
 static int process_dyn_bw(int argc, char *argv[]);
+static int process_11axcfg(int argc, char *argv[]);
+static int process_11axcmdcfg(int argc, char *argv[]);
+static int process_txratecfg(int argc, char *argv[]);
 static int process_httxcfg(int argc, char *argv[]);
 static int process_htcapinfo(int argc, char *argv[]);
 static int process_addbapara(int argc, char *argv[]);
@@ -141,6 +144,9 @@ struct command_node command_list[] = {
 #endif
 	{"vhtcfg", process_vhtcfg},
 	{"dyn_bw", process_dyn_bw},
+	{"11axcfg", process_11axcfg},
+	{"11axcmd", process_11axcmdcfg},
+	{"txratecfg", process_txratecfg},
 	{"addbapara", process_addbapara},
 	{"aggrpriotbl", process_aggrpriotbl},
 	{"addbareject", process_addbareject},
@@ -172,6 +178,9 @@ static char *usage[] = {
 #endif
 	"         vhtcfg",
 	"         dyn_bw",
+	"         11axcfg",
+	"         11axcmd",
+	"         txratecfg",
 	"         httxcfg",
 	"         htcapinfo",
 	"         aggrpriotbl",
@@ -204,7 +213,7 @@ int num_ssid_filter = 0;
  *  @param chr      Char to convert
  *  @return         Hex integer or 0
  */
-int hexval(t_s32 chr)
+static int hexval(t_s32 chr)
 {
 	if (chr >= '0' && chr <= '9')
 		return chr - '0';
@@ -250,7 +259,7 @@ t_void hexdump(char *prompt, t_void *p, t_s32 len, char delim)
  *  @param chr      Char
  *  @return         Hex integer
  */
-t_u8 hexc2bin(char chr)
+static t_u8 hexc2bin(char chr)
 {
 	if (chr >= '0' && chr <= '9')
 		chr -= '0';
@@ -268,7 +277,7 @@ t_u8 hexc2bin(char chr)
  *  @param s        A pointer string buffer
  *  @return         Hex integer
  */
-t_u32 a2hex(char *s)
+static t_u32 a2hex(char *s)
 {
 	t_u32 val = 0;
 
@@ -289,7 +298,7 @@ t_u32 a2hex(char *s)
  *  @param value    A pointer to string
  *  @return         Integer
  */
-t_u32 a2hex_or_atoi(char *value)
+static t_u32 a2hex_or_atoi(char *value)
 {
 	if (value[0] == '0' && (value[1] == 'X' || value[1] == 'x')) {
 		return a2hex(value + 2);
@@ -305,7 +314,7 @@ t_u32 a2hex_or_atoi(char *value)
  *  @param chr      A pointer to return integer
  *  @return         A pointer to next data field
  */
-char *convert2hex(char *ptr, t_u8 *chr)
+static char *convert2hex(char *ptr, t_u8 *chr)
 {
 	t_u8 val;
 
@@ -316,50 +325,6 @@ char *convert2hex(char *ptr, t_u8 *chr)
 	*chr = val;
 
 	return ptr;
-}
-
-/**
- *  @brief Check the Hex String
- *  @param s  A pointer to the string
- *  @return   MLAN_STATUS_SUCCESS --HexString, MLAN_STATUS_FAILURE --not
- * HexString
- */
-int ishexstring(char *s)
-{
-	int ret = MLAN_STATUS_FAILURE;
-	t_s32 tmp;
-
-	if (!strncasecmp("0x", s, 2)) {
-		s += 2;
-	}
-	while (*s) {
-		tmp = toupper((unsigned char)*s);
-		if (((tmp >= 'A') && (tmp <= 'F')) ||
-		    ((tmp >= '0') && (tmp <= '9'))) {
-			ret = MLAN_STATUS_SUCCESS;
-		} else {
-			ret = MLAN_STATUS_FAILURE;
-			break;
-		}
-		s++;
-	}
-
-	return ret;
-}
-
-/**
- *  @brief Convert String to Integer
- *  @param buf      A pointer to the string
- *  @return         Integer
- */
-int atoval(char *buf)
-{
-	if (!strncasecmp(buf, "0x", 2))
-		return a2hex(buf + 2);
-	else if (!ishexstring(buf))
-		return a2hex(buf);
-	else
-		return atoi(buf);
 }
 
 /**
@@ -395,33 +360,6 @@ static int process_command(int argc, char *argv[])
 	}
 
 	return ret;
-}
-
-/**
- * @brief Converts a string to hex value
- *
- * @param str      A pointer to the string
- * @param raw      A pointer to the raw data buffer
- * @return         Number of bytes read
- **/
-int string2raw(char *str, unsigned char *raw)
-{
-	int len = (strlen(str) + 1) / 2;
-
-	do {
-		if (!isxdigit((unsigned char)*str)) {
-			return -1;
-		}
-		*str = toupper((unsigned char)*str);
-		*raw = CHAR2INT(*str) << 4;
-		++str;
-		*str = toupper((unsigned char)*str);
-		if (*str == '\0')
-			break;
-		*raw |= CHAR2INT(*str);
-		++raw;
-	} while (*++str != '\0');
-	return len;
 }
 
 /**
@@ -462,24 +400,11 @@ static int prepare_buffer(t_u8 *buffer, char *cmd, t_u32 num, char *args[])
 }
 
 /**
- *  @brief Signal handler
- *
- *  @param sig      Received signal number
- *
- *  @return         N/A
- */
-void sig_handler(int sig)
-{
-	printf("Stopping application.\n");
-	terminate_flag = 1;
-}
-
-/**
  *  @brief Trims leading and traling spaces only
  *  @param str  A pointer to argument string
  *  @return     pointer to trimmed string
  */
-char *trim_spaces(char *str)
+static char *trim_spaces(char *str)
 {
 	char *str_end = NULL;
 
@@ -502,6 +427,86 @@ char *trim_spaces(char *str)
 	*(str_end + 1) = '\0';
 
 	return str;
+}
+
+/**
+ *  @brief read current command
+ *  @param ptr      A pointer to data
+ *  @param curCmd   A pointer to the buf which will hold current command
+ *  @return         NULL or the pointer to the left command buf
+ */
+static t_s8 *readCurCmd(t_s8 *ptr, t_s8 *curCmd)
+{
+	t_s32 i = 0;
+#define MAX_CMD_SIZE 64 /**< Max command size */
+
+	while (*ptr != ']' && i < (MAX_CMD_SIZE - 1))
+		curCmd[i++] = *(++ptr);
+
+	if (*ptr != ']')
+		return NULL;
+
+	curCmd[i - 1] = '\0';
+
+	return ++ptr;
+}
+
+/**
+ *  @brief parse command and hex data
+ *  @param fp       A pointer to FILE stream
+ *  @param dst      A pointer to the dest buf
+ *  @param cmd      A pointer to command buf for search
+ *  @return         Length of hex data or MLAN_STATUS_FAILURE
+ */
+static int fparse_for_cmd_and_hex(FILE *fp, t_u8 *dst, t_u8 *cmd)
+{
+	t_s8 *ptr;
+	t_u8 *dptr;
+	t_s8 buf[256], curCmd[64] = {0};
+	t_s32 isCurCmd = 0;
+
+	dptr = dst;
+	while (fgets((char *)buf, sizeof(buf), fp)) {
+		ptr = buf;
+
+		while (*ptr) {
+			/* skip leading spaces */
+			while (*ptr && isspace((unsigned char)*ptr))
+				ptr++;
+
+			/* skip blank lines and lines beginning with '#' */
+			if (*ptr == '\0' || *ptr == '#')
+				break;
+
+			if (*ptr == '[' && *(ptr + 1) != '/') {
+				ptr = readCurCmd(ptr, curCmd);
+				if (!ptr)
+					return MLAN_STATUS_FAILURE;
+
+				if (strcasecmp((char *)curCmd,
+					       (char *)cmd)) /* Not equal */
+					isCurCmd = 0;
+				else
+					isCurCmd = 1;
+			}
+
+			/* Ignore the rest if it is not correct cmd */
+			if (!isCurCmd)
+				break;
+
+			if (*ptr == '[' && *(ptr + 1) == '/')
+				return dptr - dst;
+
+			if (isxdigit((unsigned char)*ptr)) {
+				ptr = (t_s8 *)convert2hex((char *)ptr, dptr++);
+			} else {
+				/* Invalid character on data line */
+				ptr++;
+			}
+		}
+	}
+
+	return MLAN_STATUS_FAILURE;
 }
 
 /**
@@ -642,6 +647,8 @@ done:
 	return ret;
 }
 
+int process_host_cmd_resp(char *cmd_name, t_u8 *buf);
+
 /**
  *  @brief Get one line from the File
  *
@@ -651,7 +658,7 @@ done:
  *  @param lineno   A pointer to return current line number
  *  @return         returns string or NULL
  */
-char *mlan_config_get_line(FILE *fp, char *str, t_s32 size, int *lineno)
+static char *mlan_config_get_line(FILE *fp, char *str, t_s32 size, int *lineno)
 {
 	char *start, *end;
 	int out, next_line;
@@ -862,7 +869,7 @@ static int mlan_get_hostcmd_data(FILE *fp, int *ln, t_u8 *buf, t_u16 *size)
  *  @param buf      A pointer to comand buffer
  *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
  */
-int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
+static int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 {
 	char line[256], cmdname[256], *pos, cmdcode[10];
 	HostCmd_DS_GEN *hostcmd;
@@ -925,6 +932,21 @@ int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 	return MLAN_STATUS_SUCCESS;
 }
 
+#define SUBID_OFFSET 2
+static t_u16 supported_subcmd[] = {0x111, 0x11b, 0x11e};
+
+static int check_if_hostcmd_subcmd_allowed(t_u8 *buf)
+{
+	t_u32 maxcnt = sizeof(supported_subcmd) / sizeof(supported_subcmd[0]);
+
+	for (int i = 0; i < maxcnt; i++) {
+		if (!memcmp(buf + SUBID_OFFSET, (supported_subcmd + i),
+			    sizeof(t_u16)))
+			return MLAN_STATUS_SUCCESS;
+	}
+	return MLAN_STATUS_NOTFOUND;
+}
+
 /**
  *  @brief Process hostcmd command
  *  @param argc   Number of arguments
@@ -935,6 +957,7 @@ static int process_hostcmd(int argc, char *argv[])
 {
 	t_u8 *buffer = NULL, *raw_buf = NULL;
 	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
 	FILE *fp = NULL;
 	FILE *fp_raw = NULL;
 	FILE *fp_dtsi = NULL;
@@ -953,7 +976,7 @@ static int process_hostcmd(int argc, char *argv[])
 
 	if (argc < 5) {
 		printf("Error: invalid no of arguments\n");
-		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> generate_raw <raw_data_file>\n");
+		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> <cmdname>\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -962,12 +985,6 @@ static int process_hostcmd(int argc, char *argv[])
 
 	if (!strcmp(cmdname, "generate_raw")) {
 		call_ioctl = FALSE;
-	}
-	if (call_ioctl) {
-		printf("Error: invalid no of arguments\n");
-		printf("Syntax: ./mlanutl mlanX hostcmd <hostcmd.conf> generate_raw <raw_data_file>\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
 	}
 	if (!call_ioctl && argc != 6) {
 		printf("Error: invalid no of arguments\n");
@@ -994,7 +1011,19 @@ static int process_hostcmd(int argc, char *argv[])
 	}
 	memset(buffer, 0, BUFFER_LENGTH);
 
-	{
+	if (call_ioctl) {
+		/* Prepare the hostcmd buffer */
+		prepare_buffer(buffer, argv[2], 0, NULL);
+		if (MLAN_STATUS_FAILURE ==
+		    prepare_host_cmd_buffer(fp, cmdname,
+					    buffer + strlen(CMD_NXP) +
+						    strlen(argv[2]))) {
+			fclose(fp);
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		fclose(fp);
+	} else {
 		line = (char *)malloc(MAX_CONFIG_LINE);
 		if (!line) {
 			printf("ERR:Cannot allocate memory for line\n");
@@ -1073,7 +1102,7 @@ static int process_hostcmd(int argc, char *argv[])
 			goto done;
 		}
 
-		for (k = 0; k < blk_count && command != NULL; k++) {
+		for (k = 0; k < (t_u32)blk_count && command != NULL; k++) {
 			if (MLAN_STATUS_FAILURE ==
 			    prepare_host_cmd_buffer(fp, command->cmd_string,
 						    buffer))
@@ -1125,6 +1154,48 @@ static int process_hostcmd(int argc, char *argv[])
 		fclose(fp);
 	}
 
+	if (call_ioctl) {
+		raw_buf = buffer + strlen(CMD_NXP) + strlen(argv[2]) +
+			  sizeof(t_u32) + S_DS_GEN; /* raw_buf points to start
+						       of actual <raw data> */
+		if (check_if_hostcmd_subcmd_allowed(raw_buf) !=
+		    MLAN_STATUS_SUCCESS) {
+			printf("ERR:Entered hostcmd not allowed!\n");
+			goto done;
+		}
+		cmd = (struct eth_priv_cmd *)malloc(
+			sizeof(struct eth_priv_cmd));
+		if (!cmd) {
+			printf("ERR:Cannot allocate buffer for command!\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
+		/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+		memset(cmd, 0, sizeof(struct eth_priv_cmd));
+		memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+		cmd->buf = buffer;
+#endif
+		cmd->used_len = 0;
+		cmd->total_len = BUFFER_LENGTH;
+
+		/* Perform IOCTL */
+		memset(&ifr, 0, sizeof(struct ifreq));
+		strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+		ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+		if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+			perror("mlanutl");
+			fprintf(stderr, "mlanutl: hostcmd fail\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
+		/* Process result */
+		process_host_cmd_resp(argv[2], buffer);
+	}
 done:
 	while (header) {
 		command = header;
@@ -1500,26 +1571,36 @@ static int process_getlog(int argc, char *argv[])
 	       stats->wep_icv_error[2], stats->wep_icv_error[3],
 	       stats->bcn_rcv_cnt, stats->bcn_miss_cnt);
 
-	printf("rxStuckIssueCount-1                %u\n"
-	       "rxStuckIssueCount-2                %u\n"
-	       "rxStuckRecoveryCount               %u\n"
-	       "rxStuckTsf-1                       %llu\n"
-	       "rxStuckTsf-2                       %llu\n"
-	       "txWatchdogRecoveryCount            %u\n"
-	       "txWatchdogTsf-1                    %llu\n"
-	       "txWatchdogTsf-2                    %llu\n"
-	       "channelSwitchAnnouncementSent      %u\n"
-	       "channelSwitchState                 %u\n"
-	       "registerClass                      %u\n"
-	       "channelNumber                      %u\n"
-	       "channelSwitchMode                  %u\n",
-	       stats->rx_stuck_issue_cnt[0], stats->rx_stuck_issue_cnt[1],
-	       stats->rx_stuck_recovery_cnt, stats->rx_stuck_tsf[0],
-	       stats->rx_stuck_tsf[1], stats->tx_watchdog_recovery_cnt,
-	       stats->tx_watchdog_tsf[0], stats->tx_watchdog_tsf[1],
-	       stats->channel_switch_ann_sent, stats->channel_switch_state,
-	       stats->reg_class, stats->channel_number,
-	       stats->channel_switch_mode);
+	if (argc == 4 && !(strcmp(argv[3], "ext"))) {
+		printf("rxStuckIssueCount-1                %u\n"
+		       "rxStuckIssueCount-2                %u\n"
+		       "rxStuckRecoveryCount               %u\n"
+		       "rxStuckTsf-1                       %llu\n"
+		       "rxStuckTsf-2                       %llu\n"
+		       "txWatchdogRecoveryCount            %u\n"
+		       "txWatchdogTsf-1                    %llu\n"
+		       "txWatchdogTsf-2                    %llu\n"
+		       "channelSwitchAnnouncementSent      %u\n"
+		       "channelSwitchState                 %u\n"
+		       "registerClass                      %u\n"
+		       "channelNumber                      %u\n"
+		       "channelSwitchMode                  %u\n"
+		       "RxResetRecoveryCount               %u\n"
+		       "RxIsr2NotDoneCnt                   %u\n"
+		       "gdmaAbortCnt                       %u\n"
+		       "gResetRxMacCnt                     %u\n",
+		       stats->rx_stuck_issue_cnt[0],
+		       stats->rx_stuck_issue_cnt[1],
+		       stats->rx_stuck_recovery_cnt, stats->rx_stuck_tsf[0],
+		       stats->rx_stuck_tsf[1], stats->tx_watchdog_recovery_cnt,
+		       stats->tx_watchdog_tsf[0], stats->tx_watchdog_tsf[1],
+		       stats->channel_switch_ann_sent,
+		       stats->channel_switch_state, stats->reg_class,
+		       stats->channel_number, stats->channel_switch_mode,
+		       stats->rx_reset_mac_recovery_cnt,
+		       stats->rx_Isr2_NotDone_Cnt, stats->gdma_abort_cnt,
+		       stats->g_reset_rx_mac_cnt);
+	}
 
 	if (cmd->used_len == sizeof(struct eth_priv_get_log)) {
 		printf("dot11TransmittedFragmentCount      %u\n",
@@ -1613,7 +1694,6 @@ static int process_getlog(int argc, char *argv[])
 		       stats->rx_octets_in_ampdu_cnt,
 		       stats->ampdu_delimiter_crc_error_cnt);
 	}
-
 	if (buffer)
 		free(buffer);
 	if (cmd)
@@ -1687,7 +1767,8 @@ static int process_get_signal(int argc, char *argv[])
 	}
 
 	/* Process result */
-	copy_size = MIN(cmd->used_len, DATA_SIZE * sizeof(int));
+	copy_size =
+		(int)MIN((int)cmd->used_len, (int)(DATA_SIZE * sizeof(int)));
 	if (copy_size > 0)
 		memcpy(&data, buffer, copy_size);
 	printf("Get signal output is\t");
@@ -1951,7 +2032,7 @@ static int get_txpwrlimit(FILE *fp_raw, char *argv[], t_u16 sub_band,
 	       trcp_cfg->length);
 	pByte = trcp_cfg->trpc_buf + S_DS_GEN + 4;
 	left_len = trcp_cfg->length - S_DS_GEN - 4;
-	while (left_len >= sizeof(pTlvHdr->header)) {
+	while (left_len >= (int)sizeof(pTlvHdr->header)) {
 		pTlvHdr = (MrvlIEtypes_Data_t *)pByte;
 		pTlvHdr->header.len = le16_to_cpu(pTlvHdr->header.len);
 
@@ -2659,6 +2740,887 @@ static int process_addbareject(int argc, char *argv[])
 		free(cmd);
 
 	return MLAN_STATUS_SUCCESS;
+}
+
+#define MASK_11AX_OM_CONTROL 0xFFF
+
+/**
+ * @brief      11ax HE capability and operation configure
+ *
+ * @param argc Number of arguments
+ * @param argv Pointer to the arguments array
+ *
+ * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
+ */
+
+static int process_11axcfg(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd;
+	struct ifreq ifr;
+	int id_len = 0;
+	FILE *fp = NULL;
+	int ret = 0, cmd_header_len = 0;
+	char config_id[20];
+	char filename[256];
+
+	if (argc != 3 && argc != 4) {
+		printf("Err: Invalid number of arguments\n");
+		printf("Usage: ./mlanutl <interface> 11axcfg [11axcfg.conf]\n");
+		return MLAN_STATUS_FAILURE;
+	}
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	cmd_header_len = strlen(CMD_NXP) + strlen(argv[2]);
+	prepare_buffer(buffer, argv[2], 0, NULL);
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = cmd_header_len;
+	cmd->total_len = BUFFER_LENGTH;
+
+	if (argc == 4) {
+		memset(filename, 0, sizeof(filename));
+		strncpy(filename, argv[3], sizeof(filename) - 1);
+
+		fp = fopen(filename, "r");
+		if (fp == NULL) {
+			perror("fopen");
+			fprintf(stderr, "Cannot open file %s\n", argv[3]);
+			ret = -EFAULT;
+			;
+			goto done;
+		}
+
+		snprintf(config_id, sizeof(config_id), "Band");
+		id_len = fparse_for_cmd_and_hex(fp, buffer + cmd_header_len,
+						(t_u8 *)config_id);
+
+		snprintf(config_id, sizeof(config_id), "HECap");
+		fparse_for_cmd_and_hex(fp, buffer + cmd_header_len + id_len,
+				       (t_u8 *)config_id);
+		hexdump("Set 11axcfg", buffer + cmd_header_len,
+			sizeof(mlan_ds_11ax_he_cfg), ' ');
+		cmd->used_len = cmd_header_len + sizeof(mlan_ds_11ax_he_cfg);
+	}
+	/* Initialize the ifr structure */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl: 11axcfg");
+		ret = -EFAULT;
+		goto done;
+	}
+	hexdump("11axcfg", buffer + cmd_header_len, sizeof(mlan_ds_11ax_he_cfg),
+		' ');
+done:
+	if (fp)
+		fclose(fp);
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+	return ret;
+}
+
+/**
+ *  @brief Process 11ax command
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_11axcmdcfg(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	mlan_ds_11ax_cmd_cfg *axcmd = NULL;
+	t_u32 action = 0;
+	t_u32 prefix_len = 0;
+
+	if (strcmp(argv[3], "tx_omi") == 0) {
+		sprintf(argv[3], "%d", MLAN_11AXCMD_CFG_ID_TX_OMI);
+	} else if (strcmp(argv[3], "obssnbru_toltime") == 0) {
+		sprintf(argv[3], "%d", MLAN_11AXCMD_CFG_ID_OBSSNBRU_TOLTIME);
+	} else {
+		printf("ERR:unknown command %s!\n", argv[3]);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = strlen((char *)buffer);
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: 11axcmd fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prefix_len += strlen(CMD_NXP) + strlen(argv[2]);
+	action = *(t_u32 *)(buffer + prefix_len);
+	if (action == MLAN_ACT_SET) {
+		if (argv[4] == 0) {
+			printf("Invalid OBSSNBRU tolerance time: Valid range[1..3600]\n");
+			free(buffer);
+			return MLAN_STATUS_FAILURE;
+		}
+	}
+	if (action == MLAN_ACT_GET) {
+		axcmd = (mlan_ds_11ax_cmd_cfg *)(buffer + prefix_len +
+						 sizeof(t_u32));
+		switch (axcmd->sub_id) {
+		case MLAN_11AXCMD_TXOMI_SUBID:
+			printf("tx OMI: 0x%x\n", axcmd->param.txomi_cfg.omi &
+							 MASK_11AX_OM_CONTROL);
+			break;
+		case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
+			if (axcmd->param.toltime_cfg.tol_time > 3600 ||
+			    !axcmd->param.toltime_cfg.tol_time)
+				printf("OBSS Narrow Bandwidth RU tolerance Time: disabled\n");
+			else
+				printf("OBSS Narrow Bandwidth RU Tolerance Time: %d sec\n",
+				       axcmd->param.toltime_cfg.tol_time);
+			break;
+		default:
+			printf("Unknown sub_command 0x%x\n", axcmd->sub_id);
+			break;
+		}
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process tx rate configuration
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_txratecfg(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct eth_priv_tx_rate_cfg *txratecfg = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: txratecfg fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process result */
+	txratecfg = (struct eth_priv_tx_rate_cfg *)buffer;
+	if (argc == 3) {
+		/* GET operation */
+		printf("Tx Rate Configuration: \n");
+		/* format */
+		if (txratecfg->rate_format == 0xFF) {
+			printf("    Type:       0xFF (Auto)\n");
+		} else if (txratecfg->rate_format <= 3) {
+			printf("    Type:       %d (%s)\n",
+			       txratecfg->rate_format,
+			       rate_format[txratecfg->rate_format]);
+			if (txratecfg->rate_format == 0)
+				printf("    Rate Index: %d (%s)\n",
+				       txratecfg->rate_index,
+				       lg_rate[txratecfg->rate_index]);
+			else if (txratecfg->rate_format >= 1)
+				printf("    MCS Index:  %d\n",
+				       (int)txratecfg->rate_index);
+			if (txratecfg->rate_format == 2 ||
+			    txratecfg->rate_format == 3)
+				printf("    NSS:        %d\n",
+				       (int)txratecfg->nss);
+			if (txratecfg->rate_setting == 0xffff)
+				printf("Rate setting :Preamble type/BW/GI/STBC/.. : auto \n");
+			else {
+				printf("Preamble type: %x\n",
+				       (txratecfg->rate_setting & 0x0003));
+				printf("BW: %x\n",
+				       (txratecfg->rate_setting & 0x001C) >> 2);
+				printf("LTF + GI size %x\n",
+				       (txratecfg->rate_setting & 0x0060) >> 5);
+				printf("STBC %x\n",
+				       (txratecfg->rate_setting & 0x0080) >> 7);
+				printf("DCM %x\n",
+				       (txratecfg->rate_setting & 0x0100) >> 8);
+				printf("Coding %x\n",
+				       (txratecfg->rate_setting & 0x0200) >> 9);
+				printf("maxPE %x\n",
+				       (txratecfg->rate_setting & 0x3000) >>
+					       12);
+			}
+		} else {
+			printf("    Unknown rate format.\n");
+		}
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Process host_cmd response
+ *  @param cmd_name Command name
+ *  @param buf      A pointer to the response buffer
+ *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+int process_host_cmd_resp(char *cmd_name, t_u8 *buf)
+{
+	t_u32 hostcmd_size = 0;
+	HostCmd_DS_GEN *hostcmd = NULL;
+	int ret = MLAN_STATUS_SUCCESS;
+
+	buf += strlen(CMD_NXP) + strlen(cmd_name);
+	memcpy((t_u8 *)&hostcmd_size, buf, sizeof(t_u32));
+	buf += sizeof(t_u32);
+
+	hostcmd = (HostCmd_DS_GEN *)buf;
+	hostcmd->command = le16_to_cpu(hostcmd->command);
+	hostcmd->size = le16_to_cpu(hostcmd->size);
+	hostcmd->seq_num = le16_to_cpu(hostcmd->seq_num);
+	hostcmd->result = le16_to_cpu(hostcmd->result);
+
+	hostcmd->command &= ~HostCmd_RET_BIT;
+	if (!hostcmd->result) {
+		switch (hostcmd->command) {
+		case HostCmd_CMD_CFG_DATA: {
+			HostCmd_DS_802_11_CFG_DATA *pstcfgData =
+				(HostCmd_DS_802_11_CFG_DATA *)(buf + S_DS_GEN);
+			pstcfgData->data_len =
+				le16_to_cpu(pstcfgData->data_len);
+			pstcfgData->action = le16_to_cpu(pstcfgData->action);
+
+			if (pstcfgData->action == HostCmd_ACT_GEN_GET) {
+				hexdump("cfgdata", pstcfgData->data,
+					pstcfgData->data_len, ' ');
+			}
+			break;
+		}
+		case HostCmd_CMD_802_11_TPC_ADAPT_REQ: {
+			mlan_ioctl_11h_tpc_resp *tpcIoctlResp =
+				(mlan_ioctl_11h_tpc_resp *)(buf + S_DS_GEN);
+			if (tpcIoctlResp->status_code == 0) {
+				printf("tpcrequest:  txPower(%d), linkMargin(%d), rssi(%d)\n",
+				       tpcIoctlResp->tx_power,
+				       tpcIoctlResp->link_margin,
+				       tpcIoctlResp->rssi);
+			} else {
+				printf("tpcrequest:  failure, status = %d\n",
+				       tpcIoctlResp->status_code);
+			}
+			break;
+		}
+		case HostCmd_CMD_802_11_CRYPTO: {
+			t_u16 alg = le16_to_cpu(
+				(t_u16) * (buf + S_DS_GEN + sizeof(t_u16)));
+			if (alg == CIPHER_TEST_AES_CCM ||
+			    alg == CIPHER_TEST_GCMP) {
+				HostCmd_DS_802_11_CRYPTO_AES_CCM *cmd_aes_ccm =
+					(HostCmd_DS_802_11_CRYPTO_AES_CCM
+						 *)(buf + S_DS_GEN);
+
+				cmd_aes_ccm->encdec =
+					le16_to_cpu(cmd_aes_ccm->encdec);
+				cmd_aes_ccm->algorithm =
+					le16_to_cpu(cmd_aes_ccm->algorithm);
+				cmd_aes_ccm->key_length =
+					le16_to_cpu(cmd_aes_ccm->key_length);
+				cmd_aes_ccm->nonce_length =
+					le16_to_cpu(cmd_aes_ccm->nonce_length);
+				cmd_aes_ccm->AAD_length =
+					le16_to_cpu(cmd_aes_ccm->AAD_length);
+				cmd_aes_ccm->data.header.type = le16_to_cpu(
+					cmd_aes_ccm->data.header.type);
+				cmd_aes_ccm->data.header.len = le16_to_cpu(
+					cmd_aes_ccm->data.header.len);
+
+				printf("crypto_result: encdec=%d algorithm=%d, KeyLen=%d,"
+				       " NonceLen=%d,AADLen=%d,dataLen=%d\n",
+				       cmd_aes_ccm->encdec,
+				       cmd_aes_ccm->algorithm,
+				       cmd_aes_ccm->key_length,
+				       cmd_aes_ccm->nonce_length,
+				       cmd_aes_ccm->AAD_length,
+				       cmd_aes_ccm->data.header.len);
+
+				hexdump("Key", cmd_aes_ccm->key,
+					cmd_aes_ccm->key_length, ' ');
+				hexdump("Nonce", cmd_aes_ccm->nonce,
+					cmd_aes_ccm->nonce_length, ' ');
+				hexdump("AAD", cmd_aes_ccm->AAD,
+					cmd_aes_ccm->AAD_length, ' ');
+				hexdump("Data", cmd_aes_ccm->data.data,
+					cmd_aes_ccm->data.header.len, ' ');
+			} else if (alg == CIPHER_TEST_WAPI) {
+				HostCmd_DS_802_11_CRYPTO_WAPI *cmd_wapi =
+					(HostCmd_DS_802_11_CRYPTO_WAPI
+						 *)(buf + S_DS_GEN);
+
+				cmd_wapi->encdec =
+					le16_to_cpu(cmd_wapi->encdec);
+				cmd_wapi->algorithm =
+					le16_to_cpu(cmd_wapi->algorithm);
+				cmd_wapi->key_length =
+					le16_to_cpu(cmd_wapi->key_length);
+				cmd_wapi->nonce_length =
+					le16_to_cpu(cmd_wapi->nonce_length);
+				cmd_wapi->AAD_length =
+					le16_to_cpu(cmd_wapi->AAD_length);
+
+				printf("crypto_result: encdec=%d algorithm=%d, KeyLen=%d,"
+				       " NonceLen=%d,AADLen=%d,dataLen=%d\n",
+				       cmd_wapi->encdec, cmd_wapi->algorithm,
+				       cmd_wapi->key_length,
+				       cmd_wapi->nonce_length,
+				       cmd_wapi->AAD_length,
+				       cmd_wapi->data_length);
+
+				hexdump("Key", cmd_wapi->key,
+					cmd_wapi->key_length, ' ');
+				hexdump("Nonce", cmd_wapi->nonce,
+					cmd_wapi->nonce_length, ' ');
+				hexdump("AAD", cmd_wapi->AAD,
+					cmd_wapi->AAD_length, ' ');
+			} else {
+				HostCmd_DS_802_11_CRYPTO *cmd =
+					(HostCmd_DS_802_11_CRYPTO *)(buf +
+								     S_DS_GEN);
+				cmd->encdec = le16_to_cpu(cmd->encdec);
+				cmd->algorithm = le16_to_cpu(cmd->algorithm);
+				cmd->key_IV_length =
+					le16_to_cpu(cmd->key_IV_length);
+				cmd->key_length = le16_to_cpu(cmd->key_length);
+				cmd->data.header.type =
+					le16_to_cpu(cmd->data.header.type);
+				cmd->data.header.len =
+					le16_to_cpu(cmd->data.header.len);
+
+				printf("crypto_result: encdec=%d algorithm=%d,KeyIVLen=%d,"
+				       " KeyLen=%d,dataLen=%d\n",
+				       cmd->encdec, cmd->algorithm,
+				       cmd->key_IV_length, cmd->key_length,
+				       cmd->data.header.len);
+				hexdump("KeyIV", cmd->keyIV, cmd->key_IV_length,
+					' ');
+				hexdump("Key", cmd->key, cmd->key_length, ' ');
+				hexdump("Data", cmd->data.data,
+					cmd->data.header.len, ' ');
+			}
+			break;
+		}
+		case HostCmd_CMD_802_11_AUTO_TX: {
+			HostCmd_DS_802_11_AUTO_TX *at =
+				(HostCmd_DS_802_11_AUTO_TX *)(buf + S_DS_GEN);
+
+			if (le16_to_cpu(at->action) == HostCmd_ACT_GEN_GET) {
+				if (S_DS_GEN + sizeof(at->action) ==
+				    hostcmd->size) {
+					printf("auto_tx not configured\n");
+
+				} else {
+					MrvlIEtypesHeader_t *header =
+						&at->auto_tx.header;
+
+					header->type =
+						le16_to_cpu(header->type);
+					header->len = le16_to_cpu(header->len);
+
+					if ((S_DS_GEN + sizeof(at->action) +
+						     sizeof(MrvlIEtypesHeader_t) +
+						     header->len ==
+					     hostcmd->size) &&
+					    (header->type ==
+					     TLV_TYPE_AUTO_TX)) {
+						AutoTx_MacFrame_t *atmf =
+							&at->auto_tx
+								 .auto_tx_mac_frame;
+
+						printf("Interval: %d second(s)\n",
+						       le16_to_cpu(
+							       atmf->interval));
+						printf("Priority: %#x\n",
+						       atmf->priority);
+						printf("Frame Length: %d\n",
+						       le16_to_cpu(
+							       atmf->frame_len));
+						printf("Dest Mac Address: "
+						       "%02x:%02x:%02x:%02x:%02x:%02x\n",
+						       atmf->dest_mac_addr[0],
+						       atmf->dest_mac_addr[1],
+						       atmf->dest_mac_addr[2],
+						       atmf->dest_mac_addr[3],
+						       atmf->dest_mac_addr[4],
+						       atmf->dest_mac_addr[5]);
+						printf("Src Mac Address: "
+						       "%02x:%02x:%02x:%02x:%02x:%02x\n",
+						       atmf->src_mac_addr[0],
+						       atmf->src_mac_addr[1],
+						       atmf->src_mac_addr[2],
+						       atmf->src_mac_addr[3],
+						       atmf->src_mac_addr[4],
+						       atmf->src_mac_addr[5]);
+
+						hexdump("Frame Payload",
+							atmf->payload,
+							le16_to_cpu(
+								atmf->frame_len) -
+								MLAN_MAC_ADDR_LENGTH *
+									2,
+							' ');
+					} else {
+						printf("incorrect auto_tx command response\n");
+					}
+				}
+			}
+			break;
+		}
+		case HostCmd_CMD_802_11_SUBSCRIBE_EVENT: {
+			HostCmd_DS_802_11_SUBSCRIBE_EVENT *se =
+				(HostCmd_DS_802_11_SUBSCRIBE_EVENT *)(buf +
+								      S_DS_GEN);
+			if (le16_to_cpu(se->action) == HostCmd_ACT_GEN_GET) {
+				int len =
+					S_DS_GEN +
+					sizeof(HostCmd_DS_802_11_SUBSCRIBE_EVENT);
+				printf("\nEvent\t\tValue\tFreq\tsubscribed\n\n");
+				while (len < hostcmd->size) {
+					MrvlIEtypesHeader_t *header =
+						(MrvlIEtypesHeader_t *)(buf +
+									len);
+					switch (le16_to_cpu(header->type)) {
+					case TLV_TYPE_RSSI_LOW: {
+						MrvlIEtypes_RssiThreshold_t *low_rssi =
+							(MrvlIEtypes_RssiThreshold_t
+								 *)(buf + len);
+						printf("Beacon Low RSSI\t%d\t%d\t%s\n",
+						       low_rssi->RSSI_value,
+						       low_rssi->RSSI_freq,
+						       (le16_to_cpu(se->events) &
+							0x0001) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_SNR_LOW: {
+						MrvlIEtypes_SnrThreshold_t *low_snr =
+							(MrvlIEtypes_SnrThreshold_t
+								 *)(buf + len);
+						printf("Beacon Low SNR\t%d\t%d\t%s\n",
+						       low_snr->SNR_value,
+						       low_snr->SNR_freq,
+						       (le16_to_cpu(se->events) &
+							0x0002) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_FAILCOUNT: {
+						MrvlIEtypes_FailureCount_t
+							*failure_count =
+								(MrvlIEtypes_FailureCount_t
+									 *)(buf +
+									    len);
+						printf("Failure Count\t%d\t%d\t%s\n",
+						       failure_count->fail_value,
+						       failure_count->fail_freq,
+						       (le16_to_cpu(se->events) &
+							0x0004) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_BCNMISS: {
+						MrvlIEtypes_BeaconsMissed_t
+							*bcn_missed =
+								(MrvlIEtypes_BeaconsMissed_t
+									 *)(buf +
+									    len);
+						printf("Beacon Missed\t%d\tN/A\t%s\n",
+						       bcn_missed->beacon_missed,
+						       (le16_to_cpu(se->events) &
+							0x0008) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_RSSI_HIGH: {
+						MrvlIEtypes_RssiThreshold_t
+							*high_rssi =
+								(MrvlIEtypes_RssiThreshold_t
+									 *)(buf +
+									    len);
+						printf("Bcn High RSSI\t%d\t%d\t%s\n",
+						       high_rssi->RSSI_value,
+						       high_rssi->RSSI_freq,
+						       (le16_to_cpu(se->events) &
+							0x0010) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+
+					case TLV_TYPE_SNR_HIGH: {
+						MrvlIEtypes_SnrThreshold_t *high_snr =
+							(MrvlIEtypes_SnrThreshold_t
+								 *)(buf + len);
+						printf("Beacon High SNR\t%d\t%d\t%s\n",
+						       high_snr->SNR_value,
+						       high_snr->SNR_freq,
+						       (le16_to_cpu(se->events) &
+							0x0020) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_RSSI_LOW_DATA: {
+						MrvlIEtypes_RssiThreshold_t *low_rssi =
+							(MrvlIEtypes_RssiThreshold_t
+								 *)(buf + len);
+						printf("Data Low RSSI\t%d\t%d\t%s\n",
+						       low_rssi->RSSI_value,
+						       low_rssi->RSSI_freq,
+						       (le16_to_cpu(se->events) &
+							0x0040) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_SNR_LOW_DATA: {
+						MrvlIEtypes_SnrThreshold_t *low_snr =
+							(MrvlIEtypes_SnrThreshold_t
+								 *)(buf + len);
+						printf("Data Low SNR\t%d\t%d\t%s\n",
+						       low_snr->SNR_value,
+						       low_snr->SNR_freq,
+						       (le16_to_cpu(se->events) &
+							0x0080) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_RSSI_HIGH_DATA: {
+						MrvlIEtypes_RssiThreshold_t
+							*high_rssi =
+								(MrvlIEtypes_RssiThreshold_t
+									 *)(buf +
+									    len);
+						printf("Data High RSSI\t%d\t%d\t%s\n",
+						       high_rssi->RSSI_value,
+						       high_rssi->RSSI_freq,
+						       (le16_to_cpu(se->events) &
+							0x0100) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_SNR_HIGH_DATA: {
+						MrvlIEtypes_SnrThreshold_t *high_snr =
+							(MrvlIEtypes_SnrThreshold_t
+								 *)(buf + len);
+						printf("Data High SNR\t%d\t%d\t%s\n",
+						       high_snr->SNR_value,
+						       high_snr->SNR_freq,
+						       (le16_to_cpu(se->events) &
+							0x0200) ?
+							       "yes" :
+							       "no");
+						break;
+					}
+					case TLV_TYPE_LINK_QUALITY: {
+						MrvlIEtypes_LinkQuality_t *link_qual =
+							(MrvlIEtypes_LinkQuality_t
+								 *)(buf + len);
+						printf("Link Quality Parameters:\n");
+						printf("------------------------\n");
+						printf("Link Quality Event Subscribed\t%s\n",
+						       (le16_to_cpu(se->events) &
+							0x0400) ?
+							       "yes" :
+							       "no");
+						printf("Link SNR Threshold   = %d\n",
+						       le16_to_cpu(
+							       link_qual
+								       ->link_SNR_thrs));
+						printf("Link SNR Frequency   = %d\n",
+						       le16_to_cpu(
+							       link_qual
+								       ->link_SNR_freq));
+						printf("Min Rate Value       = %d\n",
+						       le16_to_cpu(
+							       link_qual
+								       ->min_rate_val));
+						printf("Min Rate Frequency   = %d\n",
+						       le16_to_cpu(
+							       link_qual
+								       ->min_rate_freq));
+						printf("Tx Latency Value     = %d\n",
+						       le32_to_cpu(
+							       link_qual
+								       ->tx_latency_val));
+						printf("Tx Latency Threshold = %d\n",
+						       le32_to_cpu(
+							       link_qual
+								       ->tx_latency_thrs));
+
+						break;
+					}
+					case TLV_TYPE_PRE_BEACON_LOST: {
+						MrvlIEtypes_PreBeaconLost_t
+							*pre_bcn_lost =
+								(MrvlIEtypes_PreBeaconLost_t
+									 *)(buf +
+									    len);
+						printf("------------------------\n");
+						printf("Pre-Beacon Lost Event Subscribed\t%s\n",
+						       (le16_to_cpu(se->events) &
+							0x0800) ?
+							       "yes" :
+							       "no");
+						printf("Pre-Beacon Lost: %d\n",
+						       pre_bcn_lost
+							       ->pre_beacon_lost);
+						break;
+					}
+					default:
+						printf("Unknown subscribed event TLV Type=%#x,"
+						       " Len=%d\n",
+						       le16_to_cpu(
+							       header->type),
+						       le16_to_cpu(
+							       header->len));
+						break;
+					}
+
+					len += (sizeof(MrvlIEtypesHeader_t) +
+						le16_to_cpu(header->len));
+				}
+			}
+			break;
+		}
+		case HostCmd_CMD_MAC_REG_ACCESS:
+		case HostCmd_CMD_BBP_REG_ACCESS:
+		case HostCmd_CMD_RF_REG_ACCESS:
+		case HostCmd_CMD_CAU_REG_ACCESS: {
+			HostCmd_DS_REG *preg =
+				(HostCmd_DS_REG *)(buf + S_DS_GEN);
+			preg->action = le16_to_cpu(preg->action);
+			if (preg->action == HostCmd_ACT_GEN_GET) {
+				preg->value = le32_to_cpu(preg->value);
+				printf("value = 0x%08x\n", preg->value);
+			}
+			break;
+		}
+		case HostCmd_CMD_MEM_ACCESS: {
+			HostCmd_DS_MEM *pmem =
+				(HostCmd_DS_MEM *)(buf + S_DS_GEN);
+			pmem->action = le16_to_cpu(pmem->action);
+			if (pmem->action == HostCmd_ACT_GEN_GET) {
+				pmem->value = le32_to_cpu(pmem->value);
+				printf("value = 0x%08x\n", pmem->value);
+			}
+			break;
+		}
+		case HostCmd_CMD_LINK_STATS_SUMMARY: {
+			HostCmd_DS_LINK_STATS_SUMMARY *linkstats =
+				(HostCmd_DS_LINK_STATS_SUMMARY *)(buf +
+								  S_DS_GEN);
+			/* GET operation */
+			printf("Link Statistics: \n");
+			/* format */
+			printf("Duration:   %u\n",
+			       (int)le32_to_cpu(
+				       linkstats->timeSinceLastQuery_ms));
+
+			printf("Beacon count:     %u\n",
+			       le16_to_cpu(linkstats->bcnCnt));
+			printf("Beacon missing:   %u\n",
+			       le16_to_cpu(linkstats->bcnMiss));
+			printf("Beacon RSSI avg:  %d\n",
+			       le16_to_cpu(linkstats->bcnRssiAvg));
+			printf("Beacon SNR avg:   %d\n",
+			       le16_to_cpu(linkstats->bcnSnrAvg));
+
+			printf("Rx packets:       %u\n",
+			       (int)le32_to_cpu(linkstats->rxPkts));
+			printf("Rx RSSI avg:      %d\n",
+			       le16_to_cpu(linkstats->rxRssiAvg));
+			printf("Rx SNR avg:       %d\n",
+			       le16_to_cpu(linkstats->rxSnrAvg));
+
+			printf("Tx packets:       %u\n",
+			       (int)le32_to_cpu(linkstats->txPkts));
+			printf("Tx Attempts:      %u\n",
+			       (int)le32_to_cpu(linkstats->txAttempts));
+			printf("Tx Failures:      %u\n",
+			       (int)le32_to_cpu(linkstats->txFailures));
+			printf("Tx Initial Rate:  %s\n",
+			       rateIdStr[linkstats->txInitRate]);
+
+			printf("Tx AC VO:         %u [ %u ]\n",
+			       le16_to_cpu(linkstats->txQueuePktCnt[WMM_AC_VO]),
+			       (int)le32_to_cpu(
+				       linkstats->txQueueDelay[WMM_AC_VO]) /
+				       1000);
+			printf("Tx AC VI:         %u [ %u ]\n",
+			       le16_to_cpu(linkstats->txQueuePktCnt[WMM_AC_VI]),
+			       (int)le32_to_cpu(
+				       linkstats->txQueueDelay[WMM_AC_VI]) /
+				       1000);
+			printf("Tx AC BE:         %u [ %u ]\n",
+			       le16_to_cpu(linkstats->txQueuePktCnt[WMM_AC_BE]),
+			       (int)le32_to_cpu(
+				       linkstats->txQueueDelay[WMM_AC_BE]) /
+				       1000);
+			printf("Tx AC BK:         %u [ %u ]\n",
+			       le16_to_cpu(linkstats->txQueuePktCnt[WMM_AC_BK]),
+			       (int)le32_to_cpu(
+				       linkstats->txQueueDelay[WMM_AC_BK]) /
+				       1000);
+			break;
+		}
+		case HostCmd_CMD_WMM_PARAM_CONFIG: {
+			HostCmd_DS_WMM_PARAM_CONFIG *wmm_param =
+				(HostCmd_DS_WMM_PARAM_CONFIG *)(buf + S_DS_GEN);
+			printf("WMM Params: \n");
+			printf("\tBE: AIFSN=%d, CW_MAX=%d CW_MIN=%d, TXOP=%d\n",
+			       wmm_param->ac_params[AC_BE].aci_aifsn.aifsn,
+			       wmm_param->ac_params[AC_BE].ecw.ecw_max,
+			       wmm_param->ac_params[AC_BE].ecw.ecw_min,
+			       le16_to_cpu(
+				       wmm_param->ac_params[AC_BE].tx_op_limit));
+			printf("\tBK: AIFSN=%d, CW_MAX=%d CW_MIN=%d, TXOP=%d\n",
+			       wmm_param->ac_params[AC_BK].aci_aifsn.aifsn,
+			       wmm_param->ac_params[AC_BK].ecw.ecw_max,
+			       wmm_param->ac_params[AC_BK].ecw.ecw_min,
+			       le16_to_cpu(
+				       wmm_param->ac_params[AC_BK].tx_op_limit));
+			printf("\tVI: AIFSN=%d, CW_MAX=%d CW_MIN=%d, TXOP=%d\n",
+			       wmm_param->ac_params[AC_VI].aci_aifsn.aifsn,
+			       wmm_param->ac_params[AC_VI].ecw.ecw_max,
+			       wmm_param->ac_params[AC_VI].ecw.ecw_min,
+			       le16_to_cpu(
+				       wmm_param->ac_params[AC_VI].tx_op_limit));
+			printf("\tVO: AIFSN=%d, CW_MAX=%d CW_MIN=%d, TXOP=%d\n",
+			       wmm_param->ac_params[AC_VO].aci_aifsn.aifsn,
+			       wmm_param->ac_params[AC_VO].ecw.ecw_max,
+			       wmm_param->ac_params[AC_VO].ecw.ecw_min,
+			       le16_to_cpu(
+				       wmm_param->ac_params[AC_VO].tx_op_limit));
+			break;
+		}
+		default:
+			printf("HOSTCMD_RESP: CmdCode=%#04x, Size=%#04x,"
+			       " SeqNum=%#04x, Result=%#04x\n",
+			       hostcmd->command, hostcmd->size,
+			       hostcmd->seq_num, hostcmd->result);
+			hexdump("payload", (t_void *)(buf + S_DS_GEN),
+				hostcmd->size - S_DS_GEN, ' ');
+			break;
+		}
+	} else {
+		printf("HOSTCMD failed: CmdCode=%#04x, Size=%#04x,"
+		       " SeqNum=%#04x, Result=%#04x\n",
+		       hostcmd->command, hostcmd->size, hostcmd->seq_num,
+		       hostcmd->result);
+	}
+	return ret;
 }
 
 /********************************************************

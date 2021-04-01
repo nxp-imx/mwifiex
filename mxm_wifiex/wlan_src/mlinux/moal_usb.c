@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -55,10 +55,10 @@ typedef struct {
 	USB_DEVICE(vid, pid), .driver_info = (t_ptr)name
 
 /** Name of the USB driver */
-const char usbdriver_name[] = "usbxxx";
+static const char usbdriver_name[] = "usbxxx";
 
 /** This structure contains the device signature */
-struct usb_device_id woal_usb_table[] = {
+static struct usb_device_id woal_usb_table[] = {
 /* Enter the device signature inside */
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_1, "NXP WLAN USB Adapter")},
@@ -95,7 +95,7 @@ struct usb_device_id woal_usb_table[] = {
 };
 
 /** This structure contains the device signature */
-struct usb_device_id woal_usb_table_skip_fwdnld[] = {
+static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 /* Enter the device signature inside */
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
@@ -172,9 +172,6 @@ static moal_if_ops usb_ops;
 /********************************************************
 		Global Variables
 ********************************************************/
-
-extern int skip_fwdnld;
-extern int max_tx_buf;
 
 /********************************************************
 		Local Functions
@@ -489,13 +486,14 @@ rx_ret:
  *
  *  @return 	   	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_check_chip_revision(moal_handle *handle, t_u32 *usb_chip_rev,
-				     t_u32 *usb_strap)
+static mlan_status woal_check_chip_revision(moal_handle *handle,
+					    t_u32 *usb_chip_rev,
+					    t_u32 *usb_strap)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_buffer mbuf;
-	t_u8 *tx_buff = 0;
-	t_u8 *recv_buff = 0;
+	t_u8 *tx_buff = NULL;
+	t_u8 *recv_buff = NULL;
 	usb_ack_pkt ack_pkt;
 	t_u32 extend_ver;
 	t_u8 tx_size = CHIP_REV_TX_BUF_SIZE;
@@ -1217,21 +1215,18 @@ static int woal_usb_resume(struct usb_interface *intf)
 	struct usb_card_rec *cardp = usb_get_intfdata(intf);
 	moal_handle *handle = NULL;
 	int i;
-	int ret = 0;
 
 	ENTER();
 
 	PRINTM(MCMND, "<--- Enter woal_usb_resume --->\n");
 	if (!cardp || !cardp->phandle) {
 		PRINTM(MERROR, "Card or adapter structure is not valid\n");
-		ret = 0;
 		goto done;
 	}
 	handle = cardp->phandle;
 
 	if (handle->is_suspended == MFALSE) {
 		PRINTM(MWARN, "Device already resumed\n");
-		ret = 0;
 		goto done;
 	}
 
@@ -1862,7 +1857,7 @@ void woal_submit_rx_urb(moal_handle *handle, t_u8 ep)
  *
  *  @return         N/A
  */
-void woal_usb_dump_fw_info(moal_handle *phandle)
+static void woal_usb_dump_fw_info(moal_handle *phandle)
 {
 	moal_private *priv = NULL;
 	mlan_ioctl_req *req = NULL;
@@ -1873,13 +1868,13 @@ void woal_usb_dump_fw_info(moal_handle *phandle)
 
 	priv = woal_get_priv(phandle, MLAN_BSS_ROLE_ANY);
 	if (!priv) {
-		PRINTM(MERROR, "woal_dump_firmware_info get priv is NULL!\n");
+		PRINTM(MERROR, "woal_usb_dump_fw_info: priv is NULL!\n");
 		goto done;
 	}
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
 	if (req == NULL) {
-		PRINTM(MERROR, "woal_dump_firmware_info alloc req fail!\n");
+		PRINTM(MERROR, "woal_usb_dump_fw_info: alloc req fail!\n");
 		goto done;
 	}
 
@@ -1917,6 +1912,7 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 	if (cardp->boot_state == USB_FW_READY)
 		goto done;
+
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap);
 	if (ret != MLAN_STATUS_SUCCESS) {

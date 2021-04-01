@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -41,7 +41,7 @@ Change log:
 #define MWLAN_PROC "mwlan"
 #define WLAN_PROC "adapter%d"
 /** Proc mwlan directory entry */
-struct proc_dir_entry *proc_mwlan;
+static struct proc_dir_entry *proc_mwlan;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 #define PROC_DIR NULL
@@ -220,7 +220,7 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp, "carrier %s\n",
 		   ((netif_carrier_ok(priv->netdev)) ? "on" : "off"));
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-	for (i = 0; i < netdev->num_tx_queues; i++) {
+	for (i = 0; i < (int)netdev->num_tx_queues; i++) {
 		seq_printf(sfp, "tx queue %d:  %s\n", i,
 			   ((netif_tx_queue_stopped(
 				    netdev_get_tx_queue(netdev, 0))) ?
@@ -287,6 +287,18 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "[%d] Tx bytes rate  : %luMbps\n", i,
 			   handle->tp_acnt.tx_bytes_rate[i] * 8 / 1024 / 1024);
 	}
+	seq_printf(sfp, "Tx amsdu cnt		: %lu\n",
+		   handle->tp_acnt.tx_amsdu_cnt);
+	seq_printf(sfp, "Tx amsdu cnt last	: %lu\n",
+		   handle->tp_acnt.tx_amsdu_cnt_last);
+	seq_printf(sfp, "Tx amsdu cnt rate	: %lu\n",
+		   handle->tp_acnt.tx_amsdu_cnt_rate);
+	seq_printf(sfp, "Tx amsdu pkt cnt	: %lu\n",
+		   handle->tp_acnt.tx_amsdu_pkt_cnt);
+	seq_printf(sfp, "Tx amsdu pkt cnt last : %lu\n",
+		   handle->tp_acnt.tx_amsdu_pkt_cnt_last);
+	seq_printf(sfp, "Tx amsdu pkt cnt rate : %lu\n",
+		   handle->tp_acnt.tx_amsdu_pkt_cnt_rate);
 	seq_printf(sfp, "Tx intr cnt    		: %lu\n",
 		   handle->tp_acnt.tx_intr_cnt);
 	seq_printf(sfp, "Tx intr last        : %lu\n",
@@ -295,6 +307,10 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		   handle->tp_acnt.tx_intr_rate);
 	seq_printf(sfp, "Tx pending          : %lu\n",
 		   handle->tp_acnt.tx_pending);
+	seq_printf(sfp, "Tx xmit skb realloc : %lu\n",
+		   handle->tp_acnt.tx_xmit_skb_realloc_cnt);
+	seq_printf(sfp, "Tx stop queue cnt : %lu\n",
+		   handle->tp_acnt.tx_stop_queue_cnt);
 	seq_printf(sfp, "====Rx accounting====\n");
 	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
 		seq_printf(sfp, "[%d] Rx packets     : %lu\n", i,
@@ -310,6 +326,18 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "[%d] Rx bytes rate  : %luMbps\n", i,
 			   handle->tp_acnt.rx_bytes_rate[i] * 8 / 1024 / 1024);
 	}
+	seq_printf(sfp, "Rx amsdu cnt		 : %lu\n",
+		   handle->tp_acnt.rx_amsdu_cnt);
+	seq_printf(sfp, "Rx amsdu cnt last	 : %lu\n",
+		   handle->tp_acnt.rx_amsdu_cnt_last);
+	seq_printf(sfp, "Rx amsdu cnt rate	 : %lu\n",
+		   handle->tp_acnt.rx_amsdu_cnt_rate);
+	seq_printf(sfp, "Rx amsdu pkt cnt	 : %lu\n",
+		   handle->tp_acnt.rx_amsdu_pkt_cnt);
+	seq_printf(sfp, "Rx amsdu pkt cnt last : %lu\n",
+		   handle->tp_acnt.rx_amsdu_pkt_cnt_last);
+	seq_printf(sfp, "Rx amsdu pkt cnt rate : %lu\n",
+		   handle->tp_acnt.rx_amsdu_pkt_cnt_rate);
 	seq_printf(sfp, "Rx intr cnt    	 : %lu\n",
 		   handle->tp_acnt.rx_intr_cnt);
 	seq_printf(sfp, "Rx intr last        : %lu\n",
@@ -320,6 +348,8 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		   handle->tp_acnt.rx_pending);
 	seq_printf(sfp, "Rx pause            : %lu\n",
 		   handle->tp_acnt.rx_paused_cnt);
+	seq_printf(sfp, "Rx rdptr full cnt   : %lu\n",
+		   handle->tp_acnt.rx_rdptr_full_cnt);
 exit:
 	LEAVE();
 	MODULE_PUT;
@@ -578,6 +608,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		config_data = (t_u32)woal_string_to_number(line);
 		cmd = MFG_CMD_RX_ANT;
 	}
+	if (!strncmp(databuf, "radio_mode", strlen("radio_mode"))) {
+		line += strlen("radio_mode") + 1;
+		config_data = (t_u32)woal_string_to_number(line);
+		cmd = MFG_CMD_RADIO_MODE_CFG;
+	}
 	if (!strncmp(databuf, "channel", strlen("channel"))) {
 		line += strlen("channel") + 1;
 		config_data = (t_u32)woal_string_to_number(line);
@@ -604,6 +639,9 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	if (!strncmp(databuf, "tx_continuous=", strlen("tx_continuous=")) &&
 	    count > strlen("tx_continuous="))
 		cmd = MFG_CMD_TX_CONT;
+	if (!strncmp(databuf, "he_tb_tx=", strlen("he_tb_tx=")) &&
+	    count > strlen("he_tb_tx="))
+		cmd = MFG_CMD_CONFIG_MAC_HE_TB_TX;
 
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
@@ -659,6 +697,16 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 				   handle->rf_data->channel);
 		else
 			seq_printf(sfp, "channel=\n");
+		if (handle->rf_data->radio_mode[0])
+			seq_printf(sfp, "radio_mode[0]=%u\n",
+				   handle->rf_data->radio_mode[0]);
+		else
+			seq_printf(sfp, "radio_mode[0]=\n");
+		if (handle->rf_data->radio_mode[1])
+			seq_printf(sfp, "radio_mode[1]=%u\n",
+				   handle->rf_data->radio_mode[1]);
+		else
+			seq_printf(sfp, "radio_mode[1]=\n");
 		seq_printf(sfp, "total rx pkt count=%u\n",
 			   handle->rf_data->rx_tot_pkt_count);
 		seq_printf(sfp, "rx multicast/broadcast pkt count=%u\n",
@@ -696,6 +744,9 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			for (i = 3; i < 13; i++)
 				seq_printf(sfp, " %u",
 					   handle->rf_data->tx_frame_data[i]);
+			for (i = 13; i < 20; i++)
+				seq_printf(sfp, " %u",
+					   handle->rf_data->tx_frame_data[i]);
 			seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x",
 				   handle->rf_data->bssid[0],
 				   handle->rf_data->bssid[1],
@@ -703,6 +754,14 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 				   handle->rf_data->bssid[3],
 				   handle->rf_data->bssid[4],
 				   handle->rf_data->bssid[5]);
+		}
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "he_tb_tx=%u", handle->rf_data->he_tb_tx[0]);
+		if (handle->rf_data->he_tb_tx[0] == MTRUE) {
+			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[1]);
+			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[2]);
+			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[3]);
+			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[4]);
 		}
 		seq_printf(sfp, "\n");
 	}

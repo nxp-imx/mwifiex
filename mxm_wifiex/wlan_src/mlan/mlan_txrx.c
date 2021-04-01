@@ -4,7 +4,7 @@
  *  @brief This file contains the handling of TX/RX in MLAN
  *
  *
- *  Copyright 2009-2020 NXP
+ *  Copyright 2009-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -259,7 +259,6 @@ mlan_status wlan_recv_packet_complete(pmlan_adapter pmadapter,
 				      pmlan_buffer pmbuf, mlan_status status)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	pmlan_callbacks pcb;
 
 	ENTER();
 
@@ -269,7 +268,6 @@ mlan_status wlan_recv_packet_complete(pmlan_adapter pmadapter,
 		return MLAN_STATUS_FAILURE;
 	}
 
-	pcb = &pmadapter->callbacks;
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 
 	if (pmbuf->pparent) {

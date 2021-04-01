@@ -5,7 +5,7 @@
  *  related code
  *
  *
- *  Copyright 2009-2020 NXP
+ *  Copyright 2009-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -748,7 +748,7 @@ typedef struct _rate_map {
 /** If user configure to 1x1 or we found peer device only support 1x1,
  * then we need skip the nss1 part when map to Mrvl rate.
  */
-const rate_map rate_map_table_2x2[] = {
+static const rate_map rate_map_table_2x2[] = {
 	/* LG <--> Mrvl rate idx */
 	{2, 0, 0}, // RATEID_DBPSK1Mbps
 	{4, 1, 0}, // RATEID_DQPSK2Mbps
@@ -887,7 +887,7 @@ const rate_map rate_map_table_2x2[] = {
  * For the chip who only support 1x1, Mrvl rate idx define is different with 2x2
  * in FW We need redefine a bitrate to Mrvl rate idx table for 1x1 chip.
  */
-const rate_map rate_map_table_1x1[] = {
+static const rate_map rate_map_table_1x1[] = {
 	/* LG <--> Mrvl rate idx */
 	{2, 0, 0}, // RATEID_DBPSK1Mbps
 	{4, 1, 0}, // RATEID_DQPSK2Mbps
@@ -1019,7 +1019,7 @@ t_u8 SupportedRates_A[A_SUPPORTED_RATES] = {0x0c, 0x12, 0x18, 0x24, 0xb0,
 /**
  * The rates supported by the card
  */
-t_u16 WlanDataRates[WLAN_SUPPORTED_RATES_EXT] = {
+static t_u16 WlanDataRates[WLAN_SUPPORTED_RATES_EXT] = {
 	0x02, 0x04, 0x0B, 0x16, 0x00, 0x0C, 0x12, 0x18, 0x24,  0x30, 0x48,
 	0x60, 0x6C, 0x90, 0x0D, 0x1A, 0x27, 0x34, 0x4E, 0x68,  0x75, 0x82,
 	0x0C, 0x1B, 0x36, 0x51, 0x6C, 0xA2, 0xD8, 0xF3, 0x10E, 0x00};
@@ -1050,7 +1050,7 @@ t_u8 SupportedRates_N[N_SUPPORTED_RATES] = {0x02, 0x04, 0};
 #define MCS_NUM_AX 12
 // for MCS0/MCS1/MCS3/MCS4 have 4 additional DCM=1 value
 // note: the value in the table is 2 multiplier of the actual rate
-t_u16 ax_mcs_rate_nss1[12][MCS_NUM_AX + 4] = {
+static t_u16 ax_mcs_rate_nss1[12][MCS_NUM_AX + 4] = {
 	{0x90, 0x48, 0x120, 0x90, 0x1B0, 0x240, 0x120, 0x360, 0x1B0, 0x481,
 	 0x511, 0x5A1, 0x6C1, 0x781, 0x871, 0x962}, /*SG 160M*/
 	{0x88, 0x44, 0x110, 0x88, 0x198, 0x220, 0x110, 0x330, 0x198, 0x440,
@@ -1077,6 +1077,7 @@ t_u16 ax_mcs_rate_nss1[12][MCS_NUM_AX + 4] = {
 	 0xAF, 0xC3, 0xDB, 0xF3} /*LG 20M*/
 };
 
+#if 0
 // note: the value in the table is 2 multiplier of the actual rate
 t_u16 ax_tone_ru_rate_nss1[9][MCS_NUM_AX + 4] = {
 	{0x8, 0x4, 0xF, 0x8, 0x17, 0x1E, 0xF, 0x2D, 0x17, 0x3C, 0x44, 0x4B,
@@ -1098,9 +1099,10 @@ t_u16 ax_tone_ru_rate_nss1[9][MCS_NUM_AX + 4] = {
 	{0x2, 0x1, 0x3, 0x2, 0x5, 0x6, 0x3, 0x9, 0x4, 0xC, 0xE, 0xF, 0x12, 0x14,
 	 0x17, 0x19} /*LG 26-tone*/
 };
+#endif
 
 // note: the value in the table is 2 multiplier of the actual rate
-t_u16 ax_mcs_rate_nss2[12][MCS_NUM_AX + 4] = {
+static t_u16 ax_mcs_rate_nss2[12][MCS_NUM_AX + 4] = {
 	{0x120, 0x90, 0x240, 0x120, 0x360, 0x481, 0x240, 0x61C, 0x360, 0x901,
 	 0xA22, 0xB42, 0xD82, 0xF03, 0x10E3, 0x12C3}, /*SG 160M*/
 	{0x110, 0x88, 0x220, 0x110, 0x330, 0x440, 0x220, 0x661, 0x330, 0x881,
@@ -1127,6 +1129,7 @@ t_u16 ax_mcs_rate_nss2[12][MCS_NUM_AX + 4] = {
 	 0x124, 0x15F, 0x186, 0x1B6, 0x1E7} /*LG 20M*/
 };
 
+#if 0
 // note: the value in the table is 2 multiplier of the actual rate
 t_u16 ax_tone_ru_rate_nss2[9][MCS_NUM_AX + 4] = {
 	{0xF, 0x8, 0x1E, 0xF, 0x2D, 0x3C, 0x1E, 0x5A, 0x2D, 0x78, 0x87, 0x96,
@@ -1148,6 +1151,7 @@ t_u16 ax_tone_ru_rate_nss2[9][MCS_NUM_AX + 4] = {
 	{0x3, 0x2, 0x6, 0x3, 0x9, 0xC, 0x6, 0x12, 0x9, 0x18, 0x1B, 0x1E, 0x24,
 	 0x28, 0x2D, 0x32} /*LG 26-tone*/
 };
+#endif
 
 /********************************************************
  *			Local Functions
@@ -1563,7 +1567,7 @@ t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 	t_u32 rate = 0;
 	t_u8 mcs_index = 0;
 	t_u8 he_dcm = 0;
-	t_u8 he_tone = 0;
+	//	t_u8 he_tone = 0;
 	t_u8 stbc = 0;
 
 	t_u8 bw = 0;
@@ -1625,10 +1629,12 @@ t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 		if (gi > 0)
 			gi = gi - 1;
 
+		//#ifdef ENABLE_802_11AX
 		// TODO: hardcode he_tone here, wait for FW value ready.
-		he_tone = 4;
+		//		he_tone = 4;
 
 		// he_tone = (ext_rate_info & 0xE) >> 1;
+		//#endif
 
 		if ((index >> 4) == 1) {
 			switch (mcs_index) {
@@ -2364,8 +2370,8 @@ static oper_bw_chan oper_bw_chan_cn[] = {
  *
  *  @return                   A pointer to oper_bw_chan
  */
-oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
-						 int *arraysize)
+static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
+							int *arraysize)
 {
 	t_u8 country_code[][COUNTRY_CODE_LEN] = {"US", "JP", "CN"};
 	int country_id = 0;
@@ -2428,7 +2434,7 @@ mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 
 	ENTER();
 
-	for (i = 0; i < sizeof(center_freqs); i++) {
+	for (i = 0; i < (int)sizeof(center_freqs); i++) {
 		if (channel == center_freqs[i]) {
 			PRINTM(MERROR, "Invalid channel number %d!\n", channel);
 			LEAVE();
@@ -2453,11 +2459,12 @@ mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 		return MLAN_STATUS_FAILURE;
 	}
 
-	for (i = 0; i < arraysize / sizeof(oper_bw_chan); i++) {
+	for (i = 0; i < (int)(arraysize / sizeof(oper_bw_chan)); i++) {
 		if (poper_bw_chan[i].oper_class == oper_class ||
 		    poper_bw_chan[i].global_oper_class == oper_class) {
 			for (channum = 0;
-			     channum < sizeof(poper_bw_chan[i].channel_list);
+			     channum <
+			     (int)sizeof(poper_bw_chan[i].channel_list);
 			     channum++) {
 				if (poper_bw_chan[i].channel_list[channum] &&
 				    poper_bw_chan[i].channel_list[channum] ==
@@ -2502,7 +2509,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	for (i = 0; i < sizeof(center_freqs); i++) {
+	for (i = 0; i < (int)sizeof(center_freqs); i++) {
 		if (channel == center_freqs[i]) {
 			PRINTM(MERROR, "Invalid channel number %d!\n", channel);
 			LEAVE();
@@ -2515,10 +2522,11 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 		channel = center_freq_idx;
 	}
 
-	for (i = 0; i < arraysize / sizeof(oper_bw_chan); i++) {
+	for (i = 0; i < (int)(arraysize / sizeof(oper_bw_chan)); i++) {
 		if (poper_bw_chan[i].bandwidth == bw) {
 			for (channum = 0;
-			     channum < sizeof(poper_bw_chan[i].channel_list);
+			     channum <
+			     (int)(sizeof(poper_bw_chan[i].channel_list));
 			     channum++) {
 				if (poper_bw_chan[i].channel_list[channum] &&
 				    poper_bw_chan[i].channel_list[channum] ==

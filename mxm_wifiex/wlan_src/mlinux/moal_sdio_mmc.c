@@ -4,7 +4,7 @@
  *  related functions.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -31,7 +31,8 @@ Change log:
 #include "moal_sdio.h"
 
 /** define nxp vendor id */
-#define NXP_VENDOR_ID 0x02df
+#define NXP_VENDOR_ID 0x0471
+#define MRVL_VENDOR_ID 0x02df
 
 /********************************************************
 		Local Variables
@@ -84,29 +85,29 @@ static moal_if_ops sdiommc_ops;
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
 #ifdef SD8887
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8887)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8887)},
 #endif
 #ifdef SD8897
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8897)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8897)},
 #endif
 #ifdef SD8977
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8977)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8977)},
 #endif
 #ifdef SD8978
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8978)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8978)},
 #endif
 #ifdef SD8997
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8997)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8997)},
 #endif
 #ifdef SD8987
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_8987)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8987)},
 #endif
 #ifdef SD9098
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_9098_FN1)},
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_9098_FN2)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_9098_FN1)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_9098_FN2)},
 #endif
 #ifdef SD9097
-	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_9097)},
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_9097)},
 #endif
 	{},
 };
@@ -165,13 +166,13 @@ static struct sdio_driver REFDATA wlan_sdio = {
 		Local Functions
 ********************************************************/
 static void woal_sdiommc_dump_fw_info(moal_handle *phandle);
-
+#if 0
 /**  @brief This function dump the sdio register
  *
  *  @param handle   A Pointer to the moal_handle structure
  *  @return         N/A
  */
-void woal_dump_sdio_reg(moal_handle *handle)
+static void woal_dump_sdio_reg(moal_handle *handle)
 {
 	int ret = 0;
 	t_u8 data, i;
@@ -210,6 +211,7 @@ void woal_dump_sdio_reg(moal_handle *handle)
 	}
 	return;
 }
+#endif
 /********************************************************
 		Global Functions
 ********************************************************/
@@ -286,6 +288,7 @@ static t_u16 woal_update_card_type(t_void *card)
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
+
 #ifdef SD8897
 	if (cardp_sd->func->device == SD_DEVICE_ID_8897) {
 		card_type = CARD_TYPE_SD8897;
@@ -525,7 +528,6 @@ void woal_sdio_shutdown(struct device *dev)
 	moal_handle *handle = NULL;
 	struct sdio_mmc_card *cardp;
 	mlan_ds_ps_info pm_info;
-	int timeout = 0;
 	int i, retry_num = 8;
 
 	ENTER();
@@ -562,7 +564,7 @@ void woal_sdio_shutdown(struct device *dev)
 		}
 		woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
 
-		timeout = wait_event_interruptible_timeout(
+		wait_event_interruptible_timeout(
 			handle->hs_activate_wait_q,
 			handle->hs_activate_wait_q_woken, HS_ACTIVE_TIMEOUT);
 		if (handle->hs_activated == MTRUE)
@@ -812,7 +814,7 @@ static mlan_status woal_sdiommc_read_reg(moal_handle *handle, t_u32 reg,
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_sdio_writeb(moal_handle *handle, t_u32 reg, t_u8 data)
+static mlan_status woal_sdio_writeb(moal_handle *handle, t_u32 reg, t_u8 data)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	sdio_claim_host(((struct sdio_mmc_card *)handle->card)->func);
@@ -831,7 +833,7 @@ mlan_status woal_sdio_writeb(moal_handle *handle, t_u32 reg, t_u8 data)
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_sdio_readb(moal_handle *handle, t_u32 reg, t_u8 *data)
+static mlan_status woal_sdio_readb(moal_handle *handle, t_u32 reg, t_u8 *data)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	t_u8 val;
@@ -853,7 +855,8 @@ mlan_status woal_sdio_readb(moal_handle *handle, t_u32 reg, t_u8 *data)
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_sdio_f0_readb(moal_handle *handle, t_u32 reg, t_u8 *data)
+static mlan_status woal_sdio_f0_readb(moal_handle *handle, t_u32 reg,
+				      t_u8 *data)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	t_u8 val;
@@ -876,8 +879,8 @@ mlan_status woal_sdio_f0_readb(moal_handle *handle, t_u32 reg, t_u8 *data)
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_sdio_rw_mb(moal_handle *handle, pmlan_buffer pmbuf_list,
-			    t_u32 port, t_u8 write)
+static mlan_status woal_sdio_rw_mb(moal_handle *handle, pmlan_buffer pmbuf_list,
+				   t_u32 port, t_u8 write)
 {
 	struct scatterlist sg_list[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
 	int num_sg = pmbuf_list->use_count;
@@ -1477,7 +1480,7 @@ typedef struct {
 	t_u8 type;
 } memory_type_mapping;
 
-memory_type_mapping mem_type_mapping_tbl[] = {
+static memory_type_mapping mem_type_mapping_tbl[] = {
 	{"ITCM", NULL, NULL, 0xF0, FW_DUMP_TYPE_MEM_ITCM},
 	{"DTCM", NULL, NULL, 0xF1, FW_DUMP_TYPE_MEM_DTCM},
 	{"SQRAM", NULL, NULL, 0xF2, FW_DUMP_TYPE_MEM_SQRAM},
@@ -1494,15 +1497,8 @@ memory_type_mapping mem_type_mapping_tbl[] = {
 	{"EXT13", NULL, NULL, 0xFD, 0},
 	{"EXTLAST", NULL, NULL, 0xFE, 0},
 };
-memory_type_mapping mem_type_mapping_tbl_8977_8997 = {"DUMP", NULL, NULL, 0xDD,
-						      0};
-
-typedef enum {
-	RDWR_STATUS_SUCCESS = 0,
-	RDWR_STATUS_FAILURE = 1,
-	RDWR_STATUS_DONE = 2
-} rdwr_status;
-
+static memory_type_mapping mem_type_mapping_tbl_8977_8997 = {"DUMP", NULL, NULL,
+							     0xDD, 0};
 /**
  *  @brief This function read/write firmware via cmd52
  *
@@ -1511,7 +1507,7 @@ typedef enum {
  *
  *  @return         MLAN_STATUS_SUCCESS
  */
-rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
+static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 {
 	int ret = 0;
 	int tries = 0;
@@ -1677,16 +1673,21 @@ void woal_dump_firmware_info_v2(moal_handle *phandle)
 					       "pre-allocced buf is not enough\n");
 			}
 			if (RDWR_STATUS_DONE == stat) {
+#ifdef MLAN_64BIT
 				PRINTM(MMSG,
 				       "%s done:"
-#ifdef MLAN_64BIT
 				       "size = 0x%lx\n",
-#else
-				       "size = 0x%x\n",
-#endif
 				       mem_type_mapping_tbl[idx].mem_name,
 				       dbg_ptr - mem_type_mapping_tbl[idx]
 							 .mem_Ptr);
+#else
+				PRINTM(MMSG,
+				       "%s done:"
+				       "size = 0x%x\n",
+				       mem_type_mapping_tbl[idx].mem_name,
+				       dbg_ptr - mem_type_mapping_tbl[idx]
+							 .mem_Ptr);
+#endif
 				memset(file_name, 0, sizeof(file_name));
 				sprintf(file_name, "%s%s", "file_sdio_",
 					mem_type_mapping_tbl[idx].mem_name);
@@ -1853,15 +1854,20 @@ void woal_dump_firmware_info_v3(moal_handle *phandle)
 			}
 		}
 		if (RDWR_STATUS_DONE == stat) {
+#ifdef MLAN_64BIT
 			PRINTM(MMSG,
 			       "%s done:"
-#ifdef MLAN_64BIT
 			       "size = 0x%lx\n",
-#else
-			       "size = 0x%x\n",
-#endif
 			       pmem_type_mapping_tbl->mem_name,
 			       dbg_ptr - pmem_type_mapping_tbl->mem_Ptr);
+#else
+			PRINTM(MMSG,
+			       "%s done:"
+			       "size = 0x%x\n",
+			       pmem_type_mapping_tbl->mem_name,
+			       dbg_ptr - pmem_type_mapping_tbl->mem_Ptr);
+
+#endif
 			memset(file_name, 0, sizeof(file_name));
 			sprintf(file_name, "%s%s", "file_sdio_",
 				pmem_type_mapping_tbl->mem_name);

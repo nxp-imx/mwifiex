@@ -234,6 +234,11 @@ static INLINE void reset_station_ampdu(mlan_private *priv, t_u8 tid, t_u8 *ra)
 static INLINE t_u8 wlan_is_ampdu_allowed(mlan_private *priv, raListTbl *ptr,
 					 int tid)
 {
+	if (ptr->is_tdls_link)
+		return is_station_ampdu_allowed(priv, ptr, tid);
+	if (priv->adapter->tdls_status != TDLS_NOT_SETUP && !priv->txaggrctrl)
+		return MFALSE;
+
 	if ((!priv->is_data_rate_auto) && IS_BG_RATE)
 		return MFALSE;
 #ifdef UAP_SUPPORT
@@ -272,6 +277,8 @@ static INLINE void wlan_update_del_ba_count(mlan_private *priv, raListTbl *ptr)
 		return wlan_update_station_del_ba_count(priv, ptr);
 #endif /* UAP_SUPPORT */
 #endif /* UAP_802_11N */
+	if (ptr->is_tdls_link)
+		return wlan_update_station_del_ba_count(priv, ptr);
 	rssi = priv->snr - priv->nf;
 	if (rssi > BA_RSSI_HIGH_THRESHOLD)
 		ptr->del_ba_count = 0;
@@ -304,6 +311,11 @@ static INLINE t_u8 wlan_is_amsdu_allowed(mlan_private *priv, raListTbl *ptr,
 		}
 	}
 #endif /* UAP_SUPPORT */
+	if (ptr->is_tdls_link)
+		return (priv->aggr_prio_tbl[tid].amsdu !=
+			BA_STREAM_NOT_ALLOWED) ?
+			       MTRUE :
+			       MFALSE;
 #define TXRATE_BITMAP_INDEX_MCS0_7 2
 	return ((priv->aggr_prio_tbl[tid].amsdu != BA_STREAM_NOT_ALLOWED) &&
 		((priv->is_data_rate_auto) ||

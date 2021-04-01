@@ -3,7 +3,7 @@
  * @brief This file contains wireless extension standard ioctl functions
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -2248,7 +2248,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 	}
 	PRINTM(MIOCTL, "PRIV Command return: %s, length=%d\n", buf, len);
 	dwrq->length = (t_u16)len;
-	if (copy_to_user(dwrq->pointer, buf, dwrq->length))
+	if (copy_to_user((void __user *)dwrq->pointer, buf, dwrq->length))
 		ret = -EFAULT;
 done:
 	kfree(buf);
@@ -2265,8 +2265,8 @@ done:
  *
  *  @return                     MLAN_STATUS_SUCCESS -- success, otherwise fail
  */
-mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
-				   mlan_802_11_ssid *req_ssid)
+static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
+					  mlan_802_11_ssid *req_ssid)
 {
 	wlan_user_scan_cfg scan_req;
 	mlan_scan_cfg scan_cfg;
@@ -3056,7 +3056,7 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str)
 
 	snprintf(buf, sizeof(buf) - 1, "%s", str);
 
-	iwrq.data.pointer = buf;
+	iwrq.data.pointer = (t_u8 __user *)buf;
 	iwrq.data.length = strlen(buf) + 1;
 
 	/* Send Event to upper layer */
@@ -3090,7 +3090,7 @@ void woal_send_mic_error_event(moal_private *priv, t_u32 event)
 		mic.flags = IW_MICFAILURE_PAIRWISE;
 	else
 		mic.flags = IW_MICFAILURE_GROUP;
-	iwrq.data.pointer = &mic;
+	iwrq.data.pointer = (t_u8 __user *)&mic;
 	iwrq.data.length = sizeof(mic);
 
 	wireless_send_event(priv->netdev, IWEVMICHAELMICFAILURE, &iwrq,
@@ -3105,14 +3105,14 @@ void woal_send_mic_error_event(moal_private *priv, t_u32 event)
 #ifdef STA_SUPPORT
 /** wlan_handler_def */
 struct iw_handler_def woal_handler_def = {
-	num_standard: ARRAY_SIZE(woal_handler),
-	num_private : ARRAY_SIZE(woal_private_handler),
-	num_private_args : ARRAY_SIZE(woal_private_args),
-	standard : (iw_handler *)woal_handler,
-	private : (iw_handler *)woal_private_handler,
-	private_args : (struct iw_priv_args *)woal_private_args,
+	.num_standard = ARRAY_SIZE(woal_handler),
+	.num_private = ARRAY_SIZE(woal_private_handler),
+	.num_private_args = ARRAY_SIZE(woal_private_args),
+	.standard = (iw_handler *)woal_handler,
+	.private = (iw_handler *)woal_private_handler,
+	.private_args = (struct iw_priv_args *)woal_private_args,
 #if WIRELESS_EXT > 20
-	get_wireless_stats : woal_get_wireless_stats,
+	.get_wireless_stats = woal_get_wireless_stats,
 #endif
 };
 // clang-format on
