@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 802.11H.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -3131,7 +3131,7 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 		evt_len -= sizeof(HostCmd_DS_CHAN_RPT_RSP) -
 			   sizeof(pchan_rpt_rsp->tlv_buffer);
 
-		while (evt_len >= sizeof(MrvlIEtypesHeader_t)) {
+		while (evt_len >= (t_s32)sizeof(MrvlIEtypesHeader_t)) {
 			ptlv = (MrvlIEtypes_Data_t *)pbuffer;
 			tlv_len = wlan_le16_to_cpu(ptlv->header.len);
 
@@ -3355,8 +3355,9 @@ void wlan_11h_update_bandcfg(Band_Config_t *uap_band_cfg, t_u8 new_channel)
  *
  * @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_11h_get_priv_curr_idx(mlan_private *pmpriv,
-				       wlan_radar_det_hndlg_state_t *pstate_rdh)
+static mlan_status
+wlan_11h_get_priv_curr_idx(mlan_private *pmpriv,
+			   wlan_radar_det_hndlg_state_t *pstate_rdh)
 {
 	t_bool found = MFALSE;
 	ENTER();
@@ -4096,7 +4097,7 @@ mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_private *pmpriv = MNULL;
-	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {0};
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {MNULL};
 
 	ENTER();
 	switch (pmadapter->event_cause & EVENT_ID_MASK) {

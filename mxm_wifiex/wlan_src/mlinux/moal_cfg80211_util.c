@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2020 NXP
+ * Copyright 2015-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -43,7 +43,7 @@
 /**nxp vendor command and event*/
 #define MRVL_VENDOR_ID 0x005043
 /** vendor events */
-const struct nl80211_vendor_cmd_info vendor_events[] = {
+static const struct nl80211_vendor_cmd_info vendor_events[] = {
 	{
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_hang,
@@ -143,11 +143,9 @@ static const struct nla_policy
 	woal_fw_roaming_policy[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX + 1] = {
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL] = {.type = NLA_U32},
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID] = {
-			.type = NLA_BINARY,
-			.len = sizeof(int)},
+			.type = NLA_BINARY},
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID] = {
-			.type = NLA_BINARY,
-			.len = sizeof(int)},
+			.type = NLA_BINARY},
 };
 // clang-format on
 
@@ -155,7 +153,7 @@ static const struct nla_policy
 	woal_keep_alive_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] = {
 		[MKEEP_ALIVE_ATTRIBUTE_ID] = {.type = NLA_U8},
 		[MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE] = {.type = NLA_U16},
-		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_BINARY, .len = 1},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_BINARY},
 		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN] = {.type = NLA_U16},
 		[MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR] = {.type = NLA_STRING,
 							.len = ETH_ALEN},
@@ -174,12 +172,12 @@ static const struct nla_policy
  *
  * @return    index of events array
  */
-int woal_get_event_id(int event)
+static int woal_get_event_id(int event)
 {
 	int i = 0;
 
-	for (i = 0; i < ARRAY_SIZE(vendor_events); i++) {
-		if (vendor_events[i].subcmd == event)
+	for (i = 0; i < (int)ARRAY_SIZE(vendor_events); i++) {
+		if ((int)vendor_events[i].subcmd == event)
 			return i;
 	}
 
@@ -242,54 +240,6 @@ int woal_cfg80211_vendor_event(moal_private *priv, int event, t_u8 *data,
 
 	LEAVE();
 	return ret;
-}
-
-/**
- * @brief send vendor event to kernel
- *
- * @param priv       A pointer to moal_private
- * @param event    vendor event
- * @param  len     data length
- *
- * @return      0: success  1: fail
- */
-struct sk_buff *woal_cfg80211_alloc_vendor_event(moal_private *priv, int event,
-						 int len)
-{
-	struct wiphy *wiphy = NULL;
-	struct sk_buff *skb = NULL;
-	int event_id = 0;
-
-	ENTER();
-
-	if (!priv || !priv->wdev || !priv->wdev->wiphy) {
-		PRINTM(MERROR, "Not find this event %d\n", event_id);
-		goto done;
-	}
-	wiphy = priv->wdev->wiphy;
-	PRINTM(MEVENT, "vendor event :0x%x\n", event);
-	event_id = woal_get_event_id(event);
-	if (event_max == event_id) {
-		PRINTM(MERROR, "Not find this event %d\n", event_id);
-		goto done;
-	}
-
-	/**allocate skb*/
-#if KERNEL_VERSION(4, 1, 0) <= CFG80211_VERSION_CODE
-	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len, event_id,
-					  GFP_ATOMIC);
-#else
-	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_ATOMIC);
-#endif
-
-	if (!skb) {
-		PRINTM(MERROR, "allocate memory fail for vendor event\n");
-		goto done;
-	}
-
-done:
-	LEAVE();
-	return skb;
 }
 
 /**
@@ -854,7 +804,7 @@ static int woal_cfg80211_subcmd_set_country_code(struct wiphy *wiphy,
 		switch (type) {
 		case ATTR_COUNTRY_CODE:
 			strncpy(country, nla_data(iter),
-				MIN(sizeof(country) - 1, nla_len(iter)));
+				MIN((int)sizeof(country) - 1, nla_len(iter)));
 			break;
 		default:
 			PRINTM(MERROR, "Unknown type: %d\n", type);
@@ -3835,7 +3785,7 @@ static int woal_cfg80211_subcmd_set_dfs_offload(struct wiphy *wiphy,
 }
 
 // clang-format off
-const struct wiphy_vendor_command vendor_commands[] = {
+static const struct wiphy_vendor_command vendor_commands[] = {
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,

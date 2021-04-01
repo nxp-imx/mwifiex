@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for 11ax related features.
  *
  *
- *  Copyright 2018-2020 NXP
+ *  Copyright 2018-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -47,6 +47,7 @@
 			Global Functions
 ********************************************************/
 
+#if 0
 /**
  *  @brief This function prints the 802.11ax HE mac capability
  *
@@ -55,13 +56,14 @@
  *
  *  @return        N/A
  */
-void wlan_show_dot11axmaccap(pmlan_adapter pmadapter, t_u32 cap)
+static void wlan_show_dot11axmaccap(pmlan_adapter pmadapter, t_u32 cap)
 {
 	ENTER();
 
 	LEAVE();
 	return;
 }
+#endif
 
 /**
  *  @brief This function check if AP support TWT Response.
@@ -70,7 +72,7 @@ void wlan_show_dot11axmaccap(pmlan_adapter pmadapter, t_u32 cap)
  *
  *  @return        MTRUE/MFALSE
  */
-t_u8 wlan_check_ap_11ax_twt_supported(BSSDescriptor_t *pbss_desc)
+static t_u8 wlan_check_ap_11ax_twt_supported(BSSDescriptor_t *pbss_desc)
 {
 	if (!pbss_desc->phe_cap)
 		return MFALSE;
@@ -123,6 +125,7 @@ t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
 	return MFALSE;
 }
 
+#if 0
 /**
  *  @brief This function prints the 802.11ax HE PHY cap
  *
@@ -131,14 +134,14 @@ t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
  *
  *  @return        N/A
  */
-void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
+static void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
 {
 	ENTER();
 
 	LEAVE();
 	return;
 }
-
+#endif
 /**
  *  @brief This function fills the HE cap tlv out put format is LE, not CPU
  *
@@ -718,7 +721,7 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	HostCmd_DS_11AX_CMD_CFG *axcmd = &resp->params.axcmd;
 	MrvlIEtypes_Data_t *tlv = MNULL;
 	t_s16 left_len = 0;
-	t_u16 tlv_type = 0, tlv_len = 0;
+	t_u16 tlv_len = 0;
 
 	ENTER();
 
@@ -735,8 +738,7 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			resp->size - sizeof(HostCmd_DS_11AX_CMD_CFG) - S_DS_GEN;
 		// tlv = (MrvlIEtypes_Extension_t *)axcfg->val;
 		tlv = (MrvlIEtypes_Data_t *)axcmd->val;
-		while (left_len > sizeof(MrvlIEtypesHeader_t)) {
-			tlv_type = wlan_le16_to_cpu(tlv->header.type);
+		while (left_len > (t_s16)sizeof(MrvlIEtypesHeader_t)) {
 			tlv_len = wlan_le16_to_cpu(tlv->header.len);
 			memcpy_ext(
 				pmadapter,

@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211.
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -1265,9 +1265,9 @@ int woal_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 		LEAVE();
 		return -EFAULT;
 	}
-	if (rts_thr == MLAN_FRAG_RTS_DISABLED)
+	if (rts_thr == (int)MLAN_FRAG_RTS_DISABLED)
 		rts_thr = MLAN_RTS_MAX_VALUE;
-	if (frag_thr == MLAN_FRAG_RTS_DISABLED)
+	if (frag_thr == (int)MLAN_FRAG_RTS_DISABLED)
 		frag_thr = MLAN_FRAG_MAX_VALUE;
 
 #ifdef UAP_CFG80211
@@ -1980,8 +1980,8 @@ static int woal_fill_coalesce_rule_info(struct cfg80211_coalesce_rules *crule,
  *
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_set_coalesce(moal_private *priv, t_u16 action,
-			      mlan_ds_coalesce_cfg *coalesce_cfg)
+static mlan_status woal_set_coalesce(moal_private *priv, t_u16 action,
+				     mlan_ds_coalesce_cfg *coalesce_cfg)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
@@ -2301,7 +2301,6 @@ done:
  */
 void woal_mgmt_frame_register(moal_private *priv, u16 frame_type, bool reg)
 {
-	mlan_status status = MLAN_STATUS_SUCCESS;
 	t_u32 mgmt_subtype_mask = 0x0;
 	t_u32 last_mgmt_subtype_mask = priv->mgmt_subtype_mask;
 
@@ -2333,8 +2332,8 @@ void woal_mgmt_frame_register(moal_private *priv, u16 frame_type, bool reg)
 		 * Note that this callback may not sleep, and cannot run
 		 * concurrently with itself.
 		 */
-		status = woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET,
-					      &mgmt_subtype_mask, MOAL_NO_WAIT);
+		woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET, &mgmt_subtype_mask,
+				     MOAL_NO_WAIT);
 		priv->mgmt_subtype_mask = last_mgmt_subtype_mask;
 	}
 
@@ -2904,7 +2903,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 {
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ds_misc_custom_ie *custom_ie = NULL;
+	mlan_ds_misc_custom_ie *pcustom_ie = NULL;
 	t_u8 *pos = NULL;
 	t_u16 len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -2912,17 +2911,17 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 
 	ENTER();
 
-	custom_ie = kzalloc(sizeof(mlan_ds_misc_custom_ie), GFP_KERNEL);
-	if (!custom_ie) {
+	pcustom_ie = kzalloc(sizeof(mlan_ds_misc_custom_ie), GFP_KERNEL);
+	if (!pcustom_ie) {
 		PRINTM(MERROR, "Fail to allocate custome_ie\n");
 		status = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 
-	custom_ie->type = TLV_TYPE_MGMT_IE;
+	pcustom_ie->type = TLV_TYPE_MGMT_IE;
 
-	pos = (t_u8 *)custom_ie->ie_data_list;
-	remain_len = sizeof(custom_ie->ie_data_list);
+	pos = (t_u8 *)pcustom_ie->ie_data_list;
+	remain_len = sizeof(pcustom_ie->ie_data_list);
 	if (beacon_ies_data) {
 		len = sizeof(*beacon_ies_data) - MAX_IE_SIZE +
 		      beacon_ies_data->ie_length;
@@ -2930,7 +2929,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 				remain_len);
 		pos += len;
 		remain_len -= len;
-		custom_ie->len += len;
+		pcustom_ie->len += len;
 	}
 
 	if (proberesp_ies_data) {
@@ -2940,7 +2939,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 				remain_len);
 		pos += len;
 		remain_len -= len;
-		custom_ie->len += len;
+		pcustom_ie->len += len;
 	}
 
 	if (assocresp_ies_data) {
@@ -2950,7 +2949,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 				remain_len);
 		pos += len;
 		remain_len -= len;
-		custom_ie->len += len;
+		pcustom_ie->len += len;
 	}
 
 	if (probereq_ies_data) {
@@ -2960,7 +2959,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 				remain_len);
 		pos += len;
 		remain_len -= len;
-		custom_ie->len += len;
+		pcustom_ie->len += len;
 	}
 	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
 	if (ioctl_req == NULL) {
@@ -2974,7 +2973,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
 	ioctl_req->action = MLAN_ACT_SET;
 
-	moal_memcpy_ext(priv->phandle, &misc->param.cust_ie, custom_ie,
+	moal_memcpy_ext(priv->phandle, &misc->param.cust_ie, pcustom_ie,
 			sizeof(mlan_ds_misc_custom_ie),
 			sizeof(mlan_ds_misc_custom_ie));
 
@@ -3025,7 +3024,7 @@ woal_cfg80211_custom_ie(moal_private *priv, custom_ie *beacon_ies_data,
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
-	kfree(custom_ie);
+	kfree(pcustom_ie);
 	LEAVE();
 	return status;
 }
@@ -3174,7 +3173,7 @@ static t_u16 woal_get_specific_ie(const t_u8 *ie, int len, t_u8 *ie_out,
 					   wps_oui[3]) {
 				if (mask & IE_MASK_WPS) {
 					if ((out_len + length + 2) <
-					    ie_out_len) {
+					    (int)ie_out_len) {
 						moal_memcpy_ext(
 							NULL, ie_out + out_len,
 							pos, length + 2,
@@ -3192,7 +3191,7 @@ static t_u16 woal_get_specific_ie(const t_u8 *ie, int len, t_u8 *ie_out,
 					   wfd_oui[3]) {
 				if (mask & IE_MASK_WFD) {
 					if ((out_len + length + 2) <
-					    ie_out_len) {
+					    (int)ie_out_len) {
 						moal_memcpy_ext(
 							NULL, ie_out + out_len,
 							pos, length + 2,
@@ -3205,7 +3204,7 @@ static t_u16 woal_get_specific_ie(const t_u8 *ie, int len, t_u8 *ie_out,
 					}
 				}
 			} else if (mask & IE_MASK_VENDOR) {
-				if ((out_len + length + 2) < ie_out_len) {
+				if ((out_len + length + 2) < (int)ie_out_len) {
 					moal_memcpy_ext(NULL, ie_out + out_len,
 							pos, length + 2,
 							ie_out_len - out_len);
@@ -3240,11 +3239,9 @@ static t_u8 woal_find_ie(const t_u8 *ie, int len, const t_u8 *spec_ie,
 	int left_len = len;
 	const t_u8 *pos = ie;
 	int length;
-	t_u8 id = 0;
 
 	while (left_len >= 2) {
 		length = *(pos + 1);
-		id = *pos;
 		if ((length + 2) > left_len)
 			break;
 		if ((length + 2) == spec_len) {
@@ -3309,7 +3306,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 		switch (id) {
 		case COUNTRY_INFO:
 			enable_11d = MTRUE;
-			if ((out_len + length + 2) < ie_out_len) {
+			if ((out_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle, ie_out + out_len,
 						pos, length + 2,
 						ie_out_len - out_len);
@@ -3324,7 +3321,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 		case VHT_CAPABILITY:
 		case VHT_OPERATION:
 			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
-				if ((out_len + length + 2) < ie_out_len) {
+				if ((out_len + length + 2) < (int)ie_out_len) {
 					moal_memcpy_ext(priv->phandle,
 							ie_out + out_len, pos,
 							length + 2,
@@ -3352,7 +3349,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 			    !moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 				break;
 			else {
-				if ((out_len + length + 2) < ie_out_len) {
+				if ((out_len + length + 2) < (int)ie_out_len) {
 					moal_memcpy_ext(priv->phandle,
 							ie_out + out_len, pos,
 							length + 2,
@@ -3376,7 +3373,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 					       "Fail to set EXTCAP IE\n");
 				break;
 			}
-			if ((out_len + length + 2) < ie_out_len) {
+			if ((out_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle, ie_out + out_len,
 						pos, length + 2,
 						ie_out_len - out_len);
@@ -3420,7 +3417,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 				// filter out vendor IE
 				break;
 			}
-			if ((out_len + length + 2) < ie_out_len) {
+			if ((out_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle, ie_out + out_len,
 						pos, length + 2,
 						ie_out_len - out_len);
@@ -3431,7 +3428,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 			}
 			break;
 		default:
-			if ((out_len + length + 2) < ie_out_len) {
+			if ((out_len + length + 2) < (int)ie_out_len) {
 				moal_memcpy_ext(priv->phandle, ie_out + out_len,
 						pos, length + 2,
 						ie_out_len - out_len);
@@ -3460,7 +3457,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
  *
  * @return                MTRUE/MFALSE
  */
-t_u8 is_selected_registrar_on(const t_u8 *ie, int len)
+static t_u8 is_selected_registrar_on(const t_u8 *ie, int len)
 {
 #define WPS_IE_FIX_LEN 6
 #define TLV_ID_SELECTED_REGISTRAR 0x1041
@@ -3470,7 +3467,7 @@ t_u8 is_selected_registrar_on(const t_u8 *ie, int len)
 	u16 tlv_type, tlv_len;
 	u8 *pos = NULL;
 
-	while (left_len > sizeof(TLV_Generic_t)) {
+	while (left_len > (int)sizeof(TLV_Generic_t)) {
 		tlv_type = ntohs(tlv->type);
 		tlv_len = ntohs(tlv->len);
 		if (tlv_type == TLV_ID_SELECTED_REGISTRAR) {
@@ -4213,8 +4210,8 @@ Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 #define UAP_HE_MAC_CAP0_MASK 0x00
 #define UAP_HE_MAC_CAP1_MASK 0x00
 #define UAP_HE_MAC_CAP2_MASK 0x00
-#define UAP_HE_MAC_CAP3_MASK 0x00
-#define UAP_HE_MAC_CAP4_MASK 0x02
+#define UAP_HE_MAC_CAP3_MASK 0x02
+#define UAP_HE_MAC_CAP4_MASK 0x00
 #define UAP_HE_MAC_CAP5_MASK 0x00
 #define UAP_HE_PHY_CAP0_MASK 0x04
 #define UAP_HE_PHY_CAP1_MASK 0x23
@@ -4261,8 +4258,8 @@ Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 #define UAP_HE_2G_MAC_CAP0_MASK 0x00
 #define UAP_HE_2G_MAC_CAP1_MASK 0x00
 #define UAP_HE_2G_MAC_CAP2_MASK 0x00
-#define UAP_HE_2G_MAC_CAP3_MASK 0x00
-#define UAP_HE_2G_MAC_CAP4_MASK 0x02
+#define UAP_HE_2G_MAC_CAP3_MASK 0x02
+#define UAP_HE_2G_MAC_CAP4_MASK 0x00
 #define UAP_HE_2G_MAC_CAP5_MASK 0x00
 #define UAP_HE_2G_PHY_CAP0_MASK 0x04
 #define UAP_HE_2G_PHY_CAP1_MASK 0x20
@@ -4613,6 +4610,67 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #endif
 #endif
 	LEAVE();
+}
+#endif
+
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+/**
+ * @brief Notify cfg80211 supplicant ant cfg changed
+ *
+ * @param priv          A pointer moal_private structure
+ * @param wiphy         A pointer structure wiphy
+ * @param radio         A pointer to radio cfg structure
+ *
+ * @return              N/A
+ */
+void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
+				 mlan_ds_radio_cfg *radio)
+{
+	if (IS_STA_OR_UAP_CFG80211(priv->phandle->params.cfg80211_wext) &&
+	    wiphy) {
+		if (wiphy->bands[IEEE80211_BAND_2GHZ]) {
+			if (((radio->param.ant_cfg.tx_antenna & 0xFF) != 3 &&
+			     (radio->param.ant_cfg.tx_antenna & 0xFF) != 0) ||
+			    ((radio->param.ant_cfg.rx_antenna & 0xFF) != 3 &&
+			     (radio->param.ant_cfg.rx_antenna & 0xFF) != 0))
+				wiphy->bands[IEEE80211_BAND_2GHZ]
+					->ht_cap.mcs.rx_mask[1] = 0;
+			else if ((radio->param.ant_cfg.tx_antenna & 0xFF) ==
+					 3 ||
+				 (radio->param.ant_cfg.rx_antenna & 0xFF) == 3)
+				wiphy->bands[IEEE80211_BAND_2GHZ]
+					->ht_cap.mcs.rx_mask[1] = 0xff;
+
+			wiphy->bands[IEEE80211_BAND_2GHZ]
+				->ht_cap.mcs.rx_mask[4] = 0;
+		}
+
+		if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
+			if (((radio->param.ant_cfg.tx_antenna & 0xFF00) !=
+				     0x300 &&
+			     (radio->param.ant_cfg.tx_antenna & 0xFF00) != 0) ||
+			    ((radio->param.ant_cfg.rx_antenna & 0xFF00) !=
+				     0x300 &&
+			     (radio->param.ant_cfg.rx_antenna & 0xFF00) != 0)) {
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->ht_cap.mcs.rx_mask[1] = 0;
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->vht_cap.vht_mcs.rx_mcs_map = 0xfffe;
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->vht_cap.vht_mcs.tx_mcs_map = 0xfffe;
+			} else if ((radio->param.ant_cfg.tx_antenna & 0xFF00) ==
+					   0x300 ||
+				   (radio->param.ant_cfg.rx_antenna & 0xFF00) ==
+					   0x300) {
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->ht_cap.mcs.rx_mask[1] = 0xff;
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->vht_cap.vht_mcs.rx_mcs_map = 0xfffa;
+				wiphy->bands[IEEE80211_BAND_5GHZ]
+					->vht_cap.vht_mcs.tx_mcs_map = 0xfffa;
+			}
+		}
+	}
 }
 #endif
 

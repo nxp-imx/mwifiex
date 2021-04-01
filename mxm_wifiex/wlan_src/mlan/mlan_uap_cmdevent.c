@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode command and event
  *
  *
- *  Copyright 2009-2020 NXP
+ *  Copyright 2009-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -59,10 +59,10 @@ Change log:
  *  @param pdata_buf    A pointer to data buffer
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_cmd_set_get_band_steering_cfg(pmlan_private pmpriv,
-					       HostCmd_DS_COMMAND *cmd,
-					       t_u16 cmd_action,
-					       t_void *pdata_buf)
+static mlan_status wlan_cmd_set_get_band_steering_cfg(pmlan_private pmpriv,
+						      HostCmd_DS_COMMAND *cmd,
+						      t_u16 cmd_action,
+						      t_void *pdata_buf)
 {
 	mlan_ds_band_steer_cfg *pband_steer_cfg =
 		(mlan_ds_band_steer_cfg *)pdata_buf;
@@ -90,9 +90,10 @@ mlan_status wlan_cmd_set_get_band_steering_cfg(pmlan_private pmpriv,
  *
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_ret_set_get_band_steering_cfg(mlan_private *pmpriv,
-					       HostCmd_DS_COMMAND *resp,
-					       mlan_ioctl_req *pioctl_buf)
+static mlan_status
+wlan_ret_set_get_band_steering_cfg(mlan_private *pmpriv,
+				   HostCmd_DS_COMMAND *resp,
+				   mlan_ioctl_req *pioctl_buf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_BAND_STEERING *pband_steer_info =
@@ -123,10 +124,10 @@ mlan_status wlan_ret_set_get_band_steering_cfg(mlan_private *pmpriv,
  *  @param pdata_buf    A pointer to data buffer
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_cmd_set_get_beacon_stuck_cfg(IN pmlan_private pmpriv,
-					      IN HostCmd_DS_COMMAND *cmd,
-					      IN t_u16 cmd_action,
-					      IN t_void *pdata_buf)
+static mlan_status wlan_cmd_set_get_beacon_stuck_cfg(IN pmlan_private pmpriv,
+						     IN HostCmd_DS_COMMAND *cmd,
+						     IN t_u16 cmd_action,
+						     IN t_void *pdata_buf)
 {
 	HostCmd_DS_BEACON_STUCK_CFG *pbeacon_stuck_param_cfg =
 		(HostCmd_DS_BEACON_STUCK_CFG *)(pdata_buf + sizeof(t_u32));
@@ -154,9 +155,9 @@ mlan_status wlan_cmd_set_get_beacon_stuck_cfg(IN pmlan_private pmpriv,
  *
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_ret_set_get_beacon_stuck_cfg(mlan_private *pmpriv,
-					      HostCmd_DS_COMMAND *resp,
-					      mlan_ioctl_req *pioctl_buf)
+static mlan_status wlan_ret_set_get_beacon_stuck_cfg(mlan_private *pmpriv,
+						     HostCmd_DS_COMMAND *resp,
+						     mlan_ioctl_req *pioctl_buf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_BEACON_STUCK_CFG *pbeacon_stuck_param_cfg =
@@ -324,7 +325,7 @@ static mlan_status uap_process_cmdresp_error(mlan_private *pmpriv,
  *
  *  @return	   A pointer to structure sta_node
  */
-void wlan_notify_station_deauth(mlan_private *priv)
+static void wlan_notify_station_deauth(mlan_private *priv)
 {
 	sta_node *sta_ptr;
 	t_u8 event_buf[100];
@@ -2390,7 +2391,7 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 					   mlan_ioctl_req *pioctl_buf)
 {
 	int resp_len = 0, travel_len = 0;
-	int i = 0;
+	t_u32 i = 0;
 	custom_ie *cptr;
 	HostCmd_DS_SYS_CONFIG *sys_config =
 		(HostCmd_DS_SYS_CONFIG *)&resp->params.sys_config;
@@ -2532,7 +2533,7 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 						0;
 					for (i = 0;
 					     i <
-					     wlan_le16_to_cpu(
+					     (int)wlan_le16_to_cpu(
 						     tlv_chan_list->header.len) /
 						     sizeof(ChanScanParamSet_t);
 					     i++) {
@@ -2634,7 +2635,7 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 							cust_ie->ie_data_list[0]
 								.ie_index);
 
-				while (resp_len > sizeof(t_u16)) {
+				while (resp_len > (int)sizeof(t_u16)) {
 					cptr = (custom_ie
 							*)(((t_u8 *)cust_ie
 								    ->ie_data_list) +
@@ -3168,6 +3169,14 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->channel_number);
 		pget_info->param.stats.channel_switch_mode =
 			wlan_le32_to_cpu(pget_log->channel_switch_mode);
+		pget_info->param.stats.rx_reset_mac_recovery_cnt =
+			wlan_le32_to_cpu(pget_log->rx_reset_mac_recovery_cnt);
+		pget_info->param.stats.rx_Isr2_NotDone_Cnt =
+			wlan_le32_to_cpu(pget_log->rx_Isr2_NotDone_Cnt);
+		pget_info->param.stats.gdma_abort_cnt =
+			wlan_le32_to_cpu(pget_log->gdma_abort_cnt);
+		pget_info->param.stats.g_reset_rx_mac_cnt =
+			wlan_le32_to_cpu(pget_log->g_reset_rx_mac_cnt);
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
 				wlan_le32_to_cpu(pget_log->tx_frag_cnt);
@@ -3592,7 +3601,7 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 			} else
 				info->param.sta_list.info[i].bandmode = 0xFF;
 			pioctl_buf->data_read_written +=
-				sizeof(sta_info) +
+				sizeof(sta_info_data) +
 				info->param.sta_list.info[i].ie_len;
 			buf += sizeof(MrvlIEtypes_sta_info_t) +
 			       info->param.sta_list.info[i].ie_len;
@@ -3922,9 +3931,9 @@ static t_u32 wlan_process_sta_assoc_event(pmlan_private priv,
  *
  *  @return             MLAN_STATUS_SUCCESS
  */
-mlan_status wlan_ret_cmd_uap_acs_scan(pmlan_private pmpriv,
-				      const HostCmd_DS_COMMAND *resp,
-				      mlan_ioctl_req *pioctl_buf)
+static mlan_status wlan_ret_cmd_uap_acs_scan(pmlan_private pmpriv,
+					     const HostCmd_DS_COMMAND *resp,
+					     mlan_ioctl_req *pioctl_buf)
 {
 	HostCMD_DS_APCMD_ACS_SCAN *acs_scan =
 		(HostCMD_DS_APCMD_ACS_SCAN *)&resp->params.acs_scan;
@@ -4046,7 +4055,8 @@ static mlan_status wlan_uap_ret_oper_ctrl(pmlan_private pmpriv,
  *  @return MTRUE/MFALSE
  *
  */
-t_u8 wlan_check_11B_support_rates(MrvlIEtypes_RatesParamSet_t *prates_tlv)
+static t_u8
+wlan_check_11B_support_rates(MrvlIEtypes_RatesParamSet_t *prates_tlv)
 {
 	int i;
 	t_u8 rate;
@@ -4090,7 +4100,7 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	MrvlIETypes_HTCap_t *phtcap;
 	MrvlIETypes_VHTCap_t *pvhtcap;
-	MrvlIEtypes_Extension_t *pext_tlv;
+	MrvlIEtypes_Extension_t *pext_tlv = MNULL;
 	MrvlIEtypes_StaFlag_t *pstaflag;
 	int i;
 
@@ -4199,6 +4209,8 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 			if (pext_tlv->ext_id == HE_CAPABILITY) {
 				sta_ptr->is_11ax_enabled = MTRUE;
 				PRINTM(MCMND, "STA supports 11ax\n");
+			} else {
+				pext_tlv = MNULL;
 			}
 			break;
 		default:
@@ -4215,6 +4227,22 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 		tlv = (MrvlIEtypesHeader_t *)tlv_buf;
 		travel_len += sizeof(MrvlIEtypesHeader_t) + tlv_len;
 		tlv_buf_left -= sizeof(MrvlIEtypesHeader_t) + tlv_len;
+	}
+	if (sta_ptr->is_11ax_enabled) {
+		if (pext_tlv == MNULL) {
+			tlv = (MrvlIEtypesHeader_t *)pos;
+			tlv->type = wlan_cpu_to_le16(EXTENSION);
+			tlv->len = wlan_cpu_to_le16(
+				MIN(sta_ptr->he_cap.ieee_hdr.len,
+				    sizeof(IEEEtypes_HECap_t) -
+					    sizeof(IEEEtypes_Header_t)));
+
+			pos += sizeof(MrvlIEtypesHeader_t);
+			memcpy_ext(pmadapter, pos,
+				   (t_u8 *)&sta_ptr->he_cap.ext_id, tlv->len,
+				   tlv->len);
+			travel_len += sizeof(MrvlIEtypesHeader_t) + tlv->len;
+		}
 	}
 
 	if (sta_ptr->is_11n_enabled) {
@@ -4625,6 +4653,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_set_get_beacon_stuck_cfg(pmpriv, cmd_ptr,
 							cmd_action, pdata_buf);
 		break;
+	case HostCmd_CMD_HAL_PHY_CFG:
+		ret = wlan_cmd_hal_phy_cfg(pmpriv, cmd_ptr, cmd_action,
+					   pdata_buf);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -4816,15 +4848,18 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 				pmadapter->pcard_sd->reg->data_port_mask;
 
 			for (ctr = 1;
-			     ctr <= MAX_PORT - pmadapter->pcard_sd->mp_end_port;
+			     ctr <= pmadapter->pcard_sd->max_ports -
+					    pmadapter->pcard_sd->mp_end_port;
 			     ctr++) {
 				pmadapter->pcard_sd->mp_data_port_mask &=
-					~(1 << (MAX_PORT - ctr));
+					~(1 << (pmadapter->pcard_sd->max_ports -
+						ctr));
 			}
 
-			pmadapter->pcard_sd->curr_wr_port = 0;
+			pmadapter->pcard_sd->curr_wr_port =
+				pmadapter->pcard_sd->reg->start_wr_port;
 			pmadapter->pcard_sd->mpa_tx.pkt_aggr_limit =
-				MIN(SDIO_MP_AGGR_DEF_PKT_LIMIT,
+				MIN(pmadapter->pcard_sd->mp_aggr_pkt_limit,
 				    (pmadapter->pcard_sd->mp_end_port >> 1));
 			PRINTM(MCMND, "end port %d, data port mask %x\n",
 			       wlan_le16_to_cpu(
@@ -4974,6 +5009,9 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG:
 		ret = wlan_ret_dot11mc_unassoc_ftm_cfg(pmpriv, resp,
 						       pioctl_buf);
+		break;
+	case HostCmd_CMD_HAL_PHY_CFG:
+		ret = wlan_ret_hal_phy_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_RATE_ADAPT_CFG:
 		ret = wlan_ret_rate_adapt_cfg(pmpriv, resp, pioctl_buf);
@@ -5520,7 +5558,8 @@ done:
  *
  *  @return   MLAN_STATUS_SUCCESS or MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_uap_set_uap_max_sta(pmlan_private pmpriv, t_u8 uap_max_sta)
+static mlan_status wlan_uap_set_uap_max_sta(pmlan_private pmpriv,
+					    t_u8 uap_max_sta)
 {
 	MrvlIEtypes_uap_max_sta_cnt_t tlv_uap_max_sta;
 	mlan_status ret = MLAN_STATUS_SUCCESS;

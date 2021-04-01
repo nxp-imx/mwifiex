@@ -3,7 +3,7 @@
  * @brief This file contains definitions for application
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -136,7 +136,7 @@ enum _mlan_act_ioctl {
 #define MLAN_ETH_PRIV (SIOCDEVPRIVATE + 14)
 
 /** Command buffer max length */
-#define BUFFER_LENGTH (3 * 1024)
+#define BUFFER_LENGTH (4 * 1024)
 
 /** Find number of elements */
 #define NELEMENTS(x) (sizeof(x) / sizeof(x[0]))
@@ -357,6 +357,14 @@ struct eth_priv_get_log {
 	t_u32 channel_number;
 	/** Channel Switch Mode */
 	t_u32 channel_switch_mode;
+	/** Reset Rx Mac Recovery Count */
+	t_u32 rx_reset_mac_recovery_cnt;
+	/** ISR2 Not Done Count*/
+	t_u32 rx_Isr2_NotDone_Cnt;
+	/** GDMA Abort Count */
+	t_u32 gdma_abort_cnt;
+	/** Rx Reset MAC Count */
+	t_u32 g_reset_rx_mac_cnt;
 };
 
 /** MLAN MAC Address Length */
@@ -711,5 +719,468 @@ struct eth_priv_vhtcfg {
 	/** VHT max tx rate */
 	t_u16 vht_tx_max_rate;
 };
+
+/** data structure for cmd txratecfg */
+struct eth_priv_tx_rate_cfg {
+	/* LG rate: 0, HT rate: 1, VHT rate: 2 */
+	t_u32 rate_format;
+	/** Rate/MCS index (0xFF: auto) */
+	t_u32 rate_index;
+	/** Rate rate */
+	t_u32 rate;
+	/** NSS */
+	t_u32 nss;
+	/** Rate Setting */
+	t_u16 rate_setting;
+};
+
+#define MLAN_11AXCMD_CFG_ID_TX_OMI 6
+#define MLAN_11AXCMD_CFG_ID_OBSSNBRU_TOLTIME 7
+
+#define MLAN_11AXCMD_TXOMI_SUBID 0x105
+#define MLAN_11AXCMD_OBSS_TOLTIME_SUBID 0x106
+
+/** Type definition of mlan_ds_11ax_he_capa for MLAN_OID_11AX_HE_CFG */
+typedef struct _mlan_ds_11ax_he_capa {
+	/** tlv id of he capability */
+	t_u16 id;
+	/** length of the payload */
+	t_u16 len;
+	/** extension id */
+	t_u8 ext_id;
+	/** he mac capability info */
+	t_u8 he_mac_cap[6];
+	/** he phy capability info */
+	t_u8 he_phy_cap[11];
+	/** he txrx mcs support for 80MHz */
+	t_u8 he_txrx_mcs_support[4];
+	/** val for txrx mcs 160Mhz or 80+80, and PPE thresholds */
+	t_u8 val[28];
+} __ATTRIB_PACK__ mlan_ds_11ax_he_capa, *pmlan_ds_11ax_he_capa;
+
+/** Type definition of mlan_ds_11ax_he_cfg for MLAN_OID_11AX_HE_CFG */
+typedef struct _mlan_ds_11ax_he_cfg {
+	/** band, BIT0:2.4G, BIT1:5G*/
+	t_u8 band;
+	/** mlan_ds_11ax_he_capa */
+	mlan_ds_11ax_he_capa he_cap;
+} __ATTRIB_PACK__ mlan_ds_11ax_he_cfg, *pmlan_ds_11ax_he_cfg;
+
+/** Type definition of mlan_11axcmdcfg_obss_pd_offset for MLAN_OID_11AX_CMD_CFG
+ */
+typedef struct _mlan_11axcmdcfg_obss_pd_offset {
+	/** <NON_SRG_OffSET, SRG_OFFSET> */
+	t_u8 offset[2];
+} __ATTRIB_PACK__ mlan_11axcmdcfg_obss_pd_offset;
+
+/** Type definition of mlan_11axcmdcfg_sr_control for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_11axcmdcfg_sr_control {
+	/** 1 enable, 0 disable */
+	t_u8 control;
+} __ATTRIB_PACK__ mlan_11axcmdcfg_sr_control;
+
+/** Type definition of mlan_ds_11ax_sr_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_sr_cmd {
+	/** type*/
+	t_u16 type;
+	/** length of TLV */
+	t_u16 len;
+	/** value */
+	union {
+		mlan_11axcmdcfg_obss_pd_offset obss_pd_offset;
+		mlan_11axcmdcfg_sr_control sr_control;
+	} param;
+} __ATTRIB_PACK__ mlan_ds_11ax_sr_cmd, *pmlan_ds_11ax_sr_cmd;
+
+/** Type definition of mlan_ds_11ax_beam_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_beam_cmd {
+	/** command value: 1 is disable, 0 is enable*/
+	t_u8 value;
+} mlan_ds_11ax_beam_cmd, *pmlan_ds_11ax_beam_cmd;
+
+/** Type definition of mlan_ds_11ax_htc_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_htc_cmd {
+	/** command value: 1 is enable, 0 is disable*/
+	t_u8 value;
+} mlan_ds_11ax_htc_cmd, *pmlan_ds_11ax_htc_cmd;
+
+/** Type definition of mlan_ds_11ax_txop_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_txop_cmd {
+	/** Two byte rts threshold value of which only 10 bits, bit 0 to bit 9
+	 * are valid */
+	t_u16 rts_thres;
+} mlan_ds_11ax_txop_cmd, *pmlan_ds_11ax_txop_cmd;
+
+/** Type definition of mlan_ds_11ax_txomi_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_txomi_cmd {
+	/* 11ax spec 9.2.4.6a.2 OM Control 12 bits. Bit 0 to bit 11 */
+	t_u16 omi;
+} mlan_ds_11ax_txomi_cmd, *pmlan_ds_11ax_txomi_cmd;
+
+/** Type definition of mlan_ds_11ax_toltime_cmd for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_toltime_cmd {
+	/* OBSS Narrow Bandwidth RU Tolerance Time */
+	t_u32 tol_time;
+} mlan_ds_11ax_toltime_cmd, *pmlan_ds_11ax_toltime_cmd;
+
+/** Type definition of mlan_ds_11ax_cmd_cfg for MLAN_OID_11AX_CMD_CFG */
+typedef struct _mlan_ds_11ax_cmd_cfg {
+	/** Sub-command */
+	t_u32 sub_command;
+	/** Sub-id */
+	t_u32 sub_id;
+	/** 802.11n configuration parameter */
+	union {
+		/** SR configuration for MLAN_11AXCMD_SR_SUBID */
+		mlan_ds_11ax_sr_cmd sr_cfg;
+		/** Beam configuration for MLAN_11AXCMD_BEAM_SUBID */
+		mlan_ds_11ax_beam_cmd beam_cfg;
+		/** HTC configuration for MLAN_11AXCMD_HTC_SUBID */
+		mlan_ds_11ax_htc_cmd htc_cfg;
+		/** HTC configuration for MLAN_11AXCMD_TXOPRTS_SUBID */
+		mlan_ds_11ax_txop_cmd txop_cfg;
+		/** HTC configuration for MLAN_11AXCMD_TXOMI_SUBID */
+		mlan_ds_11ax_txomi_cmd txomi_cfg;
+		/** HTC configuration for MLAN_11AXCMD_TXOMI_SUBID */
+		mlan_ds_11ax_toltime_cmd toltime_cfg;
+	} param;
+} mlan_ds_11ax_cmd_cfg, *pmlan_ds_11ax_cmd_cfg;
+
+/** Maximum number of AC QOS queues available in the driver/firmware */
+#define MAX_AC_QUEUES 4
+
+/** Read/Write Mac register */
+#define HostCmd_CMD_MAC_REG_ACCESS 0x0019
+/** Read/Write BBP register */
+#define HostCmd_CMD_BBP_REG_ACCESS 0x001a
+/** Read/Write RF register */
+#define HostCmd_CMD_RF_REG_ACCESS 0x001b
+
+/** Data structure of WMM Aci/Aifsn */
+typedef struct _IEEEtypes_WmmAciAifsn_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Reserved */
+	t_u8 reserved : 1;
+	/** Aci */
+	t_u8 aci : 2;
+	/** Acm */
+	t_u8 acm : 1;
+	/** Aifsn */
+	t_u8 aifsn : 4;
+#else
+	/** Aifsn */
+	t_u8 aifsn : 4;
+	/** Acm */
+	t_u8 acm : 1;
+	/** Aci */
+	t_u8 aci : 2;
+	/** Reserved */
+	t_u8 reserved : 1;
+#endif
+} __ATTRIB_PACK__ IEEEtypes_WmmAciAifsn_t, *pIEEEtypes_WmmAciAifsn_t;
+
+/** Data structure of WMM ECW */
+typedef struct _IEEEtypes_WmmEcw_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Maximum Ecw */
+	t_u8 ecw_max : 4;
+	/** Minimum Ecw */
+	t_u8 ecw_min : 4;
+#else
+	/** Minimum Ecw */
+	t_u8 ecw_min : 4;
+	/** Maximum Ecw */
+	t_u8 ecw_max : 4;
+#endif
+} __ATTRIB_PACK__ IEEEtypes_WmmEcw_t, *pIEEEtypes_WmmEcw_t;
+
+/** Data structure of WMM AC parameters  */
+typedef struct _IEEEtypes_WmmAcParameters_t {
+	IEEEtypes_WmmAciAifsn_t aci_aifsn; /**< AciAifSn */
+	IEEEtypes_WmmEcw_t ecw; /**< Ecw */
+	t_u16 tx_op_limit; /**< Tx op limit */
+} __ATTRIB_PACK__ IEEEtypes_WmmAcParameters_t, *pIEEEtypes_WmmAcParameters_t;
+
+/** HostCmd_DS_802_11_CFG_DATA */
+typedef struct MAPP_HostCmd_DS_802_11_CFG_DATA {
+	/** Action */
+	t_u16 action;
+	/** Type */
+	t_u16 type;
+	/** Data length */
+	t_u16 data_len;
+	/** Data */
+	t_u8 data[1];
+} __ATTRIB_PACK__ HostCmd_DS_802_11_CFG_DATA;
+
+/** Host Command ID : Configuration data */
+#define HostCmd_CMD_CFG_DATA 0x008f
+
+/** mlan_ioctl_11h_tpc_resp */
+typedef struct {
+	int status_code; /**< Firmware command result status code */
+	int tx_power; /**< Reported TX Power from the TPC Report */
+	int link_margin; /**< Reported Link margin from the TPC Report */
+	int rssi; /**< RSSI of the received TPC Report frame */
+} __ATTRIB_PACK__ mlan_ioctl_11h_tpc_resp;
+
+/** Host Command ID : 802.11 TPC adapt req */
+#define HostCmd_CMD_802_11_TPC_ADAPT_REQ 0x0060
+
+/** HostCmd_DS_802_11_CRYPTO */
+typedef struct MAPP_HostCmd_DS_802_11_CRYPTO {
+	t_u16 encdec; /**< Decrypt=0, Encrypt=1 */
+	t_u16 algorithm; /**< RC4=1 AES=2 , AES_KEY_WRAP=3 */
+	t_u16 key_IV_length; /**< Length of Key IV (bytes)   */
+	t_u8 keyIV[32]; /**< Key IV */
+	t_u16 key_length; /**< Length of Key (bytes) */
+	t_u8 key[32]; /**< Key */
+	MrvlIEtypes_Data_t data; /**< Plain text if encdec=Encrypt, Ciphertext
+				    data if encdec=Decrypt*/
+} __ATTRIB_PACK__ HostCmd_DS_802_11_CRYPTO;
+
+/** HostCmd_DS_802_11_CRYPTO_AES_CCM */
+typedef struct MAPP_HostCmd_DS_802_11_CRYPTO_AES_CCM {
+	t_u16 encdec; /**< Decrypt=0, Encrypt=1 */
+	t_u16 algorithm; /**< AES_CCM=4 */
+	t_u16 key_length; /**< Length of Key (bytes)  */
+	t_u8 key[32]; /**< Key  */
+	t_u16 nonce_length; /**< Length of Nonce (bytes) */
+	t_u8 nonce[14]; /**< Nonce */
+	t_u16 AAD_length; /**< Length of AAD (bytes) */
+	t_u8 AAD[32]; /**< AAD */
+	MrvlIEtypes_Data_t data; /**< Plain text if encdec=Encrypt, Ciphertext
+				    data if encdec=Decrypt*/
+} __ATTRIB_PACK__ HostCmd_DS_802_11_CRYPTO_AES_CCM;
+
+/** HostCmd_DS_802_11_CRYPTO_WAPI */
+typedef struct MAPP_HostCmd_DS_802_11_CRYPTO_WAPI {
+	t_u16 encdec; /**< Decrypt=0, Encrypt=1 */
+	t_u16 algorithm; /**< WAPI =5 */
+	t_u16 key_length; /**< Length of Key (bytes)  */
+	t_u8 key[32]; /**< Key  */
+	t_u16 nonce_length; /**< Length of Nonce (bytes) */
+	t_u8 nonce[16]; /**< Nonce */
+	t_u16 AAD_length; /**< Length of AAD (bytes) */
+	t_u8 AAD[48]; /**< AAD */
+	t_u16 data_length; /**< Length of data (bytes)  */
+} __ATTRIB_PACK__ HostCmd_DS_802_11_CRYPTO_WAPI;
+/** WAPI cipher test */
+#define CIPHER_TEST_WAPI (5)
+/** AES CCM cipher test */
+#define CIPHER_TEST_AES_CCM (4)
+/** GCMP cipher test */
+#define CIPHER_TEST_GCMP (6)
+/** Host Command ID : 802.11 crypto */
+#define HostCmd_CMD_802_11_CRYPTO 0x0078
+
+/** HostCmd_DS_802_11_SUBSCRIBE_EVENT */
+typedef struct MAPP_HostCmd_DS_802_11_SUBSCRIBE_EVENT {
+	/** Action */
+	t_u16 action;
+	/** Events */
+	t_u16 events;
+} __ATTRIB_PACK__ HostCmd_DS_802_11_SUBSCRIBE_EVENT;
+
+/** MrvlIEtypes_RssiParamSet_t */
+typedef struct MrvlIEtypes_RssiThreshold {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** RSSI value */
+	t_u8 RSSI_value;
+	/** RSSI frequency */
+	t_u8 RSSI_freq;
+} __ATTRIB_PACK__ MrvlIEtypes_RssiThreshold_t;
+
+/** MrvlIEtypes_SnrThreshold_t */
+typedef struct MrvlIEtypes_SnrThreshold {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** SNR value */
+	t_u8 SNR_value;
+	/** SNR frequency */
+	t_u8 SNR_freq;
+} __ATTRIB_PACK__ MrvlIEtypes_SnrThreshold_t;
+
+/** MrvlIEtypes_FailureCount_t */
+typedef struct MrvlIEtypes_FailureCount {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Failure value */
+	t_u8 fail_value;
+	/** Failure frequency */
+	t_u8 fail_freq;
+} __ATTRIB_PACK__ MrvlIEtypes_FailureCount_t;
+
+/** MrvlIEtypes_BeaconsMissed_t */
+typedef struct MrvlIEtypes_BeaconsMissed {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Number of beacons missed */
+	t_u8 beacon_missed;
+	/** Reserved */
+	t_u8 reserved;
+} __ATTRIB_PACK__ MrvlIEtypes_BeaconsMissed_t;
+
+/** MrvlIEtypes_LinkQuality_t */
+typedef struct MrvlIEtypes_LinkQuality {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Link SNR threshold */
+	t_u16 link_SNR_thrs;
+	/** Link SNR frequency */
+	t_u16 link_SNR_freq;
+	/** Minimum rate value */
+	t_u16 min_rate_val;
+	/** Minimum rate frequency */
+	t_u16 min_rate_freq;
+	/** Tx latency value */
+	t_u32 tx_latency_val;
+	/** Tx latency threshold */
+	t_u32 tx_latency_thrs;
+} __ATTRIB_PACK__ MrvlIEtypes_LinkQuality_t;
+
+/** Host Command ID : 802.11 subscribe event */
+#define HostCmd_CMD_802_11_SUBSCRIBE_EVENT 0x0075
+
+/** TLV type : Beacon RSSI low */
+#define TLV_TYPE_RSSI_LOW (PROPRIETARY_TLV_BASE_ID + 0x04) /* 0x0104 */
+/** TLV type : Beacon SNR low */
+#define TLV_TYPE_SNR_LOW (PROPRIETARY_TLV_BASE_ID + 0x05) /* 0x0105 */
+/** TLV type : Fail count */
+#define TLV_TYPE_FAILCOUNT (PROPRIETARY_TLV_BASE_ID + 0x06) /* 0x0106 */
+/** TLV type : BCN miss */
+#define TLV_TYPE_BCNMISS (PROPRIETARY_TLV_BASE_ID + 0x07) /* 0x0107 */
+/** TLV type : Beacon RSSI high */
+#define TLV_TYPE_RSSI_HIGH (PROPRIETARY_TLV_BASE_ID + 0x16) /* 0x0116 */
+/** TLV type : Beacon SNR high */
+#define TLV_TYPE_SNR_HIGH (PROPRIETARY_TLV_BASE_ID + 0x17) /* 0x0117 */
+
+/** TLV type :Link Quality */
+#define TLV_TYPE_LINK_QUALITY (PROPRIETARY_TLV_BASE_ID + 0x24) /* 0x0124 */
+
+/** TLV type : Data RSSI low */
+#define TLV_TYPE_RSSI_LOW_DATA (PROPRIETARY_TLV_BASE_ID + 0x26) /* 0x0126 */
+/** TLV type : Data SNR low */
+#define TLV_TYPE_SNR_LOW_DATA (PROPRIETARY_TLV_BASE_ID + 0x27) /* 0x0127 */
+/** TLV type : Data RSSI high */
+#define TLV_TYPE_RSSI_HIGH_DATA (PROPRIETARY_TLV_BASE_ID + 0x28) /* 0x0128 */
+/** TLV type : Data SNR high */
+#define TLV_TYPE_SNR_HIGH_DATA (PROPRIETARY_TLV_BASE_ID + 0x29) /* 0x0129 */
+
+/** MrvlIEtypes_PreBeaconLost_t */
+typedef struct MrvlIEtypes_PreBeaconLost {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Pre-Beacon Lost */
+	t_u8 pre_beacon_lost;
+	/** Reserved */
+	t_u8 reserved;
+} __ATTRIB_PACK__ MrvlIEtypes_PreBeaconLost_t;
+
+/** TLV type: Pre-Beacon Lost */
+#define TLV_TYPE_PRE_BEACON_LOST (PROPRIETARY_TLV_BASE_ID + 0x49) /* 0x0149 */
+
+/** AutoTx_MacFrame_t */
+typedef struct AutoTx_MacFrame {
+	t_u16 interval; /**< in seconds */
+	t_u8 priority; /**< User Priority: 0~7, ignored if non-WMM */
+	t_u8 reserved; /**< set to 0 */
+	t_u16 frame_len; /**< Length of MAC frame payload */
+	t_u8 dest_mac_addr[MLAN_MAC_ADDR_LENGTH]; /**< Destination MAC address
+						   */
+	t_u8 src_mac_addr[MLAN_MAC_ADDR_LENGTH]; /**< Source MAC address */
+	t_u8 payload[]; /**< Payload */
+} __ATTRIB_PACK__ AutoTx_MacFrame_t;
+
+/** MrvlIEtypes_AutoTx_t */
+typedef struct MrvlIEtypes_AutoTx {
+	MrvlIEtypesHeader_t header; /**< Header */
+	AutoTx_MacFrame_t auto_tx_mac_frame; /**< Auto Tx MAC frame */
+} __ATTRIB_PACK__ MrvlIEtypes_AutoTx_t;
+
+/** HostCmd_DS_802_11_AUTO_TX */
+typedef struct MAPP_HostCmd_DS_802_11_AUTO_TX {
+	/** Action */
+	t_u16 action; /* 0 = ACT_GET; 1 = ACT_SET; */
+	MrvlIEtypes_AutoTx_t auto_tx; /**< Auto Tx */
+} __ATTRIB_PACK__ HostCmd_DS_802_11_AUTO_TX;
+
+/** Host Command ID : 802.11 auto Tx */
+#define HostCmd_CMD_802_11_AUTO_TX 0x0082
+
+/** TLV type : Auto Tx */
+#define TLV_TYPE_AUTO_TX (PROPRIETARY_TLV_BASE_ID + 0x18) /* 0x0118 */
+
+/** Host Command ID : CAU register access */
+#define HostCmd_CMD_CAU_REG_ACCESS 0x00ed
+
+/** Host Command ID : Memory access */
+#define HostCmd_CMD_MEM_ACCESS 0x0086
+
+typedef struct {
+	t_u32 timeSinceLastQuery_ms; /**< Duration of stats collection */
+
+	t_u16 bcnCnt; /**< Number of beacons received */
+	t_u16 bcnMiss; /**< Estimate of beacons missed */
+	t_s16 bcnRssiAvg; /**< Avg beacon RSSI */
+	t_s16 bcnSnrAvg; /**< Avg beacon SNR */
+
+	t_u32 rxPkts; /**< Number of packets received */
+	t_s16 rxRssiAvg; /**< Avg received packet RSSI */
+	t_s16 rxSnrAvg; /**< Avg received packet SNR */
+
+	t_u32 txPkts; /**< Number of packets transmitted */
+	t_u32 txAttempts; /**< Number of attempts made */
+	t_u32 txFailures; /**< Number of pkts that failed */
+	t_u8 txInitRate; /**< Current rate adaptation TX rateid */
+	t_u8 reserved[3]; /**< Reserved */
+
+	t_u16 txQueuePktCnt[MAX_AC_QUEUES]; /**< Number of packets per AC */
+	t_u32 txQueueDelay[MAX_AC_QUEUES]; /**< Averge queue delay per AC*/
+} __ATTRIB_PACK__ HostCmd_DS_LINK_STATS_SUMMARY;
+
+#define HostCmd_CMD_LINK_STATS_SUMMARY 0x00d3
+
+/** Type enumeration of WMM AC_QUEUES */
+typedef enum _wmm_ac {
+	AC_BE,
+	AC_BK,
+	AC_VI,
+	AC_VO,
+} wmm_ac;
+
+/** Data structure of Host command WMM_PARAM_CFG  */
+typedef struct _HostCmd_DS_WMM_PARAM_CONFIG {
+	/** action */
+	t_u16 action;
+	/** AC Parameters Record WMM_AC_BE, WMM_AC_BK, WMM_AC_VI, WMM_AC_VO */
+	IEEEtypes_WmmAcParameters_t ac_params[MAX_AC_QUEUES];
+} __ATTRIB_PACK__ HostCmd_DS_WMM_PARAM_CONFIG;
+
+/** Host Command ID : Configure ADHOC_OVER_IP parameters */
+#define HostCmd_CMD_WMM_PARAM_CONFIG 0x023a
+
+/** HostCmd_DS_REG */
+typedef struct MAPP_HostCmd_DS_REG {
+	/** Read or write */
+	t_u16 action;
+	/** Register offset */
+	t_u16 offset;
+	/** Value */
+	t_u32 value;
+} __ATTRIB_PACK__ HostCmd_DS_REG;
+
+/** HostCmd_DS_MEM */
+typedef struct MAPP_HostCmd_DS_MEM {
+	/** Read or write */
+	t_u16 action;
+	/** Reserved */
+	t_u16 reserved;
+	/** Address */
+	t_u32 addr;
+	/** Value */
+	t_u32 value;
+} __ATTRIB_PACK__ HostCmd_DS_MEM;
 
 #endif /* _MLANUTL_H_ */

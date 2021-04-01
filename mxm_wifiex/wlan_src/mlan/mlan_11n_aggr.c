@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n Aggregation.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -127,6 +127,8 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	/* Always zero as the data is followed by TxPD */
 	ptx_pd->tx_pkt_offset = sizeof(TxPD);
 	ptx_pd->tx_pkt_type = PKT_TYPE_AMSDU;
+	if (mbuf->flags & MLAN_BUF_FLAG_TDLS)
+		ptx_pd->flags = MRVDRV_TxPD_FLAGS_TDLS_PACKET;
 	if (ptx_pd->tx_control == 0)
 		/* TxCtrl set by user or default */
 		ptx_pd->tx_control = priv->pkt_tx_ctrl;
@@ -227,6 +229,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 						      0x00, 0x00, 0x00};
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
 	t_u8 eapol_type[2] = {0x88, 0x8e};
+	t_u8 tdls_action_type[2] = {0x89, 0x0d};
 
 	ENTER();
 
@@ -250,7 +253,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		}
 	}
 #endif
-	if (total_pkt_len > max_rx_data_size) {
+	if (total_pkt_len > (int)max_rx_data_size) {
 		PRINTM(MERROR,
 		       "Total packet length greater than tx buffer"
 		       " size %d\n",
@@ -261,9 +264,12 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
 
 	// rx_trace 7
-	if (pmadapter->tp_state_on)
+	if (pmadapter->tp_state_on) {
 		pmadapter->callbacks.moal_tp_accounting(
 			pmadapter->pmoal_handle, pmbuf, 7 /*RX_DROP_P3*/);
+		pmadapter->callbacks.moal_tp_accounting_rx_param(
+			pmadapter->pmoal_handle, 4, pmbuf->use_count);
+	}
 	if (pmadapter->tp_state_drop_point == 7 /*RX_DROP_P3*/)
 		goto done;
 
@@ -311,6 +317,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		daggr_mbuf->data_len = pkt_len;
 		daggr_mbuf->in_ts_sec = pmbuf->in_ts_sec;
 		daggr_mbuf->in_ts_usec = pmbuf->in_ts_usec;
+		daggr_mbuf->extra_ts_sec = pmbuf->extra_ts_sec;
+		daggr_mbuf->extra_ts_usec = pmbuf->extra_ts_usec;
 		daggr_mbuf->pparent = pmbuf;
 		daggr_mbuf->priority = pmbuf->priority;
 		memcpy_ext(pmadapter,
@@ -340,6 +348,20 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 				wlan_free_mlan_buffer(pmadapter, daggr_mbuf);
 				data += pkt_len + pad;
 				continue;
+			}
+			/**process tdls packet*/
+			if (!memcmp(pmadapter,
+				    daggr_mbuf->pbuf + daggr_mbuf->data_offset +
+					    MLAN_ETHER_PKT_TYPE_OFFSET,
+				    tdls_action_type,
+				    sizeof(tdls_action_type))) {
+				PRINTM(MEVENT,
+				       "Recevie AMSDU TDLS action frame\n");
+				wlan_process_tdls_action_frame(
+					priv,
+					daggr_mbuf->pbuf +
+						daggr_mbuf->data_offset,
+					daggr_mbuf->data_len);
 			}
 
 			ret = pmadapter->callbacks.moal_recv_packet(
@@ -402,6 +424,7 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	TxPD *ptx_pd = MNULL;
 #endif
 	t_u32 max_amsdu_size = MIN(pra_list->max_amsdu, pmadapter->tx_buf_size);
+	t_u32 msdu_in_tx_amsdu_cnt = 0;
 	ENTER();
 
 	PRINTM(MDAT_D, "Handling Aggr packet\n");
@@ -429,6 +452,8 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		pmbuf_aggr->data_offset = 0;
 		pmbuf_aggr->in_ts_sec = pmbuf_src->in_ts_sec;
 		pmbuf_aggr->in_ts_usec = pmbuf_src->in_ts_usec;
+		if (pmbuf_src->flags & MLAN_BUF_FLAG_TDLS)
+			pmbuf_aggr->flags |= MLAN_BUF_FLAG_TDLS;
 		if (pmbuf_src->flags & MLAN_BUF_FLAG_TCP_ACK)
 			pmbuf_aggr->flags |= MLAN_BUF_FLAG_TCP_ACK;
 
@@ -494,6 +519,7 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 						     &pra_list->buf_head, MNULL,
 						     MNULL);
 		priv->msdu_in_tx_amsdu_cnt++;
+		msdu_in_tx_amsdu_cnt++;
 	}
 
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
@@ -508,9 +534,12 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	tx_param.next_pkt_len =
 		((pmbuf_src) ? pmbuf_src->data_len + sizeof(TxPD) : 0);
 	/* Collects TP statistics */
-	if (pmadapter->tp_state_on)
+	if (pmadapter->tp_state_on) {
 		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
 							pmbuf_aggr, 4);
+		pmadapter->callbacks.moal_tp_accounting_rx_param(
+			pmadapter->pmoal_handle, 5, msdu_in_tx_amsdu_cnt);
+	}
 
 	/* Drop Tx packets at drop point 4 */
 	if (pmadapter->tp_state_drop_point == 4) {

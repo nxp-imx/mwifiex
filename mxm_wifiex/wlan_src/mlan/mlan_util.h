@@ -4,7 +4,7 @@
  *  spinlock and timer defines.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -47,6 +47,9 @@ typedef struct _mlan_list_head {
 	t_void *plock;
 } mlan_list_head, *pmlan_list_head;
 
+/** MLAN MNULL pointer */
+#define MNULL ((void *)0)
+
 /**
  *  @brief This function initializes a list without locking
  *
@@ -78,7 +81,7 @@ static INLINE t_void util_init_list_head(
 	if (lock_required)
 		moal_init_lock(pmoal_handle, &phead->plock);
 	else
-		phead->plock = 0;
+		phead->plock = MNULL;
 }
 
 /**
@@ -93,7 +96,7 @@ static INLINE t_void util_free_list_head(
 	t_void *pmoal_handle, pmlan_list_head phead,
 	mlan_status (*moal_free_lock)(t_void *handle, t_void *plock))
 {
-	phead->pprev = phead->pnext = 0;
+	phead->pprev = phead->pnext = MNULL;
 	if (phead->plock)
 		moal_free_lock(pmoal_handle, phead->plock);
 }
@@ -112,7 +115,7 @@ util_peek_list(t_void *pmoal_handle, pmlan_list_head phead,
 	       mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
 	       mlan_status (*moal_spin_unlock)(t_void *handle, t_void *plock))
 {
-	pmlan_linked_list pnode = 0;
+	pmlan_linked_list pnode = MNULL;
 
 	if (moal_spin_lock)
 		moal_spin_lock(pmoal_handle, phead->plock);
@@ -204,7 +207,7 @@ static INLINE t_void util_unlink_list(
 	pmy_next->pprev = pmy_prev;
 	pmy_prev->pnext = pmy_next;
 
-	pnode->pnext = pnode->pprev = 0;
+	pnode->pnext = pnode->pprev = MNULL;
 	if (moal_spin_unlock)
 		moal_spin_unlock(pmoal_handle, phead->plock);
 }
@@ -229,9 +232,9 @@ static INLINE pmlan_linked_list util_dequeue_list(
 		moal_spin_lock(pmoal_handle, phead->plock);
 	pnode = phead->pnext;
 	if (pnode && (pnode != (pmlan_linked_list)phead))
-		util_unlink_list(pmoal_handle, phead, pnode, 0, 0);
+		util_unlink_list(pmoal_handle, phead, pnode, MNULL, MNULL);
 	else
-		pnode = 0;
+		pnode = MNULL;
 	if (moal_spin_unlock)
 		moal_spin_unlock(pmoal_handle, phead->plock);
 	return pnode;

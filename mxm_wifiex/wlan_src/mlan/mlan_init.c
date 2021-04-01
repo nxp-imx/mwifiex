@@ -4,7 +4,7 @@
  *  and HW.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -53,7 +53,7 @@ Change log:
 /********************************************************
 			Global Variables
 ********************************************************/
-extern pmlan_operations mlan_ops[];
+
 /*******************************************************
 			Local Functions
 ********************************************************/
@@ -255,8 +255,8 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		max_mp_regs = pmadapter->pcard_sd->reg->max_mp_regs;
-		mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX;
-		mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX;
+		mp_tx_aggr_buf_size = pmadapter->pcard_sd->mp_tx_aggr_buf_size;
+		mp_rx_aggr_buf_size = pmadapter->pcard_sd->mp_rx_aggr_buf_size;
 	}
 #endif
 
@@ -362,7 +362,8 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef DEBUG_LEVEL1
 		if (mlan_drvdbg & MMPA_D) {
 			pmadapter->pcard_sd->mpa_buf_size =
-				SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT *
+				SDIO_MP_DBG_NUM *
+				pmadapter->pcard_sd->mp_aggr_pkt_limit *
 				MLAN_SDIO_BLOCK_SIZE;
 			if (pmadapter->callbacks.moal_vmalloc &&
 			    pmadapter->callbacks.moal_vfree)
@@ -521,12 +522,21 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	priv->wmm_required = MTRUE;
 	priv->wmm_enabled = MFALSE;
 	priv->wmm_qosinfo = 0;
+	priv->saved_wmm_qosinfo = 0;
+	priv->host_tdls_cs_support = MTRUE;
+	priv->host_tdls_uapsd_support = MTRUE;
+	priv->tdls_cs_channel = 0;
+	priv->supp_regulatory_class_len = 0;
+	priv->chan_supp_len = 0;
+	priv->tdls_idle_time = TDLS_IDLE_TIMEOUT;
+	priv->txaggrctrl = MTRUE;
 #ifdef STA_SUPPORT
 	priv->pcurr_bcn_buf = MNULL;
 	priv->curr_bcn_size = 0;
 	memset(pmadapter, &priv->ext_cap, 0, sizeof(priv->ext_cap));
 
 	SET_EXTCAP_OPERMODENTF(priv->ext_cap);
+	SET_EXTCAP_TDLS(priv->ext_cap);
 	SET_EXTCAP_QOS_MAP(priv->ext_cap);
 	/* Save default Extended Capability */
 	memcpy_ext(priv->adapter, &priv->def_ext_cap, &priv->ext_cap,
@@ -626,8 +636,10 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->data_sent = MTRUE;
 		pmadapter->pcard_sd->mp_rd_bitmap = 0;
 		pmadapter->pcard_sd->mp_wr_bitmap = 0;
-		pmadapter->pcard_sd->curr_rd_port = 0;
-		pmadapter->pcard_sd->curr_wr_port = 0;
+		pmadapter->pcard_sd->curr_rd_port =
+			pmadapter->pcard_sd->reg->start_rd_port;
+		pmadapter->pcard_sd->curr_wr_port =
+			pmadapter->pcard_sd->reg->start_wr_port;
 		pmadapter->pcard_sd->mp_data_port_mask =
 			pmadapter->pcard_sd->reg->data_port_mask;
 		pmadapter->pcard_sd->mp_invalid_update = 0;
@@ -635,7 +647,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		       sizeof(pmadapter->pcard_sd->mp_update));
 		pmadapter->pcard_sd->mpa_tx.buf_len = 0;
 		pmadapter->pcard_sd->mpa_tx.pkt_cnt = 0;
-		pmadapter->pcard_sd->mpa_tx.start_port = 0;
+		pmadapter->pcard_sd->mpa_tx.start_port =
+			pmadapter->pcard_sd->reg->start_wr_port;
 
 		if (!pmadapter->init_para.mpa_tx_cfg)
 			pmadapter->pcard_sd->mpa_tx.enabled = MFALSE;
@@ -645,11 +658,12 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		else
 			pmadapter->pcard_sd->mpa_tx.enabled = MTRUE;
 		pmadapter->pcard_sd->mpa_tx.pkt_aggr_limit =
-			SDIO_MP_AGGR_DEF_PKT_LIMIT;
+			pmadapter->pcard_sd->mp_aggr_pkt_limit;
 
 		pmadapter->pcard_sd->mpa_rx.buf_len = 0;
 		pmadapter->pcard_sd->mpa_rx.pkt_cnt = 0;
-		pmadapter->pcard_sd->mpa_rx.start_port = 0;
+		pmadapter->pcard_sd->mpa_rx.start_port =
+			pmadapter->pcard_sd->reg->start_rd_port;
 
 		if (!pmadapter->init_para.mpa_rx_cfg)
 			pmadapter->pcard_sd->mpa_rx.enabled = MFALSE;
@@ -659,7 +673,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		else
 			pmadapter->pcard_sd->mpa_rx.enabled = MTRUE;
 		pmadapter->pcard_sd->mpa_rx.pkt_aggr_limit =
-			SDIO_MP_AGGR_DEF_PKT_LIMIT;
+			pmadapter->pcard_sd->mp_aggr_pkt_limit;
 	}
 #endif
 
@@ -807,6 +821,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->coex_rx_winsize = 1;
 #ifdef STA_SUPPORT
 	pmadapter->chan_bandwidth = 0;
+	pmadapter->tdls_status = TDLS_NOT_SETUP;
 #endif /* STA_SUPPORT */
 
 	pmadapter->min_ba_threshold = MIN_BA_THRESHOLD;
@@ -847,6 +862,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	       sizeof(pmadapter->sleep_params));
 	memset(pmadapter, &pmadapter->sleep_period, 0,
 	       sizeof(pmadapter->sleep_period));
+	memset(pmadapter, &pmadapter->saved_sleep_period, 0,
+	       sizeof(pmadapter->saved_sleep_period));
 	pmadapter->tx_lock_flag = MFALSE;
 	pmadapter->null_pkt_interval = 0;
 	pmadapter->fw_bands = 0;
@@ -884,7 +901,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #endif
 #if defined(PCIE9098) || defined(PCIE9097)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
-			pmadapter->pcard_pcie->rxbd_wrptr = MLAN_MAX_TXRX_BD;
+			pmadapter->pcard_pcie->rxbd_wrptr =
+				pmadapter->pcard_pcie->reg->txrx_bd_size;
 			pmadapter->pcard_pcie->evtbd_wrptr = MLAN_MAX_EVT_BD;
 		}
 #endif
@@ -974,6 +992,11 @@ mlan_status wlan_init_priv_lock_list(pmlan_adapter pmadapter, t_u8 start_index)
 			util_init_list_head(
 				(t_void *)pmadapter->pmoal_handle,
 				&priv->sta_list, MTRUE,
+				pmadapter->callbacks.moal_init_lock);
+			/* Initialize tdls_pending_txq */
+			util_init_list_head(
+				(t_void *)pmadapter->pmoal_handle,
+				&priv->tdls_pending_txq, MTRUE,
 				pmadapter->callbacks.moal_init_lock);
 			/* Initialize bypass_txq */
 			util_init_list_head(
@@ -1183,6 +1206,10 @@ t_void wlan_free_lock_list(pmlan_adapter pmadapter)
 				priv->adapter->callbacks.moal_free_lock);
 			util_free_list_head(
 				(t_void *)pmadapter->pmoal_handle,
+				&priv->tdls_pending_txq,
+				pmadapter->callbacks.moal_free_lock);
+			util_free_list_head(
+				(t_void *)pmadapter->pmoal_handle,
 				&priv->bypass_txq,
 				pmadapter->callbacks.moal_free_lock);
 			for (j = 0; j < MAX_NUM_TID; ++j)
@@ -1371,7 +1398,7 @@ done:
  *  @return		MLAN_STATUS_SUCCESS, MLAN_STATUS_PENDING or
  * MLAN_STATUS_FAILURE
  */
-void wlan_update_hw_spec(pmlan_adapter pmadapter)
+static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 {
 	t_u32 i;
 
@@ -1501,7 +1528,7 @@ void wlan_update_hw_spec(pmlan_adapter pmadapter)
  *  @return		MLAN_STATUS_SUCCESS, MLAN_STATUS_PENDING or
  * MLAN_STATUS_FAILURE
  */
-mlan_status wlan_init_priv_fw(pmlan_adapter pmadapter)
+static mlan_status wlan_init_priv_fw(pmlan_adapter pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private priv = MNULL;
@@ -1757,7 +1784,7 @@ t_void wlan_free_priv(mlan_private *pmpriv)
  *
  *  @return             N/A
  */
-mlan_status wlan_init_interface(pmlan_adapter pmadapter)
+static mlan_status wlan_init_interface(pmlan_adapter pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = MNULL;
@@ -1874,6 +1901,7 @@ mlan_status wlan_get_hw_spec_complete(pmlan_adapter pmadapter)
 		else {
 			memset(pmadapter, &info, 0, sizeof(info));
 			info.fw_cap = pmadapter->fw_cap_info;
+			info.fw_cap_ext = pmadapter->fw_cap_ext;
 			memset(pmadapter, &bss_tbl, 0, sizeof(bss_tbl));
 			memcpy_ext(pmadapter, bss_tbl.bss_attr,
 				   pmadapter->bss_attr, sizeof(mlan_bss_tbl),

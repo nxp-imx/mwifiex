@@ -298,7 +298,7 @@ typedef struct _ds_hs_cfg {
 #define UAP_GET_BSS_TYPE (SIOCDEVPRIVATE + 15)
 
 /** addba_param */
-typedef struct _addba_param {
+typedef struct _uap_addba_param {
 	/** subcmd */
 	t_u32 subcmd;
 	/** Set/Get */
@@ -313,10 +313,10 @@ typedef struct _addba_param {
 	t_u8 txamsdu;
 	/** amsdu for ADDBA response */
 	t_u8 rxamsdu;
-} addba_param;
+} uap_addba_param;
 
 /** aggr_prio_tbl */
-typedef struct _aggr_prio_tbl {
+typedef struct _uap_aggr_prio_tbl {
 	/** subcmd */
 	t_u32 subcmd;
 	/** Set/Get */
@@ -325,7 +325,7 @@ typedef struct _aggr_prio_tbl {
 	t_u8 ampdu[MAX_NUM_TID];
 	/** amsdu priority table */
 	t_u8 amsdu[MAX_NUM_TID];
-} aggr_prio_tbl;
+} uap_aggr_prio_tbl;
 
 /** addba_reject parameters */
 typedef struct _addba_reject_para {
@@ -338,7 +338,7 @@ typedef struct _addba_reject_para {
 } addba_reject_para;
 
 /** fw_info */
-typedef struct _fw_info {
+typedef struct _uap_fw_info {
 	/** subcmd */
 	t_u32 subcmd;
 	/** Get */
@@ -353,7 +353,7 @@ typedef struct _fw_info {
 	t_u16 region_code;
 	/** 802.11n device capabilities */
 	t_u32 hw_dot_11n_dev_cap;
-} fw_info;
+} uap_fw_info;
 
 typedef struct _ht_tx_cfg_para_hdr {
 	/** Sub command */
@@ -541,7 +541,7 @@ int woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
 #endif
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
-				    pchan_band_info uap_channel);
+				    chan_band_info *uap_channel);
 #ifdef CONFIG_PROC_FS
 void woal_uap_get_version(moal_private *priv, char *version, int max_len);
 #endif

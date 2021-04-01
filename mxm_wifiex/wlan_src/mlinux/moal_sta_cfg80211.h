@@ -3,7 +3,7 @@
  * @brief This file contains the STA CFG80211 specific defines.
  *
  *
- * Copyright 2011-2020 NXP
+ * Copyright 2011-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -27,15 +27,5 @@
 #define RSSI_DBM_TO_MDM(x) ((x)*100)
 
 mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type);
-
-mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
-				  t_u32 cipher, const t_u8 *key, int key_len,
-				  const t_u8 *seq, int seq_len, t_u8 key_index,
-				  const t_u8 *addr, int disable,
-				  t_u8 wait_option);
-
-mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
-				       int key_len, t_u8 index,
-				       t_u8 wait_option);
 
 #endif /* _MOAL_STA_CFG80211_H_ */

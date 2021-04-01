@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2018-2020 NXP
+ * Copyright 2018-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -26,14 +26,14 @@
 extern pmoal_handle m_handle[];
 
 /** Firmware name */
-char *fw_name;
-int req_fw_nowait;
+static char *fw_name;
+static int req_fw_nowait;
 int fw_reload;
 
 /** MAC address */
-char *mac_addr;
+static char *mac_addr;
 /** Module param cfg file */
-char *mod_para;
+static char *mod_para;
 
 #ifdef MFG_CMD_SUPPORT
 /** Mfg mode */
@@ -42,138 +42,133 @@ int mfg_mode;
 
 #if defined(SDIO)
 /** SDIO interrupt mode (0: INT_MODE_SDIO, 1: INT_MODE_GPIO) */
-int intmode = INT_MODE_SDIO;
+static int intmode = INT_MODE_SDIO;
 /** GPIO interrupt pin number */
-int gpiopin;
+static int gpiopin;
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
-int disable_regd_by_driver = 1;
+static int disable_regd_by_driver = 1;
 /** Region alpha2 string */
-char *reg_alpha2;
+static char *reg_alpha2;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-int country_ie_ignore;
-int beacon_hints;
+static int country_ie_ignore;
+static int beacon_hints;
 #endif
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-int host_mlme;
+static int host_mlme;
 #endif
 #endif
 
 /** Auto deep sleep */
-int auto_ds;
+static int auto_ds;
 
 /** IEEE PS mode */
-int ps_mode;
+static int ps_mode;
 /** passive to active scan */
-int p2a_scan;
+static int p2a_scan;
 /** scan chan gap */
-int scan_chan_gap;
+static int scan_chan_gap;
 /** Max Tx buffer size */
 int max_tx_buf;
 
 #ifdef STA_SUPPORT
 /** Max STA interfaces */
-int max_sta_bss = DEF_STA_BSS;
+static int max_sta_bss = DEF_STA_BSS;
 /** STA interface name */
-char *sta_name;
+static char *sta_name;
 #endif
 
 #ifdef UAP_SUPPORT
 /** Max uAP interfaces */
-int max_uap_bss = DEF_UAP_BSS;
+static int max_uap_bss = DEF_UAP_BSS;
 /** uAP interface name */
-char *uap_name;
+static char *uap_name;
 /** Max uAP station number */
-int uap_max_sta;
+static int uap_max_sta;
 #endif
 
 #ifdef WIFI_DIRECT_SUPPORT
 /** Max WIFIDIRECT interfaces */
-int max_wfd_bss = DEF_WIFIDIRECT_BSS;
+static int max_wfd_bss = DEF_WIFIDIRECT_BSS;
 /** WIFIDIRECT interface name */
-char *wfd_name;
+static char *wfd_name;
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 /** max VIRTUAL bss */
-int max_vir_bss = DEF_VIRTUAL_BSS;
+static int max_vir_bss = DEF_VIRTUAL_BSS;
 #endif
 #endif
 
-#ifdef SDIO_SUSPEND_RESUME
 /** PM keep power */
-int pm_keep_power = 1;
+static int pm_keep_power = 1;
+#ifdef SDIO_SUSPEND_RESUME
 /** HS when shutdown */
-int shutdown_hs;
+static int shutdown_hs;
 #endif
 
 #if defined(SDIO)
 /** SDIO slew rate */
-int slew_rate = 3;
+static int slew_rate = 3;
 #endif
 int tx_work = 0;
+static int rps = 0;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
-int cfg_11d;
+static int cfg_11d;
 #endif
 
 /** fw serial download check */
-int fw_serial = 1;
+static int fw_serial = 1;
 
 /** napi support*/
-int napi;
+static int napi;
 
 /** DPD data config file */
-char *dpd_data_cfg;
+static char *dpd_data_cfg;
 
 /** CAL data config file */
-char *cal_data_cfg;
+static char *cal_data_cfg;
 /** Init config file (MAC address, register etc.) */
-char *init_cfg;
+static char *init_cfg;
 
 /** Set configuration data of Tx power limitation */
-char *txpwrlimit_cfg;
+static char *txpwrlimit_cfg;
 /** Allow setting tx power table of country */
-int cntry_txpwr;
+static int cntry_txpwr;
 
 /** Init hostcmd file */
-char *init_hostcmd_cfg;
-char *band_steer_cfg;
+static char *init_hostcmd_cfg;
+static char *band_steer_cfg;
 
 #if defined(STA_WEXT) || defined(UAP_WEXT)
 /** CFG80211 and WEXT mode */
-int cfg80211_wext = STA_WEXT_MASK | UAP_WEXT_MASK;
+static int cfg80211_wext = STA_WEXT_MASK | UAP_WEXT_MASK;
 #else
 /** CFG80211 mode */
-int cfg80211_wext = STA_CFG80211_MASK | UAP_CFG80211_MASK;
-#endif
-
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-int fw_region = 1;
-#endif
+static int cfg80211_wext = STA_CFG80211_MASK | UAP_CFG80211_MASK;
 #endif
 
 /** Work queue priority */
-int wq_sched_prio;
+static int wq_sched_prio;
 /** Work queue scheduling policy */
-int wq_sched_policy = SCHED_NORMAL;
+static int wq_sched_policy = SCHED_NORMAL;
 /** rx_work flag */
-int rx_work;
+static int rx_work;
 
 #if defined(USB)
 int skip_fwdnld;
 #endif
 
 /* Enable/disable aggrctrl */
-int aggrctrl;
+static int aggrctrl;
 
 #ifdef USB
 /* Enable/disable USB aggregation feature */
-int usb_aggr;
+static int usb_aggr;
 #endif
 
 #ifdef PCIE
@@ -181,68 +176,66 @@ int usb_aggr;
 int pcie_int_mode = PCIE_INT_MODE_MSI;
 #endif /* PCIE */
 
-int low_power_mode_enable;
+static int low_power_mode_enable;
 
-int hw_test;
+static int hw_test;
 
 #ifdef CONFIG_OF
 int dts_enable = 1;
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-int dfs_offload;
+static int dfs_offload;
 #endif
 
-#ifdef ANDROID_KERNEL
 int wakelock_timeout = WAKE_LOCK_TIMEOUT;
-#endif
 
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #ifdef WIFI_DIRECT_SUPPORT
-int drv_mode = (DRV_MODE_STA | DRV_MODE_UAP | DRV_MODE_WIFIDIRECT);
+static int drv_mode = (DRV_MODE_STA | DRV_MODE_UAP | DRV_MODE_WIFIDIRECT);
 #else
-int drv_mode = (DRV_MODE_STA | DRV_MODE_UAP);
+static int drv_mode = (DRV_MODE_STA | DRV_MODE_UAP);
 #endif /* WIFI_DIRECT_SUPPORT */
 #else
 #ifdef STA_SUPPORT
-int drv_mode = DRV_MODE_STA;
+static int drv_mode = DRV_MODE_STA;
 #else
-int drv_mode = DRV_MODE_UAP;
+static int drv_mode = DRV_MODE_UAP;
 #endif /* STA_SUPPORT */
 #endif /* STA_SUPPORT & UAP_SUPPORT */
 
-int gtk_rekey_offload = GTK_REKEY_OFFLOAD_DISABLE;
+static int gtk_rekey_offload = GTK_REKEY_OFFLOAD_DISABLE;
 
-int pmic;
+static int pmic;
 
-int antcfg;
+static int antcfg;
 
-t_u32 uap_oper_ctrl;
+static t_u32 uap_oper_ctrl;
 
-int hs_wake_interval = 400;
-int indication_gpio = 0xff;
-int disconnect_on_suspend;
-int hs_mimo_switch;
+static int hs_wake_interval = 400;
+static int indication_gpio = 0xff;
+static int disconnect_on_suspend;
+static int hs_mimo_switch;
 
-int indrstcfg = 0xffffffff;
+static int indrstcfg = 0xffffffff;
 
 /** all the feature are enabled */
 #define DEFAULT_DEV_CAP_MASK 0xffffffff
-t_u32 dev_cap_mask = DEFAULT_DEV_CAP_MASK;
+static t_u32 dev_cap_mask = DEFAULT_DEV_CAP_MASK;
 #ifdef SDIO
-int sdio_rx_aggr = MTRUE;
+static int sdio_rx_aggr = MTRUE;
 #endif
 
 /** The global variable of scan beacon buffer **/
-int fixed_beacon_buffer;
+static int fixed_beacon_buffer;
 
 #ifdef WIFI_DIRECT_SUPPORT
-int GoAgeoutTime;
+static int GoAgeoutTime;
 #endif
 
-t_u16 multi_dtim;
+static t_u16 multi_dtim;
 
-t_u16 inact_tmo;
+static t_u16 inact_tmo;
 
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
@@ -308,7 +301,7 @@ static card_type_entry card_type_map_tbl[] = {
 #endif
 };
 
-int dfs53cfg = DFS_W53_DEFAULT_FW;
+static int dfs53cfg = DFS_W53_DEFAULT_FW;
 
 /**
  *  @brief This function read a line in module parameter file
@@ -325,7 +318,7 @@ static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
 
 	ENTER();
 
-	if (pos >= size) { /* reach the end */
+	if (pos >= (t_s32)size) { /* reach the end */
 		pos = 0; /* Reset position for rfkill */
 		LEAVE();
 		return -1;
@@ -334,7 +327,7 @@ static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
 	src = data + pos;
 	dest = line_pos;
 
-	while (pos < size && *src != '\x0A' && *src != '\0') {
+	while (pos < (t_s32)size && *src != '\x0A' && *src != '\0') {
 		if (*src != ' ' && *src != '\t') /* parse space */
 			*dest++ = *src++;
 		else
@@ -499,12 +492,12 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 	moal_mod_para *params = &handle->params;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
-	while (parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line) != -1) {
 		if (strncmp(line, "}", strlen("}")) == 0) {
 			end = 1;
 			break;
 		}
-		if (end == 0 && strstr(line, "{") != 0)
+		if (end == 0 && strstr(line, "{") != NULL)
 			break;
 		if (strncmp(line, "hw_test", strlen("hw_test")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -701,7 +694,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "gpiopin = %d\n", params->gpiopin);
 		}
 #endif
-#if defined(SDIO) && defined(SDIO_SUSPEND_RESUME)
 		else if (strncmp(line, "pm_keep_power",
 				 strlen("pm_keep_power")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -715,8 +707,10 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_PM_KEEP_POWER) ?
 				       "on" :
 				       "off");
-		} else if (strncmp(line, "shutdown_hs",
-				   strlen("shutdown_hs")) == 0) {
+		}
+#if defined(SDIO) && defined(SDIO_SUSPEND_RESUME)
+		else if (strncmp(line, "shutdown_hs", strlen("shutdown_hs")) ==
+			 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -781,14 +775,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
-			if (out_data)
-				moal_extflg_set(handle, EXT_CNTRY_TXPWR);
-			else
-				moal_extflg_clear(handle, EXT_CNTRY_TXPWR);
-			PRINTM(MMSG, "cntry_txpwr %s\n",
-			       moal_extflg_isset(handle, EXT_CNTRY_TXPWR) ?
-				       "on" :
-				       "off");
+			params->cntry_txpwr = out_data;
+			PRINTM(MMSG, "cntry_txpwr = %d\n", params->cntry_txpwr);
 		} else if (strncmp(line, "init_hostcmd_cfg",
 				   strlen("init_hostcmd_cfg")) == 0) {
 			if (parse_line_read_string(line, &out_str) !=
@@ -901,20 +889,16 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_LOW_PW_MODE) ?
 				       "on" :
 				       "off");
-		}
-#ifdef ANDROID_KERNEL
-		else if (strncmp(line, "wakelock_timeout",
-				 strlen("wakelock_timeout")) == 0) {
+		} else if (strncmp(line, "wakelock_timeout",
+				   strlen("wakelock_timeout")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
 			params->wakelock_timeout = out_data;
 			PRINTM(MMSG, "wakelock_timeout=%d\n",
 			       params->wakelock_timeout);
-		}
-#endif
-		else if (strncmp(line, "dev_cap_mask",
-				 strlen("dev_cap_mask")) == 0) {
+		} else if (strncmp(line, "dev_cap_mask",
+				   strlen("dev_cap_mask")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -940,8 +924,7 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 #if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
 	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
 	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
-	defined(USB8978)
+	defined(USB9097) || defined(PCIE9097) || defined(SD8978)
 		else if (strncmp(line, "pmic", strlen("pmic")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
@@ -1089,6 +1072,17 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "tx_work %s\n",
 			       moal_extflg_isset(handle, EXT_TX_WORK) ? "on" :
 									"off");
+		} else if (strncmp(line, "rps", strlen("rps")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_RPS);
+			else
+				moal_extflg_clear(handle, EXT_RPS);
+			PRINTM(MMSG, "rps %s\n",
+			       moal_extflg_isset(handle, EXT_RPS) ? "on" :
+								    "off");
 		}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		else if (strncmp(line, "dfs_offload", strlen("dfs_offload")) ==
@@ -1121,8 +1115,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "reg domain set by driver=%s\n",
 			       moal_extflg_isset(handle,
 						 EXT_DISABLE_REGD_BY_DRIVER) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		} else if (strncmp(line, "reg_alpha2", strlen("reg_alpha2")) ==
 			   0) {
 			if (parse_line_read_string(line, &out_str) !=
@@ -1158,8 +1152,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				moal_extflg_clear(handle, EXT_BEACON_HINTS);
 			PRINTM(MMSG, "beacon_hints=%s\n",
 			       moal_extflg_isset(handle, EXT_BEACON_HINTS) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		}
 #endif
 #endif
@@ -1185,8 +1179,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				moal_extflg_clear(handle, EXT_HOST_MLME);
 			PRINTM(MMSG, "host_mlme=%s\n",
 			       moal_extflg_isset(handle, EXT_HOST_MLME) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		}
 #endif
 #endif
@@ -1300,9 +1294,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.gpiopin = params->gpiopin;
 #endif
-#if defined(SDIO) && defined(SDIO_SUSPEND_RESUME)
 	if (pm_keep_power)
 		moal_extflg_set(handle, EXT_PM_KEEP_POWER);
+#if defined(SDIO) && defined(SDIO_SUSPEND_RESUME)
 	if (shutdown_hs)
 		moal_extflg_set(handle, EXT_SHUTDOWN_HS);
 #endif
@@ -1313,6 +1307,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 #endif
 #if defined(SDIO)
 	handle->params.slew_rate = slew_rate;
+	if (params)
+		handle->params.slew_rate = params->slew_rate;
 #endif
 	woal_dup_string(&handle->params.dpd_data_cfg, dpd_data_cfg);
 	if (params)
@@ -1329,8 +1325,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		woal_dup_string(&handle->params.txpwrlimit_cfg,
 				params->txpwrlimit_cfg);
-	if (cntry_txpwr)
-		moal_extflg_set(handle, EXT_CNTRY_TXPWR);
+	handle->params.cntry_txpwr = cntry_txpwr;
+	if (params)
+		handle->params.cntry_txpwr = params->cntry_txpwr;
 	woal_dup_string(&handle->params.init_hostcmd_cfg, init_hostcmd_cfg);
 	if (params)
 		woal_dup_string(&handle->params.init_hostcmd_cfg,
@@ -1370,11 +1367,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (low_power_mode_enable)
 		moal_extflg_set(handle, EXT_LOW_PW_MODE);
 
-#ifdef ANDROID_KERNEL
 	handle->params.wakelock_timeout = wakelock_timeout;
 	if (params)
 		handle->params.wakelock_timeout = params->wakelock_timeout;
-#endif
 	handle->params.dev_cap_mask = dev_cap_mask;
 	if (params)
 		handle->params.dev_cap_mask = params->dev_cap_mask;
@@ -1385,8 +1380,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 #if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
 	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
 	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
-	defined(USB8978)
+	defined(USB9097) || defined(PCIE9097) || defined(SD8978)
 	if (pmic)
 		moal_extflg_set(handle, EXT_PMIC);
 #endif
@@ -1429,6 +1423,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		moal_extflg_set(handle, EXT_NAPI);
 	if (tx_work)
 		moal_extflg_set(handle, EXT_TX_WORK);
+	if (rps)
+		moal_extflg_set(handle, EXT_RPS);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
@@ -1641,6 +1637,11 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "tx_work=0x%x\n", data);
 				tx_work = data;
+			}
+		} else if (!strncmp(prop->name, "rps", strlen("rps"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "rps=0x%x\n", data);
+				rps = data;
 			}
 		}
 #ifdef MFG_CMD_SUPPORT
@@ -1906,7 +1907,7 @@ void woal_init_from_dev_tree(void)
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_validate_cfg_id(moal_handle *handle)
+static mlan_status woal_validate_cfg_id(moal_handle *handle)
 {
 	int i;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -1930,16 +1931,16 @@ mlan_status woal_validate_cfg_id(moal_handle *handle)
  *
  *  @return       MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status parse_skip_cfg_block(t_u8 *data, t_u32 size)
+static mlan_status parse_skip_cfg_block(t_u8 *data, t_u32 size)
 {
 	int end = 0;
 	t_u8 line[MAX_LINE_LEN];
-	while (parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line) != -1) {
 		if (strncmp(line, "}", strlen("}")) == 0) {
 			end = 1;
 			break;
 		}
-		if (end == 0 && strstr(line, "{") != 0)
+		if (end == 0 && strstr(line, "{") != NULL)
 			break;
 	}
 	return (end == 1) ? MLAN_STATUS_SUCCESS : MLAN_STATUS_FAILURE;
@@ -1953,7 +1954,7 @@ mlan_status parse_skip_cfg_block(t_u8 *data, t_u32 size)
  *
  *  @return       MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_cfg_fallback_process(moal_handle *handle)
+static mlan_status woal_cfg_fallback_process(moal_handle *handle)
 {
 	int i, blk_id = 0x7fffffff, idx = -1;
 	mlan_status ret = MLAN_STATUS_FAILURE;
@@ -2019,7 +2020,7 @@ mlan_status woal_init_module_param(moal_handle *handle)
 	       card_type_map_tbl[i].name);
 	size = handle->param_data->size;
 	data = (t_u8 *)handle->param_data->data;
-	while (parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line) != -1) {
 		if (line[0] == '#')
 			continue;
 		if (strstr(line, "={")) {
@@ -2161,9 +2162,9 @@ module_param(gpiopin, int, 0);
 MODULE_PARM_DESC(gpiopin, "255:new GPIO int mode, other vlue: gpio pin number");
 #endif
 
-#ifdef SDIO_SUSPEND_RESUME
 module_param(pm_keep_power, int, 0);
 MODULE_PARM_DESC(pm_keep_power, "1: PM keep power; 0: PM no power");
+#ifdef SDIO_SUSPEND_RESUME
 module_param(shutdown_hs, int, 0);
 MODULE_PARM_DESC(shutdown_hs,
 		 "1: Enable HS when shutdown; 0: No HS when shutdown");
@@ -2181,6 +2182,8 @@ MODULE_PARM_DESC(
 #endif
 module_param(tx_work, uint, 0660);
 MODULE_PARM_DESC(tx_work, "1: Enable tx_work; 0: Disable tx_work");
+module_param(rps, uint, 0660);
+MODULE_PARM_DESC(rps, "1: Enable rps; 0: Disable rps");
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");
 module_param(init_cfg, charp, 0);
@@ -2193,26 +2196,19 @@ MODULE_PARM_DESC(txpwrlimit_cfg,
 module_param(cntry_txpwr, int, 0);
 MODULE_PARM_DESC(
 	cntry_txpwr,
-	"Allow setting tx power table of country; 0: disable (default), 1: enable.");
+	"0: disable (default), 1: enable set country txpower table 2: enable set country rgpower table");
 module_param(init_hostcmd_cfg, charp, 0);
 MODULE_PARM_DESC(init_hostcmd_cfg, "Init hostcmd file name");
 module_param(band_steer_cfg, charp, 0);
 MODULE_PARM_DESC(band_steer_cfg, "band steer cfg file name");
 module_param(cfg80211_wext, int, 0660);
-MODULE_PARM_DESC(cfg80211_wext,
-#ifdef STA_WEXT
-		 "Bit 0: STA WEXT; "
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+MODULE_PARM_DESC(
+	cfg80211_wext,
+	"Bit 0: STA WEXT Bit 1: UAP WEXT Bit 2: STA CFG80211 Bit 3: UAP CFG80211");
+#else
+MODULE_PARM_DESC(cfg80211_wext, "Bit 0: STA WEXT Bit 1: UAP WEXT Bit 2");
 #endif
-#ifdef UAP_WEXT
-		 "Bit 1: UAP WEXT; "
-#endif
-#ifdef STA_CFG80211
-		 "Bit 2: STA CFG80211; "
-#endif
-#ifdef UAP_CFG80211
-		 "Bit 3: UAP CFG80211;"
-#endif
-);
 #if defined(USB)
 module_param(skip_fwdnld, int, 0);
 MODULE_PARM_DESC(skip_fwdnld, "0: Enable FW download; 1: Disable FW download");
@@ -2242,10 +2238,8 @@ MODULE_PARM_DESC(pcie_int_mode, "0: Legacy mode; 1: MSI mode; 2: MSI-X mode");
 module_param(low_power_mode_enable, int, 0);
 MODULE_PARM_DESC(low_power_mode_enable, "0/1: Disable/Enable Low Power Mode");
 
-#ifdef ANDROID_KERNEL
 module_param(wakelock_timeout, int, 0);
 MODULE_PARM_DESC(wakelock_timeout, "set wakelock_timeout value (ms)");
-#endif
 
 module_param(dev_cap_mask, uint, 0);
 MODULE_PARM_DESC(dev_cap_mask, "Device capability mask");

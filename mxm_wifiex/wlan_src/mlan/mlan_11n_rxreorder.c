@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -503,7 +503,11 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 		PRINTM(MINFO, "UAP/ADHOC:last_seq=%d start_win=%d\n", last_seq,
 		       new_node->start_win);
 	} else {
-		last_seq = priv->rx_seq[tid];
+		sta_ptr = wlan_get_station_entry(priv, ta);
+		if (sta_ptr)
+			last_seq = sta_ptr->rx_seq[tid];
+		else
+			last_seq = priv->rx_seq[tid];
 	}
 	new_node->last_seq = last_seq;
 	new_node->win_size = win_size;
@@ -603,7 +607,7 @@ mlan_status wlan_cmd_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *cmd,
  *
  *  @return            MTRUE/MFALSE
  */
-t_u8 wlan_is_addba_reject(mlan_private *priv, t_u8 tid)
+static t_u8 wlan_is_addba_reject(mlan_private *priv, t_u8 tid)
 {
 #ifdef STA_SUPPORT
 #endif
@@ -1206,7 +1210,7 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	ENTER();
 
 	DBG_HEXDUMP(MEVT_D, "RXBA_SYNC_EVT", event_buf, len);
-	while (tlv_buf_left >= sizeof(MrvlIEtypes_RxBaSync_t)) {
+	while (tlv_buf_left >= (int)sizeof(MrvlIEtypes_RxBaSync_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv_rxba->header.type);
 		tlv_len = wlan_le16_to_cpu(tlv_rxba->header.len);
 		if (tlv_type != TLV_TYPE_RXBA_SYNC) {
@@ -1293,7 +1297,7 @@ void wlan_cleanup_reorder_tbl(mlan_private *priv, t_u8 *ta)
  *
  *  @return        N/A
  */
-void wlan_set_rxreorder_tbl_no_drop_flag(mlan_private *priv, t_u8 flag)
+static void wlan_set_rxreorder_tbl_no_drop_flag(mlan_private *priv, t_u8 flag)
 {
 	RxReorderTbl *rx_reor_tbl_ptr;
 
@@ -1345,7 +1349,7 @@ void wlan_update_rxreorder_tbl(pmlan_adapter pmadapter, t_u8 flag)
  *
  *  @return        N/A
  */
-void wlan_flush_priv_rxreorder_tbl(mlan_private *priv)
+static void wlan_flush_priv_rxreorder_tbl(mlan_private *priv)
 {
 	RxReorderTbl *rx_reor_tbl_ptr;
 
@@ -1399,7 +1403,7 @@ void wlan_flush_rxreorder_tbl(pmlan_adapter pmadapter)
  *
  *  @return             N/A
  */
-void wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
+static void wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 {
 	t_u8 i;
 	t_u32 rx_win_size = 0;

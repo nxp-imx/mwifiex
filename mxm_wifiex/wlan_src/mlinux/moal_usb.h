@@ -210,8 +210,8 @@ struct usb_card_rec {
 	int tx_data_ix;
 	/** Pre-allocated urb for data */
 	urb_context tx_data_list[MVUSB_TX_HIGH_WMARK];
-	usb_aggr_ctrl tx_aggr_ctrl;
-	usb_aggr_ctrl rx_deaggr_ctrl;
+	usb_aggr_ctrl_cfg tx_aggr_ctrl;
+	usb_aggr_ctrl_cfg rx_deaggr_ctrl;
 	t_u8 resubmit_urbs;
 	/** USB card type */
 	t_u16 card_type;

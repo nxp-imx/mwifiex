@@ -4,7 +4,7 @@
  * driver.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -130,7 +130,6 @@ Change log:
 #define REG_PORT 0
 /** Port for memory */
 #define MEM_PORT 0x10000
-
 /** Card Control Registers : cmd53 new mode */
 #define CMD53_NEW_MODE (0x1U << 0)
 /** Card Control Registers : cmd53 tx len format 1 (0x10) */
@@ -204,6 +203,7 @@ Change log:
 		a->pcard_sd->mpa_tx.ports |= (1 << port);                      \
 		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
 	} while (0)
+
 /** SDIO Tx aggregation limit ? */
 #define MP_TX_AGGR_PKT_LIMIT_REACHED(a)                                        \
 	((a->pcard_sd->mpa_tx.pkt_cnt) == (a->pcard_sd->mpa_tx.pkt_aggr_limit))
@@ -231,7 +231,7 @@ Change log:
 /* note: hw rx wraps round only after port (MAX_PORT-1) */
 #define MP_RX_AGGR_PORT_LIMIT_REACHED(a)                                       \
 	(((a->pcard_sd->curr_rd_port < a->pcard_sd->mpa_rx.start_port) &&      \
-	  (((MAX_PORT - a->pcard_sd->mpa_rx.start_port) +                      \
+	  (((a->pcard_sd->max_ports - a->pcard_sd->mpa_rx.start_port) +        \
 	    a->pcard_sd->curr_rd_port) >= (a->pcard_sd->mp_end_port >> 1))) || \
 	 ((a->pcard_sd->curr_rd_port - a->pcard_sd->mpa_rx.start_port) >=      \
 	  (a->pcard_sd->mp_end_port >> 1)))
@@ -527,6 +527,8 @@ static const struct _mlan_card_info mlan_card_info_sd8987 = {
 };
 #endif
 #endif
+
+extern mlan_adapter_operations mlan_sdio_ops;
 
 /** Probe and initialization function */
 mlan_status wlan_sdio_probe(pmlan_adapter pmadapter);

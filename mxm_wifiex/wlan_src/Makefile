@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2020 NXP
+#  Copyright 2008-2021 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -16,13 +16,15 @@
 #  this warranty disclaimer.
 #
 
+CONFIG_COMPATDIR=n
+ifeq ($(CONFIG_COMPATDIR), y)
 COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
-ifeq ($(CC),)
 CC ?=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
+else
+CC ?=		$(CROSS_COMPILE)gcc
 endif
-ifeq ($(LD),)
-LD=		$(CROSS_COMPILE)ld
-endif
+
+LD ?=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
 YMD=		`date +%Y%m%d%H%M`
 
@@ -37,7 +39,7 @@ CONFIG_PCIE8897=n
 CONFIG_SD8977=n
 CONFIG_SD8978=n
 CONFIG_USB8978=n
-CONFIG_SD8997=n
+CONFIG_SD8997=y
 CONFIG_USB8997=n
 CONFIG_PCIE8997=y
 CONFIG_SD8987=y
@@ -46,7 +48,7 @@ CONFIG_USB9097=n
 CONFIG_PCIE9097=n
 CONFIG_SD9098=n
 CONFIG_USB9098=n
-CONFIG_PCIE9098=n
+CONFIG_PCIE9098=y
 
 
 # Debug Option
@@ -101,6 +103,7 @@ CONFIG_DFS_TESTING_SUPPORT=y
 
 
 # Use static link for app build
+export CONFIG_STATIC_LINK=y
 CONFIG_ANDROID_KERNEL=n
 
 #32bit app over 64bit kernel support
@@ -115,8 +118,13 @@ MODEXT = ko
 ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
-KERNELVERSION_X86 :=   $(shell uname -r)
 KERNELDIR ?= $(KERNEL_DIR)
+ARCH ?= arm64
+CONFIG_IMX_SUPPORT=y
+ifeq ($(CONFIG_IMX_SUPPORT),y)
+ccflags-y += -DIMX_SUPPORT
+endif
+
 LD += -S
 
 BINDIR = ../bin_mxm_wifiex
@@ -295,19 +303,22 @@ ifeq ($(CONFIG_MAC80211_SUPPORT_MESH),y)
 endif
 
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
-GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
-ifeq ($(GCC_VERSION),1)
+#GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
+#ifeq ($(GCC_VERSION),1)
 #ccflags-y += -Wno-packed-bitfield-compat
-endif
-WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
+#endif
+
 #ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
 #ccflags-y += -Wimplicit-fallthrough=3
 #endif
-#ccflags-y += -Wno-stringop-overflow
-#ccflags-y += -Wno-tautological-compare
-#ccflags-y += -Wno-stringop-truncation
-#ccflags-y += -Wno-packed-bitfield-compat
-
+#ccflags-y += -Wunused-but-set-variable
+#ccflags-y += -Wmissing-prototypes
+#ccflags-y += -Wold-style-definition
+#ccflags-y += -Wtype-limits
+#ccflags-y += -Wsuggest-attribute=format
+#ccflags-y += -Wmissing-include-dirs
+#ccflags-y += -Wshadow
+#ccflags-y += -Wsign-compare
 #############################################################################
 # Make Targets
 #############################################################################
@@ -568,7 +579,6 @@ clean:
 	-find . -name "*.ko" -exec rm {} \;
 	-find . -name ".*.cmd" -exec rm {} \;
 	-find . -name "*.mod.c" -exec rm {} \;
-	-find . -name "*.mod" -exec rm {} \;
 	-find . -name "Module.symvers" -exec rm {} \;
 	-find . -name "Module.markers" -exec rm {} \;
 	-find . -name "modules.order" -exec rm {} \;

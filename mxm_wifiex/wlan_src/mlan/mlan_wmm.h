@@ -4,7 +4,7 @@
  *  of wmm functionalities
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -225,6 +225,9 @@ extern mlan_status wlan_ret_wmm_queue_stats(pmlan_private pmpriv,
 extern mlan_status wlan_ret_wmm_ts_status(pmlan_private pmpriv,
 					  HostCmd_DS_COMMAND *resp,
 					  mlan_ioctl_req *pioctl_buf);
+
+extern t_u8 tos_to_tid_inv[];
+extern t_u8 ac_to_tid[4][2];
 #endif /* STA_SUPPORT */
 
 /** WMM QUEUE_CONFIG command handler */

@@ -4,7 +4,7 @@
  *  definitions used in MLAN and MOAL module.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -100,6 +100,7 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	NONTX_BSSID_CAP = 83,
 	MBSSID_INDEX = 85,
 	EXT_CAPABILITY = 127,
+	LINK_ID = 101,
 	/*IEEE802.11r*/
 	MOBILITY_DOMAIN = 54,
 	FAST_BSS_TRANSITION = 55,
@@ -734,25 +735,27 @@ typedef MLAN_PACK_START struct {
 	t_u8 Schedule : 1;
 	IEEEtypes_WMM_TSPEC_TS_Info_AckPolicy_e AckPolicy : 2;
 	t_u8 UserPri : 3; /* ! 802.1d User Priority */
-	IEEEtypes_WMM_TSPEC_TS_Info_PSB_e PowerSaveBehavior : 1; /* !
-								    Legacy/Trigg
-								  */
+	// IEEEtypes_WMM_TSPEC_TS_Info_PSB_e PowerSaveBehavior : 1; /*
+	// !Legacy/Trigg*/
+	t_u8 PowerSaveBehavior : 1;
 	t_u8 Aggregation : 1; /* ! Reserved */
 	t_u8 AccessPolicy2 : 1; /* ! */
 	t_u8 AccessPolicy1 : 1; /* ! */
 	IEEEtypes_WMM_TSPEC_TS_Info_Direction_e Direction : 2;
 	t_u8 TID : 4; /* ! Unique identifier */
-	IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
+	// IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
+	t_u8 TrafficType : 1;
 #else
-	IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
+	// IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
+	t_u8 TrafficType : 1;
 	t_u8 TID : 4; /* ! Unique identifier */
 	IEEEtypes_WMM_TSPEC_TS_Info_Direction_e Direction : 2;
 	t_u8 AccessPolicy1 : 1; /* ! */
 	t_u8 AccessPolicy2 : 1; /* ! */
 	t_u8 Aggregation : 1; /* ! Reserved */
-	IEEEtypes_WMM_TSPEC_TS_Info_PSB_e PowerSaveBehavior : 1; /* !
-								    Legacy/Trigg
-								  */
+	// IEEEtypes_WMM_TSPEC_TS_Info_PSB_e PowerSaveBehavior : 1; /* !
+	// Legacy/Trigg*/
+	t_u8 PowerSaveBehavior : 1;
 	t_u8 UserPri : 3; /* ! 802.1d User Priority */
 	IEEEtypes_WMM_TSPEC_TS_Info_AckPolicy_e AckPolicy : 2;
 	t_u8 Schedule : 1;
@@ -938,6 +941,20 @@ typedef MLAN_PACK_START struct _IEEEtypes_CountryInfoFullSet_t {
 
 #endif /* STA_SUPPORT */
 
+/** Data structure for Link ID */
+typedef MLAN_PACK_START struct _IEEEtypes_LinkIDElement_t {
+	/** Element ID */
+	t_u8 element_id;
+	/** Length */
+	t_u8 len;
+	/** bssid */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+	/** initial sta address */
+	t_u8 init_sta[MLAN_MAC_ADDR_LENGTH];
+	/** respose sta address */
+	t_u8 resp_sta[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END IEEEtypes_LinkIDElement_t, *pIEEEtypes_LinkIDElement_t;
+
 /** HT Capabilities Data */
 typedef struct MLAN_PACK_START _HTCap_t {
 	/** HT Capabilities Info field */
@@ -1025,6 +1042,53 @@ typedef MLAN_PACK_START struct _IEEEtypes_HTInfo_t {
 	HTInfo_t ht_info;
 } MLAN_PACK_END IEEEtypes_HTInfo_t, *pIEEEtypes_HTInfo_t;
 
+/** the AP which send the multi_bssid IE */
+#define MULTI_BSSID_AP 1
+/** the AP which don't send beacon */
+#define MULTI_BSSID_SUB_AP 2
+/** IEEEtypes_NotxBssCap_t */
+typedef MLAN_PACK_START struct _IEEEtypes_NotxBssCap_t {
+	/** Nontransmitted BSSID Capability: Element ID */
+	t_u8 element_id;
+	/** Nontransmitted BSSID Capability : Length */
+	t_u8 len;
+	/** capability */
+	t_u16 cap;
+} MLAN_PACK_END IEEEtypes_NotxBssCap_t, *pIEEEtypes_NotxBssCap_t;
+
+/** Multi BSSID IE */
+typedef MLAN_PACK_START struct _IEEEtypes_MultiBSSIDIndex_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** BSSID Index */
+	t_u8 bssid_index;
+	/** DTIM Period (Optional, not Present in ProbeRsp) */
+	t_u8 dtim_period;
+	/** DTIM Count (Optional, not Present in ProbeRsp) */
+	t_u8 dtim_count;
+} MLAN_PACK_END IEEEtypes_MultiBSSIDIndex_t, *pIEEEtypes_MultiBSSIDIndex_t;
+
+/** NonTransmitted BSSID Profile Subelement IE */
+/** SUBID for IEEEtypes_NonTransBSSIDCap_t */
+#define NONTRANS_BSSID_PROFILE_SUBELEM_ID 0
+
+/** NonTransmitted BSSID Capability IE */
+typedef MLAN_PACK_START struct _IEEEtypes_NonTransBSSIDProfile_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 profile_data[];
+} MLAN_PACK_END IEEEtypes_NonTransBSSIDProfile_t,
+	*pIEEEtypes_NonTransBSSIDProfile_t;
+
+/** Multi BSSID IE */
+typedef MLAN_PACK_START struct _IEEEtypes_MultiBSSID_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** Max BSSID Indicator */
+	t_u8 max_bssid_indicator;
+	/** Optional Subelement data*/
+	t_u8 sub_elem_data[];
+} MLAN_PACK_END IEEEtypes_MultiBSSID_t, *pIEEEtypes_MultiBSSID_t;
 /** 20/40 BSS Coexistence IE */
 typedef MLAN_PACK_START struct _IEEEtypes_2040BSSCo_t {
 	/** Generic IE header */
@@ -1221,6 +1285,40 @@ typedef MLAN_PACK_START struct _IEEEtypes_HECap_t {
 	/** PPE Thresholds (optional) */
 } MLAN_PACK_END IEEEtypes_HECap_t, *pIEEEtypes_HECap_t;
 
+/** default channel switch count */
+#define DEF_CHAN_SWITCH_COUNT 5
+
+/*  IEEE Channel Switch Announcement Element (7.3.2.20) */
+/**
+ *  Provided in beacons and probe responses.  Used to advertise when
+ *    and to which channel it is changing to.  Only starting STAs in
+ *    an IBSS and APs are allowed to originate a chan switch element.
+ */
+typedef MLAN_PACK_START struct {
+	t_u8 element_id; /**< IEEE Element ID = 37 */
+	t_u8 len; /**< Element length after id and len */
+	t_u8 chan_switch_mode; /**< STA should not transmit any frames if 1 */
+	t_u8 new_channel_num; /**< Channel # that AP/IBSS is moving to */
+	t_u8 chan_switch_count; /**< # of TBTTs before channel switch */
+
+} MLAN_PACK_END IEEEtypes_ChanSwitchAnn_t;
+
+/** data structure for extended channel switch */
+typedef MLAN_PACK_START struct {
+	/** IEEE element ID = 60 */
+	t_u8 element_id;
+	/** Element length after id and len, set to 4 */
+	t_u8 len;
+	/** STA should not transmit any frames if 1 */
+	t_u8 chan_switch_mode;
+	/** Operate class # that AP/IBSS is moving to */
+	t_u8 new_oper_class;
+	/** Channel # that AP/IBSS is moving to */
+	t_u8 new_channel_num;
+	/** of TBTTs before channel switch */
+	t_u8 chan_switch_count;
+} MLAN_PACK_END IEEEtypes_ExtChanSwitchAnn_t;
+
 /** Maximum number of subbands in the IEEEtypes_SupportedChannels_t structure */
 #define WLAN_11H_MAX_SUBBANDS 5
 
@@ -1275,40 +1373,6 @@ typedef MLAN_PACK_START struct {
 	IEEEtypes_SupportChan_Subband_t subband[WLAN_11H_MAX_SUBBANDS];
 
 } MLAN_PACK_END IEEEtypes_SupportedChannels_t;
-
-/** default channel switch count */
-#define DEF_CHAN_SWITCH_COUNT 5
-
-/*  IEEE Channel Switch Announcement Element (7.3.2.20) */
-/**
- *  Provided in beacons and probe responses.  Used to advertise when
- *    and to which channel it is changing to.  Only starting STAs in
- *    an IBSS and APs are allowed to originate a chan switch element.
- */
-typedef MLAN_PACK_START struct {
-	t_u8 element_id; /**< IEEE Element ID = 37 */
-	t_u8 len; /**< Element length after id and len */
-	t_u8 chan_switch_mode; /**< STA should not transmit any frames if 1 */
-	t_u8 new_channel_num; /**< Channel # that AP/IBSS is moving to */
-	t_u8 chan_switch_count; /**< # of TBTTs before channel switch */
-
-} MLAN_PACK_END IEEEtypes_ChanSwitchAnn_t;
-
-/** data structure for extended channel switch */
-typedef MLAN_PACK_START struct {
-	/** IEEE element ID = 60 */
-	t_u8 element_id;
-	/** Element length after id and len, set to 4 */
-	t_u8 len;
-	/** STA should not transmit any frames if 1 */
-	t_u8 chan_switch_mode;
-	/** Operate class # that AP/IBSS is moving to */
-	t_u8 new_oper_class;
-	/** Channel # that AP/IBSS is moving to */
-	t_u8 new_channel_num;
-	/** of TBTTs before channel switch */
-	t_u8 chan_switch_count;
-} MLAN_PACK_END IEEEtypes_ExtChanSwitchAnn_t;
 
 /*  IEEE Wide Bandwidth Channel Switch Element */
 /**
@@ -1443,6 +1507,50 @@ typedef struct {
 	IEEEtypes_IBSS_DFS_t ibss_dfs; /**< IBSS DFS Element IE */
 
 } wlan_11h_bss_info_t;
+
+/** Ethernet packet type for TDLS */
+#define MLAN_ETHER_PKT_TYPE_TDLS_ACTION (0x890D)
+
+/*802.11z  TDLS action frame type and strcuct */
+typedef MLAN_PACK_START struct {
+	/*link indentifier ie =101*/
+	t_u8 element_id;
+	/*len = 18*/
+	t_u8 len;
+	/** bssid */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+	/** init sta mac address */
+	t_u8 init_sta[MLAN_MAC_ADDR_LENGTH];
+	/** resp sta mac address */
+	t_u8 resp_sta[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END IEEEtypes_tdls_linkie;
+
+/** action code for tdls setup request */
+#define TDLS_SETUP_REQUEST 0
+/** action code for tdls setup response */
+#define TDLS_SETUP_RESPONSE 1
+/** action code for tdls setup confirm */
+#define TDLS_SETUP_CONFIRM 2
+/** action code for tdls tear down */
+#define TDLS_TEARDOWN 3
+/** action code for tdls traffic indication */
+#define TDLS_PEER_TRAFFIC_INDICATION 4
+/** action code for tdls channel switch request */
+#define TDLS_CHANNEL_SWITCH_REQUEST 5
+/** action code for tdls channel switch response */
+#define TDLS_CHANNEL_SWITCH_RESPONSE 6
+/** action code for tdls psm request */
+#define TDLS_PEER_PSM_REQUEST 7
+/** action code for tdls psm response */
+#define TDLS_PEER_PSM_RESPONSE 8
+/** action code for tdls traffic response */
+#define TDLS_PEER_TRAFFIC_RESPONSE 9
+/** action code for tdls discovery request */
+#define TDLS_DISCOVERY_REQUEST 10
+/** action code for TDLS discovery response */
+#define TDLS_DISCOVERY_RESPONSE 14
+/** category public */
+#define CATEGORY_PUBLIC 4
 
 /** action code for 20/40 BSS Coexsitence Management frame */
 #define BSS_20_40_COEX 0
@@ -1799,6 +1907,10 @@ typedef struct _BSSDescriptor_t {
 	IEEEtypes_HTInfo_t *pht_info;
 	/** HT Information Offset */
 	t_u16 ht_info_offset;
+	/** Flag to indicate this is multi_bssid_ap */
+	t_u8 multi_bssid_ap;
+	/** the mac address of multi-bssid AP */
+	mlan_802_11_mac_addr multi_bssid_ap_addr;
 	/** 20/40 BSS Coexistence IE */
 	IEEEtypes_2040BSSCo_t *pbss_co_2040;
 	/** 20/40 BSS Coexistence Offset */

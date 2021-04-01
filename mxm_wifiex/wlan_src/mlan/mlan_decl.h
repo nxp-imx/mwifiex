@@ -3,7 +3,7 @@
  *  @brief This file declares the generic data structures and APIs.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "214"
+#define MLAN_RELEASE_VERSION "241"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -233,12 +233,12 @@ typedef t_s32 t_sval;
 /** MU beamformer */
 #define DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK (MBIT(19))
 
-/** Size of rx data buffer 4096+256 */
-#define MLAN_RX_DATA_BUF_SIZE 4352
+/** Size of rx data buffer 3839+256 */
+#define MLAN_RX_DATA_BUF_SIZE 4096
 
 /** Size of command buffer */
 /** because cal_data_size 2.4 k */
-#define MRVDRV_SIZE_OF_CMD_BUFFER (4 * 1024)
+#define MRVDRV_SIZE_OF_CMD_BUFFER (3 * 1024)
 /** Size of rx command buffer */
 #define MLAN_RX_CMD_BUF_SIZE MRVDRV_SIZE_OF_CMD_BUFFER
 /** Upload size */
@@ -330,6 +330,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define ALLOC_BUF_SIZE MLAN_RX_DATA_BUF_SIZE
 /** SDIO MP aggr pkt limit */
 #define SDIO_MP_AGGR_DEF_PKT_LIMIT (16)
+/** SDIO MP aggr pkt limit 8 */
+#define SDIO_MP_AGGR_DEF_PKT_LIMIT_8 (8)
 /** max SDIO MP aggr pkt limit */
 #define SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX (16)
 
@@ -365,6 +367,10 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_9097 0x07
 /** 8978 card type */
 #define CARD_TYPE_8978 0x08
+/** 9177 card type */
+#define CARD_TYPE_9177 0x09
+/** 8801 card type */
+#define CARD_TYPE_8801 0x0a
 
 /** 9098 A0 reverion num */
 #define CHIP_9098_REV_A0 1
@@ -392,6 +398,10 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_SD9097 (CARD_TYPE_9097 | (INTF_SD << 8))
 /** SD9098 card type */
 #define CARD_TYPE_SD9098 (CARD_TYPE_9098 | (INTF_SD << 8))
+/** SD9177 card type */
+#define CARD_TYPE_SD9177 (CARD_TYPE_9177 | (INTF_SD << 8))
+/** SD8801 card type */
+#define CARD_TYPE_SD8801 (CARD_TYPE_8801 | (INTF_SD << 8))
 
 #define IS_SD8887(ct) (CARD_TYPE_SD8887 == (ct))
 #define IS_SD8897(ct) (CARD_TYPE_SD8897 == (ct))
@@ -401,6 +411,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_SD8987(ct) (CARD_TYPE_SD8987 == (ct))
 #define IS_SD9097(ct) (CARD_TYPE_SD9097 == (ct))
 #define IS_SD9098(ct) (CARD_TYPE_SD9098 == (ct))
+#define IS_SD9177(ct) (CARD_TYPE_SD9177 == (ct))
+#define IS_SD8801(ct) (CARD_TYPE_SD8801 == (ct))
 
 /** SD8887 Card */
 #define CARD_SD8887 "SD8887"
@@ -418,6 +430,10 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD9097 "SD9097"
 /** SD9098 Card */
 #define CARD_SD9098 "SD9098"
+/** SD9177 Card */
+#define CARD_SD9177 "SD9177"
+/** SD9177 Card */
+#define CARD_SD8801 "SD9177"
 #endif
 
 #ifdef PCIE
@@ -445,9 +461,13 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_PCIE9000S "PCIE9000S"
 /** PCIE9098 Card */
 #define CARD_PCIE9098 "PCIE9098"
+/** PCIEAW690 Card */
+#define CARD_PCIEAW690 "PCIEAW690"
 #endif
 
 #ifdef USB
+/** USB8801 card type */
+#define CARD_TYPE_USB8801 (CARD_TYPE_8801 | (INTF_USB << 8))
 /** USB8897 card type */
 #define CARD_TYPE_USB8897 (CARD_TYPE_8897 | (INTF_USB << 8))
 /** USB8997 card type */
@@ -459,12 +479,15 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 /** USB9097 card type */
 #define CARD_TYPE_USB9097 (CARD_TYPE_9097 | (INTF_USB << 8))
 
+#define IS_USB8801(ct) (CARD_TYPE_USB8801 == (ct))
 #define IS_USB8897(ct) (CARD_TYPE_USB8897 == (ct))
 #define IS_USB8997(ct) (CARD_TYPE_USB8997 == (ct))
 #define IS_USB8978(ct) (CARD_TYPE_USB8978 == (ct))
 #define IS_USB9098(ct) (CARD_TYPE_USB9098 == (ct))
 #define IS_USB9097(ct) (CARD_TYPE_USB9097 == (ct))
 
+/** USB8801 Card */
+#define CARD_USB8801 "USB8801"
 /** USB8897 Card */
 #define CARD_USB8897 "USB8897"
 /** USB8997 Card */
@@ -477,6 +500,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_USB9097 "USB9097"
 #endif
 
+#define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
 #define IS_CARD8887(ct) (CARD_TYPE_8887 == ((ct)&0xf))
 #define IS_CARD8897(ct) (CARD_TYPE_8897 == ((ct)&0xf))
 #define IS_CARD8977(ct) (CARD_TYPE_8977 == ((ct)&0xf))
@@ -484,6 +508,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_CARD8987(ct) (CARD_TYPE_8987 == ((ct)&0xf))
 #define IS_CARD9098(ct) (CARD_TYPE_9098 == ((ct)&0xf))
 #define IS_CARD9097(ct) (CARD_TYPE_9097 == ((ct)&0xf))
+#define IS_CARD9177(ct) (CARD_TYPE_9177 == ((ct)&0xf))
 
 typedef struct _card_type_entry {
 	t_u16 card_type;
@@ -533,6 +558,9 @@ typedef enum {
 /** Buffer flag for USB TX AGGR */
 #define MLAN_BUF_FLAG_USB_TX_AGGR MBIT(7)
 #endif
+
+/** Buffer flag for TDLS */
+#define MLAN_BUF_FLAG_TDLS MBIT(8)
 
 /** Buffer flag for TCP_ACK */
 #define MLAN_BUF_FLAG_TCP_ACK MBIT(9)
@@ -745,6 +773,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_BGSCAN_RESULT = 0x80000013,
 	MLAN_EVENT_ID_DRV_FLUSH_RX_WORK = 0x80000015,
 	MLAN_EVENT_ID_DRV_DEFER_RX_WORK = 0x80000016,
+	MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ = 0x80000017,
 	MLAN_EVENT_ID_DRV_FT_RESPONSE = 0x80000018,
 	MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK = 0x80000019,
 #ifdef UAP_SUPPORT
@@ -918,7 +947,7 @@ typedef MLAN_PACK_START struct _chan_band_info {
 	t_u8 center_chan;
 	/** dfs channel flag */
 	t_u8 is_dfs_chan;
-} MLAN_PACK_END chan_band_info, *pchan_band_info;
+} MLAN_PACK_END chan_band_info;
 
 /** Channel usability flags */
 #define NXP_CHANNEL_NO_OFDM MBIT(9)
@@ -1109,7 +1138,10 @@ typedef struct _mlan_buffer {
 	t_u32 out_ts_usec;
 	/** tx_seq_num */
 	t_u32 tx_seq_num;
-
+	/** Time stamp when packet is deque from rx_q(seconds) */
+	t_u32 extra_ts_sec;
+	/** Time stamp when packet is dequed from rx_q(micro seconds) */
+	t_u32 extra_ts_usec;
 	/** Fields below are valid for MLAN module only */
 	/** Pointer to parent mlan_buffer */
 	struct _mlan_buffer *pparent;
@@ -1121,9 +1153,10 @@ typedef struct _mlan_buffer {
 	} u;
 } mlan_buffer, *pmlan_buffer, **ppmlan_buffer;
 
-/** mlan_fw_info data structure */
+/** mlan_hw_info data structure */
 typedef struct _mlan_hw_info {
 	t_u32 fw_cap;
+	t_u32 fw_cap_ext;
 } mlan_hw_info, *pmlan_hw_info;
 
 /** mlan_bss_attr data structure */
@@ -1261,6 +1294,242 @@ typedef MLAN_PACK_START struct _tlvbuf_custom_ie {
 	/** Max mgmt IE TLV */
 	tlvbuf_max_mgmt_ie max_mgmt_ie;
 } MLAN_PACK_END mlan_ds_misc_custom_ie;
+
+/** Max TDLS config data length */
+#define MAX_TDLS_DATA_LEN 1024
+
+/** Action commands for TDLS enable/disable */
+#define WLAN_TDLS_CONFIG 0x00
+/** Action commands for TDLS configuration :Set */
+#define WLAN_TDLS_SET_INFO 0x01
+/** Action commands for TDLS configuration :Discovery Request */
+#define WLAN_TDLS_DISCOVERY_REQ 0x02
+/** Action commands for TDLS configuration :Setup Request */
+#define WLAN_TDLS_SETUP_REQ 0x03
+/** Action commands for TDLS configuration :Tear down Request */
+#define WLAN_TDLS_TEAR_DOWN_REQ 0x04
+/** Action ID for TDLS power mode */
+#define WLAN_TDLS_POWER_MODE 0x05
+/**Action ID for init TDLS Channel Switch*/
+#define WLAN_TDLS_INIT_CHAN_SWITCH 0x06
+/** Action ID for stop TDLS Channel Switch */
+#define WLAN_TDLS_STOP_CHAN_SWITCH 0x07
+/** Action ID for configure CS related parameters */
+#define WLAN_TDLS_CS_PARAMS 0x08
+/** Action ID for Disable CS */
+#define WLAN_TDLS_CS_DISABLE 0x09
+/** Action ID for TDLS link status */
+#define WLAN_TDLS_LINK_STATUS 0x0A
+/** Action ID for Host TDLS config uapsd and CS */
+#define WLAN_HOST_TDLS_CONFIG 0x0D
+/** Action ID for TDLS CS immediate return */
+#define WLAN_TDLS_DEBUG_CS_RET_IM 0xFFF7
+/** Action ID for TDLS Stop RX */
+#define WLAN_TDLS_DEBUG_STOP_RX 0xFFF8
+/** Action ID for TDLS Allow weak security for links establish */
+#define WLAN_TDLS_DEBUG_ALLOW_WEAK_SECURITY 0xFFF9
+/** Action ID for TDLS Ignore key lifetime expiry */
+#define WLAN_TDLS_DEBUG_IGNORE_KEY_EXPIRY 0xFFFA
+/** Action ID for TDLS Higher/Lower mac Test */
+#define WLAN_TDLS_DEBUG_HIGHER_LOWER_MAC 0xFFFB
+/** Action ID for TDLS Prohibited Test */
+#define WLAN_TDLS_DEBUG_SETUP_PROHIBITED 0xFFFC
+/** Action ID for TDLS Existing link Test */
+#define WLAN_TDLS_DEBUG_SETUP_SAME_LINK 0xFFFD
+/** Action ID for TDLS Fail Setup Confirm */
+#define WLAN_TDLS_DEBUG_FAIL_SETUP_CONFIRM 0xFFFE
+/** Action commands for TDLS debug: Wrong BSS Request */
+#define WLAN_TDLS_DEBUG_WRONG_BSS 0xFFFF
+
+/** tdls each link rate information */
+typedef MLAN_PACK_START struct _tdls_link_rate_info {
+	/** Tx Data Rate */
+	t_u8 tx_data_rate;
+	/** Tx Rate HT info*/
+	t_u8 tx_rate_htinfo;
+} MLAN_PACK_END tdls_link_rate_info;
+
+/** tdls each link status */
+typedef MLAN_PACK_START struct _tdls_each_link_status {
+	/** peer mac Address */
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+	/** Link Flags */
+	t_u8 link_flags;
+	/** Traffic Status */
+	t_u8 traffic_status;
+	/** Tx Failure Count */
+	t_u8 tx_fail_count;
+	/** Channel Number */
+	t_u32 active_channel;
+	/** Last Data RSSI in dBm */
+	t_s16 data_rssi_last;
+	/** Last Data NF in dBm */
+	t_s16 data_nf_last;
+	/** AVG DATA RSSI in dBm */
+	t_s16 data_rssi_avg;
+	/** AVG DATA NF in dBm */
+	t_s16 data_nf_avg;
+	union {
+		/** tdls rate info */
+		tdls_link_rate_info rate_info;
+		/** tdls link final rate*/
+		t_u16 final_data_rate;
+	} u;
+	/** Security Method */
+	t_u8 security_method;
+	/** Key Lifetime in milliseconds */
+	t_u32 key_lifetime;
+	/** Key Length */
+	t_u8 key_length;
+	/** actual key */
+	t_u8 key[];
+} MLAN_PACK_END tdls_each_link_status;
+
+/** TDLS configuration data */
+typedef MLAN_PACK_START struct _tdls_all_config {
+	union {
+		/** TDLS state enable disable */
+		MLAN_PACK_START struct _tdls_config {
+			/** enable or disable */
+			t_u16 enable;
+		} MLAN_PACK_END tdls_config;
+		/** Host tdls config */
+		MLAN_PACK_START struct _host_tdls_cfg {
+			/** support uapsd */
+			t_u8 uapsd_support;
+			/** channel_switch */
+			t_u8 cs_support;
+			/** TLV  length */
+			t_u16 tlv_len;
+			/** tdls info */
+			t_u8 tlv_buffer[];
+		} MLAN_PACK_END host_tdls_cfg;
+		/** TDLS set info */
+		MLAN_PACK_START struct _tdls_set_data {
+			/** (tlv + capInfo) length */
+			t_u16 tlv_length;
+			/** Cap Info */
+			t_u16 cap_info;
+			/** TLV buffer */
+			t_u8 tlv_buffer[];
+		} MLAN_PACK_END tdls_set;
+
+		/** TDLS discovery and others having mac argument */
+		MLAN_PACK_START struct _tdls_discovery_data {
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+		} MLAN_PACK_END tdls_discovery, tdls_stop_chan_switch,
+			tdls_link_status_req;
+
+		/** TDLS discovery Response */
+		MLAN_PACK_START struct _tdls_discovery_resp {
+			/** payload length */
+			t_u16 payload_len;
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+			/** RSSI */
+			t_s8 rssi;
+			/** Cap Info */
+			t_u16 cap_info;
+			/** TLV buffer */
+			t_u8 tlv_buffer[];
+		} MLAN_PACK_END tdls_discovery_resp;
+
+		/** TDLS setup request */
+		MLAN_PACK_START struct _tdls_setup_data {
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+			/** timeout value in milliseconds */
+			t_u32 setup_timeout;
+			/** key lifetime in milliseconds */
+			t_u32 key_lifetime;
+		} MLAN_PACK_END tdls_setup;
+
+		/** TDLS tear down info */
+		MLAN_PACK_START struct _tdls_tear_down_data {
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+			/** reason code */
+			t_u16 reason_code;
+		} MLAN_PACK_END tdls_tear_down, tdls_cmd_resp;
+
+		/** TDLS power mode info */
+		MLAN_PACK_START struct _tdls_power_mode_data {
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+			/** Power Mode */
+			t_u16 power_mode;
+		} MLAN_PACK_END tdls_power_mode;
+
+		/** TDLS channel switch info */
+		MLAN_PACK_START struct _tdls_chan_switch {
+			/** peer mac Address */
+			t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+			/** Channel Switch primary channel no */
+			t_u8 primary_channel;
+			/** Channel Switch secondary channel offset */
+			t_u8 secondary_channel_offset;
+			/** Channel Switch Band */
+			t_u8 band;
+			/** Channel Switch time in milliseconds */
+			t_u16 switch_time;
+			/** Channel Switch timeout in milliseconds */
+			t_u16 switch_timeout;
+			/** Channel Regulatory class*/
+			t_u8 regulatory_class;
+			/** peridicity flag*/
+			t_u8 periodicity;
+		} MLAN_PACK_END tdls_chan_switch;
+
+		/** TDLS channel switch paramters */
+		MLAN_PACK_START struct _tdls_cs_params {
+			/** unit time, multiples of 10ms */
+			t_u8 unit_time;
+			/** threshold for other link */
+			t_u8 threshold_otherlink;
+			/** threshold for direct link */
+			t_u8 threshold_directlink;
+		} MLAN_PACK_END tdls_cs_params;
+
+		/** tdls disable channel switch */
+		MLAN_PACK_START struct _tdls_disable_cs {
+			/** Data*/
+			t_u16 data;
+		} MLAN_PACK_END tdls_disable_cs;
+		/** TDLS debug data */
+		MLAN_PACK_START struct _tdls_debug_data {
+			/** debug data */
+			t_u16 debug_data;
+		} MLAN_PACK_END tdls_debug_data;
+
+		/** TDLS link status Response */
+		MLAN_PACK_START struct _tdls_link_status_resp {
+			/** payload length */
+			t_u16 payload_len;
+			/** number of links */
+			t_u8 active_links;
+			/** structure for link status */
+			tdls_each_link_status link_stats[1];
+		} MLAN_PACK_END tdls_link_status_resp;
+
+	} u;
+} MLAN_PACK_END tdls_all_config;
+
+/** TDLS configuration buffer */
+typedef MLAN_PACK_START struct _buf_tdls_config {
+	/** TDLS Action */
+	t_u16 tdls_action;
+	/** TDLS data */
+	t_u8 tdls_data[MAX_TDLS_DATA_LEN];
+} MLAN_PACK_END mlan_ds_misc_tdls_config;
+
+/** Event structure for tear down */
+typedef struct _tdls_tear_down_event {
+	/** Peer mac address */
+	t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Reason code */
+	t_u16 reason_code;
+} tdls_tear_down_event;
 
 /** channel width */
 typedef enum wifi_channel_width {
@@ -1614,160 +1883,149 @@ typedef struct _sta_stats {
 /** mlan_callbacks data structure */
 typedef struct _mlan_callbacks {
 	/** moal_get_fw_data */
-	mlan_status (*moal_get_fw_data)(t_void *pmoal_handle, t_u32 offset,
-					t_u32 len, t_u8 *pbuf);
-	mlan_status (*moal_get_vdll_data)(t_void *pmoal_handle, t_u32 len,
-					  t_u8 *pbuf);
+	mlan_status (*moal_get_fw_data)(t_void *pmoal, t_u32 offset, t_u32 len,
+					t_u8 *pbuf);
+	mlan_status (*moal_get_vdll_data)(t_void *pmoal, t_u32 len, t_u8 *pbuf);
 	/** moal_get_hw_spec_complete */
-	mlan_status (*moal_get_hw_spec_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_get_hw_spec_complete)(t_void *pmoal,
 						 mlan_status status,
 						 pmlan_hw_info phw,
 						 pmlan_bss_tbl ptbl);
 	/** moal_init_fw_complete */
-	mlan_status (*moal_init_fw_complete)(t_void *pmoal_handle,
-					     mlan_status status);
+	mlan_status (*moal_init_fw_complete)(t_void *pmoal, mlan_status status);
 	/** moal_shutdown_fw_complete */
-	mlan_status (*moal_shutdown_fw_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_shutdown_fw_complete)(t_void *pmoal,
 						 mlan_status status);
 	/** moal_send_packet_complete */
-	mlan_status (*moal_send_packet_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_send_packet_complete)(t_void *pmoal,
 						 pmlan_buffer pmbuf,
 						 mlan_status status);
 	/** moal_recv_complete */
-	mlan_status (*moal_recv_complete)(t_void *pmoal_handle,
-					  pmlan_buffer pmbuf, t_u32 port,
-					  mlan_status status);
+	mlan_status (*moal_recv_complete)(t_void *pmoal, pmlan_buffer pmbuf,
+					  t_u32 port, mlan_status status);
 	/** moal_recv_packet */
-	mlan_status (*moal_recv_packet)(t_void *pmoal_handle,
-					pmlan_buffer pmbuf);
+	mlan_status (*moal_recv_packet)(t_void *pmoal, pmlan_buffer pmbuf);
 	/** moal_recv_event */
-	mlan_status (*moal_recv_event)(t_void *pmoal_handle,
-				       pmlan_event pmevent);
+	mlan_status (*moal_recv_event)(t_void *pmoal, pmlan_event pmevent);
 	/** moal_ioctl_complete */
-	mlan_status (*moal_ioctl_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_ioctl_complete)(t_void *pmoal,
 					   pmlan_ioctl_req pioctl_req,
 					   mlan_status status);
 
 	/** moal_alloc_mlan_buffer */
-	mlan_status (*moal_alloc_mlan_buffer)(t_void *pmoal_handle, t_u32 size,
+	mlan_status (*moal_alloc_mlan_buffer)(t_void *pmoal, t_u32 size,
 					      ppmlan_buffer pmbuf);
 	/** moal_free_mlan_buffer */
-	mlan_status (*moal_free_mlan_buffer)(t_void *pmoal_handle,
-					     pmlan_buffer pmbuf);
+	mlan_status (*moal_free_mlan_buffer)(t_void *pmoal, pmlan_buffer pmbuf);
 
 #ifdef USB
 	/** moal_write_data_async */
-	mlan_status (*moal_write_data_async)(t_void *pmoal_handle,
-					     pmlan_buffer pmbuf, t_u32 port);
+	mlan_status (*moal_write_data_async)(t_void *pmoal, pmlan_buffer pmbuf,
+					     t_u32 port);
 #endif /* USB */
 #if defined(SDIO) || defined(PCIE)
 	/** moal_write_reg */
-	mlan_status (*moal_write_reg)(t_void *pmoal_handle, t_u32 reg,
-				      t_u32 data);
+	mlan_status (*moal_write_reg)(t_void *pmoal, t_u32 reg, t_u32 data);
 	/** moal_read_reg */
-	mlan_status (*moal_read_reg)(t_void *pmoal_handle, t_u32 reg,
-				     t_u32 *data);
+	mlan_status (*moal_read_reg)(t_void *pmoal, t_u32 reg, t_u32 *data);
 #endif /* SDIO || PCIE */
 	/** moal_write_data_sync */
-	mlan_status (*moal_write_data_sync)(t_void *pmoal_handle,
-					    pmlan_buffer pmbuf, t_u32 port,
-					    t_u32 timeout);
+	mlan_status (*moal_write_data_sync)(t_void *pmoal, pmlan_buffer pmbuf,
+					    t_u32 port, t_u32 timeout);
 	/** moal_read_data_sync */
-	mlan_status (*moal_read_data_sync)(t_void *pmoal_handle,
-					   pmlan_buffer pmbuf, t_u32 port,
-					   t_u32 timeout);
+	mlan_status (*moal_read_data_sync)(t_void *pmoal, pmlan_buffer pmbuf,
+					   t_u32 port, t_u32 timeout);
 	/** moal_malloc */
-	mlan_status (*moal_malloc)(t_void *pmoal_handle, t_u32 size, t_u32 flag,
+	mlan_status (*moal_malloc)(t_void *pmoal, t_u32 size, t_u32 flag,
 				   t_u8 **ppbuf);
 	/** moal_mfree */
-	mlan_status (*moal_mfree)(t_void *pmoal_handle, t_u8 *pbuf);
+	mlan_status (*moal_mfree)(t_void *pmoal, t_u8 *pbuf);
 	/** moal_vmalloc */
-	mlan_status (*moal_vmalloc)(t_void *pmoal_handle, t_u32 size,
-				    t_u8 **ppbuf);
+	mlan_status (*moal_vmalloc)(t_void *pmoal, t_u32 size, t_u8 **ppbuf);
 	/** moal_vfree */
-	mlan_status (*moal_vfree)(t_void *pmoal_handle, t_u8 *pbuf);
+	mlan_status (*moal_vfree)(t_void *pmoal, t_u8 *pbuf);
 #ifdef PCIE
 	/** moal_malloc_consistent */
-	mlan_status (*moal_malloc_consistent)(t_void *pmoal_handle, t_u32 size,
+	mlan_status (*moal_malloc_consistent)(t_void *pmoal, t_u32 size,
 					      t_u8 **ppbuf, t_u64 *pbuf_pa);
 	/** moal_mfree_consistent */
-	mlan_status (*moal_mfree_consistent)(t_void *pmoal_handle, t_u32 size,
+	mlan_status (*moal_mfree_consistent)(t_void *pmoal, t_u32 size,
 					     t_u8 *pbuf, t_u64 buf_pa);
 	/** moal_map_memory */
-	mlan_status (*moal_map_memory)(t_void *pmoal_handle, t_u8 *pbuf,
+	mlan_status (*moal_map_memory)(t_void *pmoal, t_u8 *pbuf,
 				       t_u64 *pbuf_pa, t_u32 size, t_u32 flag);
 	/** moal_unmap_memory */
-	mlan_status (*moal_unmap_memory)(t_void *pmoal_handle, t_u8 *pbuf,
+	mlan_status (*moal_unmap_memory)(t_void *pmoal, t_u8 *pbuf,
 					 t_u64 buf_pa, t_u32 size, t_u32 flag);
 #endif /* PCIE */
 	/** moal_memset */
-	t_void *(*moal_memset)(t_void *pmoal_handle, t_void *pmem, t_u8 byte,
+	t_void *(*moal_memset)(t_void *pmoal, t_void *pmem, t_u8 byte,
 			       t_u32 num);
 	/** moal_memcpy */
-	t_void *(*moal_memcpy)(t_void *pmoal_handle, t_void *pdest,
-			       const t_void *psrc, t_u32 num);
+	t_void *(*moal_memcpy)(t_void *pmoal, t_void *pdest, const t_void *psrc,
+			       t_u32 num);
 	/** moal_memcpy_ext */
-	t_void *(*moal_memcpy_ext)(t_void *pmoal_handle, t_void *pdest,
+	t_void *(*moal_memcpy_ext)(t_void *pmoal, t_void *pdest,
 				   const t_void *psrc, t_u32 num,
 				   t_u32 dest_size);
 	/** moal_memmove */
-	t_void *(*moal_memmove)(t_void *pmoal_handle, t_void *pdest,
+	t_void *(*moal_memmove)(t_void *pmoal, t_void *pdest,
 				const t_void *psrc, t_u32 num);
 	/** moal_memcmp */
-	t_s32 (*moal_memcmp)(t_void *pmoal_handle, const t_void *pmem1,
+	t_s32 (*moal_memcmp)(t_void *pmoal, const t_void *pmem1,
 			     const t_void *pmem2, t_u32 num);
 	/** moal_udelay */
-	t_void (*moal_udelay)(t_void *pmoal_handle, t_u32 udelay);
+	t_void (*moal_udelay)(t_void *pmoal, t_u32 udelay);
 	/** moal_usleep_range */
-	t_void (*moal_usleep_range)(t_void *pmoal_handle, t_u32 min_delay,
+	t_void (*moal_usleep_range)(t_void *pmoal, t_u32 min_delay,
 				    t_u32 max_delay);
 	/** moal_get_boot_ktime */
-	mlan_status (*moal_get_boot_ktime)(t_void *pmoal_handle, t_u64 *pnsec);
+	mlan_status (*moal_get_boot_ktime)(t_void *pmoal, t_u64 *pnsec);
 	/** moal_get_system_time */
-	mlan_status (*moal_get_system_time)(t_void *pmoal_handle, t_u32 *psec,
+	mlan_status (*moal_get_system_time)(t_void *pmoal, t_u32 *psec,
 					    t_u32 *pusec);
 	/** moal_init_timer*/
-	mlan_status (*moal_init_timer)(t_void *pmoal_handle, t_void **pptimer,
+	mlan_status (*moal_init_timer)(t_void *pmoal, t_void **pptimer,
 				       IN t_void (*callback)(t_void *pcontext),
 				       t_void *pcontext);
 	/** moal_free_timer */
-	mlan_status (*moal_free_timer)(t_void *pmoal_handle, t_void *ptimer);
+	mlan_status (*moal_free_timer)(t_void *pmoal, t_void *ptimer);
 	/** moal_start_timer*/
-	mlan_status (*moal_start_timer)(t_void *pmoal_handle, t_void *ptimer,
+	mlan_status (*moal_start_timer)(t_void *pmoal, t_void *ptimer,
 					t_u8 periodic, t_u32 msec);
 	/** moal_stop_timer*/
-	mlan_status (*moal_stop_timer)(t_void *pmoal_handle, t_void *ptimer);
+	mlan_status (*moal_stop_timer)(t_void *pmoal, t_void *ptimer);
 	/** moal_init_lock */
-	mlan_status (*moal_init_lock)(t_void *pmoal_handle, t_void **pplock);
+	mlan_status (*moal_init_lock)(t_void *pmoal, t_void **pplock);
 	/** moal_free_lock */
-	mlan_status (*moal_free_lock)(t_void *pmoal_handle, t_void *plock);
+	mlan_status (*moal_free_lock)(t_void *pmoal, t_void *plock);
 	/** moal_spin_lock */
-	mlan_status (*moal_spin_lock)(t_void *pmoal_handle, t_void *plock);
+	mlan_status (*moal_spin_lock)(t_void *pmoal, t_void *plock);
 	/** moal_spin_unlock */
-	mlan_status (*moal_spin_unlock)(t_void *pmoal_handle, t_void *plock);
+	mlan_status (*moal_spin_unlock)(t_void *pmoal, t_void *plock);
 	/** moal_print */
-	t_void (*moal_print)(t_void *pmoal_handle, t_u32 level, char *pformat,
-			     IN...);
+	t_void (*moal_print)(t_void *pmoal, t_u32 level, char *pformat, IN...);
 	/** moal_print_netintf */
-	t_void (*moal_print_netintf)(t_void *pmoal_handle, t_u32 bss_index,
+	t_void (*moal_print_netintf)(t_void *pmoal, t_u32 bss_index,
 				     t_u32 level);
 	/** moal_assert */
-	t_void (*moal_assert)(t_void *pmoal_handle, t_u32 cond);
+	t_void (*moal_assert)(t_void *pmoal, t_u32 cond);
 
 	/** moal_hist_data_add */
-	t_void (*moal_hist_data_add)(t_void *pmoal_handle, t_u32 bss_index,
+	t_void (*moal_hist_data_add)(t_void *pmoal, t_u32 bss_index,
 				     t_u16 rx_rate, t_s8 snr, t_s8 nflr,
 				     t_u8 antenna);
+	t_void (*moal_updata_peer_signal)(t_void *pmoal, t_u32 bss_index,
+					  t_u8 *peer_addr, t_s8 snr, t_s8 nflr);
 #if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-	mlan_status (*moal_wait_hostcmd_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_wait_hostcmd_complete)(t_void *pmoal,
 						  t_u32 bss_index);
-	mlan_status (*moal_notify_hostcmd_complete)(t_void *pmoal_handle,
+	mlan_status (*moal_notify_hostcmd_complete)(t_void *pmoal,
 						    t_u32 bss_index);
 #endif
-	void (*moal_tp_accounting)(t_void *pmoal_handle, t_void *buf,
+	void (*moal_tp_accounting)(t_void *pmoal, t_void *buf,
 				   t_u32 drop_point);
-	void (*moal_tp_accounting_rx_param)(t_void *pmoal_handle,
-					    unsigned int type,
+	void (*moal_tp_accounting_rx_param)(t_void *pmoal, unsigned int type,
 					    unsigned int rsvd1);
 
 } mlan_callbacks, *pmlan_callbacks;
@@ -1899,8 +2157,6 @@ typedef struct _mlan_device {
 	/** Tx data endpoint address */
 	t_u8 tx_data_ep;
 #endif
-	/** fw region */
-	t_bool fw_region;
 	/** passive to active scan */
 	t_u8 passive_to_active_scan;
 	/** uap max supported station per chip */
@@ -1919,51 +2175,50 @@ MLAN_API mlan_status mlan_register(pmlan_device pmdevice,
 				   t_void **ppmlan_adapter);
 
 /** Un-registration */
-MLAN_API mlan_status mlan_unregister(t_void *pmlan_adapter);
+MLAN_API mlan_status mlan_unregister(t_void *padapter);
 
 /** Firmware Downloading */
-MLAN_API mlan_status mlan_dnld_fw(t_void *pmlan_adapter, pmlan_fw_image pmfw);
+MLAN_API mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw);
 
 /** Custom data pass API */
-MLAN_API mlan_status mlan_set_init_param(t_void *pmlan_adapter,
+MLAN_API mlan_status mlan_set_init_param(t_void *padapter,
 					 pmlan_init_param pparam);
 
 /** Firmware Initialization */
-MLAN_API mlan_status mlan_init_fw(t_void *pmlan_adapter);
+MLAN_API mlan_status mlan_init_fw(t_void *padapter);
 
 /** Firmware Shutdown */
-MLAN_API mlan_status mlan_shutdown_fw(t_void *pmlan_adapter);
+MLAN_API mlan_status mlan_shutdown_fw(t_void *padapter);
 
 /** Main Process */
-MLAN_API mlan_status mlan_main_process(t_void *pmlan_adapter);
+MLAN_API mlan_status mlan_main_process(t_void *padapter);
 
 /** Rx process */
-mlan_status mlan_rx_process(t_void *pmlan_adapter, t_u8 *rx_pkts);
+mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts);
 
 /** Packet Transmission */
-MLAN_API mlan_status mlan_send_packet(t_void *pmlan_adapter,
-				      pmlan_buffer pmbuf);
+MLAN_API mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf);
 
 #ifdef USB
 /** mlan_write_data_async_complete */
-MLAN_API mlan_status mlan_write_data_async_complete(t_void *pmlan_adapter,
+MLAN_API mlan_status mlan_write_data_async_complete(t_void *padapter,
 						    pmlan_buffer pmbuf,
 						    t_u32 port,
 						    mlan_status status);
 
 /** Packet Reception */
-MLAN_API mlan_status mlan_recv(t_void *pmlan_adapter, pmlan_buffer pmbuf,
+MLAN_API mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf,
 			       t_u32 port);
 #endif /* USB */
 
 /** Packet Reception complete callback */
-MLAN_API mlan_status mlan_recv_packet_complete(t_void *pmlan_adapter,
+MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 					       pmlan_buffer pmbuf,
 					       mlan_status status);
 
 #if defined(SDIO) || defined(PCIE)
 /** interrupt handler */
-MLAN_API mlan_status mlan_interrupt(t_u16 msg_id, t_void *pmlan_adapter);
+MLAN_API mlan_status mlan_interrupt(t_u16 msg_id, t_void *padapter);
 
 #if defined(SYSKT)
 /** GPIO IRQ callback function */
@@ -1971,7 +2226,7 @@ MLAN_API t_void mlan_hs_callback(t_void *pctx);
 #endif /* SYSKT_MULTI || SYSKT */
 #endif /* SDIO || PCIE */
 
-MLAN_API t_void mlan_pm_wakeup_card(t_void *pmlan_adapter, t_u8 keep_wakeup);
+MLAN_API t_void mlan_pm_wakeup_card(t_void *padapter, t_u8 keep_wakeup);
 
 MLAN_API t_u8 mlan_is_main_process_running(t_void *adapter);
 #ifdef PCIE
@@ -1979,10 +2234,8 @@ MLAN_API t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode,
 				  t_u8 func_num);
 #endif
 /** mlan ioctl */
-MLAN_API mlan_status mlan_ioctl(t_void *pmlan_adapter,
-				pmlan_ioctl_req pioctl_req);
+MLAN_API mlan_status mlan_ioctl(t_void *padapter, pmlan_ioctl_req pioctl_req);
 /** mlan select wmm queue */
-MLAN_API t_u8 mlan_select_wmm_queue(t_void *pmlan_adapter, t_u8 bss_num,
-				    t_u8 tid);
+MLAN_API t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid);
 
 #endif /* !_MLAN_DECL_H_ */

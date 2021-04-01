@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -242,6 +242,8 @@ typedef struct _chan_stats {
 #endif
 #endif
 #define PRIV_CMD_COEX_RX_WINSIZE "coex_rx_winsize"
+#define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
+#define PRIV_CMD_AUTO_TDLS "autotdls"
 
 #ifdef PCIE
 #define PRIV_CMD_PCIE_REG_RW "pcieregrw"
@@ -256,6 +258,8 @@ typedef struct _chan_stats {
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH "channel_switch"
 #endif
+
+#define PRIV_CMD_TDLS_IDLE_TIME "tdls_idle_time"
 
 #define PRIV_CMD_DYN_BW "dyn_bw"
 
@@ -294,9 +298,13 @@ typedef struct _chan_stats {
 /**Private command to configure cck desense config */
 #define PRIV_CMD_CCK_DESENSE_CFG "cck_desense_cfg"
 #define PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG "dot11mc_unassoc_ftm_cfg"
+#define PRIV_CMD_HAL_PHY_CFG "hal_phy_cfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD (SIOCDEVPRIVATE + 1)
+
+/** Private command ID to send TLD configuration */
+#define WOAL_TDLS_CONFIG (SIOCDEVPRIVATE + 5)
 
 /** Private command ID to pass mgmt frame */
 #define WOAL_MGMT_FRAME_TX WOAL_MGMT_FRAME_TX_IOCTL
@@ -592,8 +600,6 @@ typedef struct woal_priv_esuppmode_cfg {
 } woal_esuppmode_cfg;
 
 mlan_status woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len);
-mlan_status woal_ioctl_aggr_prio_tbl(moal_private *priv, t_u32 action,
-				     mlan_ds_11n_aggr_prio_tbl *aggr_prio_tbl);
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 

@@ -7,7 +7,7 @@
  *  to the firmware.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -555,7 +555,7 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
  *  @param data         A pointer to rsn_ie data after IE header
  *  @param return       rsn_cap
  */
-t_u16 wlan_get_rsn_cap(t_u8 *data)
+static t_u16 wlan_get_rsn_cap(t_u8 *data)
 {
 	t_u16 rsn_cap = 0;
 	t_u16 *ptr;
@@ -589,7 +589,7 @@ t_u16 wlan_get_rsn_cap(t_u8 *data)
  *  @param BSSDescriptor_t      A pointer to BSSDescriptor_t data structure
  *  @param return       	MTRUE/MFALSE
  */
-t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
+static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 {
 	t_u16 ap_rsn_cap = 0;
 	t_u16 sta_rsn_cap = 0;
@@ -624,8 +624,8 @@ t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
  *
  *  @param ptlv_rsn_ie       A pointer to rsn_ie TLV
  */
-int wlan_update_rsn_ie(mlan_private *pmpriv,
-		       MrvlIEtypes_RsnParamSet_t *ptlv_rsn_ie)
+static int wlan_update_rsn_ie(mlan_private *pmpriv,
+			      MrvlIEtypes_RsnParamSet_t *ptlv_rsn_ie)
 {
 	t_u16 *prsn_cap;
 	t_u16 *ptr;
@@ -816,7 +816,7 @@ done:
  *
  *  @return     MFALSE if not found; MTURE if found
  */
-t_u8 wlan_find_ie(t_u8 *ie, t_u8 ie_len, t_u8 ie_type)
+static t_u8 wlan_find_ie(t_u8 *ie, t_u8 ie_len, t_u8 ie_type)
 {
 	IEEEtypes_Header_t *pheader = MNULL;
 	t_u8 *pos = MNULL;
@@ -829,7 +829,8 @@ t_u8 wlan_find_ie(t_u8 *ie, t_u8 ie_len, t_u8 ie_type)
 	ret_len = ie_len;
 	while (ret_len >= 2) {
 		pheader = (IEEEtypes_Header_t *)pos;
-		if (pheader->len + sizeof(IEEEtypes_Header_t) > ret_len) {
+		if ((t_s8)(pheader->len + sizeof(IEEEtypes_Header_t)) >
+		    ret_len) {
 			PRINTM(MMSG, "invalid IE length = %d left len %d\n",
 			       pheader->len, ret_len);
 			break;
@@ -879,7 +880,9 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 #ifdef DRV_EMBEDDED_SUPPLICANT
 	void *rsn_wpa_ie_tmp = MNULL;
 #endif
-	t_u8 ft_akm = 0;
+	//#ifdef ENABLE_802_11R
+	//	t_u8 ft_akm = 0;
+	//#endif
 	t_u8 oper_class;
 	t_u8 oper_class_flag = MFALSE;
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
@@ -1038,8 +1041,10 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			       prsn_ie_tlv->header.len;
 			prsn_ie_tlv->header.len =
 				wlan_cpu_to_le16(prsn_ie_tlv->header.len);
+			//#ifdef ENABLE_802_11R
 			/** parse rsn ie to find whether ft akm is used*/
-			ft_akm = wlan_ft_akm_is_used(pmpriv, pmpriv->wpa_ie);
+			// ft_akm = wlan_ft_akm_is_used(pmpriv, pmpriv->wpa_ie);
+			//#endif
 			/* Append PMF Configuration coming from cfg80211 layer
 			 */
 			psecurity_cfg_ie = (MrvlIEtypes_SecurityCfg_t *)pos;
@@ -2318,7 +2323,7 @@ mlan_status wlan_ret_802_11_ad_hoc(mlan_private *pmpriv,
 	}
 
 	/** process wmm ie */
-	if (ie_len >= sizeof(IEEEtypes_VendorHeader_t)) {
+	if (ie_len >= (int)sizeof(IEEEtypes_VendorHeader_t)) {
 		if ((pwmm_param_ie->vend_hdr.element_id ==
 		     VENDOR_SPECIFIC_221) &&
 		    !memcmp(pmadapter, pwmm_param_ie->vend_hdr.oui, wmm_oui,

@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2011-2020 NXP
+ *  Copyright 2011-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -27,6 +27,7 @@
 #include "mlan_main.h"
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
+#include "mlan_11ac.h"
 
 #define NO_NSS_SUPPORT 0x3
 
@@ -372,7 +373,7 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 					nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
-				if ((rx_nss != 0) && (nss > rx_nss))
+				if ((tx_nss != 0) && (nss > tx_nss))
 					cfg_value = NO_NSS_SUPPORT;
 #endif
 				if ((hw_value == NO_NSS_SUPPORT) ||
@@ -592,15 +593,15 @@ void wlan_show_dot11acdevcap(pmlan_adapter pmadapter, t_u32 cap)
 	switch (GET_VHTCAP_MAXMPDULEN(cap)) {
 	case 0x0:
 		PRINTM(MINFO,
-		       "GET_HW_SPEC: Maximum MSDU length = 3895 octets\n");
+		       "GET_HW_SPEC: Maximum MPDU length = 3895 octets\n");
 		break;
 	case 0x1:
 		PRINTM(MINFO,
-		       "GET_HW_SPEC: Maximum MSDU length = 7991 octets\n");
+		       "GET_HW_SPEC: Maximum MPDU length = 7991 octets\n");
 		break;
 	case 0x2:
 		PRINTM(MINFO,
-		       "GET_HW_SPEC: Maximum MSDU length = 11454 octets\n");
+		       "GET_HW_SPEC: Maximum MPDU length = 11454 octets\n");
 		break;
 	default:
 		PRINTM(MINFO, "Unsupport value\n");
@@ -932,6 +933,146 @@ void wlan_fill_vht_cap_ie(mlan_private *priv, IEEEtypes_VHTCap_t *pvht_cap,
 	/* tx highest rate */
 	pvht_cap->vht_cap.mcs_sets.tx_max_rate = wlan_convert_mcsmap_to_maxrate(
 		priv, bands, pvht_cap->vht_cap.mcs_sets.tx_mcs_map);
+
+	LEAVE();
+	return;
+}
+
+/*
+ *  @brief This function check if AP is in 11ac mode
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *
+ *  @return             MTRUE/MFALSE
+ */
+t_u8 wlan_is_ap_in_11ac_mode(mlan_private *priv)
+{
+	BSSDescriptor_t *pbss_desc;
+	IEEEtypes_VHTOprat_t *vht_oprat = MNULL;
+	pbss_desc = &priv->curr_bss_params.bss_descriptor;
+	vht_oprat = pbss_desc->pvht_oprat;
+	if (!pbss_desc->pvht_cap)
+		return MFALSE;
+	if (vht_oprat && (vht_oprat->ieee_hdr.element_id == VHT_OPERATION)) {
+		if (vht_oprat->chan_width == VHT_OPER_CHWD_20_40MHZ)
+			return MFALSE;
+		else
+			return MTRUE;
+	} else
+		return MFALSE;
+}
+
+/**
+ *  @brief This function fills the VHTOperation ie out put format is CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param vht_oprat    A pointer to IEEEtypes_VHTOprat_t structure
+ *  @param sta_ptr      A pointer to sta_node
+ *
+ *  @return             N/A
+ */
+void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
+				 IEEEtypes_VHTOprat_t *vht_oprat,
+				 sta_node *sta_ptr)
+{
+	t_u8 supp_chwd_set;
+	t_u8 peer_supp_chwd_set;
+	t_u8 ap_supp_chwd_set;
+	t_u32 usr_vht_cap_info;
+
+	t_u16 mcs_map_user = 0;
+	t_u16 mcs_map_resp = 0;
+	t_u16 mcs_map_result = 0;
+	t_u16 mcs_user = 0;
+	t_u16 mcs_resp = 0;
+	t_u16 nss;
+	t_u8 chan_bw = 0;
+	BSSDescriptor_t *pbss_desc;
+	IEEEtypes_VHTCap_t *pvht_cap = &sta_ptr->vht_cap;
+	IEEEtypes_VHTCap_t *ap_vht_cap = MNULL;
+	ENTER();
+
+	pbss_desc = &priv->curr_bss_params.bss_descriptor;
+
+	/* Check if AP is in 11ac mode */
+	if (MFALSE == wlan_is_ap_in_11ac_mode(priv)) {
+		if (sta_ptr->ExtCap.ieee_hdr.element_id != EXT_CAPABILITY) {
+			PRINTM(MMSG, "No Peer's Ext_cap info\n");
+			return;
+		}
+		if (!ISSUPP_EXTCAP_TDLS_WIDER_BANDWIDTH(
+			    sta_ptr->ExtCap.ext_cap)) {
+			PRINTM(MMSG,
+			       "Peer don't support Wider Bandwitch in Ext_cap\n");
+			return;
+		}
+	} else {
+		ap_vht_cap = pbss_desc->pvht_cap;
+	}
+
+	vht_oprat->ieee_hdr.element_id = VHT_OPERATION;
+	vht_oprat->ieee_hdr.len =
+		sizeof(IEEEtypes_VHTOprat_t) - sizeof(IEEEtypes_Header_t);
+
+	if (pbss_desc->bss_band & BAND_A)
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_a;
+	else
+		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_bg;
+
+	/* find the minmum bandwith between AP/TDLS peers */
+	supp_chwd_set = GET_VHTCAP_CHWDSET(usr_vht_cap_info);
+	peer_supp_chwd_set = GET_VHTCAP_CHWDSET(pvht_cap->vht_cap.vht_cap_info);
+	supp_chwd_set = MIN(supp_chwd_set, peer_supp_chwd_set);
+
+	/* We need check AP's bandwidth when TDLS_WIDER_BANDWIDTH is off */
+	if (ap_vht_cap &&
+	    !ISSUPP_EXTCAP_TDLS_WIDER_BANDWIDTH(sta_ptr->ExtCap.ext_cap)) {
+		ap_supp_chwd_set =
+			GET_VHTCAP_CHWDSET(ap_vht_cap->vht_cap.vht_cap_info);
+		supp_chwd_set = MIN(supp_chwd_set, ap_supp_chwd_set);
+	}
+	switch (supp_chwd_set) {
+	case VHT_CAP_CHWD_80MHZ:
+		vht_oprat->chan_width = VHT_OPER_CHWD_80MHZ;
+		break;
+	case VHT_CAP_CHWD_160MHZ:
+		vht_oprat->chan_width = VHT_OPER_CHWD_160MHZ;
+		break;
+	case VHT_CAP_CHWD_80_80MHZ:
+		vht_oprat->chan_width = VHT_OPER_CHWD_80_80MHZ;
+		break;
+	}
+
+	/* Fill BASIC VHT MCS and NSS Set */
+	/* rx MCS Set, find the minimum of the user rx mcs and peer rx mcs*/
+	mcs_map_user = GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
+	mcs_map_resp = pvht_cap->vht_cap.mcs_sets.rx_mcs_map;
+	mcs_map_result = 0;
+	for (nss = 1; nss <= 8; nss++) {
+		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
+		mcs_resp = GET_VHTNSSMCS(mcs_map_resp, nss);
+		if ((mcs_user == NO_NSS_SUPPORT) ||
+		    (mcs_resp == NO_NSS_SUPPORT))
+			SET_VHTNSSMCS(mcs_map_result, nss, NO_NSS_SUPPORT);
+		else
+			SET_VHTNSSMCS(mcs_map_result, nss,
+				      MIN(mcs_user, mcs_resp));
+	}
+	/* Basic MCS map */
+	vht_oprat->basic_MCS_map = mcs_map_result;
+	switch (vht_oprat->chan_width) {
+	case VHT_OPER_CHWD_80MHZ:
+		chan_bw = CHANNEL_BW_80MHZ;
+		break;
+	case VHT_OPER_CHWD_160MHZ:
+		chan_bw = CHANNEL_BW_160MHZ;
+		break;
+	case VHT_OPER_CHWD_80_80MHZ:
+		chan_bw = CHANNEL_BW_80MHZ;
+		break;
+	}
+	vht_oprat->chan_center_freq_1 = wlan_get_center_freq_idx(
+		priv, BAND_AAC, pbss_desc->channel, chan_bw);
 
 	LEAVE();
 	return;
