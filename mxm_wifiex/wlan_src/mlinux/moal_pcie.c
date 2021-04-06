@@ -44,11 +44,9 @@ Change log:
 			Local Variables
 ********************************************************/
 #define DRV_NAME "NXP mdriver PCIe"
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 11, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 #ifdef IMX_SUPPORT
 static struct pm_qos_request woal_pcie_pm_qos_req;
-#endif
 #endif
 #endif
 
