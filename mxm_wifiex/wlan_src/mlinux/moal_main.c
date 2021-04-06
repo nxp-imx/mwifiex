@@ -7001,7 +7001,11 @@ t_void woal_store_ssu_dump(moal_handle *phandle, mlan_event *pmevent)
 	if (IS_ERR(dentry)) {
 		goto save_ssudump;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	vfs_mkdir(path.dentry->d_inode, dentry, 0777);
+#else
+	vfs_mkdir(&init_user_ns, path.dentry->d_inode, dentry, 0777);
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 	mutex_unlock(&path.dentry->d_inode->i_mutex);
 #else
@@ -7734,7 +7738,11 @@ void woal_create_dump_dir(moal_handle *phandle, char *dir_buf, int buf_size)
 		       dir_buf);
 		goto default_dir;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	ret = vfs_mkdir(path.dentry->d_inode, dentry, 0777);
+#else
+	ret = vfs_mkdir(&init_user_ns, path.dentry->d_inode, dentry, 0777);
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 	mutex_unlock(&path.dentry->d_inode->i_mutex);
 #else
