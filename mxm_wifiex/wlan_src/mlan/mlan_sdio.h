@@ -130,6 +130,10 @@ Change log:
 #define REG_PORT 0
 /** Port for memory */
 #define MEM_PORT 0x10000
+/** Ctrl port */
+#define CTRL_PORT 0
+/** Ctrl port mask */
+#define CTRL_PORT_MASK 0x0001
 /** Card Control Registers : cmd53 new mode */
 #define CMD53_NEW_MODE (0x1U << 0)
 /** Card Control Registers : cmd53 tx len format 1 (0x10) */
@@ -190,6 +194,29 @@ Change log:
 		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
 	} while (0)
 
+#define MP_TX_AGGR_BUF_PUT_NONEWMODE(a, mbuf, port)                            \
+	do {                                                                   \
+		pmadapter->callbacks.moal_memmove(                             \
+			a->pmoal_handle,                                       \
+			&a->pcard_sd->mpa_tx.buf[a->pcard_sd->mpa_tx.buf_len], \
+			mbuf->pbuf + mbuf->data_offset, mbuf->data_len);       \
+		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
+		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
+			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
+		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \
+			a->pcard_sd->mpa_tx.start_port = port;                 \
+		}                                                              \
+		if (a->pcard_sd->mpa_tx.start_port <= port) {                  \
+			a->pcard_sd->mpa_tx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_tx.pkt_cnt));          \
+		} else {                                                       \
+			a->pcard_sd->mpa_tx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_tx.pkt_cnt + 1 +       \
+				       (a->pcard_sd->max_ports -               \
+					a->pcard_sd->mp_end_port)));           \
+		}                                                              \
+		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
+	} while (0)
 #define MP_TX_AGGR_BUF_PUT_SG(a, mbuf, port)                                   \
 	do {                                                                   \
 		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
@@ -203,10 +230,36 @@ Change log:
 		a->pcard_sd->mpa_tx.ports |= (1 << port);                      \
 		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
 	} while (0)
+#define MP_TX_AGGR_BUF_PUT_SG_NONEWMODE(a, mbuf, port)                         \
+	do {                                                                   \
+		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
+		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
+			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
+		a->pcard_sd->mpa_tx.mbuf_arr[a->pcard_sd->mpa_tx.pkt_cnt] =    \
+			mbuf;                                                  \
+		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \
+			a->pcard_sd->mpa_tx.start_port = port;                 \
+		}                                                              \
+		if (a->pcard_sd->mpa_tx.start_port <= port) {                  \
+			a->pcard_sd->mpa_tx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_tx.pkt_cnt));          \
+		} else {                                                       \
+			a->pcard_sd->mpa_tx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_tx.pkt_cnt + 1 +       \
+				       (a->pcard_sd->max_ports -               \
+					a->pcard_sd->mp_end_port)));           \
+		}                                                              \
+		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
+	} while (0)
 
 /** SDIO Tx aggregation limit ? */
 #define MP_TX_AGGR_PKT_LIMIT_REACHED(a)                                        \
 	((a->pcard_sd->mpa_tx.pkt_cnt) == (a->pcard_sd->mpa_tx.pkt_aggr_limit))
+
+#define MP_TX_AGGR_PORT_LIMIT_REACHED(a)                                       \
+	((a->pcard_sd->curr_wr_port < a->pcard_sd->mpa_tx.start_port) &&       \
+	 (((a->pcard_sd->max_ports - a->pcard_sd->mpa_tx.start_port) +         \
+	   a->pcard_sd->curr_wr_port) >= a->pcard_sd->mp_aggr_pkt_limit))
 
 /** Reset SDIO Tx aggregation buffer parameters */
 #define MP_TX_AGGR_BUF_RESET(a)                                                \
@@ -236,6 +289,11 @@ Change log:
 	 ((a->pcard_sd->curr_rd_port - a->pcard_sd->mpa_rx.start_port) >=      \
 	  (a->pcard_sd->mp_end_port >> 1)))
 
+#define MP_RX_AGGR_PORT_LIMIT_REACHED_NONEWMODE(a)                             \
+	((a->pcard_sd->curr_rd_port < a->pcard_sd->mpa_rx.start_port) &&       \
+	 (((a->pcard_sd->max_ports - a->pcard_sd->mpa_rx.start_port) +         \
+	   a->pcard_sd->curr_rd_port) >= a->pcard_sd->mp_aggr_pkt_limit))
+
 /** SDIO Rx aggregation in progress ? */
 #define MP_RX_AGGR_IN_PROGRESS(a) (a->pcard_sd->mpa_rx.pkt_cnt > 0)
 
@@ -257,6 +315,26 @@ Change log:
 			rx_len;                                                \
 		a->pcard_sd->mpa_rx.pkt_cnt++;                                 \
 	} while (0)
+
+#define MP_RX_AGGR_SETUP_NONEWMODE(a, mbuf, port, rx_len)                      \
+	do {                                                                   \
+		a->pcard_sd->mpa_rx.buf_len += rx_len;                         \
+		if (!a->pcard_sd->mpa_rx.pkt_cnt) {                            \
+			a->pcard_sd->mpa_rx.start_port = port;                 \
+		}                                                              \
+		if (a->pcard_sd->mpa_rx.start_port <= port) {                  \
+			a->pcard_sd->mpa_rx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_rx.pkt_cnt));          \
+		} else {                                                       \
+			a->pcard_sd->mpa_rx.ports |=                           \
+				(1 << (a->pcard_sd->mpa_rx.pkt_cnt + 1));      \
+		}                                                              \
+		a->pcard_sd->mpa_rx.mbuf_arr[a->pcard_sd->mpa_rx.pkt_cnt] =    \
+			mbuf;                                                  \
+		a->pcard_sd->mpa_rx.len_arr[a->pcard_sd->mpa_rx.pkt_cnt] =     \
+			rx_len;                                                \
+		a->pcard_sd->mpa_rx.pkt_cnt++;                                 \
+	} while (0);
 
 /** Reset SDIO Rx aggregation buffer parameters */
 #define MP_RX_AGGR_BUF_RESET(a)                                                \
@@ -342,6 +420,46 @@ static const struct _mlan_card_info mlan_card_info_sd8887 = {
 };
 #endif
 
+#ifdef SD8801
+static const struct _mlan_sdio_card_reg mlan_reg_sd8801 = {
+	.start_rd_port = 1,
+	.start_wr_port = 1,
+	.base_0_reg = 0x40,
+	.base_1_reg = 0x41,
+	.poll_reg = 0x30,
+	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK,
+	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS,
+	.status_reg_0 = 0x60,
+	.status_reg_1 = 0x61,
+	.sdio_int_mask = 0x3f,
+	.data_port_mask = 0x0000fffe,
+	.max_mp_regs = 64,
+	.rd_bitmap_l = 0x4,
+	.rd_bitmap_u = 0x5,
+	.wr_bitmap_l = 0x6,
+	.wr_bitmap_u = 0x7,
+	.rd_len_p0_l = 0x8,
+	.rd_len_p0_u = 0x9,
+	.io_port_0_reg = 0x78,
+	.io_port_1_reg = 0x79,
+	.io_port_2_reg = 0x7A,
+	.host_int_rsr_reg = 0x01,
+	.host_int_mask_reg = 0x02,
+	.host_int_status_reg = 0x03,
+	.card_misc_cfg_reg = 0x6c,
+	.fw_reset_reg = 0x64,
+	.fw_reset_val = 0,
+};
+
+static const struct _mlan_card_info mlan_card_info_sd8801 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v14_fw_api = 1,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+};
+#endif
+
 #ifdef SD8897
 static const struct _mlan_sdio_card_reg mlan_reg_sd8897 = {
 	.start_rd_port = 0,
@@ -413,7 +531,8 @@ static const struct _mlan_card_info mlan_card_info_sd8897 = {
 #endif
 
 #if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SD8978)
+	defined(SD9098) || defined(SD9097) || defined(SD8978) ||               \
+	defined(SD9177)
 static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.start_rd_port = 0,
 	.start_wr_port = 0,
@@ -506,6 +625,15 @@ static const struct _mlan_card_info mlan_card_info_sd9098 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+};
+#endif
+#ifdef SD9177
+static const struct _mlan_card_info mlan_card_info_sd9177 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
 };
 #endif
 

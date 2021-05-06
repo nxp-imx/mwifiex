@@ -45,35 +45,6 @@ Change log:
 			Local Variables
 ********************************************************/
 
-/** Maximum value FW can accept for driver delay in packet transmission */
-#define DRV_PKT_DELAY_TO_FW_MAX 512
-
-/*
- * Upper and Lower threshold for packet queuing in the driver
-
- *    - When the number of packets queued reaches the upper limit,
- *      the driver will stop the net queue in the app/kernel space.
-
- *    - When the number of packets drops beneath the lower limit after
- *      having reached the upper limit, the driver will restart the net
- *      queue.
- */
-
-/** Lower threshold for packet queuing in the driver.
- * When the number of packets drops beneath the lower limit after having
- * reached the upper limit, the driver will restart the net queue.
- */
-#define WMM_QUEUED_PACKET_LOWER_LIMIT 180
-
-/** Upper threshold for packet queuing in the driver.
- * When the number of packets queued reaches the upper limit, the driver
- * will stop the net queue in the app/kernel space.
- */
-#define WMM_QUEUED_PACKET_UPPER_LIMIT 200
-
-/** Offset for TOS field in the IP header */
-#define IPTOS_OFFSET 5
-
 /** WMM information IE */
 static const t_u8 wmm_info_ie[] = {WMM_IE, 0x07, 0x00, 0x50, 0xf2,
 				   0x02,   0x00, 0x01, 0x00};

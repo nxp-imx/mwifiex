@@ -320,6 +320,16 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
 
+	if (priv->adapter->pcard_info->v14_fw_api) {
+		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;
+		prx_pd->rate_info = wlan_convert_v14_rx_rate_info(
+			priv, rxpd_rate_info_orig);
+		PRINTM(MINFO,
+		       "UAP RX: v14_fw_api=%d rx_rate =%d rxpd_rate_info=0x%x->0x%x\n",
+		       priv->adapter->pcard_info->v14_fw_api, prx_pd->rx_rate,
+		       rxpd_rate_info_orig, prx_pd->rate_info);
+	}
+
 	if (priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
 		pmbuf->u.rx_info.data_rate =

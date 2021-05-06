@@ -596,7 +596,7 @@ mlan_status wlan_get_info_debug_info(pmlan_adapter pmadapter,
 			debug_info->evtbd_ring_size =
 				pmadapter->pcard_pcie->evtbd_ring_size;
 			debug_info->txrx_bd_size =
-				pmadapter->pcard_pcie->reg->txrx_bd_size;
+				pmadapter->pcard_pcie->txrx_bd_size;
 		}
 #endif
 		debug_info->data_sent = pmadapter->data_sent;

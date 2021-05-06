@@ -31,7 +31,9 @@ Change log:
 #include "moal_sdio.h"
 
 /** define nxp vendor id */
+#ifdef SD9177
 #define NXP_VENDOR_ID 0x0471
+#endif
 #define MRVL_VENDOR_ID 0x02df
 
 /********************************************************
@@ -46,6 +48,10 @@ static moal_if_ops sdiommc_ops;
 #ifdef SD8887
 /** Device ID for SD8887 */
 #define SD_DEVICE_ID_8887 (0x9135)
+#endif
+#ifdef SD8801
+/** Device ID for SD8801 FN1 */
+#define SD_DEVICE_ID_8801 (0x9139)
 #endif
 #ifdef SD8897
 /** Device ID for SD8897 */
@@ -77,15 +83,14 @@ static moal_if_ops sdiommc_ops;
 /** Device ID for SD9097 */
 #define SD_DEVICE_ID_9097 (0x9155)
 #endif
-/** Device ID any */
-#ifndef SD_DEVICE_ANY
-#define SD_DEVICE_ANY (0xffff)
-#endif /* SD_DEVICE_ANY */
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
 #ifdef SD8887
 	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8887)},
+#endif
+#ifdef SD8801
+	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8801)},
 #endif
 #ifdef SD8897
 	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8897)},
@@ -108,6 +113,9 @@ static const struct sdio_device_id wlan_ids[] = {
 #endif
 #ifdef SD9097
 	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_9097)},
+#endif
+#ifdef SD9177
+	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_9177)},
 #endif
 	{},
 };
@@ -288,6 +296,20 @@ static t_u16 woal_update_card_type(t_void *card)
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
+#ifdef SD8801
+	if (cardp_sd->func->device == SD_DEVICE_ID_8801) {
+		card_type = CARD_TYPE_SD8801;
+		moal_memcpy_ext(NULL, driver_version, CARD_SD8801,
+				strlen(CARD_SD8801), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL,
+			driver_version + strlen(INTF_CARDTYPE) +
+				strlen(KERN_VERSION),
+			V14, strlen(V14),
+			strlen(driver_version) -
+				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
+	}
+#endif
 
 #ifdef SD8897
 	if (cardp_sd->func->device == SD_DEVICE_ID_8897) {
@@ -379,6 +401,20 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_SD9098;
 		moal_memcpy_ext(NULL, driver_version, CARD_SD9098,
 				strlen(CARD_SD9098), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL,
+			driver_version + strlen(INTF_CARDTYPE) +
+				strlen(KERN_VERSION),
+			V17, strlen(V17),
+			strlen(driver_version) -
+				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
+	}
+#endif
+#ifdef SD9177
+	if (cardp_sd->func->device == SD_DEVICE_ID_9177) {
+		card_type = CARD_TYPE_SD9177;
+		moal_memcpy_ext(NULL, driver_version, CARD_SD9177,
+				strlen(CARD_SD9177), strlen(driver_version));
 		moal_memcpy_ext(
 			NULL,
 			driver_version + strlen(INTF_CARDTYPE) +
@@ -512,10 +548,6 @@ void woal_wlan_is_suspended(moal_handle *handle)
 	LEAVE();
 }
 #endif
-
-#define SHUTDOWN_HOST_SLEEP_DEF_GAP 100
-#define SHUTDOWN_HOST_SLEEP_DEF_GPIO 0x3
-#define SHUTDOWN_HOST_SLEEP_DEF_COND 0x0
 
 /**  @brief This function handles client driver shutdown
  *
@@ -1276,7 +1308,7 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	t_u32 rev_id_reg = handle->card_info->rev_id_reg;
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SD8978)
+	defined(SD9097) || defined(SD8978) || defined(SD9177)
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 magic = 0;
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
@@ -1287,12 +1319,16 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 
 	if (handle->params.fw_name)
 		goto done;
+#ifdef SD8801
+	if (IS_SD8801(handle->card_type))
+		goto done;
+#endif
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, rev_id_reg, &revision_id);
 	PRINTM(MCMND, "revision_id=0x%x\n", revision_id);
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SD8978)
+	defined(SD9097) || defined(SD8978) || defined(SD9177)
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, magic_reg, &magic);
 	/** Revision ID register */
@@ -1440,6 +1476,26 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		}
 	}
 #endif
+#ifdef SD9177
+	if (IS_SD9177(handle->card_type)) {
+		switch (revision_id) {
+		case SD9177_A0:
+			if (magic == CHIP_MAGIC_VALUE) {
+				if (strap == CARD_TYPE_SD_UART)
+					strcpy(handle->card_info->fw_name,
+					       SDUART9177_DEFAULT_COMBO_FW_NAME);
+				else
+					strcpy(handle->card_info->fw_name,
+					       SDSD9177_DEFAULT_COMBO_FW_NAME);
+			}
+			strcpy(handle->card_info->fw_name_wlan,
+			       SD9177_DEFAULT_WLAN_FW_NAME);
+			break;
+		default:
+			break;
+		}
+	}
+#endif
 done:
 	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);
@@ -1470,7 +1526,6 @@ typedef enum {
 } dumped_mem_type;
 
 #define MAX_NAME_LEN 8
-#define MAX_FULL_NAME_LEN 32
 
 typedef struct {
 	t_u8 mem_name[MAX_NAME_LEN];
@@ -1548,6 +1603,234 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 	}
 	return RDWR_STATUS_SUCCESS;
 }
+
+#ifdef SD8801
+#define DEBUG_HOST_READY 0xEE
+#define DEBUG_FW_DONE 0xFF
+#define DEBUG_MEMDUMP_FINISH 0xFE
+#define MAX_POLL_TRIES 100
+#define DEBUG_ITCM_DONE 0xaa
+#define DEBUG_DTCM_DONE 0xbb
+#define DEBUG_SQRAM_DONE 0xcc
+
+#define DEBUG_DUMP_CTRL_REG 0x63
+#define DEBUG_DUMP_FIRST_REG 0x62
+#define DEBUG_DUMP_START_REG 0x64
+#define DEBUG_DUMP_END_REG 0x6a
+#define ITCM_SIZE 0x60000
+#define SQRAM_SIZE 0x33500
+#define DTCM_SIZE 0x14000
+
+/**
+ *  @brief This function dump firmware memory to file
+ *
+ *  @param phandle   A pointer to moal_handle
+ *
+ *  @return         N/A
+ */
+void woal_dump_firmware_info(moal_handle *phandle)
+{
+	int ret = 0;
+	unsigned int reg, reg_start, reg_end;
+	t_u8 path_name[64], file_name[32];
+	t_u8 *ITCM_Ptr = NULL;
+	t_u8 *DTCM_Ptr = NULL;
+	t_u8 *SQRAM_Ptr = NULL;
+	t_u8 *dbg_ptr = NULL;
+	t_u32 sec, usec;
+	t_u8 ctrl_data = 0;
+	t_u32 dtcm_size = DTCM_SIZE;
+	t_u32 sqram_size = SQRAM_SIZE;
+	t_u8 *end_ptr = NULL;
+	int tries;
+
+	if (!phandle) {
+		PRINTM(MERROR, "Could not dump firmwware info\n");
+		return;
+	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	/** Create dump directort*/
+	woal_create_dump_dir(phandle, path_name, sizeof(path_name));
+#else
+	memset(path_name, 0, sizeof(path_name));
+	strcpy(path_name, "/data");
+#endif
+	PRINTM(MMSG, "Directory name is %s\n", path_name);
+	woal_dump_drv_info(phandle, path_name);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+	sdio_claim_host(((struct sdio_mmc_card *)phandle->card)->func);
+#endif
+	/* start dump fw memory	*/
+	moal_get_system_time(phandle, &sec, &usec);
+	PRINTM(MMSG, "==== DEBUG MODE OUTPUT START: %u.%06u ====\n", sec, usec);
+	ret = moal_vmalloc(phandle, ITCM_SIZE + 1, (t_u8 **)&ITCM_Ptr);
+	if ((ret != MLAN_STATUS_SUCCESS) || !ITCM_Ptr) {
+		PRINTM(MERROR, "Error: vmalloc ITCM buffer failed!!!\n");
+		goto done;
+	}
+
+	PRINTM(MMSG, "DTCM_SIZE=0x%x\n", dtcm_size);
+	ret = moal_vmalloc(phandle, dtcm_size + 1, (t_u8 **)&DTCM_Ptr);
+	if ((ret != MLAN_STATUS_SUCCESS) || !DTCM_Ptr) {
+		PRINTM(MERROR, "Error: vmalloc DTCM buffer failed!!!\n");
+		goto done;
+	}
+	ret = moal_vmalloc(phandle, sqram_size + 1, (t_u8 **)&SQRAM_Ptr);
+	if ((ret != MLAN_STATUS_SUCCESS) || !SQRAM_Ptr) {
+		PRINTM(MERROR, "Error: vmalloc SQRAM buffer failed!!!\n");
+		goto done;
+	}
+	dbg_ptr = ITCM_Ptr;
+	end_ptr = ITCM_Ptr + ITCM_SIZE;
+	moal_get_system_time(phandle, &sec, &usec);
+	PRINTM(MMSG, "Start ITCM output %u.%06u, please wait...\n", sec, usec);
+	reg_start = DEBUG_DUMP_START_REG;
+	reg_end = DEBUG_DUMP_END_REG;
+	do {
+		ret = woal_sdio_writeb(phandle, DEBUG_DUMP_CTRL_REG,
+				       DEBUG_HOST_READY);
+		if (ret) {
+			PRINTM(MERROR, "SDIO Write ERR\n");
+			goto done;
+		}
+		for (tries = 0; tries < MAX_POLL_TRIES; tries++) {
+			ret = woal_sdio_readb(phandle, DEBUG_DUMP_CTRL_REG,
+					      &ctrl_data);
+			if (ret) {
+				PRINTM(MERROR, "SDIO READ ERR\n");
+				goto done;
+			}
+			if ((ctrl_data == DEBUG_FW_DONE) ||
+			    (ctrl_data == DEBUG_ITCM_DONE) ||
+			    (ctrl_data == DEBUG_DTCM_DONE) ||
+			    (ctrl_data == DEBUG_SQRAM_DONE))
+				break;
+			if (ctrl_data != DEBUG_HOST_READY) {
+				ret = woal_sdio_writeb(phandle,
+						       DEBUG_DUMP_CTRL_REG,
+						       DEBUG_HOST_READY);
+				if (ret) {
+					PRINTM(MERROR, "SDIO Write ERR\n");
+					goto done;
+				}
+			}
+			udelay(100);
+		}
+		if (ctrl_data == DEBUG_HOST_READY) {
+			PRINTM(MERROR, "Fail to pull ctrl_data\n");
+			goto done;
+		}
+		reg = DEBUG_DUMP_FIRST_REG;
+		ret = woal_sdio_readb(phandle, reg, dbg_ptr);
+		if (ret) {
+			PRINTM(MMSG, "SDIO READ ERR\n");
+			goto done;
+		}
+		if (dbg_ptr < end_ptr)
+			dbg_ptr++;
+		else {
+			PRINTM(MERROR, "pre-allocced buf is not enough\n");
+			goto done;
+		}
+		for (reg = reg_start; reg <= reg_end; reg++) {
+			ret = woal_sdio_readb(phandle, reg, dbg_ptr);
+			if (ret) {
+				PRINTM(MMSG, "SDIO READ ERR\n");
+				goto done;
+			}
+			if (dbg_ptr < end_ptr)
+				dbg_ptr++;
+			else
+				PRINTM(MMSG,
+				       "pre-allocced buf is not enough\n");
+		}
+		switch (ctrl_data) {
+		case DEBUG_ITCM_DONE:
+#ifdef MLAN_64BIT
+			PRINTM(MMSG, "ITCM done: size=0x%lx\n",
+			       dbg_ptr - ITCM_Ptr);
+#else
+			PRINTM(MMSG, "ITCM done: size=0x%x\n",
+			       dbg_ptr - ITCM_Ptr);
+#endif
+			memset(file_name, 0, sizeof(file_name));
+			sprintf(file_name, "%s", "file_sdio_ITCM");
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_save_dump_info_to_file(path_name, file_name,
+							ITCM_Ptr, ITCM_SIZE))
+				PRINTM(MMSG, "Can't save dump file %s in %s\n",
+				       file_name, path_name);
+			dbg_ptr = DTCM_Ptr;
+			end_ptr = DTCM_Ptr + dtcm_size;
+			moal_get_system_time(phandle, &sec, &usec);
+			PRINTM(MMSG,
+			       "Start DTCM output %u.%06u, please wait...\n",
+			       sec, usec);
+			break;
+		case DEBUG_DTCM_DONE:
+#ifdef MLAN_64BIT
+			PRINTM(MMSG, "DTCM done: size=0x%lx\n",
+			       dbg_ptr - DTCM_Ptr);
+#else
+			PRINTM(MMSG, "DTCM done: size=0x%x\n",
+			       dbg_ptr - DTCM_Ptr);
+#endif
+			memset(file_name, 0, sizeof(file_name));
+			sprintf(file_name, "%s", "file_sdio_DTCM");
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_save_dump_info_to_file(path_name, file_name,
+							DTCM_Ptr, dtcm_size))
+				PRINTM(MMSG, "Can't save dump file %s in %s\n",
+				       file_name, path_name);
+			dbg_ptr = SQRAM_Ptr;
+			end_ptr = SQRAM_Ptr + sqram_size;
+			moal_get_system_time(phandle, &sec, &usec);
+			PRINTM(MMSG,
+			       "Start SQRAM output %u.%06u, please wait...\n",
+			       sec, usec);
+			break;
+		case DEBUG_SQRAM_DONE:
+#ifdef MLAN_64BIT
+			PRINTM(MMSG, "SQRAM done: size=0x%lx\n",
+			       dbg_ptr - SQRAM_Ptr);
+#else
+			PRINTM(MMSG, "SQRAM done: size=0x%x\n",
+			       dbg_ptr - SQRAM_Ptr);
+#endif
+			memset(file_name, 0, sizeof(file_name));
+			sprintf(file_name, "%s", "file_sdio_SQRAM");
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_save_dump_info_to_file(path_name, file_name,
+							SQRAM_Ptr, sqram_size))
+				PRINTM(MMSG, "Can't save dump file %s in %s\n",
+				       file_name, path_name);
+			PRINTM(MMSG, "End output!\n");
+			break;
+		default:
+			break;
+		}
+	} while (ctrl_data != DEBUG_SQRAM_DONE);
+
+	PRINTM(MMSG,
+	       "The output ITCM/DTCM/SQRAM have been saved to files successfully!\n");
+	moal_get_system_time(phandle, &sec, &usec);
+	PRINTM(MMSG, "==== DEBUG MODE OUTPUT END: %u.%06u ====\n", sec, usec);
+	/* end dump fw memory */
+done:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+	sdio_release_host(((struct sdio_mmc_card *)phandle->card)->func);
+#endif
+	if (ITCM_Ptr)
+		moal_vfree(phandle, ITCM_Ptr);
+	if (DTCM_Ptr)
+		moal_vfree(phandle, DTCM_Ptr);
+	if (SQRAM_Ptr)
+		moal_vfree(phandle, SQRAM_Ptr);
+	PRINTM(MMSG, "==== DEBUG MODE END ====\n");
+	return;
+}
+#endif
 
 /**
  *  @brief This function dump firmware memory to file
@@ -1994,6 +2277,11 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 	} else if (phandle->card_info->dump_fw_info == DUMP_FW_SDIO_V3) {
 		woal_dump_firmware_info_v3(phandle);
 	}
+#ifdef SD8801
+	else {
+		woal_dump_firmware_info(phandle);
+	}
+#endif
 	phandle->fw_dump = MFALSE;
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);

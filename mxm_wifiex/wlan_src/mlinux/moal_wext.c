@@ -33,8 +33,6 @@ Change log:
 	(IW_EV_ADDR_LEN + MLAN_MAX_SSID_LENGTH + IW_EV_UINT_LEN +              \
 	 IW_EV_FREQ_LEN + IW_EV_QUAL_LEN + MLAN_MAX_SSID_LENGTH +              \
 	 IW_EV_PARAM_LEN + 40) /* 40 for WPAIE */
-/** Macro for minimum size of scan buffer */
-#define MIN_ACCEPTED_GET_SCAN_BUF 8000
 
 /********************************************************
 			Local Functions

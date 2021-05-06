@@ -880,12 +880,12 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 #ifdef DRV_EMBEDDED_SUPPLICANT
 	void *rsn_wpa_ie_tmp = MNULL;
 #endif
-	//#ifdef ENABLE_802_11R
-	//	t_u8 ft_akm = 0;
-	//#endif
+	t_u8 ft_akm = 0;
 	t_u8 oper_class;
 	t_u8 oper_class_flag = MFALSE;
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
+	MrvlIEtypes_PrevBssid_t *prev_bssid_tlv = MNULL;
+	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
 
 	ENTER();
 
@@ -1041,10 +1041,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			       prsn_ie_tlv->header.len;
 			prsn_ie_tlv->header.len =
 				wlan_cpu_to_le16(prsn_ie_tlv->header.len);
-			//#ifdef ENABLE_802_11R
 			/** parse rsn ie to find whether ft akm is used*/
-			// ft_akm = wlan_ft_akm_is_used(pmpriv, pmpriv->wpa_ie);
-			//#endif
+			ft_akm = wlan_ft_akm_is_used(pmpriv, pmpriv->wpa_ie);
 			/* Append PMF Configuration coming from cfg80211 layer
 			 */
 			psecurity_cfg_ie = (MrvlIEtypes_SecurityCfg_t *)pos;
@@ -1199,7 +1197,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 	wlan_cmd_append_generic_ie(pmpriv, &pos);
 
-	if (pbss_desc->pmd_ie)
+	if (ft_akm && pbss_desc->pmd_ie)
 		wlan_cmd_append_pass_through_ie(
 			pmpriv, (IEEEtypes_Generic_t *)pbss_desc->pmd_ie, &pos);
 	wlan_cmd_append_tsf_tlv(pmpriv, &pos, pbss_desc);
@@ -1213,6 +1211,19 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		host_mlme_tlv->host_mlme = MTRUE;
 		pos += sizeof(host_mlme_tlv->header) +
 		       host_mlme_tlv->header.len;
+	}
+	if (memcmp(pmadapter, &pmpriv->curr_bss_params.prev_bssid, zero_mac,
+		   MLAN_MAC_ADDR_LENGTH)) {
+		prev_bssid_tlv = (MrvlIEtypes_PrevBssid_t *)pos;
+		prev_bssid_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_PREV_BSSID);
+		prev_bssid_tlv->header.len = MLAN_MAC_ADDR_LENGTH;
+		memcpy_ext(pmadapter, prev_bssid_tlv->prev_bssid,
+			   &pmpriv->curr_bss_params.prev_bssid,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		PRINTM(MCMND, "ASSOCIATE: PREV_BSSID = " MACSTR "\n",
+		       MAC2STR(pmpriv->curr_bss_params.prev_bssid));
+		pos += sizeof(prev_bssid_tlv->header) + MLAN_MAC_ADDR_LENGTH;
 	}
 
 	if (wlan_11d_create_dnld_countryinfo(pmpriv,

@@ -1064,8 +1064,8 @@ void woal_create_proc_entry(moal_private *priv)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	if (!priv->proc_entry) {
 		memset(proc_dir_name, 0, sizeof(proc_dir_name));
-		strncpy(proc_dir_name, priv->phandle->proc_wlan_name,
-			sizeof(proc_dir_name) - 2);
+		memcpy(proc_dir_name, priv->phandle->proc_wlan_name,
+		       sizeof(proc_dir_name) - 2);
 		proc_dir_name[strlen(proc_dir_name)] = '/';
 
 		if (strlen(dev->name) >

@@ -3471,8 +3471,8 @@ static t_u8 is_selected_registrar_on(const t_u8 *ie, int len)
 	u8 *pos = NULL;
 
 	while (left_len > (int)sizeof(TLV_Generic_t)) {
-		tlv_type = ntohs(tlv->type);
-		tlv_len = ntohs(tlv->len);
+		tlv_type = ntohs((__force __be16)tlv->type);
+		tlv_len = ntohs((__force __be16)tlv->len);
 		if (tlv_type == TLV_ID_SELECTED_REGISTRAR) {
 			PRINTM(MIOCTL, "Selected Registrar found !");
 			pos = (u8 *)tlv + sizeof(TLV_Generic_t);
@@ -4153,12 +4153,14 @@ void woal_cfg80211_setup_vht_cap(moal_private *priv,
 	}
 	vht_cap->vht_supported = true;
 	vht_cap->cap = cfg_11ac->param.vht_cfg.vht_cap_info;
-	vht_cap->vht_mcs.rx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_rx_mcs;
+	vht_cap->vht_mcs.rx_mcs_map =
+		(__force __le16)cfg_11ac->param.vht_cfg.vht_rx_mcs;
 	vht_cap->vht_mcs.rx_highest =
-		(t_u16)cfg_11ac->param.vht_cfg.vht_rx_max_rate;
-	vht_cap->vht_mcs.tx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_tx_mcs;
+		(__force __le16)cfg_11ac->param.vht_cfg.vht_rx_max_rate;
+	vht_cap->vht_mcs.tx_mcs_map =
+		(__force __le16)cfg_11ac->param.vht_cfg.vht_tx_mcs;
 	vht_cap->vht_mcs.tx_highest =
-		(t_u16)cfg_11ac->param.vht_cfg.vht_tx_max_rate;
+		(__force __le16)cfg_11ac->param.vht_cfg.vht_tx_max_rate;
 	PRINTM(MCMND,
 	       "vht_cap=0x%x rx_mcs_map=0x%x rx_max=0x%x tx_mcs_map=0x%x tx_max=0x%x\n",
 	       vht_cap->cap, vht_cap->vht_mcs.rx_mcs_map,
@@ -4658,9 +4660,11 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				wiphy->bands[IEEE80211_BAND_5GHZ]
 					->ht_cap.mcs.rx_mask[1] = 0;
 				wiphy->bands[IEEE80211_BAND_5GHZ]
-					->vht_cap.vht_mcs.rx_mcs_map = 0xfffe;
+					->vht_cap.vht_mcs.rx_mcs_map =
+					(__force __le16)0xfffe;
 				wiphy->bands[IEEE80211_BAND_5GHZ]
-					->vht_cap.vht_mcs.tx_mcs_map = 0xfffe;
+					->vht_cap.vht_mcs.tx_mcs_map =
+					(__force __le16)0xfffe;
 			} else if ((radio->param.ant_cfg.tx_antenna & 0xFF00) ==
 					   0x300 ||
 				   (radio->param.ant_cfg.rx_antenna & 0xFF00) ==
@@ -4668,9 +4672,11 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				wiphy->bands[IEEE80211_BAND_5GHZ]
 					->ht_cap.mcs.rx_mask[1] = 0xff;
 				wiphy->bands[IEEE80211_BAND_5GHZ]
-					->vht_cap.vht_mcs.rx_mcs_map = 0xfffa;
+					->vht_cap.vht_mcs.rx_mcs_map =
+					(__force __le16)0xfffa;
 				wiphy->bands[IEEE80211_BAND_5GHZ]
-					->vht_cap.vht_mcs.tx_mcs_map = 0xfffa;
+					->vht_cap.vht_mcs.tx_mcs_map =
+					(__force __le16)0xfffa;
 			}
 		}
 	}

@@ -28,6 +28,14 @@ Change Log:
 #ifndef _MOAL_USB_H
 #define _MOAL_USB_H
 
+#ifdef USB8801
+/** USB VID 1 */
+#define USB8801_VID_1 0x1286
+/** USB PID 1 */
+#define USB8801_PID_1 0x2049
+/** USB PID 2 */
+#define USB8801_PID_2 0x204a
+#endif /* USB8801 */
 #ifdef USB8997
 /** USB VID 1 */
 #define USB8997_VID_1 0x1286
@@ -92,7 +100,8 @@ Change Log:
 /** Number of Rx data URB */
 #define MVUSB_RX_DATA_URB 6
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USB8801)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -102,6 +111,9 @@ Change Log:
 #define EXTEND_HDR (0xAB950000)
 #define EXTEND_V1 (0x00000001)
 #define EXTEND_V2 (0x00000002)
+#ifdef USB8801
+#define USB8801_DEFAULT_WLAN_FW_NAME "nxp/usb8801_uapsta.bin"
+#endif /* USB8801 */
 
 #endif
 

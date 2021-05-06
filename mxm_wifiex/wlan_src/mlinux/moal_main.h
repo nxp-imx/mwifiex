@@ -128,6 +128,11 @@ Change log:
 #include "moal_priv.h"
 #endif
 
+#ifdef IMX_SUPPORT
+#include <linux/of_irq.h>
+#include <linux/suspend.h>
+#endif /* IMX_SUPPORT */
+
 #ifndef MIN
 /** Find minimum */
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -1559,6 +1564,8 @@ typedef struct _card_info {
 	t_bool drcs;
 	/** support Go NOA*/
 	t_bool go_noa;
+	/** support V14_FW_API*/
+	t_bool v14_fw_api;
 	/** support V16_FW_API*/
 	t_bool v16_fw_api;
 	/** support V17_FW_API*/
@@ -1733,13 +1740,15 @@ typedef struct _moal_mod_para {
 #endif
 #ifdef PCIE
 	int pcie_int_mode;
+	int ring_size;
 #endif /* PCIE */
 	int wakelock_timeout;
 	unsigned int dev_cap_mask;
 #if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
 	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
 	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978)
+	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
+	defined(SD9177)
 	int pmic;
 #endif
 	int antcfg;
@@ -1901,6 +1910,12 @@ struct _moal_handle {
 	wait_queue_head_t hs_activate_wait_q __ATTRIB_ALIGN__;
 	/** auto_arp and ipv6 offload enable/disable flag */
 	t_u8 hs_auto_arp;
+#ifdef IMX_SUPPORT
+	/** wakeup irq number */
+	int irq_oob_wakeup;
+	/** wakeup notify flag */
+	bool wake_by_wifi;
+#endif /* IMX_SUPPORT */
 	/** Card pointer */
 	t_void *card;
 	/** Rx pending in MLAN */
@@ -3288,4 +3303,12 @@ mlan_status woal_vdll_req_fw(moal_handle *handle);
 
 void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info);
 t_u8 woal_get_second_channel_offset(int chan);
+
+#ifdef IMX_SUPPORT
+void woal_regist_oob_wakeup_irq(moal_handle *handle);
+void woal_unregist_oob_wakeup_irq(moal_handle *handle);
+void woal_disable_oob_wakeup_irq(moal_handle *handle);
+void woal_enable_oob_wakeup_irq(moal_handle *handle);
+irqreturn_t woal_oob_wakeup_irq_handler(int irq, void *priv);
+#endif /* IMX_SUPPORT */
 #endif /* _MOAL_MAIN_H */

@@ -353,6 +353,41 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ *  @brief This function init the adma ring size from user input
+ *
+ *  @param pmadapter  A pointer to mlan_adapter structure
+ *
+ *  @return 	      N/A
+ */
+static void wlan_pcie_init_adma_ring_size(mlan_adapter *pmadapter)
+{
+	t_u16 num_desc = 0;
+	t_u16 ring_size = 0;
+
+	ring_size = pmadapter->init_para.ring_size;
+	if (!ring_size)
+		return;
+	if (ring_size < MAX_TXRX_BD)
+		ring_size = MAX_TXRX_BD;
+	else if (ring_size > ADMA_MAX_TXRX_BD)
+		ring_size = ADMA_MAX_TXRX_BD;
+	if (ring_size != pmadapter->pcard_pcie->txrx_bd_size) {
+		ring_size = ring_size >> 1;
+		while (ring_size > 0) {
+			ring_size = ring_size >> 1;
+			num_desc++;
+		}
+		pmadapter->pcard_pcie->txrx_bd_size = 1 << num_desc;
+		pmadapter->pcard_pcie->txrx_num_desc = num_desc;
+	}
+	PRINTM(MMSG, "ring_size =%d num_desc=%d\n",
+	       pmadapter->pcard_pcie->txrx_bd_size,
+	       pmadapter->pcard_pcie->txrx_num_desc);
+	return;
+}
+
 #endif
 
 #if defined(PCIE9098) || defined(PCIE9097)
@@ -700,14 +735,14 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 	if (!pmadapter->pcard_pcie->reg->use_adma)
 		pmadapter->pcard_pcie->txbd_ring_size =
 			sizeof(mlan_pcie_data_buf) *
-			pmadapter->pcard_pcie->reg->txrx_bd_size;
+			pmadapter->pcard_pcie->txrx_bd_size;
 #endif
 
 #if defined(PCIE9098) || defined(PCIE9097)
 	if (pmadapter->pcard_pcie->reg->use_adma)
 		pmadapter->pcard_pcie->txbd_ring_size =
 			sizeof(adma_dual_desc_buf) *
-			pmadapter->pcard_pcie->reg->txrx_bd_size;
+			pmadapter->pcard_pcie->txrx_bd_size;
 #endif
 	PRINTM(MINFO, "TX ring: allocating %d bytes\n",
 	       pmadapter->pcard_pcie->txbd_ring_size);
@@ -732,7 +767,7 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 	       (t_u32)pmadapter->pcard_pcie->txbd_ring_pbase,
 	       pmadapter->pcard_pcie->txbd_ring_size);
 
-	for (i = 0; i < pmadapter->pcard_pcie->reg->txrx_bd_size; i++) {
+	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		pmadapter->pcard_pcie->tx_buf_list[i] = MNULL;
 #if defined(PCIE9098) || defined(PCIE9097)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
@@ -795,7 +830,7 @@ static mlan_status wlan_pcie_delete_txbd_ring(mlan_adapter *pmadapter)
 
 	ENTER();
 
-	for (i = 0; i < pmadapter->pcard_pcie->reg->txrx_bd_size; i++) {
+	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		if (pmadapter->pcard_pcie->tx_buf_list[i]) {
 			pmbuf = pmadapter->pcard_pcie->tx_buf_list[i];
 			pcb->moal_unmap_memory(pmadapter->pmoal_handle,
@@ -895,7 +930,7 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 		to several descriptors */
 		pmadapter->pcard_pcie->rxbd_ring_size =
 			sizeof(mlan_pcie_data_buf) *
-			pmadapter->pcard_pcie->reg->txrx_bd_size;
+			pmadapter->pcard_pcie->txrx_bd_size;
 	}
 #endif
 
@@ -903,14 +938,14 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 	/*
 	 * driver maintaines the write pointer and firmware maintaines the read
 	 * pointer. The read pointer starts at 0 (zero) while the write pointer
-	 * starts at pmadapter->pcard_pcie->reg->txrx_bd_size;
+	 * starts at pmadapter->pcard_pcie->txrx_bd_size;
 	 */
 	if (pmadapter->pcard_pcie->reg->use_adma) {
 		pmadapter->pcard_pcie->rxbd_wrptr =
-			pmadapter->pcard_pcie->reg->txrx_bd_size;
+			pmadapter->pcard_pcie->txrx_bd_size;
 		pmadapter->pcard_pcie->rxbd_ring_size =
 			sizeof(adma_dual_desc_buf) *
-			pmadapter->pcard_pcie->reg->txrx_bd_size;
+			pmadapter->pcard_pcie->txrx_bd_size;
 	}
 #endif
 
@@ -937,7 +972,7 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 	       (t_u32)pmadapter->pcard_pcie->rxbd_ring_pbase,
 	       pmadapter->pcard_pcie->rxbd_ring_size);
 
-	for (i = 0; i < pmadapter->pcard_pcie->reg->txrx_bd_size; i++) {
+	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		/* Allocate buffer here so that firmware can DMA data on it */
 		pmbuf = wlan_alloc_mlan_buffer(pmadapter, MLAN_RX_DATA_BUF_SIZE,
 					       MLAN_RX_HEADER_LEN,
@@ -1032,7 +1067,7 @@ static mlan_status wlan_pcie_delete_rxbd_ring(mlan_adapter *pmadapter)
 #endif
 
 	ENTER();
-	for (i = 0; i < pmadapter->pcard_pcie->reg->txrx_bd_size; i++) {
+	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		if (pmadapter->pcard_pcie->rx_buf_list[i]) {
 			pmbuf = pmadapter->pcard_pcie->rx_buf_list[i];
 			pcb->moal_unmap_memory(pmadapter->pmoal_handle,
@@ -1486,7 +1521,7 @@ static t_u8 wlan_check_tx_pending_buffer(mlan_adapter *pmadapter, t_u32 rdptr)
  */
 static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 {
-	const t_u32 num_tx_buffs = pmadapter->pcard_pcie->reg->txrx_bd_size;
+	const t_u32 num_tx_buffs = pmadapter->pcard_pcie->txrx_bd_size;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_buffer *pmbuf;
@@ -1624,19 +1659,20 @@ done:
 #endif
 
 #if defined(PCIE9098) || defined(PCIE9097)
-#define ADMA_TXBD_IS_FULL(wrptr, rdptr)                                        \
-	(((wrptr & TXRX_RW_PTR_MASK) == (rdptr & TXRX_RW_PTR_MASK)) &&         \
-	 ((wrptr & TXRX_RW_PTR_ROLLOVER_IND) !=                                \
-	  (rdptr & TXRX_RW_PTR_ROLLOVER_IND)))
+#define ADMA_TXBD_IS_FULL(wrptr, rdptr, mask, rollover_ind)                    \
+	(((wrptr & mask) == (rdptr & mask)) &&                                 \
+	 ((wrptr & rollover_ind) != (rdptr & rollover_ind)))
 #endif
 
 static t_u8 wlan_check_txbd_not_full(mlan_adapter *pmadapter)
 {
+	t_u32 txrx_rw_ptr_mask;
+	t_u32 txrx_rw_ptr_rollover_ind;
 #if defined(PCIE8997) || defined(PCIE8897)
-	t_u32 txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
-	t_u32 txrx_rw_ptr_rollover_ind =
-		pmadapter->pcard_pcie->reg->txrx_rw_ptr_rollover_ind;
 	if (!pmadapter->pcard_pcie->reg->use_adma) {
+		txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
+		txrx_rw_ptr_rollover_ind =
+			pmadapter->pcard_pcie->reg->txrx_rw_ptr_rollover_ind;
 		if (PCIE_TXBD_NOT_FULL(pmadapter->pcard_pcie->txbd_wrptr,
 				       pmadapter->pcard_pcie->txbd_rdptr,
 				       txrx_rw_ptr_mask,
@@ -1648,8 +1684,12 @@ static t_u8 wlan_check_txbd_not_full(mlan_adapter *pmadapter)
 #endif
 #if defined(PCIE9098) || defined(PCIE9097)
 	if (pmadapter->pcard_pcie->reg->use_adma) {
+		txrx_rw_ptr_mask = pmadapter->pcard_pcie->txrx_bd_size - 1;
+		txrx_rw_ptr_rollover_ind = pmadapter->pcard_pcie->txrx_bd_size;
 		if (!ADMA_TXBD_IS_FULL(pmadapter->pcard_pcie->txbd_wrptr,
-				       pmadapter->pcard_pcie->txbd_rdptr))
+				       pmadapter->pcard_pcie->txbd_rdptr,
+				       txrx_rw_ptr_mask,
+				       txrx_rw_ptr_rollover_ind))
 			return MTRUE;
 		else
 			return MFALSE;
@@ -1683,7 +1723,7 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 #if defined(PCIE9098) || defined(PCIE9097)
 	adma_dual_desc_buf *padma_bd_buf = MNULL;
 #endif
-	const t_u32 num_tx_buffs = pmadapter->pcard_pcie->reg->txrx_bd_size;
+	const t_u32 num_tx_buffs = pmadapter->pcard_pcie->txrx_bd_size;
 	mlan_status ret = MLAN_STATUS_PENDING;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 rxbd_val = 0;
@@ -1969,7 +2009,7 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 	mlan_buffer *pmbuf = MNULL;
 	t_u32 txbd_val = 0;
 	t_u16 rx_len, rx_type;
-	const t_u32 num_rx_buffs = pmadapter->pcard_pcie->reg->txrx_bd_size;
+	const t_u32 num_rx_buffs = pmadapter->pcard_pcie->txrx_bd_size;
 	t_u32 reg_rxbd_rdptr = pmadapter->pcard_pcie->reg->reg_rxbd_rdptr;
 #if defined(PCIE8997) || defined(PCIE8897)
 	t_u32 txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
@@ -2007,7 +2047,7 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		rd_index =
 			pmadapter->pcard_pcie->rxbd_rdptr & (num_rx_buffs - 1);
 		if (rd_index >
-		    (t_u32)(pmadapter->pcard_pcie->reg->txrx_bd_size - 1)) {
+		    (t_u32)(pmadapter->pcard_pcie->txrx_bd_size - 1)) {
 			PRINTM(MERROR, "RECV DATA: Invalid Rx buffer index.\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -2127,7 +2167,7 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			/* update rxbd's rdptrs */
 			if ((++pmadapter->pcard_pcie->rxbd_rdptr &
 			     txrx_rw_ptr_mask) ==
-			    pmadapter->pcard_pcie->reg->txrx_bd_size) {
+			    pmadapter->pcard_pcie->txrx_bd_size) {
 				pmadapter->pcard_pcie->rxbd_rdptr =
 					((pmadapter->pcard_pcie->rxbd_rdptr &
 					  txrx_rw_ptr_rollover_ind) ^
@@ -2137,7 +2177,7 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			/* update rxbd's wrptrs */
 			if ((++pmadapter->pcard_pcie->rxbd_wrptr &
 			     txrx_rw_ptr_mask) ==
-			    pmadapter->pcard_pcie->reg->txrx_bd_size) {
+			    pmadapter->pcard_pcie->txrx_bd_size) {
 				pmadapter->pcard_pcie->rxbd_wrptr =
 					((pmadapter->pcard_pcie->rxbd_wrptr &
 					  txrx_rw_ptr_rollover_ind) ^
@@ -3290,12 +3330,14 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter)
 	case CARD_TYPE_PCIE8897:
 		pmadapter->pcard_pcie->reg = &mlan_reg_pcie8897;
 		pmadapter->pcard_info = &mlan_card_info_pcie8897;
+		pmadapter->pcard_pcie->txrx_bd_size = MAX_TXRX_BD;
 		break;
 #endif
 #ifdef PCIE8997
 	case CARD_TYPE_PCIE8997:
 		pmadapter->pcard_pcie->reg = &mlan_reg_pcie8997;
 		pmadapter->pcard_info = &mlan_card_info_pcie8997;
+		pmadapter->pcard_pcie->txrx_bd_size = MAX_TXRX_BD;
 		break;
 #endif
 #if defined(PCIE9098) || defined(PCIE9097)
@@ -3303,6 +3345,8 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter)
 	case CARD_TYPE_PCIE9098:
 		pmadapter->pcard_pcie->reg = &mlan_reg_pcie9098;
 		pmadapter->pcard_info = &mlan_card_info_pcie9098;
+		pmadapter->pcard_pcie->txrx_bd_size = ADMA_DEF_TXRX_BD;
+		pmadapter->pcard_pcie->txrx_num_desc = TXRX_DEF_NUM_DESC;
 #ifdef PCIE9097
 		if (card_type == CARD_TYPE_PCIE9097 &&
 		    pmadapter->card_rev == CHIP_9097_REV_B0)
@@ -4025,6 +4069,12 @@ mlan_status wlan_alloc_pcie_ring_buf(pmlan_adapter pmadapter)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+#if defined(PCIE9098) || defined(PCIE9097)
+	if ((pmadapter->card_type == CARD_TYPE_PCIE9098) ||
+	    (pmadapter->card_type == CARD_TYPE_PCIE9097)) {
+		wlan_pcie_init_adma_ring_size(pmadapter);
+	}
+#endif
 	pmadapter->pcard_pcie->cmdrsp_buf = MNULL;
 	ret = wlan_pcie_create_txbd_ring(pmadapter);
 	if (ret)
@@ -4137,12 +4187,12 @@ mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv)
 			(t_u32)(pmadapter->pcard_pcie->txbd_ring_pbase);
 		host_spec.txbd_addr_hi = (t_u32)(
 			((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >> 32);
-		host_spec.txbd_count = pmadapter->pcard_pcie->reg->txrx_bd_size;
+		host_spec.txbd_count = pmadapter->pcard_pcie->txrx_bd_size;
 		host_spec.rxbd_addr_lo =
 			(t_u32)(pmadapter->pcard_pcie->rxbd_ring_pbase);
 		host_spec.rxbd_addr_hi = (t_u32)(
 			((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >> 32);
-		host_spec.rxbd_count = pmadapter->pcard_pcie->reg->txrx_bd_size;
+		host_spec.rxbd_count = pmadapter->pcard_pcie->txrx_bd_size;
 		host_spec.evtbd_addr_lo =
 			(t_u32)(pmadapter->pcard_pcie->evtbd_ring_pbase);
 		host_spec.evtbd_addr_hi = (t_u32)(
@@ -4165,11 +4215,11 @@ mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv)
 		/** config ADMA for Tx Data */
 		wlan_init_adma(pmadapter, ADMA_TX_DATA,
 			       pmadapter->pcard_pcie->txbd_ring_pbase,
-			       TX_RX_NUM_DESC, MTRUE);
+			       pmadapter->pcard_pcie->txrx_num_desc, MTRUE);
 		/** config ADMA for Rx Data */
 		wlan_init_adma(pmadapter, ADMA_RX_DATA,
 			       pmadapter->pcard_pcie->rxbd_ring_pbase,
-			       TX_RX_NUM_DESC, MTRUE);
+			       pmadapter->pcard_pcie->txrx_num_desc, MTRUE);
 		/** config ADMA for Rx Event */
 		wlan_init_adma(pmadapter, ADMA_EVENT,
 			       pmadapter->pcard_pcie->evtbd_ring_pbase,

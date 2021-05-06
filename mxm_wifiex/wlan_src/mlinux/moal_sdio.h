@@ -73,6 +73,10 @@ Change log:
 #define SD8887_WLAN_A0_FW_NAME "nxp/sd8887_wlan.bin"
 #endif /* SD8887_MULTI_FW */
 
+#ifdef SD8801
+#define SD8801_DEFAULT_WLAN_FW_NAME "nxp/sd8801_uapsta.bin"
+#endif /* SD8801 */
+
 /** Default firmware name */
 #ifdef SD8887
 #define SD8887_DEFAULT_COMBO_FW_NAME "nxp/sd8887_uapsta_a2.bin"
@@ -135,6 +139,15 @@ Change log:
 #define SD9097_WLAN_V1_FW_NAME "nxp/sd9097_wlan_v1.bin"
 #endif /* SD9097 */
 
+#ifdef SD9177
+#define SD9177_A0 0x01
+#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
+#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart9177_combo.bin"
+#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
+#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd9177_wlan.bin"
+/** Device ID for SD9177 */
+#define SD_DEVICE_ID_9177 (0x0205)
+#endif /* SD9177 */
 /********************************************************
 		Global Functions
 ********************************************************/

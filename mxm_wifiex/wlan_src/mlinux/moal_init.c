@@ -174,6 +174,7 @@ static int usb_aggr;
 #ifdef PCIE
 /* Enable/disable Message Signaled Interrupt (MSI) */
 int pcie_int_mode = PCIE_INT_MODE_MSI;
+static int ring_size;
 #endif /* PCIE */
 
 static int low_power_mode_enable;
@@ -271,6 +272,9 @@ static card_type_entry card_type_map_tbl[] = {
 #endif
 #ifdef SD9098
 	{CARD_TYPE_SD9098, 0, CARD_SD9098},
+#endif
+#ifdef SD9177
+	{CARD_TYPE_SD9177, 0, CARD_SD9177},
 #endif
 #ifdef PCIE8897
 	{CARD_TYPE_PCIE8897, 0, CARD_PCIE8897},
@@ -874,6 +878,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->pcie_int_mode = out_data;
 			PRINTM(MMSG, "pcie_int_mode=%d\n",
 			       params->pcie_int_mode);
+		} else if (IS_PCIE(handle->card_type) &&
+			   strncmp(line, "ring_size", strlen("ring_size")) ==
+				   0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->ring_size = out_data;
+			PRINTM(MMSG, "ring_size=%d\n", params->ring_size);
 		}
 #endif
 		else if (strncmp(line, "low_power_mode_enable",
@@ -924,7 +936,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 #if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
 	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
 	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978)
+	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
+	defined(SD9177)
 		else if (strncmp(line, "pmic", strlen("pmic")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
@@ -1363,6 +1376,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.pcie_int_mode = pcie_int_mode;
 	if (params)
 		handle->params.pcie_int_mode = params->pcie_int_mode;
+	handle->params.ring_size = ring_size;
+	if (params)
+		handle->params.ring_size = params->ring_size;
 #endif /* PCIE */
 	if (low_power_mode_enable)
 		moal_extflg_set(handle, EXT_LOW_PW_MODE);
@@ -1380,7 +1396,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 #if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
 	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
 	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978)
+	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
+	defined(SD9177)
 	if (pmic)
 		moal_extflg_set(handle, EXT_PMIC);
 #endif
@@ -2232,6 +2249,9 @@ MODULE_PARM_DESC(usb_aggr,
 		 "0: MLAN default; 1: Enable USB aggr; 2: Disable USB aggr");
 #endif
 #ifdef PCIE
+module_param(ring_size, int, 0);
+MODULE_PARM_DESC(ring_size,
+		 "adma dma ring size: 32/64/128/256/512, default 128");
 module_param(pcie_int_mode, int, 0);
 MODULE_PARM_DESC(pcie_int_mode, "0: Legacy mode; 1: MSI mode; 2: MSI-X mode");
 #endif /* PCIE */

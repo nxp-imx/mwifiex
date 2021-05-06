@@ -1332,9 +1332,6 @@ wlan_11h_prepare_custom_ie_chansw(mlan_adapter *pmadapter,
 }
 
 #ifdef UAP_SUPPORT
-/** Bits 2,3 of band config define the band width */
-#define UAP_BAND_WIDTH_MASK 0x0C
-
 /**
  *  @brief Check if start channel 165 is allowed to operate in
  *  previous uAP channel's band config

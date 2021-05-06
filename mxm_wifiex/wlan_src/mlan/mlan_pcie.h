@@ -487,7 +487,6 @@ static const struct _mlan_pcie_card_reg mlan_reg_pcie8897 = {
 	.txrx_rw_ptr_rollover_ind = MBIT(10),
 	.use_adma = MFALSE,
 	.msi_int_wr_clr = MTRUE,
-	.txrx_bd_size = MAX_TXRX_BD,
 };
 
 static const struct _mlan_card_info mlan_card_info_pcie8897 = {
@@ -527,7 +526,6 @@ static const struct _mlan_pcie_card_reg mlan_reg_pcie8997 = {
 	.txrx_rw_ptr_rollover_ind = MBIT(12),
 	.use_adma = MFALSE,
 	.msi_int_wr_clr = MTRUE,
-	.txrx_bd_size = MAX_TXRX_BD,
 };
 
 static const struct _mlan_card_info mlan_card_info_pcie8997 = {
@@ -569,7 +567,6 @@ static const struct _mlan_pcie_card_reg mlan_reg_pcie9098 = {
 	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
 	.use_adma = MTRUE,
 	.msi_int_wr_clr = MTRUE,
-	.txrx_bd_size = ADMA_MAX_TXRX_BD,
 };
 
 static const struct _mlan_card_info mlan_card_info_pcie9098 = {
@@ -612,7 +609,6 @@ static const struct _mlan_pcie_card_reg mlan_reg_pcie9097_b0 = {
 	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
 	.use_adma = MTRUE,
 	.msi_int_wr_clr = MTRUE,
-	.txrx_bd_size = ADMA_MAX_TXRX_BD,
 };
 #endif
 

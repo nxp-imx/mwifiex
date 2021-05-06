@@ -184,6 +184,10 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 	moal_handle *handle = (moal_handle *)pmoal;
 	pcie_service_card *card = (pcie_service_card *)handle->card;
 	*pbuf_pa = 0;
+
+	if (!card)
+		return MLAN_STATUS_FAILURE;
+
 	*ppbuf = (t_u8 *)pci_alloc_consistent(card->dev, size,
 					      (dma_addr_t *)pbuf_pa);
 	if (*ppbuf == NULL) {
@@ -213,7 +217,7 @@ mlan_status moal_mfree_consistent(t_void *pmoal, t_u32 size, t_u8 *pbuf,
 	moal_handle *handle = (moal_handle *)pmoal;
 	pcie_service_card *card = handle->card;
 
-	if (!pbuf)
+	if (!pbuf || !card)
 		return MLAN_STATUS_FAILURE;
 
 	pci_free_consistent(card->dev, size, pbuf, buf_pa);
@@ -239,6 +243,9 @@ mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
 	pcie_service_card *card = (pcie_service_card *)handle->card;
 
 	dma_addr_t dma;
+
+	if (!card)
+		return MLAN_STATUS_FAILURE;
 
 	/* Init memory to device */
 	dma = pci_map_single(card->dev, pbuf, size, flag);
@@ -271,6 +278,9 @@ mlan_status moal_unmap_memory(t_void *pmoal, t_u8 *pbuf, t_u64 buf_pa,
 {
 	moal_handle *handle = (moal_handle *)pmoal;
 	pcie_service_card *card = (pcie_service_card *)handle->card;
+
+	if (!card)
+		return MLAN_STATUS_FAILURE;
 
 	pci_unmap_single(card->dev, buf_pa, size, flag);
 
@@ -817,7 +827,9 @@ mlan_status moal_get_vdll_data(t_void *pmoal, t_u32 len, t_u8 *pbuf)
 mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 				      mlan_hw_info *phw, pmlan_bss_tbl ptbl)
 {
+#if defined(PCIE9098)
 	moal_handle *handle = (moal_handle *)pmoal;
+#endif
 
 	ENTER();
 	if (status == MLAN_STATUS_SUCCESS) {
@@ -1458,7 +1470,8 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 			if (priv->rx_protocols.protocol_num) {
 				for (j = 0; j < priv->rx_protocols.protocol_num;
 				     j++) {
-					if (htons(skb->protocol) ==
+					if (htons((__force t_u16)
+							  skb->protocol) ==
 					    priv->rx_protocols.protocols[j])
 						rx_info_flag = MTRUE;
 				}
@@ -1573,7 +1586,7 @@ static void moal_connection_status_check_pmqos(t_void *pmoal)
  *
  * @return          N/A
  */
-void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
+static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 {
 	struct woal_event *evt;
 	unsigned long flags;
@@ -1622,6 +1635,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 #endif
 	mlan_ds_ps_info pm_info;
+	moal_handle *handle = (moal_handle *)pmoal;
+	moal_handle *ref_handle = NULL;
+
 #ifdef STA_CFG80211
 	t_u8 hw_test;
 #endif
@@ -1639,7 +1655,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	ENTER();
 	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
 		woal_store_firmware_dump(pmoal, pmevent);
-		((moal_handle *)pmoal)->driver_status = MTRUE;
+		handle->driver_status = MTRUE;
+		ref_handle = (moal_handle *)handle->pref_mac;
+		if (ref_handle)
+			ref_handle->driver_status = MTRUE;
 		goto done;
 	}
 	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
@@ -1653,8 +1672,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	}
 #endif /* SSU_SUPPORT */
 	if (pmevent->event_id == MLAN_EVENT_ID_STORE_HOST_CMD_RESP) {
-		woal_save_host_cmdresp((moal_handle *)pmoal,
-				       (mlan_cmdresp_event *)pmevent);
+		woal_save_host_cmdresp(handle, (mlan_cmdresp_event *)pmevent);
 		goto done;
 	}
 	priv = woal_bss_index_to_priv(pmoal, pmevent->bss_index);
@@ -2184,6 +2202,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		break;
 	case MLAN_EVENT_ID_DRV_DBG_DUMP:
 		priv->phandle->driver_status = MTRUE;
+		ref_handle = (moal_handle *)priv->phandle->pref_mac;
+		if (ref_handle)
+			ref_handle->driver_status = MTRUE;
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));

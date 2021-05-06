@@ -1059,6 +1059,10 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 			       "SSID found in scan list ... associating...\n");
 			pmpriv->curr_bss_params.host_mlme =
 				bss->param.ssid_bssid.host_mlme;
+			memcpy_ext(pmpriv->adapter,
+				   &pmpriv->curr_bss_params.prev_bssid,
+				   &bss->param.ssid_bssid.prev_bssid,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			/* Clear any past association response stored for
 			 * application retrieval */
 			pmpriv->assoc_rsp_size = 0;
@@ -4314,10 +4318,6 @@ static mlan_status wlan_misc_ioctl_subscribe_evt(pmlan_adapter pmadapter,
 	LEAVE();
 	return ret;
 }
-
-#define FLTR_BUF_IP_OFFSET 24
-#define FLTR_BUF_IP_OFFSET_2_IP_1 9
-#define FLTR_BUF_IP_OFFSET_2_IP_2 26
 
 /**
  *  @brief MEF configuration

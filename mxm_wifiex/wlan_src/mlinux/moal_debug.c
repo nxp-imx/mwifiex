@@ -553,7 +553,6 @@ void woal_hist_data_add(moal_private *priv, t_u16 rx_rate, t_s8 snr, t_s8 nflr,
 #define MAX_MCS_NUM_SUPP 16
 #define MAX_MCS_NUM_AC 10
 #define MAX_MCS_NUM_AX 12
-#define RATE_INDEX_MCS0 12
 /**
  *  @brief histogram info in proc
  *
@@ -1072,7 +1071,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			   info->eventbd_rdptr, info->eventbd_wrptr);
 		seq_printf(sfp, "last_wr_index:%d\n",
 			   info->txbd_wrptr & (info->txrx_bd_size - 1));
-		seq_printf(sfp, "TxRx BD size:%d\n", info->txrx_bd_size);
+		seq_printf(sfp, "txrx bd size:%d\n", info->txrx_bd_size);
 	}
 #endif
 	seq_printf(sfp, "tcp_ack_drop_cnt=%d\n", priv->tcp_ack_drop_cnt);
