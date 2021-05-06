@@ -82,6 +82,41 @@ moal_handle *m_handle[MAX_MLAN_ADAPTER];
 		Local Variables
 ********************************************************/
 
+#ifdef SD8801
+static struct _card_info card_info_SD8801 = {
+	.embedded_supp = 0,
+	.drcs = 0,
+	.go_noa = 0,
+	.v14_fw_api = 1,
+	.v16_fw_api = 0,
+	.v17_fw_api = 0,
+	.pmic = 0,
+	.cal_data_cfg = 0,
+	.low_power_enable = 1,
+	.rx_rate_max = 76,
+	.histogram_table_num = 1,
+	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
+	.fw_name = SD8801_DEFAULT_WLAN_FW_NAME,
+	.fw_name_wlan = SD8801_DEFAULT_WLAN_FW_NAME,
+#ifdef SDIO
+	.dump_fw_info = 0,
+	.dump_fw_ctrl_reg = 0x63,
+	.dump_fw_start_reg = 0x64,
+	.dump_fw_end_reg = 0x6A,
+	.dump_fw_host_ready = 0xee,
+	.dump_reg.reg_table = {0x28, 0x30, 0x34, 0x38, 0x3c},
+	.dump_reg.reg_table_size = 5,
+	.scratch_reg = 0x60,
+	.func1_reg_start = 0x10,
+	.func1_reg_end = 0x17,
+	.fw_reset_reg = 0x64,
+	.fw_reset_val = 0,
+	.slew_rate_reg = 0x8000231C,
+	.slew_rate_bit_offset = 14,
+#endif
+	.per_pkt_cfg_support = 0,
+};
+#endif
 #ifdef SD8887
 static struct _card_info card_info_SD8887 = {
 	.embedded_supp = 1,
@@ -382,6 +417,45 @@ static struct _card_info card_info_SD9097 = {
 };
 #endif
 
+#ifdef SD9177
+static struct _card_info card_info_SD9177 = {
+	.embedded_supp = 1,
+	.drcs = 1,
+	.go_noa = 1,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.pmic = 1,
+	.cal_data_cfg = 0,
+	.low_power_enable = 0,
+	.rx_rate_max = 412,
+	.histogram_table_num = 3,
+	.feature_control = FEATURE_CTRL_DEFAULT,
+	.rev_id_reg = 0xc8,
+	.host_strap_reg = 0xf4,
+	.magic_reg = 0xf0,
+	.fw_name = SD9177_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SD9177_DEFAULT_WLAN_FW_NAME,
+#ifdef SDIO
+	.dump_fw_info = DUMP_FW_SDIO_V3,
+	.dump_fw_ctrl_reg = 0xf9,
+	.dump_fw_start_reg = 0xf1,
+	.dump_fw_end_reg = 0xf8,
+	.dump_fw_host_ready = 0xcc,
+	.dump_reg.reg_table = {0x08, 0x58, 0x5C, 0x5D, 0x60, 0x61, 0x62, 0x64,
+			       0x65, 0x66, 0x68, 0x69, 0x6a},
+	.dump_reg.reg_table_size = 13,
+	.scratch_reg = 0xe8,
+	.func1_reg_start = 0x10,
+	.func1_reg_end = 0x17,
+	.fw_reset_reg = 0x0EE,
+	.fw_reset_val = 0x99,
+	.slew_rate_reg = 0x90002328,
+	.slew_rate_bit_offset = 12,
+#endif
+	.per_pkt_cfg_support = 1,
+};
+#endif
+
 #ifdef PCIE8997
 static struct _card_info card_info_PCIE8997 = {
 	.embedded_supp = 1,
@@ -444,6 +518,26 @@ static struct _card_info card_info_PCIE9098 = {
 	.fw_name = PCIE9098_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9098_DEFAULT_WLAN_FW_NAME,
 	.per_pkt_cfg_support = 1,
+};
+#endif
+
+#ifdef USB8801
+static struct _card_info card_info_USB8801 = {
+	.embedded_supp = 0,
+	.drcs = 0,
+	.go_noa = 0,
+	.v14_fw_api = 1,
+	.v16_fw_api = 0,
+	.v17_fw_api = 0,
+	.pmic = 0,
+	.cal_data_cfg = 0,
+	.low_power_enable = 1,
+	.rx_rate_max = 76,
+	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
+	.histogram_table_num = 1,
+	.fw_name = USB8801_DEFAULT_WLAN_FW_NAME,
+	.fw_name_wlan = USB8801_DEFAULT_WLAN_FW_NAME,
+	.per_pkt_cfg_support = 0,
 };
 #endif
 
@@ -687,6 +781,13 @@ static void woal_hang_work_queue(struct work_struct *work)
 		LEAVE();
 		return;
 	}
+	flush_workqueue(reset_handle->workqueue);
+	flush_workqueue(reset_handle->evt_workqueue);
+	if (reset_handle->rx_workqueue) {
+		flush_workqueue(reset_handle->rx_workqueue);
+	}
+	mlan_ioctl(reset_handle->pmlan_adapter, NULL);
+
 	for (i = 0; i < reset_handle->priv_num; i++) {
 		if (reset_handle->priv[i] && reset_handle->priv[i]->netdev) {
 			PRINTM(MMSG, "Close netdev %s\n",
@@ -714,12 +815,6 @@ void woal_process_hang(moal_handle *handle)
 	if (reset_handle == NULL) {
 		PRINTM(MMSG, "Start to process hanging\n");
 		reset_handle = handle;
-		flush_workqueue(handle->workqueue);
-		flush_workqueue(handle->evt_workqueue);
-		if (handle->rx_workqueue) {
-			flush_workqueue(handle->rx_workqueue);
-		}
-		mlan_ioctl(handle->pmlan_adapter, NULL);
 		queue_work(hang_workqueue, &hang_work);
 #define WAKE_LOCK_HANG 5000
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
@@ -1425,6 +1520,10 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device.cfg_11d = (t_u32)handle->params.cfg_11d;
 #endif
 	device.indrstcfg = (t_u32)handle->params.indrstcfg;
+#ifdef PCIE
+	if (IS_PCIE(handle->card_type))
+		device.ring_size = handle->params.ring_size;
+#endif
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		device.sdio_rx_aggr_enable =
@@ -2005,8 +2104,8 @@ static t_u32 woal_process_init_cfg(moal_handle *handle, t_u8 *data, t_size size)
 				goto done;
 			}
 			/* Copy value */
-			strncpy(value, intf_s,
-				MIN((MAX_PARAM_LEN - 1), strlen(intf_s)));
+			memcpy(value, intf_s,
+			       MIN((MAX_PARAM_LEN - 1), strlen(intf_s)));
 
 			if (MLAN_STATUS_SUCCESS !=
 			    woal_process_regrdwr(handle, type, offset, value)) {
@@ -2634,6 +2733,7 @@ done:
 	return status;
 }
 
+#ifdef CONFIG_RPS
 static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 				size_t len)
 {
@@ -2710,6 +2810,7 @@ static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 	free_cpumask_var(mask);
 	return len;
 }
+#endif
 
 /**
  * @brief Add interfaces DPC
@@ -2820,6 +2921,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		woal_set_uap_operation_ctrl(handle);
 #endif
 
+#ifdef CONFIG_RPS
 	if (moal_extflg_isset(handle, EXT_RPS)) {
 		moal_private *priv_rps =
 			woal_get_priv_bss_type(handle, MLAN_BSS_TYPE_STA);
@@ -2838,6 +2940,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 			}
 		}
 	}
+#endif
 
 #ifdef MFG_CMD_SUPPORT
 done:
@@ -3221,9 +3324,15 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 		handle->hardware_status = HardwareStatusReady;
 		goto done;
 	}
-	/* Wait for mlan_init to complete */
-	wait_event_timeout(handle->init_wait_q, handle->init_wait_q_woken,
-			   5 * HZ);
+#ifdef SD9177
+	if (IS_SD9177(handle->card_type))
+		wait_event_timeout(handle->init_wait_q,
+				   handle->init_wait_q_woken, 10 * HZ);
+	else
+#endif
+		/* Wait for mlan_init to complete */
+		wait_event_timeout(handle->init_wait_q,
+				   handle->init_wait_q_woken, 5 * HZ);
 	if (handle->hardware_status != HardwareStatusReady) {
 		woal_moal_debug_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
 				     handle, MTRUE);
@@ -5511,8 +5620,10 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 		}
 		priv->tcp_ack_cnt++;
 		spin_lock_irqsave(&priv->tcp_sess_lock, flags);
-		tcp_session = woal_get_tcp_sess(priv, iph->saddr, tcph->source,
-						iph->daddr, tcph->dest);
+		tcp_session = woal_get_tcp_sess(priv, (__force t_u32)iph->saddr,
+						(__force t_u16)tcph->source,
+						(__force t_u32)iph->daddr,
+						(__force t_u16)tcph->dest);
 		if (!tcp_session) {
 			tcp_session =
 				kmalloc(sizeof(struct tcp_sess), GFP_ATOMIC);
@@ -5525,10 +5636,10 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 			tcp_session->ack_skb = pmbuf->pdesc;
 			tcp_session->pmbuf = pmbuf;
 			pmbuf->flags |= MLAN_BUF_FLAG_TCP_ACK;
-			tcp_session->src_ip_addr = iph->saddr;
-			tcp_session->dst_ip_addr = iph->daddr;
-			tcp_session->src_tcp_port = tcph->source;
-			tcp_session->dst_tcp_port = tcph->dest;
+			tcp_session->src_ip_addr = (__force t_u32)iph->saddr;
+			tcp_session->dst_ip_addr = (__force t_u32)iph->daddr;
+			tcp_session->src_tcp_port = (__force t_u32)tcph->source;
+			tcp_session->dst_tcp_port = (__force t_u32)tcph->dest;
 			tcp_session->ack_seq = ntohl(tcph->ack_seq);
 			tcp_session->priv = (void *)priv;
 			skb = (struct sk_buff *)pmbuf->pdesc;
@@ -5618,15 +5729,13 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 		priv->stats.tx_dropped++;
 		goto done;
 	}
+	// kernel crash with cloned skb without copy
+	// uap0  <-->muap0 bridge
 	if ((skb->cloned &&
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
-	     (atomic_read(&skb->users.refs) > 1))
-#else
-	     (atomic_read(&skb->users) > 1))
-#endif
-	    || (skb_headroom(skb) <
-		(MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
-		 priv->extra_tx_head_len))) {
+	     (!is_unicast_ether_addr(((struct ethhdr *)skb->data)->h_dest))) ||
+	    (skb_headroom(skb) <
+	     (MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
+	      priv->extra_tx_head_len))) {
 		PRINTM(MWARN,
 		       "Tx: skb cloned %d or Insufficient skb headroom %d\n",
 		       skb->cloned, skb_headroom(skb));
@@ -6374,6 +6483,11 @@ static int woal_get_card_info(moal_handle *phandle)
 	ENTER();
 
 	switch (phandle->card_type) {
+#ifdef SD8801
+	case CARD_TYPE_SD8801:
+		phandle->card_info = &card_info_SD8801;
+		break;
+#endif
 #ifdef SD8887
 	case CARD_TYPE_SD8887:
 		phandle->card_info = &card_info_SD8887;
@@ -6419,6 +6533,11 @@ static int woal_get_card_info(moal_handle *phandle)
 		phandle->card_info = &card_info_SD9097;
 		break;
 #endif
+#ifdef SD9177
+	case CARD_TYPE_SD9177:
+		phandle->card_info = &card_info_SD9177;
+		break;
+#endif
 #ifdef PCIE8997
 	case CARD_TYPE_PCIE8997:
 		phandle->card_info = &card_info_PCIE8997;
@@ -6433,6 +6552,11 @@ static int woal_get_card_info(moal_handle *phandle)
 	case CARD_TYPE_PCIE9098:
 		phandle->card_info = &card_info_PCIE9098;
 		phandle->event_fw_dump = MTRUE;
+		break;
+#endif
+#ifdef USB8801
+	case CARD_TYPE_USB8801:
+		phandle->card_info = &card_info_USB8801;
 		break;
 #endif
 #ifdef USB8997
@@ -7162,8 +7286,8 @@ t_void woal_send_disconnect_to_system(moal_private *priv,
 
 	memset(event_buf, 0, sizeof(event_buf));
 	custom_len = strlen(CUS_EVT_AP_CONNECTED);
-	strncpy(event_buf, CUS_EVT_AP_CONNECTED,
-		MIN((int)(sizeof(event_buf) - 1), custom_len));
+	memcpy(event_buf, CUS_EVT_AP_CONNECTED,
+	       MIN((int)(sizeof(event_buf) - 1), custom_len));
 	woal_broadcast_event(priv, event_buf, custom_len + ETH_ALEN);
 	LEAVE();
 }
@@ -8296,13 +8420,13 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
-		strncpy(country_name, "rgpower_XX.bin",
-			strlen("rgpower_XX.bin"));
+		memcpy(country_name, "rgpower_XX.bin",
+		       strlen("rgpower_XX.bin"));
 #endif
 #endif
 
 	/* Replace XX with ISO 3166-1 alpha-2 country code */
-	strncpy(strstr(country_name, "XX"), country, strlen(country));
+	memcpy(strstr(country_name, "XX"), country, strlen(country));
 	fw_name = handle->params.fw_name;
 	memset(file_path, 0, sizeof(file_path));
 	/* file_path should be Null terminated */
@@ -8316,8 +8440,8 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 		else
 			memset(file_path, 0, sizeof(file_path));
 	} else {
-		strncpy(file_path, "nxp/",
-			MIN((sizeof(file_path) - 1), strlen("nxp/")));
+		memcpy(file_path, "nxp/",
+		       MIN((sizeof(file_path) - 1), strlen("nxp/")));
 	}
 
 	if ((strlen(file_path) + strlen(country_name)) <
@@ -8339,8 +8463,8 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 	/* Try download WW rgpowertable */
 	if ((handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) &&
 	    (ret == MLAN_STATUS_FILE_ERR)) {
-		strncpy(country_name, "rgpower_WW.bin",
-			strlen("rgpower_WW.bin"));
+		memcpy(country_name, "rgpower_WW.bin",
+		       strlen("rgpower_WW.bin"));
 		last_slash = strrchr(file_path, '/');
 		if (last_slash)
 			memset(last_slash + 1, 0,
@@ -8617,8 +8741,6 @@ t_void woal_main_work_queue(struct work_struct *work)
 		woal_usb_submit_rx_data_urbs(handle);
 	}
 #endif
-	if (atomic_read(&handle->tx_pending) == 1)
-		usleep_range(30, 30);
 	handle->main_state = MOAL_START_MAIN_PROCESS;
 	/* Call MLAN main process */
 	mlan_main_process(handle->pmlan_adapter);
@@ -8626,6 +8748,143 @@ t_void woal_main_work_queue(struct work_struct *work)
 
 	LEAVE();
 }
+
+#ifdef IMX_SUPPORT
+/**
+ *  @brief This function allocates the interrupt line to wakeup
+ *         the host, and initializes the device for wakeup
+ *
+ *  @param handle  A pointer to moal_handle structure
+ *
+ *  @return        N/A
+ */
+void woal_regist_oob_wakeup_irq(moal_handle *handle)
+{
+	int ret;
+	struct device *dev = handle->hotplug_device;
+	struct device_node *node;
+
+	ENTER();
+
+	node = of_find_compatible_node(NULL, NULL, "nxp,host-wake");
+	if (!node)
+		goto err_exit;
+
+	handle->irq_oob_wakeup = irq_of_parse_and_map(node, 0);
+	if (!handle->irq_oob_wakeup) {
+		dev_dbg(dev, "fail to parse irq_oob_wakeup from device tree\n");
+		goto err_exit;
+	}
+
+	ret = devm_request_irq(dev, handle->irq_oob_wakeup,
+			       woal_oob_wakeup_irq_handler, IRQF_TRIGGER_LOW,
+			       "wifi_oob_wakeup", handle);
+	if (ret) {
+		dev_err(dev, "Failed to request irq_oob_wakeup %d (%d)\n",
+			handle->irq_oob_wakeup, ret);
+		goto err_exit;
+	}
+
+	disable_irq(handle->irq_oob_wakeup);
+	if (device_init_wakeup(dev, true)) {
+		dev_err(dev, "fail to init irq_oob_wakeup\n");
+		goto err_exit;
+	}
+
+	LEAVE();
+	return;
+
+err_exit:
+	handle->irq_oob_wakeup = -1;
+}
+
+/**
+ *  @brief This function frees the wakeup interrupt line
+ *
+ *  @param handle  A pointer to moal_handle structure
+ *
+ *  @return        N/A
+ */
+void woal_unregist_oob_wakeup_irq(moal_handle *handle)
+{
+	struct device *dev = handle->hotplug_device;
+
+	ENTER();
+	devm_free_irq(dev, handle->irq_oob_wakeup, handle);
+	LEAVE();
+}
+
+/**
+ *  @brief This function disables power management wakeup
+ *
+ *  @param handle  A pointer to moal_handle structure
+ *
+ *  @return        N/A
+ */
+void woal_disable_oob_wakeup_irq(moal_handle *handle)
+{
+	ENTER();
+
+	if (handle->irq_oob_wakeup >= 0) {
+		if (handle->wake_by_wifi)
+			return;
+		else {
+			disable_irq_wake(handle->irq_oob_wakeup);
+			disable_irq(handle->irq_oob_wakeup);
+		}
+	}
+
+	LEAVE();
+}
+
+/**
+ *  @brief This function enables power management wakeup
+ *
+ *  @param handle  A pointer to moal_handle structure
+ *
+ *  @return        N/A
+ */
+void woal_enable_oob_wakeup_irq(moal_handle *handle)
+{
+	ENTER();
+
+	/* Enable platform specific wakeup interrupt */
+	if (handle->irq_oob_wakeup >= 0) {
+		handle->wake_by_wifi = false;
+		enable_irq(handle->irq_oob_wakeup);
+		enable_irq_wake(handle->irq_oob_wakeup);
+	}
+
+	LEAVE();
+}
+
+/**
+ *  @brief This function will be called when the wakeup IRQ occurs
+ *
+ *  @param irq     Wakeup interrupt line
+ *  @param priv    A void pointer to store moal_handle structure pointer
+ *
+ *  @return        Returns status of interrupt handler.
+ */
+irqreturn_t woal_oob_wakeup_irq_handler(int irq, void *priv)
+{
+	moal_handle *handle = priv;
+	struct device *dev = handle->hotplug_device;
+
+	ENTER();
+
+	dev_dbg(dev, "%s: OOB wakeup by wifi", __func__);
+	handle->wake_by_wifi = true;
+	disable_irq_nosync(irq);
+
+	/* Notify PM core we are wakeup source */
+	pm_wakeup_event(dev, 0);
+	pm_system_wakeup();
+
+	LEAVE();
+	return IRQ_HANDLED;
+}
+#endif /* IMX_SUPPORT */
 
 /**
  * @brief This function adds the card. it will probe the
@@ -9286,7 +9545,7 @@ static int woal_reset_and_reload_fw(moal_handle *handle)
 		ret = -EFAULT;
 		goto done;
 	}
-#if defined(SD9098) || defined(SD9097)
+#if defined(SD9098) || defined(SD9097) || defined(SD9177)
 	if (IS_SD9098(handle->card_type) || IS_SD9097(handle->card_type) ||
 	    IS_SD9177(handle->card_type))
 		handle->ops.write_reg(handle, 0x00, 0x10);

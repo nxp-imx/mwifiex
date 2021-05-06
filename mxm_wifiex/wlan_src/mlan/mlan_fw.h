@@ -1233,6 +1233,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_RX_PKT_COAL_CONFIG (PROPRIETARY_TLV_BASE_ID + 0xC9)
 #endif
 
+#define TLV_TYPE_PREV_BSSID (PROPRIETARY_TLV_BASE_ID + 330)
+
 /** Host Command ID : Channel report request */
 #define HostCmd_CMD_CHAN_REPORT_REQUEST 0x00dd
 
@@ -1369,6 +1371,14 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Check if Multi BSSID supported by firmware */
 #define IS_FW_SUPPORT_MULTIBSSID(_adapter)                                     \
 	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_MULTI_BSSID)
+
+/** MrvlIEtypes_PrevBssid_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_PrevBssid_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** prev_bssid **/
+	t_u8 prev_bssid[6];
+} MLAN_PACK_END MrvlIEtypes_PrevBssid_t;
 
 /** FW cap info TLV */
 typedef MLAN_PACK_START struct _MrvlIEtypes_fw_cap_info_t {

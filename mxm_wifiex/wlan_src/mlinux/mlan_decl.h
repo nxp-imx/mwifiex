@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "241"
+#define MLAN_RELEASE_VERSION "247"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -886,12 +886,6 @@ enum { SCAN_MODE_MANUAL = 0,
        SCAN_MODE_USER,
 };
 
-/** max cac time 10 minutes */
-#define MAX_CAC_DWELL_TIME 600000
-/** default cac time 60 seconds */
-#define DEF_CAC_DWELL_TIME 60000
-/** start freq for 5G */
-#define START_FREQ_11A_BAND 5000
 /** DFS state */
 typedef enum _dfs_state_t {
 	/** Channel can be used, CAC (Channel Availability Check) must be done
@@ -902,6 +896,13 @@ typedef enum _dfs_state_t {
 	/** Channel is Available, CAC is done and is free of radar */
 	DFS_AVAILABLE = 2,
 } dfs_state_t;
+
+/** max cac time 10 minutes */
+#define MAX_CAC_DWELL_TIME 600000
+/** default cac time 60 seconds */
+#define DEF_CAC_DWELL_TIME 60000
+/** start freq for 5G */
+#define START_FREQ_11A_BAND 5000
 
 typedef enum _dfs_w53_cfg_t {
 	/** DFS W53 Default Fw Value */
@@ -976,6 +977,9 @@ typedef struct _cfp_dyn_t {
 	t_u16 flags;
 	/** TRUE: Channel is blacklisted (do not use) */
 	t_bool blacklist;
+	/** DFS state of the channel
+	 * 0:DFS_USABLE  1:DFS_AVAILABLE  2:DFS_UNAVAILABLE */
+	dfs_state_t dfs_state;
 } cfp_dyn_t;
 
 /** Chan-Freq-TxPower mapping table*/
@@ -2089,6 +2093,9 @@ typedef struct _mlan_device {
 #ifdef MFG_CMD_SUPPORT
 	/** MFG mode */
 	t_u32 mfg_mode;
+#endif
+#ifdef PCIE
+	t_u16 ring_size;
 #endif
 #if defined(SDIO)
 	/** SDIO interrupt mode (0: INT_MODE_SDIO, 1: INT_MODE_GPIO) */

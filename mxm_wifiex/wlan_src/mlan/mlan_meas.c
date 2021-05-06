@@ -42,9 +42,6 @@ Change Log:
 #include "mlan_ioctl.h"
 #include "mlan_meas.h"
 
-/** Default measurement duration when not provided by the application */
-#define WLAN_MEAS_DEFAULT_MEAS_DURATION 1000U /* TUs */
-
 #ifdef DEBUG_LEVEL2
 /** String descriptions of the different measurement enums.  Debug display */
 static const char *meas_type_str[WLAN_MEAS_NUM_TYPES] = {

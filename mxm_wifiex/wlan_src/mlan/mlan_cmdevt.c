@@ -162,13 +162,13 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 #ifdef DEBUG_LEVEL1
 	t_u32 sec = 0, usec = 0;
 #endif
-	t_u8 i;
+	t_u16 i;
 #ifdef SDIO
 	t_u8 j;
-	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
+	t_u8 mp_aggr_pkt_limit;
 #endif
 	t_u16 cmd_id, cmd_act;
-	mlan_private *pmpriv = MNULL;
+	mlan_private *pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
 
 	ENTER();
 
@@ -192,10 +192,12 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	}
 	if ((reason == REASON_CODE_NO_CMD_NODE) &&
 	    (pmadapter->dbg.num_no_cmd_node > 1)) {
-		if (pmadapter->dbg.num_no_cmd_node >= 5)
-			wlan_recv_event(wlan_get_priv(pmadapter,
-						      MLAN_BSS_ROLE_ANY),
-					MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+		if (pmadapter->dbg.num_no_cmd_node >= 5) {
+			if (pmpriv)
+				wlan_recv_event(pmpriv,
+						MLAN_EVENT_ID_DRV_DBG_DUMP,
+						MNULL);
+		}
 		LEAVE();
 		return;
 	}
@@ -320,6 +322,7 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	PRINTM(MERROR, "scan_processing = %d\n", pmadapter->scan_processing);
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
+		mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
 		PRINTM(MERROR, "mp_rd_bitmap=0x%x curr_rd_port=0x%x\n",
 		       pmadapter->pcard_sd->mp_rd_bitmap,
 		       pmadapter->pcard_sd->curr_rd_port);
@@ -360,9 +363,11 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 		       pmadapter->pcard_pcie->evtbd_wrptr);
 		PRINTM(MERROR, "last_wr_index:%d\n",
 		       pmadapter->pcard_pcie->txbd_wrptr &
-			       (pmadapter->pcard_pcie->reg->txrx_bd_size - 1));
+			       (pmadapter->pcard_pcie->txrx_bd_size - 1));
+		PRINTM(MERROR, " txrx_bd_size = %d\n",
+		       pmadapter->pcard_pcie->txrx_bd_size);
 		PRINTM(MERROR, "Tx pkt size:\n");
-		for (i = 0; i < pmadapter->pcard_pcie->reg->txrx_bd_size; i++) {
+		for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 			PRINTM(MERROR, "%04d ",
 			       pmadapter->pcard_pcie->last_tx_pkt_size[i]);
 			if (((i + 1) % 16) == 0)
@@ -383,11 +388,15 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 				wlan_recv_event(pmpriv,
 						MLAN_EVENT_ID_DRV_DBG_DUMP,
 						MNULL);
-			else
-				wlan_recv_event(
-					wlan_get_priv(pmadapter,
-						      MLAN_BSS_ROLE_ANY),
-					MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+			else {
+				pmpriv = wlan_get_priv(pmadapter,
+						       MLAN_BSS_ROLE_ANY);
+				if (pmpriv)
+					wlan_recv_event(
+						pmpriv,
+						MLAN_EVENT_ID_DRV_DBG_DUMP,
+						MNULL);
+			}
 		}
 	}
 	PRINTM(MERROR, "-------- Dump info End---------\n", reason);
@@ -3275,6 +3284,15 @@ mlan_status wlan_ret_802_11_tx_rate_query(pmlan_private pmpriv,
 
 	pmpriv->tx_rate = resp->params.tx_rate.tx_rate;
 	pmpriv->tx_rate_info = resp->params.tx_rate.tx_rate_info;
+	if (pmpriv->adapter->pcard_info->v14_fw_api) {
+		pmpriv->tx_rate_info = wlan_convert_v14_tx_rate_info(
+			pmpriv, pmpriv->tx_rate_info);
+		PRINTM(MINFO,
+		       "%s: v14_fw_api=%d tx_rate=%d tx_rate_info=0x%x->0x%x\n",
+		       __func__, pmpriv->adapter->pcard_info->v14_fw_api,
+		       pmpriv->tx_rate, resp->params.tx_rate.tx_rate_info,
+		       pmpriv->tx_rate_info);
+	}
 	if ((pmpriv->tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE)
 		pmpriv->ext_tx_rate_info =
 			resp->params.tx_rate.ext_tx_rate_info;

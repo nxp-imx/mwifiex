@@ -60,6 +60,10 @@ static const char usbdriver_name[] = "usbxxx";
 /** This structure contains the device signature */
 static struct usb_device_id woal_usb_table[] = {
 /* Enter the device signature inside */
+#ifdef USB8801
+	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_1, "NXP WLAN USB Adapter")},
+	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_2, "NXP WLAN USB Adapter")},
+#endif
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
@@ -97,6 +101,9 @@ static struct usb_device_id woal_usb_table[] = {
 /** This structure contains the device signature */
 static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 /* Enter the device signature inside */
+#ifdef USB8801
+	{NXP_USB_DEVICE(USB8801_VID_1, USB8801_PID_2, "NXP WLAN USB Adapter")},
+#endif
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
 #endif
@@ -672,6 +679,22 @@ static t_u16 woal_update_card_type(t_void *card)
 	t_u16 card_type = 0;
 
 	/* Update card type */
+#ifdef USB8801
+	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    USB8801_PID_1 ||
+	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    USB8801_PID_2) {
+		card_type = CARD_TYPE_USB8801;
+		moal_memcpy_ext(NULL, driver_version, CARD_USB8801,
+				strlen(CARD_USB8801), strlen(driver_version));
+		moal_memcpy_ext(NULL,
+				driver_version + strlen(INTF_CARDTYPE) +
+					strlen(KERN_VERSION),
+				V14, strlen(V14),
+				strlen(driver_version) - strlen(INTF_CARDTYPE) -
+					strlen(KERN_VERSION));
+	}
+#endif
 #ifdef USB8897
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
 		    USB8897_PID_1 ||
@@ -809,6 +832,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 			       woal_cpu_to_le16(udev->descriptor.idProduct),
 			       woal_cpu_to_le16(udev->descriptor.bcdDevice));
 			switch (woal_cpu_to_le16(udev->descriptor.idProduct)) {
+#ifdef USB8801
+			case USB8801_PID_1:
+#endif /* USB8801 */
 #ifdef USB8897
 			case USB8897_PID_1:
 #endif /* USB8897 */
@@ -833,6 +859,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 				else
 					usb_cardp->boot_state = USB_FW_DNLD;
 				break;
+#ifdef USB8801
+			case USB8801_PID_2:
+#endif /* USB8801 */
 #ifdef USB8897
 			case USB8897_PID_2:
 #endif /* USB8897 */
@@ -1912,6 +1941,10 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 	if (cardp->boot_state == USB_FW_READY)
 		goto done;
+#ifdef USB8801
+	if (IS_USB8801(handle->card_type))
+		goto done;
+#endif
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap);

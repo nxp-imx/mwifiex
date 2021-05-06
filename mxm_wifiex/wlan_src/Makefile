@@ -44,6 +44,9 @@ CONFIG_USB8997=n
 CONFIG_PCIE8997=y
 CONFIG_SD8987=y
 CONFIG_SD9097=n
+CONFIG_SD9177=n
+CONFIG_SD8801=n
+CONFIG_USB8801=n
 CONFIG_USB9097=n
 CONFIG_PCIE9097=n
 CONFIG_SD9098=n
@@ -241,9 +244,21 @@ ifeq ($(CONFIG_SD9097),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9097
 endif
+ifeq ($(CONFIG_SD9177),y)
+	CONFIG_SDIO=y
+	ccflags-y += -DSD9177
+endif
+ifeq ($(CONFIG_SD8801),y)
+	CONFIG_SDIO=y
+	ccflags-y += -DSD8801
+endif
 ifeq ($(CONFIG_SD9098),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9098
+endif
+ifeq ($(CONFIG_USB8801),y)
+	CONFIG_MUSB=y
+	ccflags-y += -DUSB8801
 endif
 ifeq ($(CONFIG_USB8897),y)
 	CONFIG_MUSB=y
@@ -319,6 +334,10 @@ endif
 #ccflags-y += -Wmissing-include-dirs
 #ccflags-y += -Wshadow
 #ccflags-y += -Wsign-compare
+#ccflags-y += -Wunused-macros
+#ccflags-y += -Wmissing-field-initializers
+#ccflags-y += -Wstringop-truncation
+#ccflags-y += -Wmisleading-indentation
 #############################################################################
 # Make Targets
 #############################################################################

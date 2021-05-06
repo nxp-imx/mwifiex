@@ -977,7 +977,11 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 
 		/* Send the scan command to the firmware with the specified cfg
 		 */
-		if (pmadapter->ext_scan)
+		if (pmadapter->ext_scan
+#ifdef USB8801
+		    && !IS_USB8801(pmadapter->card_type)
+#endif
+		)
 			cmd_no = HostCmd_CMD_802_11_SCAN_EXT;
 		else
 			cmd_no = HostCmd_CMD_802_11_SCAN;

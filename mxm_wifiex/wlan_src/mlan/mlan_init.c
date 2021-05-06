@@ -902,7 +902,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #if defined(PCIE9098) || defined(PCIE9097)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			pmadapter->pcard_pcie->rxbd_wrptr =
-				pmadapter->pcard_pcie->reg->txrx_bd_size;
+				pmadapter->pcard_pcie->txrx_bd_size;
 			pmadapter->pcard_pcie->evtbd_wrptr = MLAN_MAX_EVT_BD;
 		}
 #endif

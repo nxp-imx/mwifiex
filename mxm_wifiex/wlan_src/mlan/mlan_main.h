@@ -553,7 +553,7 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 /** Maximum numbfer of registers to read for multiple port */
 #if defined(SD8887) || defined(SD8997) || defined(SD8977) ||                   \
 	defined(SD8987) || defined(SD9098) || defined(SD9097) ||               \
-	defined(SD8978)
+	defined(SD8978) || defined(SD9177)
 #define MAX_MP_REGS 196
 #else
 /* upto 0xB7 */
@@ -854,6 +854,7 @@ typedef struct {
 	t_u8 data_rates[WLAN_SUPPORTED_RATES];
 	/** Host MLME flag*/
 	t_u8 host_mlme;
+	mlan_802_11_mac_addr prev_bssid;
 	t_u8 use_mfp;
 } current_bss_params_t;
 
@@ -1887,6 +1888,10 @@ typedef struct _mlan_init_para {
 	t_u8 uap_max_sta;
 	/** dfs w53 cfg */
 	t_u8 dfs53cfg;
+#ifdef PCIE
+	/** adma ring size */
+	t_u16 ring_size;
+#endif
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -2052,8 +2057,9 @@ typedef struct _mlan_sdio_card {
 #ifdef PCIE
 #define MAX_TXRX_BD 32
 #define ADMA_MAX_TXRX_BD 512
-/** 512 entry will mapping to 9*/
-#define TX_RX_NUM_DESC 9
+#define ADMA_DEF_TXRX_BD 128
+/** 128 entry will mapping to 7*/
+#define TXRX_DEF_NUM_DESC 7
 /** 8 entry will mapping to 3 */
 #define EVT_NUM_DESC 3
 #define MLAN_MAX_TXRX_BD MAX(ADMA_MAX_TXRX_BD, MAX_TXRX_BD)
@@ -2123,8 +2129,6 @@ typedef struct _mlan_pcie_card_reg {
 	t_u8 use_adma;
 	/** write to clear interrupt status flag */
 	t_u8 msi_int_wr_clr;
-	/** txrx data dma ring size */
-	t_u16 txrx_bd_size;
 } mlan_pcie_card_reg, *pmlan_pcie_card_reg;
 
 typedef struct _mlan_pcie_card {
@@ -2153,6 +2157,10 @@ typedef struct _mlan_pcie_card {
 	mlan_buffer *tx_buf_list[MLAN_MAX_TXRX_BD];
 	/** Flush indicator for txbd_ring */
 	t_bool txbd_flush;
+	/** txrx data dma ring size */
+	t_u16 txrx_bd_size;
+	/** txrx num desc */
+	t_u16 txrx_num_desc;
 
 	/** Shadow copy of RXBD write pointer */
 	t_u32 rxbd_wrptr;
@@ -2213,6 +2221,8 @@ typedef struct _mlan_usb_card {
 typedef struct _mlan_card_info {
 	/** Max Tx buffer size */
 	t_u32 max_tx_buf_size;
+	/** support V14_FW_API */
+	t_u8 v14_fw_api;
 	/** support V16_FW_API */
 	t_u8 v16_fw_api;
 	/** support V17_FW_API */
@@ -3387,6 +3397,8 @@ t_void wlan_free_curr_bcn(mlan_private *pmpriv);
 #endif /* STA_SUPPORT */
 
 /* Rate related functions */
+t_u8 wlan_convert_v14_tx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info);
+t_u8 wlan_convert_v14_rx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info);
 /** Convert index into data rate */
 t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 			      t_u8 rate_info, t_u8 ext_rate_info);

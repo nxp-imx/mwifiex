@@ -576,6 +576,15 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
+	if (priv->adapter->pcard_info->v14_fw_api) {
+		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;
+		prx_pd->rate_info = wlan_convert_v14_rx_rate_info(
+			priv, rxpd_rate_info_orig);
+		PRINTM(MINFO,
+		       "STA RX: v14_fw_api=%d rx_rate =%d rxpd_rate_info=0x%x->0x%x\n",
+		       priv->adapter->pcard_info->v14_fw_api, prx_pd->rx_rate,
+		       rxpd_rate_info_orig, prx_pd->rate_info);
+	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 

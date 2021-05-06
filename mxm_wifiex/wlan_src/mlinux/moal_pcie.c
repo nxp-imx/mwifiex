@@ -259,14 +259,14 @@ static t_u16 woal_update_card_type(t_void *card)
  *
  * @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
+static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 {
 	unsigned int i;
 	int index = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	moal_private *priv = NULL;
 	pcie_service_card *card = NULL;
-	int fw_serial_bkp;
+	int fw_serial_bkp = 0;
 
 	ENTER();
 
@@ -485,6 +485,10 @@ static int woal_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err;
 	}
 
+#ifdef IMX_SUPPORT
+	woal_regist_oob_wakeup_irq(card->handle);
+#endif /* IMX_SUPPORT */
+
 	LEAVE();
 	return ret;
 err:
@@ -523,6 +527,10 @@ static void woal_pcie_remove(struct pci_dev *dev)
 		return;
 	}
 	handle->surprise_removed = MTRUE;
+
+#ifdef IMX_SUPPORT
+	woal_unregist_oob_wakeup_irq(card->handle);
+#endif /* IMX_SUPPORT */
 	woal_remove_card(card);
 	woal_pcie_cleanup(card);
 	kfree(card);
@@ -637,6 +645,9 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 	pci_enable_wake(pdev, pci_choose_state(pdev, state), 1);
 	pci_save_state(pdev);
 	pci_set_power_state(pdev, pci_choose_state(pdev, state));
+#ifdef IMX_SUPPORT
+	woal_enable_oob_wakeup_irq(handle);
+#endif /* IMX_SUPPORT */
 done:
 	PRINTM(MCMND, "<--- Leave woal_pcie_suspend --->\n");
 	LEAVE();
@@ -683,6 +694,7 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 		keep_power = MTRUE;
 	else
 		keep_power = MFALSE;
+
 	pci_set_power_state(pdev, PCI_D0);
 	pci_restore_state(pdev);
 	pci_enable_wake(pdev, PCI_D0, 0);
@@ -700,6 +712,9 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 
 		woal_cancel_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
 			       MOAL_NO_WAIT);
+#ifdef IMX_SUPPORT
+		woal_disable_oob_wakeup_irq(handle);
+#endif /* IMX_SUPPORT */
 	}
 done:
 	PRINTM(MCMND, "<--- Leave woal_pcie_resume --->\n");
@@ -1098,9 +1113,12 @@ exit:
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev)
 {
 	int ret;
+
 	if (pdev->multifunction)
 		device_disable_async_suspend(&pdev->dev);
+
 	ret = pci_enable_device(pdev);
+
 	if (ret)
 		goto err_enable_dev;
 
@@ -1303,7 +1321,6 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 				  "mrvl_pcie", pdev);
 		if (ret) {
 			PRINTM(MFATAL, "request_irq failed: ret=%d\n", ret);
-			handle->card = NULL;
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -1312,7 +1329,6 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 
 	default:
 		PRINTM(MFATAL, "pcie_int_mode %d failed\n", pcie_int_mode);
-		handle->card = NULL;
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 		break;
@@ -1762,7 +1778,6 @@ typedef enum {
 } dumped_mem_type;
 
 #define MAX_NAME_LEN 8
-#define MAX_FULL_NAME_LEN 32
 
 typedef struct {
 	t_u8 mem_name[MAX_NAME_LEN];
@@ -1790,7 +1805,6 @@ static memory_type_mapping mem_type_mapping_tbl_8897[] = {
 #if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097)
 #define DEBUG_HOST_READY_8997 0xCC
 #define DEBUG_HOST_EVENT_READY 0xAA
-#define DEBUG_MEMDUMP_FINISH_8997 0xDD
 static memory_type_mapping mem_type_mapping_tbl_8997 = {"DUMP", NULL, NULL,
 							0xDD, 0x00};
 

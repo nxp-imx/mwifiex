@@ -4061,7 +4061,6 @@ done:
 #define SNR_THRESHOLD_PARAM 4
 #define SOUND_INTVL_PARAM 5
 #define BF_MODE_PARAM 6
-#define MAX_TX_BF_GLOBAL_ARGS 6
 #define BF_CFG_ACT_GET 0
 #define BF_CFG_ACT_SET 1
 

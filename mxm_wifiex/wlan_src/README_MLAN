@@ -98,6 +98,7 @@
 	  rx_work=0|1|2 <default | Enable rx_work_queue | Disable rx_work_queue>
 	  pcie_int_mode=0|1|2 <Legacy mode, MSI mode (default), MSI-X mode>
 	  pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
+      ring_size=32|64|128|256|512 <adma ring size for 9097/9098>
 	  aggrctrl=1|0 <enable Tx aggr | disable Tx aggr>
 	  usb_aggr=0|1|2 <use MLAN default (disabled) | enable USB aggr | disable USB aggr>
 	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
@@ -437,6 +438,7 @@ SYNOPSIS
 	mlanutl mlanX 11axcmd <subcmd> <value>
 	mlanutl mlanX txratecfg [l] [m] [n] [o]
 	mlanutl uapX txratecfg [l] [m] [n] [o]
+	mlanutl mlanX hssetpara condition [GPIO# [gap]] [ind_GPIO# [level]]
 
 DESCRIPTION
 	Those commands are used to send additional commands to the NXP MLAN
@@ -1288,3 +1290,116 @@ txratecfg
                                                          STBC is 1, DMC is 0, Coding is 1, maxPE is 2.
 		mlanutl mlan0 txratecfg 0xff     : Disable fixed rate and uses auto rate
 
+hssetpara
+	This command is used to set host sleep parameters.
+
+	Usage:
+		mlanutl mlanX hssetpara condition [GPIO# [gap]] (optional)[type ind_GPIO# [level]] (optional)[type event_force_ignore event_use_ext_gap ext_gap [gpio_wave]] (optional)[type hs_wakeup_interval]
+
+	This command takes one (condition), two (condition and GPIO#) or three
+	(condition, GPIO# and gap).If more than three parameters, it can set different or multiple features indicating by type and
+        the detailed usage is the same as hscfg above.
+
+	where Condition is:
+		bit 0 = 1   -- broadcast data
+		bit 1 = 1   -- unicast data
+		bit 2 = 1   -- mac event
+		bit 3 = 1   -- multicast data
+		bit 6 = 1  --  Wakeup when mgmt frame received.
+		Bit 31 = 1  --  Don't wakeup when IPV6 packet received.
+
+	The host sleep mode will be canceled if condition is set to -1. The default is 0x7.
+
+	where GPIO is the pin number of GPIO used to wakeup the host. It could be any valid
+	GPIO pin# (e.g. 0-7) or 0xff (interface, e.g. SDIO will be used instead).
+	The default is 0xff.
+
+	where Gap is the gap in milliseconds between wakeup signal and wakeup event or 0xff
+	for special setting (host acknowledge required) when GPIO is used to wakeup host.
+	The default is 200.
+
+	The host sleep set except for cancellation will be blocked if host sleep is
+	already activated.
+
+	where ind_GPIO# is the pin number of GPIO used to indicate wakeup source. The level on
+	this GPIO will indicate normal wakeup source or abnormal wakeup source.
+
+	where level is used to set level(0/1) on ind_GPIO# pin for indication normal wakeup source.
+	The opposite level will indicate abnormal wakeup source. The default value is 0.
+
+	where event_force_ignore is a bitmap,each bit represent one wakeup reason event. Set the bit means this
+	wakeup reason should be force ignored in firmware. Reset the bit means do not handle this reason.
+
+	where event_use_ext_gap is a bitmap, each bit represent one wakeup reason event. Set the bit means this
+	wakeup reason should use ext_gap to indicate host. Reset the bit means do not handle this reason.
+
+	where event_force_ignore and event_use_ext_gap have the same wakeup reason event definition of each bit:
+		bit 0  = 1     --Disconnect
+		bit 1  = 1     --GTK/iGTK rekey failure
+		bit 2  = 1     --Eapol
+		other bits     --Reserved
+	They should not set both for one same wakeup reason.
+
+	where ext_gap is the extend gap based on third parameter Gap. Only valid when use_ext_gap is used.
+	The total gap is (Gap + (x+1)*ext_gap). x means the bit number(start from 0) of this reason in use_ext_gap.
+
+	where gpio_wave is used to set GPIO wave level for hscfg extend. 0 means falling edge, 1 means rising edge.
+	This parameter is optional and default value is 0.
+
+	where hs_wakeup_interval is used to set host sleep wakeup interval and the type must set to 3 to indicate
+	this feature. And the value will round to the nearest multiple dtim*beacon_interval in fw. The unit is milliseconds.
+
+	Examples:
+		mlanutl mlan0 hssetpara -1           : Cancel host sleep mode
+		mlanutl mlan0 hssetpara 3            : Broadcast and unicast data
+		                                       Use GPIO and gap set previously
+		mlanutl mlan0 hssetpara 2 3          : Unicast data
+		                                       Use GPIO 3 and gap set previously
+		mlanutl mlan0 hssetpara 2 1 0xa0     : Unicast data
+		                                       Use GPIO 1 and gap 160 ms
+		mlanutl mlan0 hssetpara 2 0xff       : Unicast data
+		                                       Use interface (e.g. SDIO)
+		                                       Use gap set previously
+		mlanutl mlan0 hssetpara 4 3 0xff     : MAC event
+		                                       Use GPIO 3
+		                                       Special host sleep mode
+		mlanutl mlan0 hssetpara 1 0xff 0xff  : Broadcast data
+
+		mlanutl mlan0 hssetpara 2 1 0xa0 1 5 1 : Unicast data
+		                                       Use GPIO 1
+                                                       Gap 160 ms
+                                                       type=1 to set indication GPIO feature
+                                                       Use GPIO 5 to indicate wakeup source
+                                                       High level on GPIO 5 means this is a normal wakeup
+		mlanutl mlan0 hssetpara 2 1 0xa0 1 5   : Unicast data
+		                                       Use GPIO 1
+                                                       Gap 160 ms
+                                                       type=1 to set indication GPIO feature
+                                                       Use GPIO 5 to indicate wakeup source
+                                                       Use level set previously.
+
+		mlanutl mlan0 hssetpara 2 1 0xa0 2 0 0x1 10 1: Unicast data
+		                                       Use GPIO 1
+                                                       Gap 160 ms
+                                                       type=2 to set extend hscfg feature
+                                                       Force_ignore not used
+                                                       Disconnect will use extend gap to indicate host
+                                                       Use gap 170.
+                                                       Rising edge
+		mlanutl mlan0 hssetpara 2 1 0xa0 2 0x1 0 0 0: Unicast data
+		                                       Use GPIO 1
+                                                       Gap 160 ms
+                                                       type=2 to set extend hscfg feature
+                                                       Falling edge
+                                                       Force ignore Disconnect
+                                                       Extend gap not used
+                                                       Not used.
+                                                       Falling edge
+		mlanutl mlan0 hssetpara 2 1 0xa0 3 400:  Unicast data
+		                                       Use GPIO 1
+                                                       Gap 160 ms
+                                                       type=3 to set hs_wakeup_interval feature
+                                                       hs_wakeup_interval set to 400ms
+
+	Note: The parameters will be saved in the driver and be used when host suspends.
+              The ind_GPIO# and level parameters only work with specific board and firmware.

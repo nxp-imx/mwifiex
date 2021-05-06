@@ -49,26 +49,12 @@ Change log:
 /** mlanutl version number */
 #define MLANUTL_VER "M1.3.02"
 
-/** Initial number of total private ioctl calls */
-#define IW_INIT_PRIV_NUM 128
-/** Maximum number of total private ioctl calls supported */
-#define IW_MAX_PRIV_NUM 1024
-
 /** Termination flag */
 int terminate_flag = 0;
 
 /********************************************************
 			Local Variables
 ********************************************************/
-#define BAND_B (1U << 0)
-#define BAND_G (1U << 1)
-#define BAND_A (1U << 2)
-#define BAND_GN (1U << 3)
-#define BAND_AN (1U << 4)
-#define BAND_GAC (1U << 5)
-#define BAND_AAC (1U << 6)
-#define BAND_GAX (1U << 8)
-#define BAND_AAX (1U << 9)
 
 /** Stringification of rateId enumeration */
 const char *rateIdStr[] = {"1",	 "2",  "5.5", "11", "--", "6",	"9",  "12",
@@ -95,10 +81,11 @@ const char *rateIdStr[] = {"1",	 "2",  "5.5", "11", "--", "6",	"9",  "12",
 #define MFW_D MBIT(19)
 #define MIF_D MBIT(20)
 
+#ifdef DEBUG_LEVEL2
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
 #define MINFO MBIT(30)
-#define MHEX_DUMP MBIT(31)
+#endif
 #endif
 
 static int process_version(int argc, char *argv[]);
@@ -125,6 +112,7 @@ static int process_htcapinfo(int argc, char *argv[]);
 static int process_addbapara(int argc, char *argv[]);
 static int process_aggrpriotbl(int argc, char *argv[]);
 static int process_addbareject(int argc, char *argv[]);
+static int process_hssetpara(int argc, char *argv[]);
 
 struct command_node command_list[] = {
 	{"version", process_version},
@@ -152,6 +140,7 @@ struct command_node command_list[] = {
 	{"addbareject", process_addbareject},
 	{"httxcfg", process_httxcfg},
 	{"htcapinfo", process_htcapinfo},
+	{"hssetpara", process_hssetpara},
 };
 
 static char *usage[] = {
@@ -186,6 +175,7 @@ static char *usage[] = {
 	"         aggrpriotbl",
 	"         addbapara",
 	"         addbareject",
+	"         hssetpara",
 };
 
 /** Socket */
@@ -379,7 +369,7 @@ static int prepare_buffer(t_u8 *buffer, char *cmd, t_u32 num, char *args[])
 
 	/* Flag it for our use */
 	pos = buffer;
-	strncpy((char *)pos, CMD_NXP, strlen(CMD_NXP));
+	memcpy((char *)pos, CMD_NXP, strlen(CMD_NXP));
 	pos += (strlen(CMD_NXP));
 
 	/* Insert command */
@@ -391,7 +381,7 @@ static int prepare_buffer(t_u8 *buffer, char *cmd, t_u32 num, char *args[])
 		strncpy((char *)pos, args[i], strlen(args[i]));
 		pos += strlen(args[i]);
 		if (i < (num - 1)) {
-			strncpy((char *)pos, " ", strlen(" "));
+			memcpy((char *)pos, " ", strlen(" "));
 			pos += 1;
 		}
 	}
@@ -3621,6 +3611,67 @@ int process_host_cmd_resp(char *cmd_name, t_u8 *buf)
 		       hostcmd->result);
 	}
 	return ret;
+}
+
+/**
+ *  @brief Process hssetpara configuration
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_hssetpara(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: hssetpara fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
 }
 
 /********************************************************

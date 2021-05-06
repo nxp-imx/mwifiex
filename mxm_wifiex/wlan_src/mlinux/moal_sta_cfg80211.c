@@ -2078,7 +2078,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	memset(mgmt, 0, MGMT_HEADER_LEN);
 	/**Authentication Frame: Frame Control*/
 	mgmt->frame_control =
-		cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_AUTH);
+		woal_cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_AUTH);
 	/**Authentication Frame: Destination Address*/
 	moal_memcpy_ext(priv->phandle, mgmt->da, req->bss->bssid, ETH_ALEN,
 			sizeof(mgmt->da));
@@ -2128,7 +2128,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 			&packet_len, sizeof(packet_len), sizeof(packet_len));
 
 	/**Authentication Frame: Authentication Alg*/
-	mgmt->u.auth.auth_alg = cpu_to_le16(auth_alg);
+	mgmt->u.auth.auth_alg = woal_cpu_to_le16(auth_alg);
 	mgmt->u.auth.auth_transaction = trans;
 	/**Authentication Frame: Status code*/
 	mgmt->u.auth.status_code = status_code;
@@ -2148,7 +2148,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 
 	priv->host_mlme = MTRUE;
 	priv->auth_flag = HOST_MLME_AUTH_PENDING;
-	priv->auth_alg = cpu_to_le16(auth_alg);
+	priv->auth_alg = woal_cpu_to_le16(auth_alg);
 
 	PRINTM(MCMND, "wlan: HostMlme %s send auth to bssid " MACSTR "\n",
 	       dev->name, MAC2STR(req->bss->bssid));
@@ -2493,6 +2493,11 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 		ssid_bssid.channel_flags = req->bss->channel->flags;
 		ssid_bssid.channel_flags |= CHAN_FLAGS_MAX;
 		PRINTM(MCMND, "channel flags=0x%x\n", req->bss->channel->flags);
+	}
+	if (req->prev_bssid) {
+		moal_memcpy_ext(priv->phandle, ssid_bssid.prev_bssid,
+				req->prev_bssid, ETH_ALEN,
+				sizeof(ssid_bssid.prev_bssid));
 	}
 
 	PRINTM(MCMND, "wlan: HostMlme %s send assoicate to bssid " MACSTR "\n",
@@ -2929,6 +2934,14 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 		ssid_bssid.channel_flags |= CHAN_FLAGS_MAX;
 		PRINTM(MCMND, "channel flags=0x%x\n", channel->flags);
 	}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+	if (conn_param && conn_param->prev_bssid) {
+		moal_memcpy_ext(priv->phandle, ssid_bssid.prev_bssid,
+				conn_param->prev_bssid, ETH_ALEN,
+				sizeof(ssid_bssid.prev_bssid));
+	}
+#endif
+
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, &ssid_bssid)) {
 		ret = -EFAULT;
@@ -4278,7 +4291,7 @@ static int woal_send_ft_action_requst(moal_private *priv, t_u8 *ie, t_u8 len,
 				  HEADER_SIZE + sizeof(packet_len));
 	memset(mgmt, 0, MGMT_HEADER_LEN);
 	mgmt->frame_control =
-		cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION);
+		woal_cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION);
 	moal_memcpy_ext(priv->phandle, mgmt->da, bssid, ETH_ALEN,
 			sizeof(mgmt->da));
 	moal_memcpy_ext(priv->phandle, mgmt->sa, priv->current_addr, ETH_ALEN,
@@ -4384,7 +4397,7 @@ static int woal_send_ft_auth_requst(moal_private *priv, t_u8 *ie, t_u8 len,
 				  HEADER_SIZE + sizeof(packet_len));
 	memset(mgmt, 0, MGMT_HEADER_LEN);
 	mgmt->frame_control =
-		cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_AUTH);
+		woal_cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_AUTH);
 	moal_memcpy_ext(priv->phandle, mgmt->da, bssid, ETH_ALEN,
 			sizeof(mgmt->da));
 	moal_memcpy_ext(priv->phandle, mgmt->sa, priv->current_addr, ETH_ALEN,
@@ -4394,9 +4407,9 @@ static int woal_send_ft_auth_requst(moal_private *priv, t_u8 *ie, t_u8 len,
 	moal_memcpy_ext(priv->phandle, mgmt->addr4, addr, ETH_ALEN,
 			sizeof(mgmt->addr4));
 
-	mgmt->u.auth.auth_alg = cpu_to_le16(WLAN_AUTH_FT);
-	mgmt->u.auth.auth_transaction = cpu_to_le16(1);
-	mgmt->u.auth.status_code = cpu_to_le16(0);
+	mgmt->u.auth.auth_alg = woal_cpu_to_le16(WLAN_AUTH_FT);
+	mgmt->u.auth.auth_transaction = woal_cpu_to_le16(1);
+	mgmt->u.auth.status_code = woal_cpu_to_le16(0);
 	if (ie && len)
 		moal_memcpy_ext(priv->phandle, (t_u8 *)(&mgmt->u.auth.variable),
 				ie, len, len);
@@ -8752,10 +8765,10 @@ void woal_host_mlme_disconnect(moal_private *priv, u16 reason_code, u8 *sa)
 	struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)frame_buf;
 	ENTER();
 
-	mgmt->frame_control = IEEE80211_STYPE_DEAUTH;
+	mgmt->frame_control = (__force __le16)IEEE80211_STYPE_DEAUTH;
 	mgmt->duration = 0;
 	mgmt->seq_ctrl = 0;
-	mgmt->u.deauth.reason_code = reason_code;
+	mgmt->u.deauth.reason_code = (__force __le16)reason_code;
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
 		moal_memcpy_ext(priv->phandle, mgmt->da, broadcast_addr,
 				ETH_ALEN, sizeof(mgmt->da));

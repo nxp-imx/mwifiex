@@ -695,6 +695,8 @@ typedef struct _mlan_ssid_bssid {
 	t_u32 idx;
 	/** Receive signal strength in dBm */
 	t_s32 rssi;
+	/* previous bssid */
+	mlan_802_11_mac_addr prev_bssid;
 	/**channel*/
 	t_u16 channel;
 	/**mobility domain value*/

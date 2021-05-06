@@ -170,7 +170,7 @@ static t_u8 woal_check_rsn_ie(IEEEtypes_Rsn_t *rsn_ie,
 	default:
 		break;
 	}
-	count = le16_to_cpu(rsn_ie->pairwise_cipher.count);
+	count = woal_le16_to_cpu(rsn_ie->pairwise_cipher.count);
 	for (i = 0; i < count; i++) {
 		switch (rsn_ie->pairwise_cipher.list[i].type) {
 		case WPA_CIPHER_TKIP:
@@ -191,7 +191,7 @@ static t_u8 woal_check_rsn_ie(IEEEtypes_Rsn_t *rsn_ie,
 		(wpa_suite_auth_key_mgmt_t *)((u8 *)rsn_ie +
 					      sizeof(IEEEtypes_Rsn_t) +
 					      (count - 1) * sizeof(wpa_suite));
-	count = le16_to_cpu(key_mgmt->count);
+	count = woal_le16_to_cpu(key_mgmt->count);
 	if (left < (int)(sizeof(wpa_suite_auth_key_mgmt_t) +
 			 (count - 1) * sizeof(wpa_suite)))
 		return MFALSE;
@@ -247,7 +247,7 @@ static t_u8 woal_check_wpa_ie(IEEEtypes_Wpa_t *wpa_ie,
 	default:
 		break;
 	}
-	count = le16_to_cpu(wpa_ie->pairwise_cipher.count);
+	count = woal_le16_to_cpu(wpa_ie->pairwise_cipher.count);
 	for (i = 0; i < count; i++) {
 		switch (wpa_ie->pairwise_cipher.list[i].type) {
 		case WPA_CIPHER_TKIP:
@@ -268,7 +268,7 @@ static t_u8 woal_check_wpa_ie(IEEEtypes_Wpa_t *wpa_ie,
 		(wpa_suite_auth_key_mgmt_t *)((u8 *)wpa_ie +
 					      sizeof(IEEEtypes_Wpa_t) +
 					      (count - 1) * sizeof(wpa_suite));
-	count = le16_to_cpu(key_mgmt->count);
+	count = woal_le16_to_cpu(key_mgmt->count);
 	if (left < (int)(sizeof(wpa_suite_auth_key_mgmt_t) +
 			 (count - 1) * sizeof(wpa_suite)))
 		return MFALSE;

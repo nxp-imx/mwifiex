@@ -37,6 +37,15 @@ Change log:
 /********************************************************
 			Local Variables
 ********************************************************/
+#ifdef USB8801
+static const struct _mlan_card_info mlan_card_info_usb8801 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v14_fw_api = 1,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 1,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+};
+#endif
 #ifdef USB8897
 static const struct _mlan_card_info mlan_card_info_usb8897 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
@@ -729,6 +738,11 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 	}
 
 	switch (card_type) {
+#ifdef USB8801
+	case CARD_TYPE_USB8801:
+		pmadapter->pcard_info = &mlan_card_info_usb8801;
+		break;
+#endif
 #ifdef USB8897
 	case CARD_TYPE_USB8897:
 		pmadapter->pcard_info = &mlan_card_info_usb8897;

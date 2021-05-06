@@ -2183,7 +2183,7 @@ static int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				       data[3]);
 
 /* HE Preamble type */
-#define HE_SU_PREAMBLE 0
+//#define HE_SU_PREAMBLE 0
 #define HE_ER_PREAMBLE 1
 
 /* HE ER SU Type */
@@ -11596,7 +11596,6 @@ done:
 #define SNR_THRESHOLD_PARAM 4
 #define SOUND_INTVL_PARAM 5
 #define BF_MODE_PARAM 6
-#define MAX_TX_BF_GLOBAL_ARGS 6
 #define BF_CFG_ACT_GET 0
 #define BF_CFG_ACT_SET 1
 
