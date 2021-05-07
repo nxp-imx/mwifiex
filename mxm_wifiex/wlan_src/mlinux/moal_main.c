@@ -8766,7 +8766,7 @@ void woal_regist_oob_wakeup_irq(moal_handle *handle)
 
 	ENTER();
 
-	node = of_find_compatible_node(NULL, NULL, "nxp,host-wake");
+	node = of_find_compatible_node(NULL, NULL, "nxp,wifi-wake-host");
 	if (!node)
 		goto err_exit;
 
@@ -8777,7 +8777,8 @@ void woal_regist_oob_wakeup_irq(moal_handle *handle)
 	}
 
 	ret = devm_request_irq(dev, handle->irq_oob_wakeup,
-			       woal_oob_wakeup_irq_handler, IRQF_TRIGGER_LOW,
+			       woal_oob_wakeup_irq_handler,
+			       IRQF_TRIGGER_LOW | IRQF_SHARED,
 			       "wifi_oob_wakeup", handle);
 	if (ret) {
 		dev_err(dev, "Failed to request irq_oob_wakeup %d (%d)\n",
@@ -8810,7 +8811,10 @@ void woal_unregist_oob_wakeup_irq(moal_handle *handle)
 	struct device *dev = handle->hotplug_device;
 
 	ENTER();
-	devm_free_irq(dev, handle->irq_oob_wakeup, handle);
+	if (handle->irq_oob_wakeup >= 0) {
+		device_init_wakeup(dev, false);
+		devm_free_irq(dev, handle->irq_oob_wakeup, handle);
+	}
 	LEAVE();
 }
 
@@ -8827,7 +8831,7 @@ void woal_disable_oob_wakeup_irq(moal_handle *handle)
 
 	if (handle->irq_oob_wakeup >= 0) {
 		if (handle->wake_by_wifi)
-			return;
+			disable_irq_wake(handle->irq_oob_wakeup);
 		else {
 			disable_irq_wake(handle->irq_oob_wakeup);
 			disable_irq(handle->irq_oob_wakeup);
