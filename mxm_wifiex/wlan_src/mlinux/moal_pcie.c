@@ -642,12 +642,12 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		handle->surprise_removed = MTRUE;
 		handle->is_suspended = MTRUE;
 	}
-	pci_enable_wake(pdev, pci_choose_state(pdev, state), 1);
-	pci_save_state(pdev);
-	pci_set_power_state(pdev, pci_choose_state(pdev, state));
 #ifdef IMX_SUPPORT
 	woal_enable_oob_wakeup_irq(handle);
 #endif /* IMX_SUPPORT */
+	pci_enable_wake(pdev, pci_choose_state(pdev, state), 1);
+	pci_save_state(pdev);
+	pci_set_power_state(pdev, pci_choose_state(pdev, state));
 done:
 	PRINTM(MCMND, "<--- Leave woal_pcie_suspend --->\n");
 	LEAVE();
@@ -1114,8 +1114,10 @@ static mlan_status woal_pcie_preinit(struct pci_dev *pdev)
 {
 	int ret;
 
+#ifndef IMX_SUPPORT
 	if (pdev->multifunction)
 		device_disable_async_suspend(&pdev->dev);
+#endif
 
 	ret = pci_enable_device(pdev);
 
