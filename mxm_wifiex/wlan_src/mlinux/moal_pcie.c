@@ -30,10 +30,6 @@ Change log:
 
 #include "moal_pcie.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#include <linux/pm_qos.h>
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #ifdef IMX_SUPPORT
 #include <linux/busfreq-imx.h>
@@ -44,11 +40,6 @@ Change log:
 			Local Variables
 ********************************************************/
 #define DRV_NAME "NXP mdriver PCIe"
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#ifdef IMX_SUPPORT
-static struct pm_qos_request woal_pcie_pm_qos_req;
-#endif
-#endif
 
 /* PCIE resume handler */
 static int woal_pcie_resume(struct pci_dev *pdev);
@@ -127,50 +118,6 @@ static moal_if_ops pcie_ops;
 /********************************************************
 			Local Functions
 ********************************************************/
-
-void woal_request_pmqos_busfreq_high(void)
-{
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#ifdef IMX_SUPPORT
-	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
-#endif
-#endif
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
-#ifdef IMX_SUPPORT
-	cpu_latency_qos_add_request(&woal_pcie_pm_qos_req, 0);
-#endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
-#ifdef IMX_SUPPORT
-	request_bus_freq(BUS_FREQ_HIGH);
-#endif
-#endif
-	return;
-}
-
-void woal_release_pmqos_busfreq_high(void)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
-#ifdef IMX_SUPPORT
-	release_bus_freq(BUS_FREQ_HIGH);
-#endif
-#endif
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#ifdef IMX_SUPPORT
-	pm_qos_remove_request(&woal_pcie_pm_qos_req);
-#endif
-#endif
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
-#ifdef IMX_SUPPORT
-	cpu_latency_qos_remove_request(&woal_pcie_pm_qos_req);
-#endif
-#endif
-	return;
-}
 
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
 
@@ -586,6 +533,23 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		if (handle->priv[i] &&
 		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA))
 			woal_cancel_scan(handle->priv[i], MOAL_IOCTL_WAIT);
+
+#ifdef PCIE9098
+		if (IS_PCIE9098(handle->card_type)) {
+			if ((cardp->dev->device ==
+			     PCIE_DEVICE_ID_NXP_88W9098P_FN0) ||
+			    (cardp->dev->device ==
+			     PCIE_DEVICE_ID_NXP_88W9098P_FN1)) {
+				if (handle->priv[i] &&
+				    handle->priv[i]->media_connected) {
+					PRINTM(MMSG,
+					       "Suspend not allowed while connected\n");
+					ret = -EBUSY;
+					goto done;
+				}
+			}
+		}
+#endif
 	}
 	handle->suspend_fail = MFALSE;
 	memset(&pm_info, 0, sizeof(pm_info));
@@ -1114,10 +1078,8 @@ static mlan_status woal_pcie_preinit(struct pci_dev *pdev)
 {
 	int ret;
 
-#ifndef IMX_SUPPORT
 	if (pdev->multifunction)
 		device_disable_async_suspend(&pdev->dev);
-#endif
 
 	ret = pci_enable_device(pdev);
 

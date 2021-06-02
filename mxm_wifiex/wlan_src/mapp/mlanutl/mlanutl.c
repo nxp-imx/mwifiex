@@ -923,7 +923,7 @@ static int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 }
 
 #define SUBID_OFFSET 2
-static t_u16 supported_subcmd[] = {0x111, 0x11b, 0x11e};
+static t_u16 supported_subcmd[] = {0x104, 0x111, 0x11b, 0x11e};
 
 static int check_if_hostcmd_subcmd_allowed(t_u8 *buf)
 {
