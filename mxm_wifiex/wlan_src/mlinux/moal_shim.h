@@ -118,4 +118,12 @@ mlan_status moal_stop_timer(t_void *pmoal, t_void *ptimer);
 void moal_tp_accounting(t_void *pmoal, void *buf, t_u32 drop_point);
 void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
 				 unsigned int rsvd1);
+
+#if defined(PCIE) || defined(SDIO)
+/* pmqos busfreq add request handler*/
+void woal_request_busfreq_pmqos_add(t_u16 card_type);
+/* pmqos busfreq remove handler*/
+void woal_release_busfreq_pmqos_remove(t_u16 card_type);
+#endif
+
 #endif /*_MOAL_H */

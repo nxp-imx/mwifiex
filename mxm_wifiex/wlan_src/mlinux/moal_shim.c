@@ -44,6 +44,24 @@ Change log:
 #endif
 #include <asm/div64.h>
 
+#if defined(PCIE) || defined(SDIO)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
+#include <linux/busfreq-imx.h>
+#endif
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#include <linux/pm_qos.h>
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#ifdef IMX_SUPPORT
+static struct pm_qos_request woal_pm_qos_req;
+#endif
+#endif
+#endif /*defined(PCIE) || defined(SDIO)*/
+
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -1525,6 +1543,57 @@ done:
 	return status;
 }
 
+#if defined(PCIE) || defined(SDIO)
+void woal_request_busfreq_pmqos_add(t_u16 card_type)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
+	if (IS_PCIE(card_type)) {
+		request_bus_freq(BUS_FREQ_HIGH);
+	}
+#endif
+#endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#ifdef IMX_SUPPORT
+	pm_qos_add_request(&woal_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+#endif
+#endif
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
+#ifdef IMX_SUPPORT
+	cpu_latency_qos_add_request(&woal_pm_qos_req, 0);
+#endif
+#endif
+
+	return;
+}
+
+void woal_release_busfreq_pmqos_remove(t_u16 card_type)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
+	if (IS_PCIE(card_type)) {
+		release_bus_freq(BUS_FREQ_HIGH);
+	}
+#endif
+#endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#ifdef IMX_SUPPORT
+	pm_qos_remove_request(&woal_pm_qos_req);
+#endif
+#endif
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
+#ifdef IMX_SUPPORT
+	cpu_latency_qos_remove_request(&woal_pm_qos_req);
+#endif
+#endif
+	return;
+}
+#endif /*defined(PCIE) || defined(SDIO)*/
+
 /**
  *  @brief This function checks media_connected state for
  *  BSS types UAP/STA/P2P_GO/GC
@@ -1561,17 +1630,15 @@ static void moal_connection_status_check_pmqos(t_void *pmoal)
 	if ((woal_check_media_connected(pmoal) == MTRUE)) {
 		if ((pmhandle->request_pm == MFALSE)) {
 			pmhandle->request_pm = MTRUE;
-#ifdef PCIE
-			if (IS_PCIE(pmhandle->card_type))
-				woal_request_pmqos_busfreq_high();
+#if defined(PCIE) || defined(SDIO)
+			woal_request_busfreq_pmqos_add(pmhandle->card_type);
 #endif
 		}
 	} else {
 		if (pmhandle->request_pm == MTRUE) {
 			pmhandle->request_pm = MFALSE;
-#ifdef PCIE
-			if (IS_PCIE(pmhandle->card_type))
-				woal_release_pmqos_busfreq_high();
+#if defined(PCIE) || defined(SDIO)
+			woal_release_busfreq_pmqos_remove(pmhandle->card_type);
 #endif
 		}
 	}
