@@ -2347,6 +2347,12 @@ mlan_status woal_vdll_req_fw(moal_handle *handle)
 	if (vdll_fw) {
 		PRINTM(MMSG, "VDLL: Request firmware: %s\n", vdll_fw);
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT, vdll_fw,
+				    handle->hotplug_device, GFP_KERNEL, handle,
+				    woal_request_vdll_fw_callback)) < 0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG, vdll_fw,
@@ -2363,6 +2369,7 @@ mlan_status woal_vdll_req_fw(moal_handle *handle)
 				    THIS_MODULE, vdll_fw,
 				    handle->hotplug_device, handle,
 				    woal_request_vdll_fw_callback)) < 0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -2480,6 +2487,12 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 
 	if (type == INIT_CFG_DATA) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT, init_cfg,
+				    handle->hotplug_device, GFP_KERNEL, handle,
+				    woal_request_init_cfg_data_callback)) < 0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG, init_cfg,
@@ -2496,6 +2509,7 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 				    THIS_MODULE, init_cfg,
 				    handle->hotplug_device, handle,
 				    woal_request_init_cfg_data_callback)) < 0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -2524,6 +2538,14 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 		/* 'country_txpwrlimit' holds the value of Configured Tx Power
 		 * Limit */
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    country_txpwrlimit, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_user_conf_callback)) <
+			    0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -2545,6 +2567,7 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 				    handle->hotplug_device, handle,
 				    woal_request_init_user_conf_callback)) <
 			    0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -2573,6 +2596,14 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 		}
 	} else if (type == INIT_HOSTCMD_CFG_DATA) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    init_hostcmd_cfg, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_user_conf_callback)) <
+			    0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -2596,6 +2627,7 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 			    0) {
 #endif
 #endif
+#endif
 				PRINTM(MERROR,
 				       "Init hostcmd config file request_firmware_nowait() failed\n");
 				goto done;
@@ -2616,6 +2648,14 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 	}
 	if (type == BAND_STEER_CFG_DATA) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    band_steer_cfg, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_user_conf_callback)) <
+			    0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -2637,6 +2677,7 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 				    handle->hotplug_device, handle,
 				    woal_request_init_user_conf_callback)) <
 			    0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -2983,6 +3024,13 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 
 	if (dpd_data_cfg && strncmp(dpd_data_cfg, "none", strlen("none"))) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    dpd_data_cfg, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_dpd_conf_callback)) < 0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -3001,6 +3049,7 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 				    THIS_MODULE, dpd_data_cfg,
 				    handle->hotplug_device, handle,
 				    woal_request_init_dpd_conf_callback)) < 0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -3054,6 +3103,14 @@ static mlan_status woal_req_txpwr_data(moal_handle *handle,
 
 	if (txpwrlimit_cfg && strncmp(txpwrlimit_cfg, "none", strlen("none"))) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    txpwrlimit_cfg, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_txpwr_conf_callback)) <
+			    0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -3075,6 +3132,7 @@ static mlan_status woal_req_txpwr_data(moal_handle *handle,
 				    handle->hotplug_device, handle,
 				    woal_request_init_txpwr_conf_callback)) <
 			    0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -3127,6 +3185,14 @@ static mlan_status woal_req_cal_data(moal_handle *handle,
 	/** Cal data request */
 	if (cal_data_cfg && strncmp(cal_data_cfg, "none", strlen("none"))) {
 		if (req_fw_nowait) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+			if ((request_firmware_nowait(
+				    THIS_MODULE, FW_ACTION_UEVENT,
+				    cal_data_cfg, handle->hotplug_device,
+				    GFP_KERNEL, handle,
+				    woal_request_init_user_conf_callback)) <
+			    0) {
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 			if ((request_firmware_nowait(
 				    THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -3148,6 +3214,7 @@ static mlan_status woal_req_cal_data(moal_handle *handle,
 				    handle->hotplug_device, handle,
 				    woal_request_init_user_conf_callback)) <
 			    0) {
+#endif
 #endif
 #endif
 				PRINTM(MERROR,
@@ -3451,6 +3518,13 @@ mlan_status woal_request_fw(moal_handle *handle)
 	PRINTM(MMSG, "Request firmware: %s\n", handle->drv_mode.fw_name);
 
 	if (req_fw_nowait && !handle->fw_reload) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+		err = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
+					      handle->drv_mode.fw_name,
+					      handle->hotplug_device,
+					      GFP_KERNEL, handle,
+					      woal_request_fw_callback);
+#else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 		err = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 					      handle->drv_mode.fw_name,
@@ -3468,6 +3542,7 @@ mlan_status woal_request_fw(moal_handle *handle)
 					      handle->drv_mode.fw_name,
 					      handle->hotplug_device, handle,
 					      woal_request_fw_callback);
+#endif
 #endif
 #endif
 		if (err < 0) {
