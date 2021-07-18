@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "247.p5"
+#define MLAN_RELEASE_VERSION "266"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -266,6 +266,7 @@ typedef t_s32 t_sval;
 /** pcie card reset */
 #define FW_RELOAD_PCIE_RESET 4
 #endif
+#define FW_RELOAD_SDIO_HW_RESET 5
 
 #ifdef USB
 #define MLAN_USB_BLOCK_SIZE (512)
@@ -428,6 +429,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD8987 "SD8987"
 /** SD9097 Card */
 #define CARD_SD9097 "SD9097"
+/** SDIW620 Card */
+#define CARD_SDIW620 "SDIW620"
 /** SD9098 Card */
 #define CARD_SD9098 "SD9098"
 /** SD9177 Card */
@@ -457,6 +460,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_PCIE8997 "PCIE8997"
 /** PCIE9097 Card */
 #define CARD_PCIE9097 "PCIE9097"
+/** PCIEIW620 Card */
+#define CARD_PCIEIW620 "PCIEIW620"
 /** PCIE9000S Card */
 #define CARD_PCIE9000S "PCIE9000S"
 /** PCIE9098 Card */
@@ -498,6 +503,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_USB9098 "USB9098"
 /** USB9097 Card */
 #define CARD_USB9097 "USB9097"
+/** USBIW620 Card */
+#define CARD_USBIW620 "USBIW620"
 #endif
 
 #define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
@@ -1386,7 +1393,7 @@ typedef MLAN_PACK_START struct _tdls_each_link_status {
 	/** Key Length */
 	t_u8 key_length;
 	/** actual key */
-	t_u8 key[];
+	t_u8 key[1];
 } MLAN_PACK_END tdls_each_link_status;
 
 /** TDLS configuration data */
@@ -2021,6 +2028,7 @@ typedef struct _mlan_callbacks {
 				     t_u8 antenna);
 	t_void (*moal_updata_peer_signal)(t_void *pmoal, t_u32 bss_index,
 					  t_u8 *peer_addr, t_s8 snr, t_s8 nflr);
+	t_u64 (*moal_do_div)(t_u64 num, t_u32 base);
 #if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
 	mlan_status (*moal_wait_hostcmd_complete)(t_void *pmoal,
 						  t_u32 bss_index);

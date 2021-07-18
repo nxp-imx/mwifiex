@@ -76,6 +76,7 @@ typedef struct _region_code_mapping_t {
 
 /** Region code mapping table */
 static region_code_mapping_t region_code_mapping[] = {
+	{"00", 0x00}, /* World       */
 	{"US", 0x10}, /* US FCC      */
 	{"CA", 0x20}, /* IC Canada   */
 	{"SG", 0x10}, /* Singapore   */
@@ -94,6 +95,7 @@ static region_code_mapping_t region_code_mapping[] = {
 
 /** EEPROM Region code mapping table */
 static region_code_mapping_t hw_region_code_mapping[] = {
+	{"00 ", 0x00}, /* World       */
 	{"US ", 0x10}, /* US FCC      */
 	{"CA ", 0x20}, /* IC Canada   */
 	{"KR ", 0x30}, /* Korea       */
@@ -894,9 +896,9 @@ void woal_request_set_multicast_list(moal_private *priv, struct net_device *dev)
 		if (mc_count > MLAN_MAX_MULTICAST_LIST_SIZE)
 			bss->param.multicast_list.mode = MLAN_ALL_MULTI_MODE;
 	}
-
+	PRINTM(MCMND, "%s set multicast_list\n", dev->name);
 	/* Send IOCTL request to MLAN */
-	status = woal_request_ioctl(priv, req, MOAL_NO_WAIT);
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 done:
@@ -1860,6 +1862,8 @@ mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status == MLAN_STATUS_SUCCESS) {
 		priv->phandle->fw_release_number = info->param.fw_info.fw_ver;
+		priv->phandle->fw_hotfix_version =
+			info->param.fw_info.hotfix_version;
 		priv->phandle->fw_ecsa_enable = info->param.fw_info.ecsa_enable;
 		priv->phandle->fw_getlog_enable =
 			info->param.fw_info.getlog_enable;
@@ -3246,6 +3250,7 @@ done:
  */
 void woal_get_version(moal_handle *handle, char *version, int max_len)
 {
+	t_u8 hotfix_ver = 0;
 	union {
 		t_u32 l;
 		t_u8 c[4];
@@ -3254,9 +3259,17 @@ void woal_get_version(moal_handle *handle, char *version, int max_len)
 
 	ENTER();
 
+	hotfix_ver = handle->fw_hotfix_version;
 	ver.l = handle->fw_release_number;
-	snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u", ver.c[2], ver.c[1],
-		 ver.c[0], ver.c[3]);
+
+	if (hotfix_ver) {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u.%u", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3], hotfix_ver);
+
+	} else {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3]);
+	}
 
 	snprintf(version, max_len, handle->driver_version, fw_ver);
 
@@ -3906,7 +3919,7 @@ int woal_11h_cancel_chan_report_ioctl(moal_private *priv, t_u8 wait_option)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
-
+	PRINTM(MCMND, "wlan: woal_11h_cancel_chan_report\n");
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
 	if (req == NULL) {
 		ret = -ENOMEM;

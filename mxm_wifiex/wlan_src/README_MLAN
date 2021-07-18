@@ -119,7 +119,8 @@
 	multi_dtim=0|x <use default DTIM interval(default) | set x*beacon_period as DTIM interval>
 	inact_tmo=0|x <use default IEEE ps inactivity timout value (default) | use IEEE ps inactivity timeout value x ms>
 	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 64)
-	host_mlme=0|1 <Disable Host MLME support (default)| Enable Host MLME support>
+	host_mlme=0|1 <Operate in non-host_mlme mode (default)| Operate in host_mlme mode>
+	for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
 	country_ie_ignore=0|1 <Follow countryIE from AP and beacon hint enable (default) | Ignore countryIE from AP and beacon hint disable>
 	beacon_hints=0|1 <enable beacon hints(default) | disable beacon hints>
 
@@ -439,6 +440,8 @@ SYNOPSIS
 	mlanutl mlanX txratecfg [l] [m] [n] [o]
 	mlanutl uapX txratecfg [l] [m] [n] [o]
 	mlanutl mlanX hssetpara condition [GPIO# [gap]] [ind_GPIO# [level]]
+	mlanutl mlanX mefcfg <mef.conf>
+        mlanutl mlanX cloud_keep_alive <keep_alive.conf> <start/stop/reset>
 
 DESCRIPTION
 	Those commands are used to send additional commands to the NXP MLAN
@@ -640,6 +643,31 @@ getlog
 	dot11AMPDUDelimiterCRCErrorCount	Increments when an MPDU delimiter has a CRC error when this is the first
 						CRC error in the received A-MPDU or when the previous delimiter has been decoded correctly
 
+        Cmd Usage: mlanutl mlanX getlog ext
+	The above command is used with the argument "ext" to display the following error statistics:-
+
+	rxStuckIssueCount-1
+        rxStuckIssueCount-2
+        rxStuckRecoveryCount
+        rxStuckTsf-1
+        rxStuckTsf-2
+        txWatchdogRecoveryCount
+        txWatchdogTsf-1
+        txWatchdogTsf-2
+        channelSwitchAnnouncementSent
+        channelSwitchState
+        registerClass
+        channelNumber
+        channelSwitchMode
+        RxResetRecoveryCount
+        RxIsr2NotDoneCnt
+        gdmaAbortCnt
+        gResetRxMacCnt
+        gOwnrshpCtlErrCnt
+        gOwnrshpBcnErrCnt
+        gOwnrshpMgtErrCnt
+        gOwnrshpDatErrCnt
+
 getsignal
 	This command gets the last and average value of RSSI, SNR and NF of
 	Beacon and Data.
@@ -731,9 +759,10 @@ Usage:
 		0:      Get 2.4G txpwrlimit table
 		0x10:   Get 5G sub0 txpwrlimit table
 		0x11:   Get 5G sub1 txpwrlimit table
-		0x12    Get 5G sub2 txpwrlimit table
-		0x1f    Get all 5G txpwrlimit table
-		0xff    Get both 2G and 5G txpwrlimit table
+		0x12:   Get 5G sub2 txpwrlimit table
+		0x13:   Get 5G sub3 txpwrlimit table
+		0x1f:   Get all 5G txpwrlimit table
+		0xff:   Get both 2G and 5G txpwrlimit table
 	<raw_data_file> driver will save fw raw data to this file.
 
     Examples:
@@ -1403,3 +1432,27 @@ hssetpara
 
 	Note: The parameters will be saved in the driver and be used when host suspends.
               The ind_GPIO# and level parameters only work with specific board and firmware.
+mefcfg
+	This command is used to set MEF settings.
+
+	Usage:
+		mlanutl mlanX mefcfg <mef.conf>
+
+	Where the parameter is:
+		mef.conf : The configuration file specifying the MEF settings.
+
+	Example:
+		mlanutl mlan0 mefcfg config/mef.conf
+cloud_keep_alive
+        This command is used to start/stop send keep alive packet which set from host.And reset TCP connection.
+
+        Usage:
+                mlanutl mlanX cloud_keep_alive <keep_alive.conf> <start/stop/reset>
+
+        where <start/stop/reset>
+                start means set cloud keep alive packet and paramters to firmware. stop means stop firmware from sending keep alive packet.reset will stop and reset TCP connection when host resume.
+
+        Examples:
+                mlanutl mlan0 cloud_keep_alive keep_alive.conf start
+                mlanutl mlan0 cloud_keep_alive keep_alive.conf stop
+                mlanutl mlan0 cloud_keep_alive keep_alive.conf reset

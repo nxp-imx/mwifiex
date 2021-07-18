@@ -342,8 +342,8 @@ static t_u16 woal_update_card_type(t_void *card)
 #ifdef SD8978
 	if (cardp_sd->func->device == SD_DEVICE_ID_8978) {
 		card_type = CARD_TYPE_SD8978;
-		moal_memcpy_ext(NULL, driver_version, CARD_SD8978,
-				strlen(CARD_SD8978), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, "SDIW416",
+				strlen("SDIW416"), strlen(driver_version));
 		moal_memcpy_ext(
 			NULL,
 			driver_version + strlen(INTF_CARDTYPE) +
@@ -419,7 +419,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			NULL,
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
-			V17, strlen(V17),
+			V18, strlen(V18),
 			strlen(driver_version) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
@@ -494,6 +494,10 @@ int woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id)
 		goto err;
 	}
 
+#ifdef IMX_SUPPORT
+	woal_regist_oob_wakeup_irq(card->handle);
+#endif /* IMX_SUPPORT */
+
 	LEAVE();
 	return ret;
 err:
@@ -521,6 +525,9 @@ void woal_sdio_remove(struct sdio_func *func)
 		PRINTM(MINFO, "SDIO func=%d\n", func->num);
 		card = sdio_get_drvdata(func);
 		if (card) {
+#ifdef IMX_SUPPORT
+			woal_unregist_oob_wakeup_irq(card->handle);
+#endif /* IMX_SUPPORT */
 			woal_remove_card(card);
 			kfree(card);
 		}
@@ -717,6 +724,15 @@ int woal_sdio_suspend(struct device *dev)
 		handle->suspend_notify_req = MFALSE;
 #endif
 		if (hs_actived) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 3, 4)
+			if (pm_flags & MMC_PM_WAKE_SDIO_IRQ) {
+				ret = sdio_set_host_pm_flags(
+					func, MMC_PM_WAKE_SDIO_IRQ);
+				PRINTM(MCMND,
+				       "suspend with MMC_PM_WAKE_SDIO_IRQ ret=%d\n",
+				       ret);
+			}
+#endif
 #ifdef MMC_PM_SKIP_RESUME_PROBE
 			PRINTM(MCMND,
 			       "suspend with MMC_PM_KEEP_POWER and MMC_PM_SKIP_RESUME_PROBE\n");
@@ -739,6 +755,9 @@ int woal_sdio_suspend(struct device *dev)
 
 	/* Indicate device suspended */
 	handle->is_suspended = MTRUE;
+#ifdef IMX_SUPPORT
+	woal_enable_oob_wakeup_irq(handle);
+#endif /* IMX_SUPPORT */
 done:
 	PRINTM(MCMND, "<--- Leave woal_sdio_suspend --->\n");
 	LEAVE();
@@ -787,6 +806,9 @@ int woal_sdio_resume(struct device *dev)
 
 	/* Disable Host Sleep */
 	woal_cancel_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY), MOAL_NO_WAIT);
+#ifdef IMX_SUPPORT
+	woal_disable_oob_wakeup_irq(handle);
+#endif /* IMX_SUPPORT */
 	PRINTM(MCMND, "<--- Leave woal_sdio_resume --->\n");
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -1131,10 +1153,14 @@ static void woal_sdiommc_unregister_dev(moal_handle *handle)
 	ENTER();
 	if (handle->card) {
 		struct sdio_mmc_card *card = handle->card;
+		struct sdio_func *func = card->func;
+
 		/* Release the SDIO IRQ */
 		sdio_claim_host(card->func);
 		sdio_release_irq(card->func);
 		sdio_disable_func(card->func);
+		if (handle->driver_status)
+			mmc_hw_reset(func->card->host);
 		sdio_release_host(card->func);
 
 		sdio_set_drvdata(card->func, NULL);
@@ -1570,11 +1596,23 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 	t_u8 dbg_dump_ctrl_reg = phandle->card_info->dump_fw_ctrl_reg;
 	t_u8 debug_host_ready = phandle->card_info->dump_fw_host_ready;
 
+#ifdef SD9177
+	if (IS_SD9177(phandle->card_type)) {
+		if (phandle->event_fw_dump)
+			debug_host_ready = 0xAA;
+	}
+#endif
 	ret = woal_sdio_writeb(phandle, dbg_dump_ctrl_reg, debug_host_ready);
 	if (ret) {
 		PRINTM(MERROR, "SDIO Write ERR\n");
 		return RDWR_STATUS_FAILURE;
 	}
+#ifdef SD9177
+	if (IS_SD9177(phandle->card_type)) {
+		if (phandle->event_fw_dump)
+			return RDWR_STATUS_SUCCESS;
+	}
+#endif
 	for (tries = 0; tries < MAX_POLL_TRIES; tries++) {
 		ret = woal_sdio_readb(phandle, dbg_dump_ctrl_reg, &ctrl_data);
 		if (ret) {
@@ -2039,6 +2077,18 @@ void woal_dump_firmware_info_v3(moal_handle *phandle)
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
 	}
+#ifdef SD9177
+	if (IS_SD9177(phandle->card_type)) {
+		if (phandle->event_fw_dump) {
+			if (RDWR_STATUS_FAILURE !=
+			    woal_cmd52_rdwr_firmware(phandle, doneflag)) {
+				PRINTM(MMSG,
+				       "====SDIO FW DUMP EVENT MODE START ====\n");
+				return;
+			}
+		}
+	}
+#endif
 
 	dbg_dump_start_reg = phandle->card_info->dump_fw_start_reg;
 	dbg_dump_end_reg = phandle->card_info->dump_fw_end_reg;
@@ -2276,6 +2326,11 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 		woal_dump_firmware_info_v2(phandle);
 	} else if (phandle->card_info->dump_fw_info == DUMP_FW_SDIO_V3) {
 		woal_dump_firmware_info_v3(phandle);
+		if (phandle->event_fw_dump) {
+			phandle->event_fw_dump = MFALSE;
+			queue_work(phandle->workqueue, &phandle->main_work);
+			return;
+		}
 	}
 #ifdef SD8801
 	else {
@@ -2383,6 +2438,45 @@ static int woal_sdiommc_dump_reg_info(moal_handle *phandle, t_u8 *drv_buf)
 
 	LEAVE();
 	return drv_ptr - (char *)drv_buf;
+}
+
+/**
+ *  @brief This function reset sdio through sdio bus driver
+ *
+ *  @param phandle   A pointer to moal_handle
+ *
+ *  @return          N/A
+ */
+void woal_sdio_reset_hw(moal_handle *handle)
+{
+	struct sdio_mmc_card *card = handle->card;
+	struct sdio_func *func = card->func;
+	ENTER();
+	sdio_claim_host(func);
+	sdio_release_irq(card->func);
+	sdio_disable_func(card->func);
+	mmc_hw_reset(func->card->host);
+#ifdef MMC_QUIRK_BLKSZ_FOR_BYTE_MODE
+	/* The byte mode patch is available in kernel MMC driver
+	 * which fixes one issue in MP-A transfer.
+	 * bit1: use func->cur_blksize for byte mode
+	 */
+	func->card->quirks |= MMC_QUIRK_BLKSZ_FOR_BYTE_MODE;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+	func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+	/* wait for chip fully wake up */
+	if (!func->enable_timeout)
+		func->enable_timeout = 200;
+#endif
+	sdio_enable_func(func);
+	sdio_claim_irq(func, woal_sdio_interrupt);
+	sdio_set_block_size(card->func, MLAN_SDIO_BLOCK_SIZE);
+	sdio_release_host(func);
+	LEAVE();
+	return;
 }
 
 static moal_if_ops sdiommc_ops = {

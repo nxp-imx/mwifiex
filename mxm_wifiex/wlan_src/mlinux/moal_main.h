@@ -231,6 +231,7 @@ typedef t_u8 BOOLEAN;
 #define V15 "15"
 #define V16 "16"
 #define V17 "17"
+#define V18 "18"
 
 /** Chip Magic Value */
 #define CHIP_MAGIC_VALUE 0x24
@@ -954,7 +955,7 @@ typedef struct _wait_queue {
 /**
  * the maximum number of adapter supported
  **/
-#define MAX_MLAN_ADAPTER 3
+#define MAX_MLAN_ADAPTER 4
 
 typedef struct _moal_drv_mode {
 	/** driver mode */
@@ -1013,6 +1014,7 @@ struct debug_data_priv {
 /** IP address operation: Remove */
 #define IPADDR_OP_REMOVE 0
 
+#define TCP_ACK_MAX_HOLD 9
 #define DROP_TCP_ACK 1
 #define HOLD_TCP_ACK 2
 struct tcp_sess {
@@ -1057,6 +1059,11 @@ enum woal_event_type {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	WOAL_EVENT_DEAUTH,
 	WOAL_EVENT_ASSOC_RESP,
+#endif
+#endif
+#ifdef UAP_CFG80211
+#if KERNEL_VERSION(3, 12, 0) <= CFG80211_VERSION_CODE
+	WOAL_EVENT_CANCEL_CHANRPT,
 #endif
 #endif
 };
@@ -1257,6 +1264,10 @@ struct _moal_private {
 	t_u8 current_addr[ETH_ALEN];
 	/** Media connection status */
 	BOOLEAN media_connected;
+	/** mclist work queue */
+	struct workqueue_struct *mclist_workqueue;
+	/** csa work */
+	struct work_struct mclist_work;
 	/** Statistics of tcp ack tx dropped */
 	t_u32 tcp_ack_drop_cnt;
 	/** Statistics of tcp ack tx in total from kernel */
@@ -1327,6 +1338,8 @@ struct _moal_private {
 	t_u8 conn_wep_key[MAX_WEP_KEY_SIZE];
 	/** connection param */
 	struct cfg80211_connect_params sme_current;
+	/** station info */
+	struct station_info *sinfo;
 	/* associcate bss */
 	struct cfg80211_bss *assoc_bss;
 #endif
@@ -1501,6 +1514,8 @@ struct _moal_private {
 	struct list_head tcp_sess_queue;
 	/** TCP Ack enhance flag */
 	t_u8 enable_tcp_ack_enh;
+	/** TCP Ack drop count */
+	t_u8 tcp_ack_max_hold;
 	/** TCP session spin lock */
 	spinlock_t tcp_sess_lock;
 	/** tcp list */
@@ -1882,6 +1897,8 @@ struct _moal_handle {
 	BOOLEAN surprise_removed;
 	/** Firmware release number */
 	t_u32 fw_release_number;
+	/** Firmware Hotfix version */
+	t_u8 fw_hotfix_version;
 	/** ECSA support */
 	t_u8 fw_ecsa_enable;
 	/** Getlog support */
@@ -3165,6 +3182,7 @@ void woal_reassoc_timer_func(void *context);
 t_void woal_main_work_queue(struct work_struct *work);
 t_void woal_rx_work_queue(struct work_struct *work);
 t_void woal_evt_work_queue(struct work_struct *work);
+t_void woal_mclist_work_queue(struct work_struct *work);
 
 netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
 #ifdef STA_SUPPORT

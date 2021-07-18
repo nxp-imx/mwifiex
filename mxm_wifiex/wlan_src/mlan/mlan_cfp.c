@@ -1281,9 +1281,9 @@ static t_void wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
 	}
 
 	/* first clear dest dynamic blacklisted entries */
+	/* do not clear the flags */
 	for (i = 0; i < num_cfp; i++) {
 		cfp[i].dynamic.blacklist = MFALSE;
-		cfp[i].dynamic.flags = 0;
 	}
 
 	/* copy dynamic blacklisted entries from source where channels match */
@@ -1293,8 +1293,6 @@ static t_void wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
 				if (cfp[i].channel == cfp_src[j].channel) {
 					cfp[i].dynamic.blacklist =
 						cfp_src[j].dynamic.blacklist;
-					cfp[i].dynamic.flags =
-						cfp_src[j].dynamic.flags;
 					break;
 				}
 	}
@@ -1323,6 +1321,17 @@ mlan_status wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter,
 
 	ENTER();
 
+	if (pmadapter->otp_region) {
+		if (!memcmp(pmadapter, pmadapter->otp_region->country_code,
+			    country_code, COUNTRY_CODE_LEN - 1)) {
+			if (pmadapter->cfp_otp_bg)
+				*cfp_bg = pmadapter->otp_region->region_code;
+			if (pmadapter->cfp_otp_a)
+				*cfp_a = pmadapter->otp_region->region_code;
+			LEAVE();
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
 	/* Look for code in mapping table */
 	for (i = 0; i < NELEMENTS(country_code_mapping); i++) {
 		if (!memcmp(pmadapter, country_code_mapping[i].country_code,
@@ -2712,7 +2721,7 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
 			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
-		} else if (region) {
+		} else if (cfp) {
 			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
 		}
 		i++;
@@ -2744,7 +2753,7 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
 			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
-		} else if (region) {
+		} else if (cfp) {
 			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
 		}
 	}
@@ -3111,6 +3120,43 @@ t_u8 wlan_mrvl_rateid_to_ieee_rateid(t_u8 rate)
 }
 
 /**
+ *  @brief	 sort cfp otp table
+ *
+ *  @param pmapdater	a pointer to mlan_adapter structure
+ *
+ *  @return
+ *    None
+ */
+static void wlan_sort_cfp_otp_table(mlan_adapter *pmadapter)
+{
+	t_u8 c, d;
+	chan_freq_power_t *ch1;
+	chan_freq_power_t *ch2;
+	chan_freq_power_t swap;
+
+	if (pmadapter->tx_power_table_a_rows <= 1)
+		return;
+	for (c = 0; c < pmadapter->tx_power_table_a_rows - 1; c++) {
+		for (d = 0; d < pmadapter->tx_power_table_a_rows - c - 1; d++) {
+			ch1 = (chan_freq_power_t *)(pmadapter->cfp_otp_a + d);
+			ch2 = (chan_freq_power_t *)(pmadapter->cfp_otp_a + d +
+						    1);
+			if (ch1->channel > ch2->channel) {
+				memcpy_ext(pmadapter, &swap, ch1,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+				memcpy_ext(pmadapter, ch1, ch2,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+				memcpy_ext(pmadapter, ch2, &swap,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+			}
+		}
+	}
+}
+
+/**
  *  @brief	Update CFP tables and power tables from FW
  *
  *  @param priv		Private driver information structure
@@ -3144,8 +3190,11 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 		PRINTM(MERROR, "CFP table update failed!\n");
 		goto out;
 	}
-	if (pmadapter->otp_region)
+	if (pmadapter->otp_region) {
+		memset(pmadapter, pmadapter->region_channel, 0,
+		       sizeof(pmadapter->region_channel));
 		wlan_free_fw_cfp_tables(pmadapter);
+	}
 	pmadapter->tx_power_table_bg_rows = FW_CFP_TABLE_MAX_ROWS_BG;
 	pmadapter->tx_power_table_bg_cols = FW_CFP_TABLE_MAX_COLS_BG;
 	pmadapter->tx_power_table_a_rows = FW_CFP_TABLE_MAX_ROWS_A;
@@ -3223,6 +3272,10 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 			pmadapter->domain_reg.country_code[1] =
 				pmadapter->otp_region->country_code[1];
 			pmadapter->domain_reg.country_code[2] = '\0';
+			PRINTM(MCMND, "OTP region: region_code=%d %c%c\n",
+			       pmadapter->otp_region->region_code,
+			       pmadapter->country_code[0],
+			       pmadapter->country_code[1]);
 			pmadapter->cfp_code_bg =
 				pmadapter->otp_region->region_code;
 			pmadapter->cfp_code_a =
@@ -3271,6 +3324,11 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					(pmadapter->cfp_otp_bg + i)
 						->passive_scan_or_radar_detect =
 						MTRUE;
+				PRINTM(MCMD_D,
+				       "OTP Region (BG): chan=%d flags=0x%x\n",
+				       (pmadapter->cfp_otp_bg + i)->channel,
+				       (pmadapter->cfp_otp_bg + i)
+					       ->dynamic.flags);
 				data++;
 			}
 			ret = pcb->moal_malloc(
@@ -3306,6 +3364,12 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					(pmadapter->cfp_otp_a + i)
 						->passive_scan_or_radar_detect =
 						MTRUE;
+				PRINTM(MCMD_D,
+				       "OTP Region (A): chan=%d flags=0x%x\n",
+				       (pmadapter->cfp_otp_a + i)->channel,
+				       (pmadapter->cfp_otp_a + i)
+					       ->dynamic.flags);
+
 				data++;
 			}
 			break;
@@ -3380,6 +3444,9 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				((power_table_attr_t *)data)->rows_5g;
 			pmadapter->tx_power_table_a_cols =
 				((power_table_attr_t *)data)->cols_5g;
+			PRINTM(MCMD_D, "OTP region: bg_row=%d, a_row=%d\n",
+			       pmadapter->tx_power_table_bg_rows,
+			       pmadapter->tx_power_table_a_rows);
 			break;
 		default:
 			break;
@@ -3410,7 +3477,8 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				NXP_CHANNEL_NO_OFDM;
 		}
 	}
-
+	if (pmadapter->cfp_otp_a)
+		wlan_sort_cfp_otp_table(pmadapter);
 out:
 	LEAVE();
 }

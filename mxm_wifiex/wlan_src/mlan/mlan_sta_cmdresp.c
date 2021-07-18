@@ -742,6 +742,16 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->gdma_abort_cnt);
 		pget_info->param.stats.g_reset_rx_mac_cnt =
 			wlan_le32_to_cpu(pget_log->g_reset_rx_mac_cnt);
+		// Ownership error counters
+		pget_info->param.stats.dwCtlErrCnt =
+			wlan_le32_to_cpu(pget_log->dwCtlErrCnt);
+		pget_info->param.stats.dwBcnErrCnt =
+			wlan_le32_to_cpu(pget_log->dwBcnErrCnt);
+		pget_info->param.stats.dwMgtErrCnt =
+			wlan_le32_to_cpu(pget_log->dwMgtErrCnt);
+		pget_info->param.stats.dwDatErrCnt =
+			wlan_le32_to_cpu(pget_log->dwDatErrCnt);
+
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
 				wlan_le32_to_cpu(pget_log->tx_frag_cnt);
@@ -1864,7 +1874,7 @@ static mlan_status wlan_ret_tdls_config(pmlan_private pmpriv,
 				wlan_le16_to_cpu(link_ptr->data_rssi_avg);
 			link_ptr->data_nf_avg =
 				wlan_le16_to_cpu(link_ptr->data_nf_avg);
-			link_length = sizeof(tdls_each_link_status);
+			link_length = sizeof(tdls_each_link_status) - 1;
 			/* adjust as per open or secure network */
 			if (link_ptr->link_flags & 0x02) {
 				link_ptr->key_lifetime = wlan_le32_to_cpu(

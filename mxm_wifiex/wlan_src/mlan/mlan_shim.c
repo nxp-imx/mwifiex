@@ -319,6 +319,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_spin_unlock);
 	MASSERT(pcb->moal_hist_data_add);
 	MASSERT(pcb->moal_updata_peer_signal);
+	MASSERT(pcb->moal_do_div);
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
@@ -1163,6 +1164,7 @@ process_start:
 			    wlan_11h_radar_detected_tx_blocked(pmadapter)) {
 				if (pmadapter->cmd_sent ||
 				    pmadapter->curr_cmd ||
+				    pmadapter->cmd_lock ||
 				    !wlan_is_send_cmd_allowed(
 					    pmadapter->tdls_status) ||
 				    !wlan_is_cmd_pending(pmadapter)) {
@@ -1222,6 +1224,7 @@ process_start:
 			pmadapter->vdll_ctrl.pending_block = MNULL;
 		}
 		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
+		    !pmadapter->cmd_lock &&
 		    wlan_is_send_cmd_allowed(pmadapter->tdls_status)) {
 			if (wlan_exec_next_cmd(pmadapter) ==
 			    MLAN_STATUS_FAILURE) {

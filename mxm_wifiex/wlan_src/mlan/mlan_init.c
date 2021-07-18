@@ -283,9 +283,15 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		beacon_buffer_size = MAX_SCAN_BEACON_BUFFER;
 	else
 		beacon_buffer_size = DEFAULT_SCAN_BEACON_BUFFER;
-	ret = pmadapter->callbacks.moal_malloc(pmadapter->pmoal_handle,
-					       beacon_buffer_size, MLAN_MEM_DEF,
-					       (t_u8 **)&pmadapter->bcn_buf);
+	if (pmadapter->callbacks.moal_vmalloc &&
+	    pmadapter->callbacks.moal_vfree)
+		ret = pmadapter->callbacks.moal_vmalloc(
+			pmadapter->pmoal_handle, beacon_buffer_size,
+			(t_u8 **)&pmadapter->bcn_buf);
+	else
+		ret = pmadapter->callbacks.moal_malloc(
+			pmadapter->pmoal_handle, beacon_buffer_size,
+			MLAN_MEM_DEF, (t_u8 **)&pmadapter->bcn_buf);
 	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->bcn_buf) {
 		PRINTM(MERROR, "Failed to allocate bcn buf\n");
 		LEAVE();
@@ -721,7 +727,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	memset(pmadapter, pmadapter->pscan_table, 0,
 	       (sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST));
 	pmadapter->active_scan_triggered = MFALSE;
-	pmadapter->ext_scan = MTRUE;
+	pmadapter->ext_scan = EXT_SCAN_TYPE_ENH;
 	pmadapter->scan_probes = DEFAULT_PROBES;
 
 	memset(pmadapter, pmadapter->bcn_buf, 0, pmadapter->bcn_buf_size);
@@ -1666,8 +1672,12 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		pmadapter->pchan_stats = MNULL;
 	}
 	if (pmadapter->bcn_buf) {
-		pcb->moal_mfree(pmadapter->pmoal_handle,
-				(t_u8 *)pmadapter->bcn_buf);
+		if (pcb->moal_vmalloc && pcb->moal_vfree)
+			pcb->moal_vfree(pmadapter->pmoal_handle,
+					(t_u8 *)pmadapter->bcn_buf);
+		else
+			pcb->moal_mfree(pmadapter->pmoal_handle,
+					(t_u8 *)pmadapter->bcn_buf);
 		pmadapter->bcn_buf = MNULL;
 	}
 #endif

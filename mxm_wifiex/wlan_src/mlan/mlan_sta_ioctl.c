@@ -414,6 +414,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		pioctl_req->data_read_written =
 			sizeof(mlan_fw_info) + MLAN_SUB_COMMAND_SIZE;
 		pget_info->param.fw_info.fw_ver = pmadapter->fw_release_number;
+		pget_info->param.fw_info.hotfix_version =
+			pmadapter->fw_hotfix_ver;
 		memcpy_ext(pmadapter, &pget_info->param.fw_info.mac_addr,
 			   pmpriv->curr_addr, MLAN_MAC_ADDR_LENGTH,
 			   MLAN_MAC_ADDR_LENGTH);

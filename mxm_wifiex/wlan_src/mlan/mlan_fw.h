@@ -552,6 +552,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HWSPEC_MAX_AMSDU_SUPP MBIT(31)
 /** Greenfield support */
 #define HWSPEC_GREENFIELD_SUPP MBIT(29)
+/** SM Power Save enable */
+#define CAPINFO_SMPS_ENABLE MBIT(27)
 /** RX STBC support */
 #define HWSPEC_RXSTBC_SUPP MBIT(26)
 /** ShortGI @ 40Mhz support */
@@ -562,6 +564,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HWSPEC_LDPC_SUPP MBIT(22)
 /** Channel width 40Mhz support */
 #define HWSPEC_CHANBW40_SUPP MBIT(17)
+/** SM Power Save mode */
+#define CAPINFO_SMPS_MODE MBIT(9)
 /** 40Mhz intolarent enable */
 #define CAPINFO_40MHZ_INTOLARENT MBIT(8)
 
@@ -580,7 +584,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define DEFAULT_11N_TX_BF_CAP_1X1 0x19E74608
 
 /** Bits to ignore in hw_dev_cap as these bits are set in get_hw_spec */
-#define IGN_HW_DEV_CAP (CAPINFO_40MHZ_INTOLARENT)
+#define IGN_HW_DEV_CAP                                                         \
+	(CAPINFO_40MHZ_INTOLARENT | (CAPINFO_SMPS_ENABLE | CAPINFO_SMPS_MODE))
+
+/** HW_SPEC FwCapInfo : If FW support RSN Replay Detection */
+#define ISSUPP_RSN_REPLAY_DETECTION(FwCapInfo) (FwCapInfo & MBIT(28))
 
 /** HW_SPEC FwCapInfo */
 #define ISSUPP_11NENABLED(FwCapInfo) (FwCapInfo & MBIT(11))
@@ -615,6 +623,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_CHANWIDTH20(Dot11nDevCap) (Dot11nDevCap & MBIT(16))
 /** HW_SPEC Dot11nDevCap : Channel BW support @ 10Mhz  support */
 #define ISSUPP_CHANWIDTH10(Dot11nDevCap) (Dot11nDevCap & MBIT(15))
+/** Dot11nUsrCap : SMPS static/dynamic mode if BIT27 MIMO PS support eanbled */
+#define ISSUPP_SMPS_DYNAMIC_MODE(Dot11nDevCap) (Dot11nDevCap & MBIT(9))
 /** Dot11nUsrCap : 40Mhz intolarance enabled */
 #define ISENABLED_40MHZ_INTOLARENT(Dot11nDevCap) (Dot11nDevCap & MBIT(8))
 /** Dot11nUsrCap : Reset 40Mhz intolarance enabled */
@@ -689,8 +699,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define SETHT_DSSSCCK40(HTCapInfo) (HTCapInfo |= MBIT(12))
 /** SET HTCapInfo : Enable 40Mhz Intolarence */
 #define SETHT_40MHZ_INTOLARANT(HTCapInfo) (HTCapInfo |= MBIT(14))
-/** SET HTCapInfo : Disable Static SM power save */
-#define SETHT_STATIC_SMPS(HTCapInfo) ((HTCapInfo) |= (MBIT(2) | MBIT(3)))
+
+/** SET HTCapInfo : Set SM power save disabled */
+#define SETHT_SMPS_DISABLE(HTCapInfo) ((HTCapInfo) |= (MBIT(2) | MBIT(3)))
+/** SET HTCapInfo : Set Dynamic SM power save */
+#define SETHT_SMPS_DYNAMIC(HTCapInfo) ((HTCapInfo) |= MBIT(2))
 
 /** RESET HTCapInfo : Set support for LDPC coding capability */
 #define RESETHT_LDPCCODINGCAP(HTCapInfo) (HTCapInfo &= ~MBIT(0))
@@ -1404,7 +1417,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Extension_t {
 	/** Element id extension */
 	t_u8 ext_id;
 	/** payload */
-	t_u8 data[];
+	t_u8 data[1];
 } MLAN_PACK_END MrvlIEtypes_Extension_t, *pMrvlIEtypes_Extension_t;
 
 /* HE MAC Capabilities Information field BIT 1 for TWT Req */
@@ -1422,12 +1435,18 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_cap_t {
 	t_u8 he_mac_cap[6];
 	/** he phy capability info */
 	t_u8 he_phy_cap[11];
-	/** he txrx mcs support , size would be 4 or 8 or 12 */
-	t_u8 he_txrx_mcs_support[4];
-	/** 160Mhz tx rx mcs support*/
-	t_u8 he160_txrx_mcs_support[4];
-	/** 80+80 Mhz tx rx mcs suport */
-	t_u8 he8080_txrx_mcs_support[4];
+	/** rx mcs for 80 */
+	t_u16 rx_mcs_80;
+	/** tx mcs for 80 */
+	t_u16 tx_mcs_80;
+	/** rx mcs for bw 160 */
+	t_u16 rx_mcs_160;
+	/** tx mcs for bw 160 */
+	t_u16 tx_mcs_160;
+	/** rx mcs for bw 80+80 */
+	t_u16 rx_mcs_80p80;
+	/** tx mcs for bw 80+80 */
+	t_u16 tx_mcs_80p80;
 	/** PPE Thresholds (optional) */
 	t_u8 val[20];
 } MLAN_PACK_END MrvlIEtypes_He_cap_t, *pMrvlIEtypes_he_cap_t;
@@ -1927,6 +1946,8 @@ typedef enum _ENH_PS_MODES {
 #define EVENT_VDLL_IND 0x00000081
 #define EVENT_EXCEED_MAX_P2P_CONN 0x00000089
 
+/** Card Event definition : RESET PN */
+
 #define EVENT_FW_HANG_REPORT 0x0000008F
 
 #define EVENT_FW_DUMP_INFO 0x00000073
@@ -1982,7 +2003,7 @@ typedef MLAN_PACK_START struct _ie_data {
 	/** IE Length */
 	t_u16 ie_length;
 	/** IE pointer */
-	t_u8 ie_ptr[];
+	t_u8 ie_ptr[1];
 } MLAN_PACK_END tdls_ie_data;
 
 /** Event structure for generic events from TDLS FW */
@@ -2170,6 +2191,7 @@ typedef MLAN_PACK_START struct _RxPD {
 	t_u64 toa_tod_tstamps;
 	/** rx info */
 	t_u32 rx_info;
+
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
@@ -2938,7 +2960,7 @@ typedef MLAN_PACK_START struct _MrvlIETypes_ChanTRPCConfig_t {
 	/** channel number */
 	t_u8 chan_num;
 	/** mode groups */
-	mod_group_setting mod_group[];
+	mod_group_setting mod_group[1];
 } MLAN_PACK_END MrvlIETypes_ChanTRPCConfig_t;
 
 /* HostCmd_DS_CHANNEL_TRPC_CONFIG */
@@ -2948,7 +2970,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CHANNEL_TRPC_CONFIG {
 	/** 0/1/2/3 */
 	t_u16 sub_band;
 	/** chan TRPC config */
-	MrvlIETypes_ChanTRPCConfig_t tlv[];
+	// MrvlIETypes_ChanTRPCConfig_t tlv[];
 } MLAN_PACK_END HostCmd_DS_CHANNEL_TRPC_CONFIG;
 
 typedef MLAN_PACK_START struct _HostCmd_DS_MEF_CFG {
@@ -3176,6 +3198,7 @@ enum API_VER_ID {
 	FW_API_VER_ID = 2,
 	UAP_FW_API_VER_ID = 3,
 	CHANRPT_API_VER_ID = 4,
+	FW_HOTFIX_VER_ID = 5,
 };
 
 /** FW AP V15 */
@@ -3678,6 +3701,15 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
+	// Ownership error counters
+	/*Error Ownership error count*/
+	t_u32 dwCtlErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwBcnErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwMgtErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwDatErrCnt;
 } MLAN_PACK_END HostCmd_DS_802_11_GET_LOG;
 
 /* maln wifi rate */
@@ -4305,7 +4337,7 @@ MLAN_PACK_START struct coalesce_receive_filt_rule {
 	t_u8 num_of_fields;
 	t_u8 pkt_type;
 	t_u16 max_coalescing_delay;
-	struct coalesce_filt_field_param params[];
+	struct coalesce_filt_field_param params[1];
 } MLAN_PACK_END;
 
 /** HostCmd_DS_COALESCE_CONFIG */
@@ -4313,7 +4345,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_COALESCE_CONFIG {
 	/** Action 0-GET, 1-SET */
 	t_u16 action;
 	t_u16 num_of_rules;
-	struct coalesce_receive_filt_rule rule[];
+	struct coalesce_receive_filt_rule rule[1];
 } MLAN_PACK_END HostCmd_DS_COALESCE_CONFIG;
 
 /** TLV type : FW support max connection TLV */

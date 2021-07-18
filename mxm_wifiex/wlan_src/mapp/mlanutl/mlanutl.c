@@ -113,6 +113,8 @@ static int process_addbapara(int argc, char *argv[]);
 static int process_aggrpriotbl(int argc, char *argv[]);
 static int process_addbareject(int argc, char *argv[]);
 static int process_hssetpara(int argc, char *argv[]);
+static int process_mefcfg(int argc, char *argv[]);
+static int process_cloud_keep_alive(int argc, char *argv[]);
 
 struct command_node command_list[] = {
 	{"version", process_version},
@@ -141,6 +143,8 @@ struct command_node command_list[] = {
 	{"httxcfg", process_httxcfg},
 	{"htcapinfo", process_htcapinfo},
 	{"hssetpara", process_hssetpara},
+	{"mefcfg", process_mefcfg},
+	{"cloud_keep_alive", process_cloud_keep_alive},
 };
 
 static char *usage[] = {
@@ -176,6 +180,8 @@ static char *usage[] = {
 	"         addbapara",
 	"         addbareject",
 	"         hssetpara",
+	"         mefcfg",
+	"         cloud_keep_alive",
 };
 
 /** Socket */
@@ -923,7 +929,7 @@ static int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 }
 
 #define SUBID_OFFSET 2
-static t_u16 supported_subcmd[] = {0x104, 0x111, 0x11b, 0x11e};
+static t_u16 supported_subcmd[] = {0x104, 0x111, 0x11b, 0x11e, 0x27};
 
 static int check_if_hostcmd_subcmd_allowed(t_u8 *buf)
 {
@@ -1578,7 +1584,11 @@ static int process_getlog(int argc, char *argv[])
 		       "RxResetRecoveryCount               %u\n"
 		       "RxIsr2NotDoneCnt                   %u\n"
 		       "gdmaAbortCnt                       %u\n"
-		       "gResetRxMacCnt                     %u\n",
+		       "gResetRxMacCnt                     %u\n"
+		       "gOwnrshpCtlErrCnt                  %u\n"
+		       "gOwnrshpBcnErrCnt                  %u\n"
+		       "gOwnrshpMgtErrCnt                  %u\n"
+		       "gOwnrshpDatErrCnt                  %u\n",
 		       stats->rx_stuck_issue_cnt[0],
 		       stats->rx_stuck_issue_cnt[1],
 		       stats->rx_stuck_recovery_cnt, stats->rx_stuck_tsf[0],
@@ -1589,7 +1599,9 @@ static int process_getlog(int argc, char *argv[])
 		       stats->channel_number, stats->channel_switch_mode,
 		       stats->rx_reset_mac_recovery_cnt,
 		       stats->rx_Isr2_NotDone_Cnt, stats->gdma_abort_cnt,
-		       stats->g_reset_rx_mac_cnt);
+		       stats->g_reset_rx_mac_cnt, stats->dwCtlErrCnt,
+		       stats->dwBcnErrCnt, stats->dwMgtErrCnt,
+		       stats->dwDatErrCnt);
 	}
 
 	if (cmd->used_len == sizeof(struct eth_priv_get_log)) {
@@ -2067,6 +2079,9 @@ static int get_txpwrlimit(FILE *fp_raw, char *argv[], t_u16 sub_band,
 		case 0x12:
 			fprintf(fp_raw, "txpwrlimit_5g_sub2_get={\n");
 			break;
+		case 0x13:
+			fprintf(fp_raw, "txpwrlimit_5g_sub3_get={\n");
+			break;
 		default:
 			break;
 		}
@@ -2112,7 +2127,7 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 	/* Sanity tests */
 	if (argc < 4) {
 		printf("Error: invalid no of arguments\n");
-		printf("mlanutl mlanX/uapX get_txpwrlimit [0/0x10/0x11/0x12/0x1f/0xff]\n");
+		printf("mlanutl mlanX/uapX get_txpwrlimit [0/0x10/0x11/0x12/0x13/0x1f/0xff]\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -2138,6 +2153,7 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 	case 0x10:
 	case 0x11:
 	case 0x12:
+	case 0x13:
 		ret = get_txpwrlimit(fp_raw, argv, sub_band, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
@@ -2153,6 +2169,10 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 					     strlen(argv[2]),
 				     cmd);
 		ret = get_txpwrlimit(fp_raw, argv, 0x12, buffer,
+				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
+					     strlen(argv[2]),
+				     cmd);
+		ret = get_txpwrlimit(fp_raw, argv, 0x13, buffer,
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
@@ -2174,10 +2194,14 @@ static int process_get_txpwrlimit(int argc, char *argv[])
 				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
 					     strlen(argv[2]),
 				     cmd);
+		ret = get_txpwrlimit(fp_raw, argv, 0x13, buffer,
+				     sizeof(mlan_ds_misc_chan_trpc_cfg) +
+					     strlen(argv[2]),
+				     cmd);
 		break;
 	default:
 		printf("Error: invalid arguments\n");
-		printf("mlanutl mlanX/uapX get_txpwrlimit [0/0x10/0x11/0x12/0x1f/0xff]\n");
+		printf("mlanutl mlanX/uapX get_txpwrlimit [0/0x10/0x11/0x12/0x13/0x1f/0xff]\n");
 		break;
 	}
 done:
@@ -3672,6 +3696,1304 @@ static int process_hssetpara(int argc, char *argv[])
 		free(cmd);
 
 	return MLAN_STATUS_SUCCESS;
+}
+
+#define STACK_NBYTES 100 /**< Number of bytes in stack */
+#define MAX_BYTESEQ 6 /**< Maximum byte sequence */
+#define TYPE_DNUM 1 /**< decimal number */
+#define TYPE_BYTESEQ 2 /**< byte sequence */
+#define MAX_OPERAND 0x40 /**< Maximum operands */
+#define TYPE_EQ (MAX_OPERAND + 1) /**< byte comparison:    == operator */
+#define TYPE_EQ_DNUM (MAX_OPERAND + 2) /**< decimal comparison: =d operator */
+#define TYPE_EQ_BIT (MAX_OPERAND + 3) /**< bit comparison:     =b operator */
+#define TYPE_AND (MAX_OPERAND + 4) /**< && operator */
+#define TYPE_OR (MAX_OPERAND + 5) /**< || operator */
+
+typedef struct {
+	t_u16 sp; /**< Stack pointer */
+	t_u8 byte[STACK_NBYTES]; /**< Stack */
+} mstack_t;
+
+typedef struct {
+	t_u8 type; /**< Type */
+	t_u8 reserve[3]; /**< so 4-byte align val array */
+	/* byte sequence is the largest among all the operands and operators. */
+	/* byte sequence format: 1 byte of num of bytes, then variable num bytes
+	 */
+	t_u8 val[MAX_BYTESEQ + 1]; /**< Value */
+} op_t;
+
+/**
+ *  @brief push data to stack
+ *
+ *  @param s			a pointer to mstack_t structure
+ *
+ *  @param nbytes		number of byte to push to stack
+ *
+ *  @param val			a pointer to data buffer
+ *
+ *  @return			TRUE-- sucess , FALSE -- fail
+ *
+ */
+static int push_n(mstack_t *s, t_u8 nbytes, t_u8 *val)
+{
+	if ((s->sp + nbytes) < STACK_NBYTES) {
+		memcpy((void *)(s->byte + s->sp), (const void *)val,
+		       (size_t)nbytes);
+		s->sp += nbytes;
+		/* printf("push: n %d sp %d\n", nbytes, s->sp); */
+		return TRUE;
+	} else /* stack full */
+		return FALSE;
+}
+
+/**
+ *  @brief push data to stack
+ *
+ *  @param s			a pointer to mstack_t structure
+ *
+ *  @param op			a pointer to op_t structure
+ *
+ *  @return			TRUE-- sucess , FALSE -- fail
+ *
+ */
+static int push(mstack_t *s, op_t *op)
+{
+	t_u8 nbytes;
+	switch (op->type) {
+	case TYPE_DNUM:
+		if (push_n(s, 4, op->val))
+			return push_n(s, 1, &op->type);
+		return FALSE;
+	case TYPE_BYTESEQ:
+		nbytes = op->val[0];
+		if (push_n(s, nbytes, op->val + 1) && push_n(s, 1, op->val) &&
+		    push_n(s, 1, &op->type))
+			return TRUE;
+		return FALSE;
+	default:
+		return push_n(s, 1, &op->type);
+	}
+}
+
+/**
+ *  @brief parse RPN string
+ *
+ *  @param s			a pointer to Null-terminated string to scan.
+ *
+ *  @param first_time		a pointer to return first_time
+ *
+ *  @return			A pointer to the last token found in string.
+ *  				NULL is returned when there are no more tokens to be
+ * found.
+ *
+ */
+static char *getop(char *s, int *first_time)
+{
+	const char delim[] = " \t\n";
+	char *p;
+	if (*first_time) {
+		p = strtok(s, delim);
+		*first_time = FALSE;
+	} else {
+		p = strtok(NULL, delim);
+	}
+	return p;
+}
+
+/**
+ *  @brief Verify hex digit.
+ *
+ *  @param c			input ascii char
+ *  @param h			a pointer to return integer value of the digit
+ * char.
+ *  @return			TURE -- c is hex digit, FALSE -- c is not hex
+ * digit.
+ */
+static int ishexdigit(char c, t_u8 *h)
+{
+	if (c >= '0' && c <= '9') {
+		*h = c - '0';
+		return TRUE;
+	} else if (c >= 'a' && c <= 'f') {
+		*h = c - 'a' + 10;
+		return TRUE;
+	} else if (c >= 'A' && c <= 'F') {
+		*h = c - 'A' + 10;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+/**
+ *  @brief convert hex string to integer.
+ *
+ *  @param s			A pointer to hex string, string length up to 2
+ * digits.
+ *  @return			integer value.
+ */
+static t_u8 hex_atoi(char *s)
+{
+	int i;
+	t_u8 digit; /* digital value */
+	t_u8 t = 0; /* total value */
+
+	for (i = 0, t = 0; ishexdigit(s[i], &digit) && i < 2; i++)
+		t = 16 * t + digit;
+	return t;
+}
+
+/**
+ *  @brief Parse byte sequence in hex format string to a byte sequence.
+ *
+ *  @param opstr		A pointer to byte sequence in hex format string, with
+ * ':' as delimiter between two byte.
+ *  @param val			A pointer to return byte sequence string
+ *  @return			NA
+ */
+static void parse_hex(char *opstr, t_u8 *val)
+{
+	char delim = ':';
+	char *p;
+	char *q;
+	t_u8 i;
+
+	/* +1 is for skipping over the preceding h character. */
+	p = opstr + 1;
+
+	/* First byte */
+	val[1] = hex_atoi(p++);
+
+	/* Parse subsequent bytes. */
+	/* Each byte is preceded by the : character. */
+	for (i = 1; *p; i++) {
+		q = strchr(p, delim);
+		if (!q)
+			break;
+		p = q + 1;
+		val[i + 1] = hex_atoi(p);
+	}
+	/* Set num of bytes */
+	val[0] = i;
+}
+
+/**
+ *  @brief str2bin, convert RPN string to binary format
+ *
+ *  @param str			A pointer to rpn string
+ *  @param stack		A pointer to mstack_t structure
+ *  @return			MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int str2bin(char *str, mstack_t *stack)
+{
+	int first_time;
+	char *opstr;
+	op_t op; /* operator/operand */
+	int dnum;
+	int ret = MLAN_STATUS_SUCCESS;
+
+	memset(stack, 0, sizeof(mstack_t));
+	first_time = TRUE;
+	while ((opstr = getop(str, &first_time)) != NULL) {
+		if (isdigit((unsigned char)*opstr)) {
+			op.type = TYPE_DNUM;
+			dnum = cpu_to_le32(atoi(opstr));
+			memcpy((t_u8 *)op.val, &dnum, sizeof(dnum));
+			if (!push(stack, &op)) {
+				printf("push decimal number failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (*opstr == 'h') {
+			op.type = TYPE_BYTESEQ;
+			parse_hex(opstr, op.val);
+			if (!push(stack, &op)) {
+				printf("push byte sequence failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (!strcmp(opstr, "==")) {
+			op.type = TYPE_EQ;
+			if (!push(stack, &op)) {
+				printf("push byte cmp operator failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (!strcmp(opstr, "=d")) {
+			op.type = TYPE_EQ_DNUM;
+			if (!push(stack, &op)) {
+				printf("push decimal cmp operator failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (!strcmp(opstr, "=b")) {
+			op.type = TYPE_EQ_BIT;
+			if (!push(stack, &op)) {
+				printf("push bit cmp operator failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (!strcmp(opstr, "&&")) {
+			op.type = TYPE_AND;
+			if (!push(stack, &op)) {
+				printf("push AND operator failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else if (!strcmp(opstr, "||")) {
+			op.type = TYPE_OR;
+			if (!push(stack, &op)) {
+				printf("push OR operator failed\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+		} else {
+			printf("Unknown operand\n");
+			ret = MLAN_STATUS_FAILURE;
+			break;
+		}
+	}
+	return ret;
+}
+
+#define FILTER_BYTESEQ TYPE_EQ /**< byte sequence */
+#define FILTER_DNUM TYPE_EQ_DNUM /**< decimal number */
+#define FILTER_BITSEQ TYPE_EQ_BIT /**< bit sequence */
+#define FILTER_TEST (FILTER_BITSEQ + 1) /**< test */
+
+#define NAME_TYPE 1 /**< Field name 'type' */
+#define NAME_PATTERN 2 /**< Field name 'pattern' */
+#define NAME_OFFSET 3 /**< Field name 'offset' */
+#define NAME_NUMBYTE 4 /**< Field name 'numbyte' */
+#define NAME_REPEAT 5 /**< Field name 'repeat' */
+#define NAME_BYTE 6 /**< Field name 'byte' */
+#define NAME_MASK 7 /**< Field name 'mask' */
+#define NAME_DEST 8 /**< Field name 'dest' */
+
+static struct mef_fields {
+	char *name; /**< Name */
+	t_s8 nameid; /**< Name Id. */
+} mef_fields[] = {{"type", NAME_TYPE},	   {"pattern", NAME_PATTERN},
+		  {"offset", NAME_OFFSET}, {"numbyte", NAME_NUMBYTE},
+		  {"repeat", NAME_REPEAT}, {"byte", NAME_BYTE},
+		  {"mask", NAME_MASK},	   {"dest", NAME_DEST}};
+
+/**
+ *  @brief get filter data
+ *
+ *  @param fp			A pointer to file stream
+ *  @param ln			A pointer to line number
+ *  @param buf			A pointer to hostcmd data
+ *  @param size			A pointer to the return size of hostcmd buffer
+ *  @return			MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int mlan_get_filter_data(FILE *fp, int *ln, t_u8 *buf, t_u16 *size)
+{
+	t_s32 errors = 0, i;
+	char line[256], *pos = NULL, *pos1 = NULL;
+	t_u16 type = 0;
+	t_u32 pattern = 0;
+	t_u16 repeat = 0;
+	t_u16 offset = 0;
+	char byte_seq[50];
+	char mask_seq[50];
+	t_u16 numbyte = 0;
+	t_s8 type_find = 0;
+	t_s8 pattern_find = 0;
+	t_s8 offset_find = 0;
+	t_s8 numbyte_find = 0;
+	t_s8 repeat_find = 0;
+	t_s8 byte_find = 0;
+	t_s8 mask_find = 0;
+	t_s8 dest_find = 0;
+	char dest_seq[50];
+
+	*size = 0;
+	while ((pos = mlan_config_get_line(fp, line, sizeof(line), ln))) {
+		if (strcmp(pos, "}") == 0) {
+			break;
+		}
+		pos1 = strchr(pos, '=');
+		if (pos1 == NULL) {
+			printf("Line %d: Invalid mef_filter line '%s'\n", *ln,
+			       pos);
+			errors++;
+			continue;
+		}
+		*pos1++ = '\0';
+		for (i = 0; (t_u32)i < NELEMENTS(mef_fields); i++) {
+			if (strncmp(pos, mef_fields[i].name,
+				    strlen(mef_fields[i].name)) == 0) {
+				switch (mef_fields[i].nameid) {
+				case NAME_TYPE:
+					type = a2hex_or_atoi(pos1);
+					if ((type != FILTER_DNUM) &&
+					    (type != FILTER_BYTESEQ) &&
+					    (type != FILTER_BITSEQ) &&
+					    (type != FILTER_TEST)) {
+						printf("Invalid filter type:%d\n",
+						       type);
+						return MLAN_STATUS_FAILURE;
+					}
+					type_find = 1;
+					break;
+				case NAME_PATTERN:
+					pattern = a2hex_or_atoi(pos1);
+					pattern_find = 1;
+					break;
+				case NAME_OFFSET:
+					offset = a2hex_or_atoi(pos1);
+					offset_find = 1;
+					break;
+				case NAME_NUMBYTE:
+					numbyte = a2hex_or_atoi(pos1);
+					numbyte_find = 1;
+					break;
+				case NAME_REPEAT:
+					repeat = a2hex_or_atoi(pos1);
+					repeat_find = 1;
+					break;
+				case NAME_BYTE:
+					memset(byte_seq, 0, sizeof(byte_seq));
+					strncpy(byte_seq, pos1,
+						(sizeof(byte_seq) - 1));
+					byte_find = 1;
+					break;
+				case NAME_MASK:
+					memset(mask_seq, 0, sizeof(mask_seq));
+					strncpy(mask_seq, pos1,
+						(sizeof(mask_seq) - 1));
+					mask_find = 1;
+					break;
+				case NAME_DEST:
+					memset(dest_seq, 0, sizeof(dest_seq));
+					strncpy(dest_seq, pos1,
+						(sizeof(dest_seq) - 1));
+					dest_find = 1;
+					break;
+				}
+				break;
+			}
+		}
+		if (i == NELEMENTS(mef_fields)) {
+			printf("Line %d: unknown mef field '%s'.\n", *line,
+			       pos);
+			errors++;
+		}
+	}
+	if (type_find == 0) {
+		printf("Can not find filter type\n");
+		return MLAN_STATUS_FAILURE;
+	}
+	switch (type) {
+	case FILTER_DNUM:
+		if (!pattern_find || !offset_find || !numbyte_find) {
+			printf("Missing field for FILTER_DNUM: pattern=%d,offset=%d,numbyte=%d\n",
+			       pattern_find, offset_find, numbyte_find);
+			return MLAN_STATUS_FAILURE;
+		}
+		memset(line, 0, sizeof(line));
+		snprintf(line, sizeof(line), "%d %d %d =d ", pattern, offset,
+			 numbyte);
+		break;
+	case FILTER_BYTESEQ:
+		if (!byte_find || !offset_find || !repeat_find) {
+			printf("Missing field for FILTER_BYTESEQ: byte=%d,offset=%d,repeat=%d\n",
+			       byte_find, offset_find, repeat_find);
+			return MLAN_STATUS_FAILURE;
+		}
+		memset(line, 0, sizeof(line));
+		snprintf(line, sizeof(line), "%d h%s %d == ", repeat, byte_seq,
+			 offset);
+		break;
+	case FILTER_BITSEQ:
+		if (!byte_find || !offset_find || !mask_find) {
+			printf("Missing field for FILTER_BITSEQ: byte=%d,offset=%d,mask_find=%d\n",
+			       byte_find, offset_find, mask_find);
+			return MLAN_STATUS_FAILURE;
+		}
+		if (strlen(byte_seq) != strlen(mask_seq)) {
+			printf("byte string's length is different with mask's length!\n");
+			return MLAN_STATUS_FAILURE;
+		}
+		memset(line, 0, sizeof(line));
+		snprintf(line, sizeof(line), "h%s %d h%s =b ", byte_seq, offset,
+			 mask_seq);
+		break;
+	case FILTER_TEST:
+		if (!byte_find || !offset_find || !repeat_find || !dest_find) {
+			printf("Missing field for FILTER_TEST: byte=%d,offset=%d,repeat=%d,dest=%d\n",
+			       byte_find, offset_find, repeat_find, dest_find);
+			return MLAN_STATUS_FAILURE;
+		}
+		memset(line, 0, sizeof(line));
+		snprintf(line, sizeof(line), "h%s %d h%s %d ", dest_seq, repeat,
+			 byte_seq, offset);
+		break;
+	}
+	memcpy(buf, line, strlen(line));
+	*size = strlen(line);
+	return MLAN_STATUS_SUCCESS;
+}
+
+#define NAME_MODE 1 /**< Field name 'mode' */
+#define NAME_ACTION 2 /**< Field name 'action' */
+#define NAME_FILTER_NUM 3 /**< Field name 'filter_num' */
+#define NAME_RPN 4 /**< Field name 'RPN' */
+static struct mef_entry_fields {
+	char *name; /**< Name */
+	t_s8 nameid; /**< Name id */
+} mef_entry_fields[] = {
+	{"mode", NAME_MODE},
+	{"action", NAME_ACTION},
+	{"filter_num", NAME_FILTER_NUM},
+	{"RPN", NAME_RPN},
+};
+
+typedef struct _MEF_ENTRY {
+	/** Mode */
+	t_u8 Mode;
+	/** Size */
+	t_u8 Action;
+	/** Size of expression */
+	t_u16 ExprSize;
+} MEF_ENTRY;
+
+/**
+ *  @brief get mef_entry data
+ *
+ *  @param fp			A pointer to file stream
+ *  @param ln			A pointer to line number
+ *  @param buf			A pointer to hostcmd data
+ *  @param size			A pointer to the return size of hostcmd buffer
+ *  @return			MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int mlan_get_mef_entry_data(FILE *fp, int *ln, t_u8 *buf, t_u16 *size)
+{
+	char line[256], *pos = NULL, *pos1 = NULL;
+	t_u8 mode, action, filter_num = 0;
+	char rpn[256];
+	t_s8 mode_find = 0;
+	t_s8 action_find = 0;
+	t_s8 filter_num_find = 0;
+	t_s8 rpn_find = 0;
+	char rpn_str[256];
+	int rpn_len = 0;
+	char filter_name[50];
+	t_s8 name_found = 0;
+	t_u16 len = 0;
+	int i;
+	int first_time = TRUE;
+	char *opstr = NULL;
+	char filter_action[10];
+	t_s32 errors = 0;
+	MEF_ENTRY *pMefEntry = (MEF_ENTRY *)buf;
+	mstack_t stack;
+	while ((pos = mlan_config_get_line(fp, line, sizeof(line), ln))) {
+		if (strcmp(pos, "}") == 0) {
+			break;
+		}
+		pos1 = strchr(pos, '=');
+		if (pos1 == NULL) {
+			printf("Line %d: Invalid mef_entry line '%s'\n", *ln,
+			       pos);
+			errors++;
+			continue;
+		}
+		*pos1++ = '\0';
+		if (!mode_find || !action_find || !filter_num_find ||
+		    !rpn_find) {
+			for (i = 0;
+			     (unsigned int)i < NELEMENTS(mef_entry_fields);
+			     i++) {
+				if (strncmp(pos, mef_entry_fields[i].name,
+					    strlen(mef_entry_fields[i].name)) ==
+				    0) {
+					switch (mef_entry_fields[i].nameid) {
+					case NAME_MODE:
+						mode = a2hex_or_atoi(pos1);
+						if (mode & ~0x7) {
+							printf("invalid mode=%d\n",
+							       mode);
+							return MLAN_STATUS_FAILURE;
+						}
+						pMefEntry->Mode = mode;
+						mode_find = 1;
+						break;
+					case NAME_ACTION:
+						action = a2hex_or_atoi(pos1);
+						if (action & ~0xff) {
+							printf("invalid action=%d\n",
+							       action);
+							return MLAN_STATUS_FAILURE;
+						}
+						pMefEntry->Action = action;
+						action_find = 1;
+						break;
+					case NAME_FILTER_NUM:
+						filter_num =
+							a2hex_or_atoi(pos1);
+						filter_num_find = 1;
+						break;
+					case NAME_RPN:
+						memset(rpn, 0, sizeof(rpn));
+						strncpy(rpn, pos1,
+							(sizeof(rpn) - 1));
+						rpn_find = 1;
+						break;
+					}
+					break;
+				}
+			}
+			if (i == NELEMENTS(mef_fields)) {
+				printf("Line %d: unknown mef_entry field '%s'.\n",
+				       *line, pos);
+				return MLAN_STATUS_FAILURE;
+			}
+		}
+		if (mode_find && action_find && filter_num_find && rpn_find) {
+			for (i = 0; i < filter_num; i++) {
+				opstr = getop(rpn, &first_time);
+				if (opstr == NULL)
+					break;
+				snprintf(filter_name, sizeof(filter_name),
+					 "%s={", opstr);
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), ln))) {
+					if (strncmp(pos, filter_name,
+						    strlen(filter_name)) == 0) {
+						name_found = 1;
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: %s not found in file\n",
+						filter_name);
+					return MLAN_STATUS_FAILURE;
+				}
+				if (MLAN_STATUS_FAILURE ==
+				    mlan_get_filter_data(
+					    fp, ln, (t_u8 *)(rpn_str + rpn_len),
+					    &len))
+					break;
+				rpn_len += len;
+				if (i > 0) {
+					memcpy(rpn_str + rpn_len, filter_action,
+					       strlen(filter_action));
+					rpn_len += strlen(filter_action);
+				}
+				opstr = getop(rpn, &first_time);
+				if (opstr == NULL)
+					break;
+				memset(filter_action, 0, sizeof(filter_action));
+				snprintf(filter_action, sizeof(filter_action),
+					 "%s ", opstr);
+			}
+			/* Remove the last space */
+			if (rpn_len > 0) {
+				rpn_len--;
+				rpn_str[rpn_len] = 0;
+			}
+			if (MLAN_STATUS_FAILURE == str2bin(rpn_str, &stack)) {
+				printf("Fail on str2bin!\n");
+				return MLAN_STATUS_FAILURE;
+			}
+			*size = sizeof(MEF_ENTRY);
+			pMefEntry->ExprSize = cpu_to_le16(stack.sp);
+			memmove(buf + sizeof(MEF_ENTRY), stack.byte, stack.sp);
+			*size += stack.sp;
+			break;
+		} else if (mode_find && action_find && filter_num_find &&
+			   (filter_num == 0)) {
+			pMefEntry->ExprSize = 0;
+			*size = sizeof(MEF_ENTRY);
+			break;
+		}
+	}
+	return MLAN_STATUS_SUCCESS;
+}
+
+#define MEFCFG_CMDCODE 0x009a
+
+/**
+ *  @brief Process mefcfg command
+ *  @param argc     number of arguments
+ *  @param argv     A pointer to arguments array
+ *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_mefcfg(int argc, char *argv[])
+{
+	char line[256], cmdname[256], *pos = NULL;
+	int cmdname_found = 0, name_found = 0;
+	int ln = 0;
+	int ret = MLAN_STATUS_SUCCESS;
+	int i;
+	t_u8 *buffer = NULL;
+	t_u16 len = 0;
+	HostCmd_DS_MEF_CFG *mefcmd = NULL;
+	HostCmd_DS_GEN *hostcmd = NULL;
+	FILE *fp = NULL;
+	t_u32 cmd_len = 0, cmd_header_len;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	if (argc < 4) {
+		printf("Error: invalid no of arguments\n");
+		printf("Syntax: ./mlanutl mlan0 mefcfg <mef.conf>\n");
+		exit(1);
+	}
+
+	cmd_header_len = strlen(CMD_NXP) + strlen("HOSTCMD");
+	cmd_len = sizeof(HostCmd_DS_GEN) + sizeof(HostCmd_DS_MEF_CFG);
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return -ENOMEM;
+	}
+
+	memset(buffer, 0, BUFFER_LENGTH);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+	/* buf = MRVL_CMD<cmd> */
+	prepare_buffer(buffer, HOSTCMD, 0, NULL);
+
+	/* buf = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN> */
+	hostcmd = (HostCmd_DS_GEN *)(buffer + cmd_header_len + sizeof(t_u32));
+	hostcmd->command = cpu_to_le16(MEFCFG_CMDCODE);
+	hostcmd->seq_num = 0;
+	hostcmd->result = 0;
+	/* buf = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><HostCmd_DS_MEF_CFG>
+	 */
+	mefcmd = (HostCmd_DS_MEF_CFG *)(buffer + cmd_header_len +
+					sizeof(t_u32) + S_DS_GEN);
+
+	/* Host Command Population */
+	snprintf(cmdname, sizeof(cmdname), "%s={", argv[2]);
+	cmdname_found = 0;
+	fp = fopen(argv[3], "r");
+	if (fp == NULL) {
+		fprintf(stderr, "Cannot open file %s\n", argv[4]);
+		exit(1);
+	}
+
+	while ((pos = mlan_config_get_line(fp, line, sizeof(line), &ln))) {
+		if (strcmp(pos, cmdname) == 0) {
+			cmdname_found = 1;
+			snprintf(cmdname, sizeof(cmdname), "Criteria=");
+			name_found = 0;
+			while ((pos = mlan_config_get_line(
+					fp, line, sizeof(line), &ln))) {
+				if (strncmp(pos, cmdname, strlen(cmdname)) ==
+				    0) {
+					name_found = 1;
+					mefcmd->Criteria = a2hex_or_atoi(
+						pos + strlen(cmdname));
+					break;
+				}
+			}
+			if (!name_found) {
+				fprintf(stderr,
+					"mlanutl: criteria not found in file '%s'\n",
+					argv[3]);
+				break;
+			}
+			snprintf(cmdname, sizeof(cmdname), "NumEntries=");
+			name_found = 0;
+			while ((pos = mlan_config_get_line(
+					fp, line, sizeof(line), &ln))) {
+				if (strncmp(pos, cmdname, strlen(cmdname)) ==
+				    0) {
+					name_found = 1;
+					mefcmd->NumEntries = a2hex_or_atoi(
+						pos + strlen(cmdname));
+					break;
+				}
+			}
+			if (!name_found) {
+				fprintf(stderr,
+					"mlanutl: NumEntries not found in file '%s'\n",
+					argv[3]);
+				break;
+			}
+			for (i = 0; i < mefcmd->NumEntries; i++) {
+				snprintf(cmdname, sizeof(cmdname),
+					 "mef_entry_%d={", i);
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: %s not found in file '%s'\n",
+						cmdname, argv[3]);
+					break;
+				}
+				if (MLAN_STATUS_FAILURE ==
+				    mlan_get_mef_entry_data(
+					    fp, &ln, (t_u8 *)hostcmd + cmd_len,
+					    &len)) {
+					ret = MLAN_STATUS_FAILURE;
+					break;
+				}
+				cmd_len += len;
+			}
+			break;
+		}
+	}
+	fclose(fp);
+	/* buf = MRVL_CMD<cmd><hostcmd_size> */
+	memcpy(buffer + cmd_header_len, (t_u8 *)&cmd_len, sizeof(t_u32));
+
+	if (!cmdname_found)
+		fprintf(stderr,
+			"mlanutl: cmdname '%s' not found in file '%s'\n",
+			argv[4], argv[3]);
+
+	if (!cmdname_found || !name_found) {
+		ret = MLAN_STATUS_FAILURE;
+		goto mef_exit;
+	}
+	hostcmd->size = cpu_to_le16(cmd_len);
+	mefcmd->Criteria = cpu_to_le32(mefcmd->Criteria);
+	mefcmd->NumEntries = cpu_to_le16(mefcmd->NumEntries);
+	hexdump("mefcfg", buffer + cmd_header_len, cmd_len, ' ');
+
+	/* Initialize the ifr structure */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+	/* Perform ioctl */
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("ioctl[MEF_CFG]");
+		printf("ERR:Command sending failed!\n");
+
+		if (buffer)
+			free(buffer);
+
+		if (cmd)
+			free(cmd);
+
+		return MLAN_STATUS_FAILURE;
+	}
+
+	ret = process_host_cmd_resp(HOSTCMD, buffer);
+
+mef_exit:
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+	return ret;
+}
+
+/**
+ *  @brief Check the Hex String
+ *  @param s  A pointer to the string
+ *  @return   MLAN_STATUS_SUCCESS --HexString, MLAN_STATUS_FAILURE --not
+ * HexString
+ */
+static int ishexstring(char *s)
+{
+	int ret = MLAN_STATUS_FAILURE;
+	t_s32 tmp;
+
+	if (!strncasecmp("0x", s, 2)) {
+		s += 2;
+	}
+	while (*s) {
+		tmp = toupper((unsigned char)*s);
+		if (((tmp >= 'A') && (tmp <= 'F')) ||
+		    ((tmp >= '0') && (tmp <= '9'))) {
+			ret = MLAN_STATUS_SUCCESS;
+		} else {
+			ret = MLAN_STATUS_FAILURE;
+			break;
+		}
+		s++;
+	}
+
+	return ret;
+}
+/**
+ *  @brief Converts colon separated MAC address to hex value
+ *
+ *  @param mac      A pointer to the colon separated MAC string
+ *  @param raw      A pointer to the hex data buffer
+ *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *                  MAC_BROADCAST   - if broadcast mac
+ *                  MAC_MULTICAST   - if multicast mac
+ */
+static int mac2raw(char *mac, t_u8 *raw)
+{
+	unsigned int temp_raw[ETH_ALEN];
+	int num_tokens = 0;
+	int i;
+
+	if (strlen(mac) != ((2 * ETH_ALEN) + (ETH_ALEN - 1))) {
+		return MLAN_STATUS_FAILURE;
+	}
+	num_tokens = sscanf(mac, "%2x:%2x:%2x:%2x:%2x:%2x", temp_raw + 0,
+			    temp_raw + 1, temp_raw + 2, temp_raw + 3,
+			    temp_raw + 4, temp_raw + 5);
+	if (num_tokens != ETH_ALEN) {
+		return MLAN_STATUS_FAILURE;
+	}
+	for (i = 0; i < num_tokens; i++)
+		raw[i] = (t_u8)temp_raw[i];
+
+	if (memcmp(raw, "\xff\xff\xff\xff\xff\xff", ETH_ALEN) == 0) {
+		return MAC_BROADCAST;
+	} else if (raw[0] & 0x01) {
+		return MAC_MULTICAST;
+	}
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Convert String to Integer
+ *  @param buf      A pointer to the string
+ *  @return         Integer
+ */
+static int atoval(char *buf)
+{
+	if (!strncasecmp(buf, "0x", 2))
+		return a2hex(buf + 2);
+	else if (!ishexstring(buf))
+		return a2hex(buf);
+	else
+		return atoi(buf);
+}
+
+/**
+ *  @brief Parses a command line
+ *
+ *  @param line     The line to parse
+ *  @param args     Pointer to the argument buffer to be filled in
+ *  @param args_count Max number of elements which can be filled in buffer
+ * 'args'
+ *  @return         Number of arguments in the line or EOF
+ */
+static int parse_line(char *line, char *args[], t_u16 args_count)
+{
+	int arg_num = 0;
+	int is_start = 0;
+	int is_quote = 0;
+	int length = 0;
+	int i = 0;
+
+	arg_num = 0;
+	length = strlen(line);
+	/* Process line */
+
+	/* Find number of arguments */
+	is_start = 0;
+	is_quote = 0;
+	for (i = 0; (i < length) && (arg_num < args_count); i++) {
+		/* Ignore leading spaces */
+		if (is_start == 0) {
+			if (line[i] == ' ') {
+				continue;
+			} else if (line[i] == '\t') {
+				continue;
+			} else if (line[i] == '\n') {
+				break;
+			} else {
+				is_start = 1;
+				args[arg_num] = &line[i];
+				arg_num++;
+			}
+		}
+		if (is_start == 1) {
+			/* Ignore comments */
+			if (line[i] == '#') {
+				if (is_quote == 0) {
+					line[i] = '\0';
+					arg_num--;
+				}
+				break;
+			}
+			/* Separate by '=' */
+			if (line[i] == '=') {
+				line[i] = '\0';
+				is_start = 0;
+				continue;
+			}
+			/* Separate by ',' */
+			if (line[i] == ',') {
+				line[i] = '\0';
+				is_start = 0;
+				continue;
+			}
+			/* Change ',' to ' ', but not inside quotes */
+			if ((line[i] == ',') && (is_quote == 0)) {
+				line[i] = ' ';
+				continue;
+			}
+		}
+		/* Remove newlines */
+		if (line[i] == '\n') {
+			line[i] = '\0';
+		}
+		/* Check for quotes */
+		if (line[i] == '"') {
+			is_quote = (is_quote == 1) ? 0 : 1;
+			continue;
+		}
+		if (((line[i] == ' ') || (line[i] == '\t')) &&
+		    (is_quote == 0)) {
+			line[i] = '\0';
+			is_start = 0;
+			continue;
+		}
+	}
+	return arg_num;
+}
+
+/**
+ *  @brief Process cloud keep alive command
+ *  @param argc     number of arguments
+ *  @param argv     A pointer to arguments array
+ *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_cloud_keep_alive(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+	FILE *fp = NULL;
+	int ret = MLAN_STATUS_SUCCESS;
+	char line[256], cmdname[256], *pos = NULL;
+	int cmdname_found = 0, name_found = 0, arg_num = 0;
+	int ln = 0, i = 0;
+	char *args[256];
+	cloud_keep_alive *keep_alive = NULL;
+
+	if (argc < 5) {
+		printf("Error: invalid no of arguments\n");
+		printf("Syntax: ./mlanutl mlanX cloud_keep_alive <keep_alive.conf> <start/stop/reset>\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	memset(buffer, 0, BUFFER_LENGTH);
+
+	/* Insert command */
+	strncpy((char *)buffer, argv[2], strlen(argv[2]));
+
+	keep_alive = (cloud_keep_alive *)(buffer + strlen(argv[2]));
+
+	cmdname_found = 0;
+	snprintf(cmdname, sizeof(cmdname), "%s={", argv[4]);
+
+	fp = fopen(argv[3], "r");
+	if (fp == NULL) {
+		fprintf(stderr, "Cannot open file %s\n", argv[3]);
+		ret = MLAN_STATUS_FAILURE;
+		if (buffer)
+			free(buffer);
+		goto done;
+	}
+
+	while ((pos = mlan_config_get_line(fp, line, sizeof(line), &ln))) {
+		if (strcmp(pos, cmdname) == 0) {
+			cmdname_found = 1;
+			snprintf(cmdname, sizeof(cmdname), "mkeep_alive_id=");
+			name_found = 0;
+			while ((pos = mlan_config_get_line(
+					fp, line, sizeof(line), &ln))) {
+				if (strncmp(pos, cmdname, strlen(cmdname)) ==
+				    0) {
+					name_found = 1;
+					keep_alive->mkeep_alive_id =
+						a2hex_or_atoi(pos +
+							      strlen(cmdname));
+					break;
+				}
+			}
+			if (!name_found) {
+				fprintf(stderr,
+					"mlanutl: keep alive id not found in file '%s'\n",
+					argv[3]);
+				break;
+			}
+			snprintf(cmdname, sizeof(cmdname), "enable=");
+			name_found = 0;
+			while ((pos = mlan_config_get_line(
+					fp, line, sizeof(line), &ln))) {
+				if (strncmp(pos, cmdname, strlen(cmdname)) ==
+				    0) {
+					name_found = 1;
+					keep_alive->enable = a2hex_or_atoi(
+						pos + strlen(cmdname));
+					break;
+				}
+			}
+			if (!name_found) {
+				fprintf(stderr,
+					"mlanutl: enable not found in file '%s'\n",
+					argv[3]);
+				break;
+			}
+			if (strcmp(argv[4], "reset") == 0) {
+				snprintf(cmdname, sizeof(cmdname), "reset=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						keep_alive
+							->reset = a2hex_or_atoi(
+							pos + strlen(cmdname));
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: reset not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+			}
+			if (strcmp(argv[4], "start") == 0) {
+				snprintf(cmdname, sizeof(cmdname),
+					 "sendInterval=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						keep_alive->sendInterval =
+							a2hex_or_atoi(
+								pos +
+								strlen(cmdname));
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: sendInterval not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname),
+					 "retryInterval=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						keep_alive->retryInterval =
+							a2hex_or_atoi(
+								pos +
+								strlen(cmdname));
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: retryInterval not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname),
+					 "retryCount=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						keep_alive->retryCount =
+							a2hex_or_atoi(
+								pos +
+								strlen(cmdname));
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: retryCount not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname),
+					 "destMacAddr=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						mac2raw(pos + strlen(cmdname),
+							keep_alive->dst_mac);
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: destination MAC address not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname),
+					 "srcMacAddr=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						mac2raw(pos + strlen(cmdname),
+							keep_alive->src_mac);
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: source MAC address not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname), "pktLen=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						keep_alive->pkt_len =
+							a2hex_or_atoi(
+								pos +
+								strlen(cmdname));
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: ip packet length not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+				snprintf(cmdname, sizeof(cmdname), "ipPkt=");
+				name_found = 0;
+				while ((pos = mlan_config_get_line(
+						fp, line, sizeof(line), &ln))) {
+					if (strncmp(pos, cmdname,
+						    strlen(cmdname)) == 0) {
+						name_found = 1;
+						arg_num = parse_line(line, args,
+								     256);
+						if (arg_num <
+						    keep_alive->pkt_len) {
+							fprintf(stderr,
+								"Invalid ipPkt or pkt_len in '%s'\n",
+								argv[3]);
+							break;
+						}
+						for (i = 0;
+						     i < keep_alive->pkt_len;
+						     i++)
+							keep_alive->pkt[i] =
+								(t_u8)atoval(
+									args[i +
+									     1]);
+						break;
+					}
+				}
+				if (!name_found) {
+					fprintf(stderr,
+						"mlanutl: ipPkt data not found in file '%s'\n",
+						argv[3]);
+					break;
+				}
+			}
+		}
+	}
+	if (!cmdname_found) {
+		fprintf(stderr, "mlanutl: ipPkt data not found in file '%s'\n",
+			argv[3]);
+		free(buffer);
+		if (fp)
+			fclose(fp);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: cloud keep alive fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+	/* Process result */
+	keep_alive = (cloud_keep_alive *)(buffer + strlen(argv[2]));
+	if (strcmp(argv[4], "start") != 0) {
+		hexdump("Last cloud keep alive packet info", keep_alive->pkt,
+			keep_alive->pkt_len, ' ');
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+done:
+	return ret;
 }
 
 /********************************************************

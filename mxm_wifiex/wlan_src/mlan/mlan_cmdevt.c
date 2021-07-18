@@ -320,6 +320,7 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	       pmadapter->pps_uapsd_mode, pmadapter->sleep_period.period);
 	PRINTM(MERROR, "tx_lock_flag = %d\n", pmadapter->tx_lock_flag);
 	PRINTM(MERROR, "scan_processing = %d\n", pmadapter->scan_processing);
+	PRINTM(MERROR, "bypass_pkt_count=%d\n", pmadapter->bypass_pkt_count);
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
@@ -974,7 +975,22 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 		timeout = MRVDRV_TIMER_5S;
 		break;
 	default:
+#ifdef IMX_SUPPORT
+		/*
+		 * During the roaming test and the 5AP connection test, cmd
+		 * timeout are observed for commands like 0x5e, 0x16, 0xd1.
+		 * Observed that response has come just after default timeout of
+		 * 2 seconds for these commands. This random timeout is not
+		 * observed when the default timeout is increased to 5 seconds
+		 * (As an work around, Increase the default timeout to 5
+		 * seconds. Need to further debug exact reason for delay in cmd
+		 * responses)
+		 *
+		 */
 		timeout = MRVDRV_TIMER_1S * 5;
+#else
+		timeout = MRVDRV_TIMER_1S * 2;
+#endif
 		break;
 	}
 	LEAVE();
@@ -2409,22 +2425,8 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag)
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 	}
 	wlan_release_cmd_lock(pmadapter);
-#ifdef STA_SUPPORT
-	if (pmadapter->scan_processing &&
-	    pmadapter->ext_scan_type == EXT_SCAN_ENHANCE) {
-		if (priv) {
-			if (MLAN_STATUS_FAILURE ==
-			    wlan_prepare_cmd(priv, HostCmd_CMD_802_11_SCAN_EXT,
-					     HostCmd_ACT_GEN_SET, 0, MNULL,
-					     MNULL))
-				PRINTM(MERROR, "Failed to prepare command");
-			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,
-					MNULL);
-		}
-	} else
-		/* Cancel all pending scan command */
-		wlan_flush_scan_queue(pmadapter);
-#endif
+	/* Cancel all pending scan command */
+	wlan_flush_scan_queue(pmadapter);
 	LEAVE();
 }
 
@@ -5046,6 +5048,11 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 					api_rev->minor_ver;
 				PRINTM(MCMND, "chanrpt api ver=%d.%d\n",
 				       api_rev->major_ver, api_rev->minor_ver);
+				break;
+			case FW_HOTFIX_VER_ID:
+				pmadapter->fw_hotfix_ver = api_rev->major_ver;
+				PRINTM(MCMND, "fw hotfix ver=%d\n",
+				       api_rev->major_ver);
 				break;
 			default:
 				break;

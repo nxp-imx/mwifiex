@@ -158,6 +158,11 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	t_u16 len = 0;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	t_u16 rx_nss = 0, tx_nss = 0;
+#endif
+	MrvlIEtypes_He_cap_t *phecap = MNULL;
 
 	if (!phe_cap) {
 		LEAVE();
@@ -176,7 +181,37 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 	}
 	phe_cap->type = wlan_cpu_to_le16(phe_cap->type);
 	phe_cap->len = wlan_cpu_to_le16(phe_cap->len);
-
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type)) {
+		if (band & BAND_A) {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8) &
+				 0x0f;
+		} else {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream) &
+				 0x0f;
+		}
+	}
+#endif
+	phecap = (MrvlIEtypes_He_cap_t *)phe_cap;
+	phecap->rx_mcs_80 = wlan_cpu_to_le16(0xfffe);
+	phecap->tx_mcs_80 = wlan_cpu_to_le16(0xfffe);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type)) {
+		if (rx_nss == 2)
+			phecap->rx_mcs_80 = wlan_cpu_to_le16(0xfffa);
+		if (tx_nss == 2)
+			phecap->tx_mcs_80 = wlan_cpu_to_le16(0xfffa);
+	}
+#endif
+	DBG_HEXDUMP(MCMD_D, "fill_11ax_tlv", (t_u8 *)phecap, len);
 	LEAVE();
 	return len;
 }
@@ -197,6 +232,10 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	int len = 0;
 	t_u8 bw_80p80 = MFALSE;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	t_u16 rx_nss = 0, tx_nss = 0;
+#endif
 
 	ENTER();
 
@@ -230,26 +269,44 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	}
 	phecap->type = wlan_cpu_to_le16(phecap->type);
 	phecap->len = wlan_cpu_to_le16(phecap->len);
-
-	if (bw_80p80) {
-		/** configure 2*2 to 1*1 to support 80+80Mhz*/
-		/** set 1*1 mcs rate for 80Mhz rx*/
-		phecap->he_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80Mhz tx*/
-		phecap->he_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 160Mhz rx*/
-		phecap->he160_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 160Mhz tx*/
-		phecap->he160_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80+80Mhz rx*/
-		phecap->he8080_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80+80Mhz tx*/
-		phecap->he8080_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-	} else {
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type)) {
+		if (pbss_desc->bss_band & BAND_A) {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8) &
+				 0x0f;
+		} else {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream) &
+				 0x0f;
+		}
+		/** force 1x1 when enable 80P80 */
+		if (bw_80p80)
+			rx_nss = tx_nss = 1;
+	}
+#endif
+	phecap->rx_mcs_80 = wlan_cpu_to_le16(0xfffe);
+	phecap->tx_mcs_80 = wlan_cpu_to_le16(0xfffe);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type)) {
+		if (rx_nss == 2)
+			phecap->rx_mcs_80 = wlan_cpu_to_le16(0xfffa);
+		if (tx_nss == 2)
+			phecap->tx_mcs_80 = wlan_cpu_to_le16(0xfffa);
+	}
+#endif
+	if (!bw_80p80) {
 		/** reset BIT3 and BIT4 channel width ,not support 80 + 80*/
 		/** not support 160Mhz now, if support,not reset bit3 */
 		phecap->he_phy_cap[0] &= ~(MBIT(3) | MBIT(4));
 	}
+	DBG_HEXDUMP(MCMD_D, "append_11ax_tlv", (t_u8 *)phecap, len);
 
 	LEAVE();
 	return len;

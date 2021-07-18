@@ -132,6 +132,7 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	VS_IE = VENDOR_SPECIFIC_221,
 	WAPI_IE = 68,
 	FRAGMENT = 242,
+	RSNX_IE = 244,
 	EXTENSION = 255
 } MLAN_PACK_END IEEEtypes_ElementId_e;
 
@@ -1994,7 +1995,8 @@ typedef struct _BSSDescriptor_t {
 	t_u32 beacon_buf_size;
 	/** Max allocated size for updated scan response */
 	t_u32 beacon_buf_size_max;
-
+	/** scan age in secs */
+	t_u32 age_in_secs;
 } BSSDescriptor_t, *pBSSDescriptor_t;
 
 #endif /* !_MLAN_IEEE_H_ */

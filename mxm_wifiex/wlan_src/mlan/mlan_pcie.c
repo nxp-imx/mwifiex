@@ -40,7 +40,159 @@ Change log:
 /********************************************************
 			Local Variables
 ********************************************************/
+#ifdef PCIE8897
+static const struct _mlan_pcie_card_reg mlan_reg_pcie8897 = {
+	.reg_txbd_rdptr = PCIE8897_RD_DATA_PTR_Q0_Q1,
+	.reg_txbd_wrptr = PCIE8897_WR_DATA_PTR_Q0_Q1,
+	.reg_rxbd_rdptr = PCIE8897_RD_DATA_PTR_Q0_Q1,
+	.reg_rxbd_wrptr = PCIE8897_WR_DATA_PTR_Q0_Q1,
+	.reg_evtbd_rdptr = REG_EVTBD_RDPTR,
+	.reg_evtbd_wrptr = REG_EVTBD_WRPTR,
+	.reg_host_int_mask = PCIE_HOST_INT_MASK,
+	.reg_host_int_status_mask = PCIE_HOST_INT_STATUS_MASK,
+	.reg_host_int_status = PCIE_HOST_INT_STATUS,
+	.reg_cpu_int_event = PCIE_CPU_INT_EVENT,
+	.reg_ip_rev = PCIE_IP_REV_REG,
+	.reg_drv_ready = REG_DRV_READY,
+	.reg_cpu_int_status = PCIE_CPU_INT_STATUS,
+	.reg_scratch_0 = PCIE_SCRATCH_0_REG,
+	.reg_scratch_1 = PCIE_SCRATCH_1_REG,
+	.reg_scratch_2 = PCIE_SCRATCH_2_REG,
+	.reg_scratch_3 = PCIE_SCRATCH_3_REG,
+	.host_intr_mask = HOST_INTR_MASK,
+	.host_intr_dnld_done = HOST_INTR_DNLD_DONE,
+	.host_intr_upld_rdy = HOST_INTR_UPLD_RDY,
+	.host_intr_cmd_done = HOST_INTR_CMD_DONE,
+	.host_intr_event_rdy = HOST_INTR_EVENT_RDY,
+	.txrx_rw_ptr_mask = 0x000003FF,
+	.txrx_rw_ptr_wrap_mask = 0x000007FF,
+	.txrx_rw_ptr_rollover_ind = MBIT(10),
+	.use_adma = MFALSE,
+	.msi_int_wr_clr = MTRUE,
+};
 
+static const struct _mlan_card_info mlan_card_info_pcie8897 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+};
+#endif
+
+#ifdef PCIE8997
+static const struct _mlan_pcie_card_reg mlan_reg_pcie8997 = {
+	.reg_txbd_rdptr = PCIE8997_RD_DATA_PTR_Q0_Q1,
+	.reg_txbd_wrptr = PCIE8997_WR_DATA_PTR_Q0_Q1,
+	.reg_rxbd_rdptr = PCIE8997_RD_DATA_PTR_Q0_Q1,
+	.reg_rxbd_wrptr = PCIE8997_WR_DATA_PTR_Q0_Q1,
+	.reg_evtbd_rdptr = REG_EVTBD_RDPTR,
+	.reg_evtbd_wrptr = REG_EVTBD_WRPTR,
+	.reg_host_int_mask = PCIE_HOST_INT_MASK,
+	.reg_host_int_status_mask = PCIE_HOST_INT_STATUS_MASK,
+	.reg_host_int_status = PCIE_HOST_INT_STATUS,
+	.reg_cpu_int_event = PCIE_CPU_INT_EVENT,
+	.reg_ip_rev = PCIE_IP_REV_REG,
+	.reg_drv_ready = REG_DRV_READY,
+	.reg_cpu_int_status = PCIE_CPU_INT_STATUS,
+	.reg_scratch_0 = PCIE_SCRATCH_0_REG,
+	.reg_scratch_1 = PCIE_SCRATCH_1_REG,
+	.reg_scratch_2 = PCIE_SCRATCH_2_REG,
+	.reg_scratch_3 = PCIE_SCRATCH_3_REG,
+	.host_intr_mask = HOST_INTR_MASK,
+	.host_intr_dnld_done = HOST_INTR_DNLD_DONE,
+	.host_intr_upld_rdy = HOST_INTR_UPLD_RDY,
+	.host_intr_cmd_done = HOST_INTR_CMD_DONE,
+	.host_intr_event_rdy = HOST_INTR_EVENT_RDY,
+	.txrx_rw_ptr_mask = 0x00000FFF,
+	.txrx_rw_ptr_wrap_mask = 0x00001FFF,
+	.txrx_rw_ptr_rollover_ind = MBIT(12),
+	.use_adma = MFALSE,
+	.msi_int_wr_clr = MTRUE,
+};
+
+static const struct _mlan_card_info mlan_card_info_pcie8997 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+};
+#endif
+
+#ifdef PCIE9097
+static const struct _mlan_pcie_card_reg mlan_reg_pcie9097_b0 = {
+	.reg_txbd_rdptr = PCIE9098_TXBD_RDPTR,
+	.reg_txbd_wrptr = PCIE9098_TXBD_WRPTR,
+	.reg_rxbd_rdptr = PCIE9098_RXBD_RDPTR,
+	.reg_rxbd_wrptr = PCIE9098_RXBD_WRPTR,
+	.reg_evtbd_rdptr = PCIE9098_EVTBD_RDPTR,
+	.reg_evtbd_wrptr = PCIE9098_EVTBD_WRPTR,
+	.reg_host_int_mask = PCIE9097_B0_HOST_INT_MASK,
+	.reg_host_int_status_mask = PCIE9097_B0_HOST_INT_STATUS_MASK,
+	.reg_host_int_status = PCIE9097_B0_HOST_INT_STATUS,
+	.reg_host_int_clr_sel = PCIE9097_B0_HOST_INT_CLR_SEL,
+	.reg_cpu_int_event = PCIE9098_CPU_INT_EVENT,
+	.reg_ip_rev = PCIE9098_DEV_ID_REG,
+	.reg_drv_ready = PCIE9098_DRV_READY,
+	.reg_cpu_int_status = PCIE9098_CPU_INT_STATUS,
+	.reg_rev_id = PCIE9098_REV_ID_REG,
+	.reg_scratch_0 = PCIE9098_SCRATCH_0_REG,
+	.reg_scratch_1 = PCIE9098_SCRATCH_1_REG,
+	.reg_scratch_2 = PCIE9098_SCRATCH_2_REG,
+	.reg_scratch_3 = PCIE9098_SCRATCH_3_REG,
+	.reg_scratch_6 = PCIE9098_SCRATCH_6_REG,
+	.reg_scratch_7 = PCIE9098_SCRATCH_7_REG,
+	.host_intr_mask = PCIE9098_HOST_INTR_MASK,
+	.host_intr_dnld_done = PCIE9098_HOST_INTR_DNLD_DONE,
+	.host_intr_upld_rdy = PCIE9098_HOST_INTR_UPLD_RDY,
+	.host_intr_cmd_done = PCIE9098_HOST_INTR_CMD_DONE,
+	.host_intr_event_rdy = PCIE9098_HOST_INTR_EVENT_RDY,
+	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
+	.use_adma = MTRUE,
+	.msi_int_wr_clr = MTRUE,
+};
+#endif
+
+#if defined(PCIE9098) || defined(PCIE9097)
+static const struct _mlan_pcie_card_reg mlan_reg_pcie9098 = {
+	.reg_txbd_rdptr = PCIE9098_TXBD_RDPTR,
+	.reg_txbd_wrptr = PCIE9098_TXBD_WRPTR,
+	.reg_rxbd_rdptr = PCIE9098_RXBD_RDPTR,
+	.reg_rxbd_wrptr = PCIE9098_RXBD_WRPTR,
+	.reg_evtbd_rdptr = PCIE9098_EVTBD_RDPTR,
+	.reg_evtbd_wrptr = PCIE9098_EVTBD_WRPTR,
+	.reg_host_int_mask = PCIE9098_HOST_INT_MASK,
+	.reg_host_int_status_mask = PCIE9098_HOST_INT_STATUS_MASK,
+	.reg_host_int_status = PCIE9098_HOST_INT_STATUS,
+	.reg_host_int_clr_sel = PCIE9098_HOST_INT_CLR_SEL,
+	.reg_cpu_int_event = PCIE9098_CPU_INT_EVENT,
+	.reg_ip_rev = PCIE9098_DEV_ID_REG,
+	.reg_drv_ready = PCIE9098_DRV_READY,
+	.reg_cpu_int_status = PCIE9098_CPU_INT_STATUS,
+	.reg_rev_id = PCIE9098_REV_ID_REG,
+	.reg_scratch_0 = PCIE9098_SCRATCH_0_REG,
+	.reg_scratch_1 = PCIE9098_SCRATCH_1_REG,
+	.reg_scratch_2 = PCIE9098_SCRATCH_2_REG,
+	.reg_scratch_3 = PCIE9098_SCRATCH_3_REG,
+	.reg_scratch_6 = PCIE9098_SCRATCH_6_REG,
+	.reg_scratch_7 = PCIE9098_SCRATCH_7_REG,
+	.host_intr_mask = PCIE9098_HOST_INTR_MASK,
+	.host_intr_dnld_done = PCIE9098_HOST_INTR_DNLD_DONE,
+	.host_intr_upld_rdy = PCIE9098_HOST_INTR_UPLD_RDY,
+	.host_intr_cmd_done = PCIE9098_HOST_INTR_CMD_DONE,
+	.host_intr_event_rdy = PCIE9098_HOST_INTR_EVENT_RDY,
+	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
+	.use_adma = MTRUE,
+	.msi_int_wr_clr = MTRUE,
+};
+
+static const struct _mlan_card_info mlan_card_info_pcie9098 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+};
+#endif
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -2464,7 +2616,14 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 
 	pmadapter->upld_len = wlan_le16_to_cpu(resp_len);
 	pmadapter->upld_len -= PCIE_INTF_HEADER_LEN;
-
+	cmd_buf = pmadapter->pcard_pcie->cmd_buf;
+	if (cmd_buf) {
+		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
+				       cmd_buf->pbuf + cmd_buf->data_offset,
+				       cmd_buf->buf_pa, WLAN_UPLD_SIZE,
+				       PCI_DMA_TODEVICE);
+		pmadapter->pcard_pcie->cmd_buf = MNULL;
+	}
 	if (!pmadapter->curr_cmd) {
 		if (pmadapter->ps_state == PS_STATE_SLEEP_CFM) {
 			wlan_process_sleep_confirm_resp(
@@ -2500,15 +2659,6 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 			mlan_delay_for_sleep_cookie(pmadapter,
 						    MAX_DELAY_LOOP_COUNT);
 #endif
-			cmd_buf = pmadapter->pcard_pcie->cmd_buf;
-			if (cmd_buf) {
-				pcb->moal_unmap_memory(
-					pmadapter->pmoal_handle,
-					cmd_buf->pbuf + cmd_buf->data_offset,
-					cmd_buf->buf_pa, WLAN_UPLD_SIZE,
-					PCI_DMA_TODEVICE);
-				pmadapter->pcard_pcie->cmd_buf = MNULL;
-			}
 		}
 		memcpy_ext(pmadapter, pmadapter->upld_buf,
 			   pmbuf->pbuf + pmbuf->data_offset +
@@ -2580,9 +2730,6 @@ static mlan_status wlan_pcie_cmdrsp_complete(mlan_adapter *pmadapter,
 					     mlan_buffer *pmbuf,
 					     mlan_status status)
 {
-	mlan_buffer *pcmdmbuf;
-	pmlan_callbacks pcb = &pmadapter->callbacks;
-
 	ENTER();
 
 	/*return the cmd response pmbuf*/
@@ -2590,18 +2737,6 @@ static mlan_status wlan_pcie_cmdrsp_complete(mlan_adapter *pmadapter,
 		pmbuf->data_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 		pmbuf->data_offset -= PCIE_INTF_HEADER_LEN;
 		pmadapter->pcard_pcie->cmdrsp_buf = pmbuf;
-	}
-
-	/*unmap the cmd pmbuf, so the cpu can not access the memory in the
-	 * command node*/
-	pcmdmbuf = pmadapter->pcard_pcie->cmd_buf;
-
-	if (pcmdmbuf) {
-		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
-				       pcmdmbuf->pbuf + pcmdmbuf->data_offset,
-				       pcmdmbuf->buf_pa, WLAN_UPLD_SIZE,
-				       PCI_DMA_TODEVICE);
-		pmadapter->pcard_pcie->cmd_buf = MNULL;
 	}
 
 	LEAVE();
@@ -3437,13 +3572,15 @@ static mlan_status wlan_pcie_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 			    pmoal_handle,
 			    pmadapter->pcard_pcie->reg->reg_host_int_status,
 			    &pcie_ireg)) {
-			PRINTM(MWARN, "Read register failed\n");
+			PRINTM(MERROR, "Read func%d register failed\n",
+			       pmadapter->pcard_pcie->func_num);
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
 
 		if ((pcie_ireg != 0xFFFFFFFF) && (pcie_ireg)) {
-			PRINTM(MINTR, "pcie_ireg=0x%x\n", pcie_ireg);
+			PRINTM(MINTR, "func%d: pcie_ireg=0x%x\n",
+			       pmadapter->pcard_pcie->func_num, pcie_ireg);
 			if (!pmadapter->pps_uapsd_mode &&
 			    (pmadapter->ps_state == PS_STATE_SLEEP)) {
 				/* Potentially for PCIe we could get other
@@ -3573,20 +3710,22 @@ static mlan_status wlan_process_pcie_int_status(mlan_adapter *pmadapter)
 			    pmadapter->pmoal_handle,
 			    pmadapter->pcard_pcie->reg->reg_host_int_status,
 			    &pcie_ireg)) {
-			PRINTM(MWARN, "Read register failed\n");
+			PRINTM(MERROR, "Read func%d register failed\n",
+			       pmadapter->pcard_pcie->func_num);
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
 
 		if ((pcie_ireg != 0xFFFFFFFF) && (pcie_ireg)) {
-			PRINTM(MINTR, "pcie_ireg=0x%x\n", pcie_ireg);
+			PRINTM(MINTR, "func%d: pcie_ireg=0x%x\n",
+			       pmadapter->pcard_pcie->func_num, pcie_ireg);
 			if (pmadapter->pcard_pcie->reg->msi_int_wr_clr) {
 				if (pcb->moal_write_reg(
 					    pmadapter->pmoal_handle,
 					    pmadapter->pcard_pcie->reg
 						    ->reg_host_int_status,
 					    ~pcie_ireg)) {
-					PRINTM(MWARN,
+					PRINTM(MERROR,
 					       "Write register failed\n");
 					ret = MLAN_STATUS_FAILURE;
 					goto done;
@@ -3671,13 +3810,15 @@ static mlan_status wlan_process_pcie_int_status(mlan_adapter *pmadapter)
 			    pmadapter->pmoal_handle,
 			    pmadapter->pcard_pcie->reg->reg_host_int_status,
 			    &pcie_ireg)) {
-			PRINTM(MWARN, "Read register failed\n");
+			PRINTM(MERROR, "Read func%d register failed\n",
+			       pmadapter->pcard_pcie->func_num);
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
 
 		if ((pcie_ireg != 0xFFFFFFFF) && (pcie_ireg)) {
-			PRINTM(MINTR, "Poll: pcie_ireg=0x%x\n", pcie_ireg);
+			PRINTM(MINTR, "func%d: Poll pcie_ireg=0x%x\n",
+			       pmadapter->pcard_pcie->func_num, pcie_ireg);
 			if ((pmadapter->pcard_pcie->pcie_int_mode ==
 			     PCIE_INT_MODE_LEGACY) ||
 			    pmadapter->pcard_pcie->reg->msi_int_wr_clr) {
@@ -4287,7 +4428,8 @@ static mlan_status wlan_pm_pcie_wakeup_card(pmlan_adapter pmadapter,
 	t_u32 age_ts_usec;
 
 	ENTER();
-	PRINTM(MEVENT, "Wakeup device...\n");
+	PRINTM(MEVENT, "func%d: Wakeup device...\n",
+	       pmadapter->pcard_pcie->func_num);
 	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
 						  &pmadapter->pm_wakeup_in_secs,
 						  &age_ts_usec);

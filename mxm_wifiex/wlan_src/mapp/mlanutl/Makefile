@@ -22,7 +22,9 @@ CFLAGS := $(filter-out -I$(KERNELDIR)%, $(CFLAGS))
 #CFLAGS += -DAP22 -fshort-enums
 CFLAGS += -Wall
 #ECHO = @
-LIBS = -lrt
+ifeq (,$(findstring ANDROID_KERNEL, $(CFLAGS)))
+LIBS=-lrt
+endif
 
 .PHONY: default tags all
 

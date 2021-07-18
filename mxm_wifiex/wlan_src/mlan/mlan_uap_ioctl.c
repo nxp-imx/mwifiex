@@ -682,27 +682,10 @@ static mlan_status wlan_uap_bss_ioctl_deauth_sta(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_bss *bss = MNULL;
-	const t_u8 bc_mac[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	sta_node *sta_ptr = MNULL;
 
 	ENTER();
 
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
-	if (pmpriv->uap_host_based & UAP_FLAG_HOST_MLME) {
-		if (memcmp(pmpriv->adapter, bss->param.deauth_param.mac_addr,
-			   bc_mac, MLAN_MAC_ADDR_LENGTH)) {
-			sta_ptr = wlan_get_station_entry(
-				pmpriv, bss->param.deauth_param.mac_addr);
-			if (!sta_ptr) {
-				PRINTM(MCMND,
-				       "Skip deauth to station " MACSTR "\n",
-				       MAC2STR(bss->param.deauth_param
-						       .mac_addr));
-				LEAVE();
-				return ret;
-			}
-		}
-	}
 	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_STA_DEAUTH,
 			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
 			       (t_void *)&bss->param.deauth_param);
@@ -1038,6 +1021,7 @@ wlan_uap_sec_ioctl_set_encrypt_key(pmlan_adapter pmadapter,
 		LEAVE();
 		return ret;
 	}
+
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_KEY_MATERIAL,
 			       HostCmd_ACT_GEN_SET, KEY_INFO_ENABLED,
 			       (t_void *)pioctl_req, &sec->param.encrypt_key);
@@ -1920,6 +1904,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				   MLAN_MAC_ADDR_LENGTH);
 			pget_info->param.fw_info.fw_ver =
 				pmadapter->fw_release_number;
+			pget_info->param.fw_info.hotfix_version =
+				pmadapter->fw_hotfix_ver;
 			pget_info->param.fw_info.fw_bands = pmadapter->fw_bands;
 			pget_info->param.fw_info.ecsa_enable =
 				pmadapter->ecsa_enable;
