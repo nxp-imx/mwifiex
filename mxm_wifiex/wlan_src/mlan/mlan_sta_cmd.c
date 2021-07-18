@@ -2553,7 +2553,9 @@ static mlan_status wlan_cmd_coalesce_config(pmlan_private pmpriv,
 
 	ENTER();
 
-	cmd->size = sizeof(HostCmd_DS_COALESCE_CONFIG) + S_DS_GEN;
+	cmd->size = (sizeof(HostCmd_DS_COALESCE_CONFIG) -
+		     sizeof(struct coalesce_receive_filt_rule)) +
+		    S_DS_GEN;
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_COALESCE_CFG);
 	coalesce_config->action = wlan_cpu_to_le16(cmd_action);
 	coalesce_config->num_of_rules = wlan_cpu_to_le16(cfg->num_of_rules);

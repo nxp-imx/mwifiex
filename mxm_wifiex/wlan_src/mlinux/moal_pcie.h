@@ -97,13 +97,13 @@ Change log:
 #define PCIE9097_A0 0x00
 #define PCIE9097_B0 0x01
 #define PCIE9097_B1 0x02
-#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9097_combo.bin"
-#define PCIEUART9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuart9097_combo.bin"
-#define PCIEUSB9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9097_combo.bin"
-#define PCIEUART9097_COMBO_V1_FW_NAME "nxp/pcieuart9097_combo_v1.bin"
-#define PCIEUSB9097_COMBO_V1_FW_NAME "nxp/pcieusb9097_combo_v1.bin"
-#define PCIE9097_DEFAULT_WLAN_FW_NAME "nxp/pcie9097_wlan.bin"
-#define PCIE9097_WLAN_V1_FW_NAME "nxp/pcie9097_wlan_v1.bin"
+#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
+#define PCIEUART9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw620_combo.bin"
+#define PCIEUSB9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
+#define PCIEUART9097_COMBO_V1_FW_NAME "nxp/pcieuartiw620_combo_v1.bin"
+#define PCIEUSB9097_COMBO_V1_FW_NAME "nxp/pcieusbiw620_combo_v1.bin"
+#define PCIE9097_DEFAULT_WLAN_FW_NAME "nxp/pcieiw620_wlan.bin"
+#define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
 #if defined(PCIE9098) || defined(PCIE9097)

@@ -1100,7 +1100,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			seq_printf(
 				sfp,
 				"tid = %d, ta =  %02x:%02x:%02x:%02x:%02x:%02x, start_win = %d, "
-				"win_size = %d, amsdu=%d\n",
+				"win_size = %d, amsdu=%d",
 				(int)info->rx_tbl[i].tid, info->rx_tbl[i].ta[0],
 				info->rx_tbl[i].ta[1], info->rx_tbl[i].ta[2],
 				info->rx_tbl[i].ta[3], info->rx_tbl[i].ta[4],
@@ -1108,6 +1108,8 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 				(int)info->rx_tbl[i].start_win,
 				(int)info->rx_tbl[i].win_size,
 				(int)info->rx_tbl[i].amsdu);
+			seq_printf(sfp, "\n");
+
 			seq_printf(sfp, "buffer: ");
 			for (j = 0; j < info->rx_tbl[i].win_size; j++) {
 				if (info->rx_tbl[i].buffer[j] == MTRUE)

@@ -3177,6 +3177,15 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->gdma_abort_cnt);
 		pget_info->param.stats.g_reset_rx_mac_cnt =
 			wlan_le32_to_cpu(pget_log->g_reset_rx_mac_cnt);
+		// Ownership error counters
+		pget_info->param.stats.dwCtlErrCnt =
+			wlan_le32_to_cpu(pget_log->dwCtlErrCnt);
+		pget_info->param.stats.dwBcnErrCnt =
+			wlan_le32_to_cpu(pget_log->dwBcnErrCnt);
+		pget_info->param.stats.dwMgtErrCnt =
+			wlan_le32_to_cpu(pget_log->dwMgtErrCnt);
+		pget_info->param.stats.dwDatErrCnt =
+			wlan_le32_to_cpu(pget_log->dwDatErrCnt);
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
 				wlan_le32_to_cpu(pget_log->tx_frag_cnt);
@@ -3601,7 +3610,7 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 			} else
 				info->param.sta_list.info[i].bandmode = 0xFF;
 			pioctl_buf->data_read_written +=
-				sizeof(sta_info_data) +
+				sizeof(sta_info_data) - 1 +
 				info->param.sta_list.info[i].ie_len;
 			buf += sizeof(MrvlIEtypes_sta_info_t) +
 			       info->param.sta_list.info[i].ie_len;

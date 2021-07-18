@@ -108,10 +108,10 @@ Change log:
 #endif /* SD8897 */
 
 #ifdef SD8978
-#define SD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsd8978_combo.bin"
-#define SDUART8978_DEFAULT_COMBO_FW_NAME "nxp/sduart8978_combo.bin"
-#define SDSD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsd8978_combo.bin"
-#define SD8978_DEFAULT_WLAN_FW_NAME "nxp/sd8978_wlan.bin"
+#define SD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw416_combo.bin"
+#define SDUART8978_DEFAULT_COMBO_FW_NAME "nxp/sduartiw416_combo.bin"
+#define SDSD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw416_combo.bin"
+#define SD8978_DEFAULT_WLAN_FW_NAME "nxp/sdiw416_wlan.bin"
 #endif /* SD8978 */
 
 #ifdef SD9098
@@ -131,20 +131,20 @@ Change log:
 #ifdef SD9097
 #define SD9097_B0 0x01
 #define SD9097_B1 0x02
-#define SD9097_DEFAULT_COMBO_FW_NAME "nxp/sdsd9097_combo_v1.bin"
+#define SD9097_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw620_combo_v1.bin"
 
-#define SD9097_DEFAULT_WLAN_FW_NAME "nxp/sd9097_wlan_v1.bin"
-#define SDUART9097_COMBO_V1_FW_NAME "nxp/sduart9097_combo_v1.bin"
-#define SDSD9097_COMBO_V1_FW_NAME "nxp/sdsd9097_combo_v1.bin"
-#define SD9097_WLAN_V1_FW_NAME "nxp/sd9097_wlan_v1.bin"
+#define SD9097_DEFAULT_WLAN_FW_NAME "nxp/sdiw620_wlan_v1.bin"
+#define SDUART9097_COMBO_V1_FW_NAME "nxp/sduartiw620_combo_v1.bin"
+#define SDSD9097_COMBO_V1_FW_NAME "nxp/sdsdiw620_combo_v1.bin"
+#define SD9097_WLAN_V1_FW_NAME "nxp/sdiw620_wlan_v1.bin"
 #endif /* SD9097 */
 
 #ifdef SD9177
 #define SD9177_A0 0x01
-#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
-#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart9177_combo.bin"
-#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
-#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd9177_wlan.bin"
+#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
+#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin"
+#define SDSD9177_DEFAULT_COMBO_FW_NAME "sdsd_nw61x.bin"
+#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin"
 /** Device ID for SD9177 */
 #define SD_DEVICE_ID_9177 (0x0205)
 #endif /* SD9177 */
@@ -180,6 +180,7 @@ struct sdio_mmc_card {
 	/** saved host clock value */
 	unsigned int host_clock;
 };
+void woal_sdio_reset_hw(moal_handle *handle);
 #endif /* SDIO_MMC */
 
 /** cmd52 read write */

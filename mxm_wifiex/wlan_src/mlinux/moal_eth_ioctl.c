@@ -3714,11 +3714,16 @@ done:
 static int woal_priv_setgettcpackenh(moal_private *priv, t_u8 *respbuf,
 				     t_u32 respbuflen)
 {
-	t_u32 data[1];
+	t_u32 data[2] = {0, 0};
 	int ret = 0;
 	int user_data_len = 0;
 
 	ENTER();
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
 
 	if (strlen(respbuf) == (strlen(CMD_NXP) + strlen(PRIV_CMD_TCPACKENH))) {
 		/* GET operation */
@@ -3731,17 +3736,25 @@ static int woal_priv_setgettcpackenh(moal_private *priv, t_u8 *respbuf,
 				data, ARRAY_SIZE(data), &user_data_len);
 	}
 
-	if (user_data_len >= 2) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
 	if (user_data_len == 0) {
 		/* get operation */
-		respbuf[0] = priv->enable_tcp_ack_enh;
+		data[0] = priv->enable_tcp_ack_enh;
+		data[1] = priv->tcp_ack_max_hold;
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
+				sizeof(data), respbuflen);
+		ret = sizeof(data);
 	} else {
 		/* set operation */
+		if (user_data_len >= 3) {
+			PRINTM(MERROR, "Too many arguments\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if (data[0] > 1 || data[1] > TCP_ACK_MAX_HOLD) {
+			PRINTM(MERROR, "Invalid argument\n");
+			ret = -EINVAL;
+			goto done;
+		}
 		if (data[0] == MTRUE) {
 			PRINTM(MINFO, "Enabling TCP Ack enhancement\n");
 			priv->enable_tcp_ack_enh = MTRUE;
@@ -3750,14 +3763,17 @@ static int woal_priv_setgettcpackenh(moal_private *priv, t_u8 *respbuf,
 			priv->enable_tcp_ack_enh = MFALSE;
 			/* release the tcp sessions if any */
 			woal_flush_tcp_sess_queue(priv);
-		} else {
-			PRINTM(MERROR, "Unknown option = %u\n", data[0]);
-			ret = -EINVAL;
-			goto done;
 		}
-		respbuf[0] = priv->enable_tcp_ack_enh;
+		if (user_data_len >= 2) {
+			PRINTM(MINFO, "TCP drop Ack configure: %d\n", data[1]);
+			priv->tcp_ack_max_hold = data[1];
+		}
+		data[0] = priv->enable_tcp_ack_enh;
+		data[1] = priv->tcp_ack_max_hold;
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
+				sizeof(data), respbuflen);
+		ret = sizeof(data);
 	}
-	ret = 1;
 
 done:
 	LEAVE();
@@ -5549,6 +5565,12 @@ static int woal_priv_set_get_psmode(moal_private *priv, t_u8 *respbuf,
 		goto done;
 	}
 
+	if (data != 0 && data != 1) {
+		PRINTM(MERROR, "Invalid psmode=%d\n", data);
+		ret = -EINVAL;
+		goto done;
+	}
+
 	/* Flip the value */
 	data = !data;
 
@@ -6863,7 +6885,8 @@ static int woal_priv_get_txpwrlimit(moal_private *priv, t_u8 *respbuf,
 	header_len = strlen(PRIV_CMD_GET_TXPWR_LIMIT);
 	trpc_cfg = (mlan_ds_misc_chan_trpc_cfg *)(respbuf + header_len);
 	if ((trpc_cfg->sub_band != 0) && (trpc_cfg->sub_band != 0x10) &&
-	    (trpc_cfg->sub_band != 0x11) && (trpc_cfg->sub_band != 0x12)) {
+	    (trpc_cfg->sub_band != 0x11) && (trpc_cfg->sub_band != 0x12) &&
+	    (trpc_cfg->sub_band != 0x13)) {
 		PRINTM(MERROR, "Invalid subband=0x%x\n", trpc_cfg->sub_band);
 		ret = -EINVAL;
 		goto done;

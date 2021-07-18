@@ -365,6 +365,15 @@ struct eth_priv_get_log {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
+	// Ownership error counters
+	/*Error Ownership error count*/
+	t_u32 dwCtlErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwBcnErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwMgtErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwDatErrCnt;
 };
 
 /** MLAN MAC Address Length */
@@ -1182,5 +1191,45 @@ typedef struct MAPP_HostCmd_DS_MEM {
 	/** Value */
 	t_u32 value;
 } __ATTRIB_PACK__ HostCmd_DS_MEM;
+
+typedef struct _HostCmd_DS_MEF_CFG {
+	/** Criteria */
+	t_u32 Criteria;
+	/** Number of entries */
+	t_u16 NumEntries;
+} __ATTRIB_PACK__ HostCmd_DS_MEF_CFG;
+
+typedef struct _MEF_CFG_DATA {
+	/** Size */
+	t_u16 size;
+	/** Data */
+	HostCmd_DS_MEF_CFG data;
+} __ATTRIB_PACK__ MEF_CFG_DATA;
+
+/** cloud keep alive parameters */
+typedef struct _cloud_keep_alive {
+	/** id */
+	t_u8 mkeep_alive_id;
+	/** enable/disable of this id */
+	t_u8 enable;
+	/** enable/disable reset*/
+	t_u8 reset;
+	/** Reserved */
+	t_u8 reserved;
+	/** Destination MAC address */
+	t_u8 dst_mac[ETH_ALEN];
+	/** Source MAC address */
+	t_u8 src_mac[ETH_ALEN];
+	/** packet send period */
+	t_u32 sendInterval;
+	/** packet retry interval */
+	t_u32 retryInterval;
+	/** packet retry count */
+	t_u8 retryCount;
+	/** packet length */
+	t_u8 pkt_len;
+	/** packet content */
+	t_u8 pkt[255];
+} __ATTRIB_PACK__ cloud_keep_alive;
 
 #endif /* _MLANUTL_H_ */

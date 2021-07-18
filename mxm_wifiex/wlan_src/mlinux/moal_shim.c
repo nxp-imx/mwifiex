@@ -201,19 +201,21 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 {
 	moal_handle *handle = (moal_handle *)pmoal;
 	pcie_service_card *card = (pcie_service_card *)handle->card;
+	dma_addr_t dma;
 	*pbuf_pa = 0;
 
 	if (!card)
 		return MLAN_STATUS_FAILURE;
 
 	*ppbuf = (t_u8 *)pci_alloc_consistent(card->dev, size,
-					      (dma_addr_t *)pbuf_pa);
+					      (dma_addr_t *)&dma);
 	if (*ppbuf == NULL) {
 		PRINTM(MERROR,
 		       "%s: allocate consistent memory (%d bytes) failed!\n",
 		       __func__, (int)size);
 		return MLAN_STATUS_FAILURE;
 	}
+	*pbuf_pa = (t_u64)dma;
 	atomic_inc(&handle->malloc_cons_count);
 
 	return MLAN_STATUS_SUCCESS;
@@ -1644,6 +1646,8 @@ static void moal_connection_status_check_pmqos(t_void *pmoal)
 	}
 }
 
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 /**
  * @brief   Handle RX MGMT PKT event
  *
@@ -1673,6 +1677,8 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 		queue_work(handle->evt_workqueue, &handle->evt_work);
 	}
 }
+#endif
+#endif
 
 /**
  *  @brief This function handles event receive

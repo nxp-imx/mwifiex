@@ -681,9 +681,9 @@ static t_u16 woal_update_card_type(t_void *card)
 	/* Update card type */
 #ifdef USB8801
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8801_PID_1 ||
+		    (__force __le16)USB8801_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8801_PID_2) {
+		    (__force __le16)USB8801_PID_2) {
 		card_type = CARD_TYPE_USB8801;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8801,
 				strlen(CARD_USB8801), strlen(driver_version));
@@ -697,9 +697,9 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8897
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8897_PID_1 ||
+		    (__force __le16)USB8897_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8897_PID_2) {
+		    (__force __le16)USB8897_PID_2) {
 		card_type = CARD_TYPE_USB8897;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8897,
 				strlen(CARD_USB8897), strlen(driver_version));
@@ -713,19 +713,19 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8997
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_1 ||
+		    (__force __le16)USB8997_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_2 ||
+		    (__force __le16)USB8997_PID_2 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_3 ||
+		    (__force __le16)USB8997_PID_3 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_4 ||
+		    (__force __le16)USB8997_PID_4 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_5 ||
+		    (__force __le16)USB8997_PID_5 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_6 ||
+		    (__force __le16)USB8997_PID_6 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997V2_PID_1) {
+		    (__force __le16)USB8997V2_PID_1) {
 		card_type = CARD_TYPE_USB8997;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8997,
 				strlen(CARD_USB8997), strlen(driver_version));
@@ -739,12 +739,12 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8978
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8978_PID_1 ||
+		    (__force __le16)USB8978_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8978_PID_2) {
+		    (__force __le16)USB8978_PID_2) {
 		card_type = CARD_TYPE_USB8978;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB8978,
-				strlen(CARD_USB8978), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, "USBIW416",
+				strlen("USBIW416"), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -755,9 +755,9 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB9098
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9098_PID_1 ||
+		    (__force __le16)USB9098_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9098_PID_2) {
+		    (__force __le16)USB9098_PID_2) {
 		card_type = CARD_TYPE_USB9098;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB9098,
 				strlen(CARD_USB9098), strlen(driver_version));
@@ -771,12 +771,12 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB9097
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9097_PID_1 ||
+		    (__force __le16)USB9097_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9097_PID_2) {
+		    (__force __le16)USB9097_PID_2) {
 		card_type = CARD_TYPE_USB9097;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB9097,
-				strlen(CARD_USB9097), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, CARD_USBIW620,
+				strlen(CARD_USBIW620), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -824,33 +824,33 @@ static int woal_usb_probe(struct usb_interface *intf,
 	/* Check probe is for our device */
 	for (i = 0; woal_usb_table[i].idVendor; i++) {
 		if (woal_cpu_to_le16(udev->descriptor.idVendor) ==
-			    woal_usb_table[i].idVendor &&
+			    (__force __le16)woal_usb_table[i].idVendor &&
 		    woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			    woal_usb_table[i].idProduct) {
+			    (__force __le16)woal_usb_table[i].idProduct) {
 			PRINTM(MMSG, "VID/PID = %X/%X, Boot2 version = %X\n",
 			       woal_cpu_to_le16(udev->descriptor.idVendor),
 			       woal_cpu_to_le16(udev->descriptor.idProduct),
 			       woal_cpu_to_le16(udev->descriptor.bcdDevice));
 			switch (woal_cpu_to_le16(udev->descriptor.idProduct)) {
 #ifdef USB8801
-			case USB8801_PID_1:
+			case (__force __le16)USB8801_PID_1:
 #endif /* USB8801 */
 #ifdef USB8897
-			case USB8897_PID_1:
+			case (__force __le16)USB8897_PID_1:
 #endif /* USB8897 */
 #ifdef USB8997
-			case USB8997_PID_1:
-			case USB8997V2_PID_1:
+			case (__force __le16)USB8997_PID_1:
+			case (__force __le16)USB8997V2_PID_1:
 #endif /* USB8997 */
 #ifdef USB8978
-			case USB8978_PID_1:
-			case USB8978_PID_1_BT:
+			case (__force __le16)USB8978_PID_1:
+			case (__force __le16)USB8978_PID_1_BT:
 #endif /* USB8978 */
 #ifdef USB9098
-			case USB9098_PID_1:
+			case (__force __le16)USB9098_PID_1:
 #endif /* USB9098 */
 #ifdef USB9097
-			case USB9097_PID_1:
+			case (__force __le16)USB9097_PID_1:
 #endif /* USB9097 */
 				/* If skip FW is set, we must return error so
 				 * the next driver can download the FW */
@@ -860,23 +860,23 @@ static int woal_usb_probe(struct usb_interface *intf,
 					usb_cardp->boot_state = USB_FW_DNLD;
 				break;
 #ifdef USB8801
-			case USB8801_PID_2:
+			case (__force __le16)USB8801_PID_2:
 #endif /* USB8801 */
 #ifdef USB8897
-			case USB8897_PID_2:
+			case (__force __le16)USB8897_PID_2:
 #endif /* USB8897 */
 #ifdef USB8997
-			case USB8997_PID_2:
+			case (__force __le16)USB8997_PID_2:
 #endif /* USB8997 */
 #ifdef USB8978
-			case USB8978_PID_2:
-			case USB8978_PID_2_BT:
+			case (__force __le16)USB8978_PID_2:
+			case (__force __le16)USB8978_PID_2_BT:
 #endif /* USB8978 */
 #ifdef USB9098
-			case USB9098_PID_2:
+			case (__force __le16)USB9098_PID_2:
 #endif /* USB9098 */
 #ifdef USB9097
-			case USB9097_PID_2:
+			case (__force __le16)USB9097_PID_2:
 #endif /* USB9097 */
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
@@ -964,7 +964,7 @@ static int woal_usb_probe(struct usb_interface *intf,
 					endpoint->bEndpointAddress;
 				atomic_set(&usb_cardp->tx_data_urb_pending, 0);
 				usb_cardp->tx_data_maxpktsize =
-					woal_le16_to_cpu(
+					(__force int)woal_le16_to_cpu(
 						endpoint->wMaxPacketSize);
 			}
 
@@ -988,8 +988,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 				usb_cardp->tx_cmd_ep =
 					endpoint->bEndpointAddress;
 				atomic_set(&usb_cardp->tx_cmd_urb_pending, 0);
-				usb_cardp->tx_cmd_maxpktsize = woal_le16_to_cpu(
-					endpoint->wMaxPacketSize);
+				usb_cardp->tx_cmd_maxpktsize =
+					(__force int)woal_le16_to_cpu(
+						endpoint->wMaxPacketSize);
 			}
 		}
 

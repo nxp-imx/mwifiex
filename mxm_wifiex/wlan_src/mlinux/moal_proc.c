@@ -512,6 +512,8 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 #endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
+		PRINTM(MERROR, "Recevie debug_dump command\n");
+		handle->driver_status = MTRUE;
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
@@ -525,7 +527,6 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		}
 		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 		if (priv) {
-			PRINTM(MERROR, "Recevie debug_dump command\n");
 #ifdef DEBUG_LEVEL1
 			drvdbg &= ~MFW_D;
 #endif

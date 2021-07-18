@@ -163,8 +163,8 @@ static t_u16 woal_update_card_type(t_void *card)
 #ifdef PCIE9097
 	if (cardp_pcie->dev->device == PCIE_DEVICE_ID_NXP_88W9097) {
 		card_type = CARD_TYPE_PCIE9097;
-		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9097,
-				strlen(CARD_PCIE9097), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, CARD_PCIEIW620,
+				strlen(CARD_PCIEIW620), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -498,6 +498,7 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 {
 	pcie_service_card *cardp;
 	moal_handle *handle = NULL;
+	moal_handle *ref_handle = NULL;
 	int i;
 	int ret = MLAN_STATUS_SUCCESS;
 	int hs_actived;
@@ -505,7 +506,6 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 	int keep_power = 0;
 
 	ENTER();
-	PRINTM(MCMND, "<--- Enter woal_pcie_suspend --->\n");
 	if (pdev) {
 		cardp = (pcie_service_card *)pci_get_drvdata(pdev);
 		if (!cardp || !cardp->handle) {
@@ -519,6 +519,10 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 	}
 
 	handle = cardp->handle;
+	if (handle->second_mac)
+		PRINTM(MCMND, "<--- Enter woal_pcie_suspend# --->\n");
+	else
+		PRINTM(MCMND, "<--- Enter woal_pcie_suspend --->\n");
 	if (handle->is_suspended == MTRUE) {
 		PRINTM(MWARN, "Device already suspended\n");
 		LEAVE();
@@ -533,23 +537,6 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		if (handle->priv[i] &&
 		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA))
 			woal_cancel_scan(handle->priv[i], MOAL_IOCTL_WAIT);
-
-#ifdef PCIE9098
-		if (IS_PCIE9098(handle->card_type)) {
-			if ((cardp->dev->device ==
-			     PCIE_DEVICE_ID_NXP_88W9098P_FN0) ||
-			    (cardp->dev->device ==
-			     PCIE_DEVICE_ID_NXP_88W9098P_FN1)) {
-				if (handle->priv[i] &&
-				    handle->priv[i]->media_connected) {
-					PRINTM(MMSG,
-					       "Suspend not allowed while connected\n");
-					ret = -EBUSY;
-					goto done;
-				}
-			}
-		}
-#endif
 	}
 	handle->suspend_fail = MFALSE;
 	memset(&pm_info, 0, sizeof(pm_info));
@@ -611,7 +598,9 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 #endif /* IMX_SUPPORT */
 	pci_enable_wake(pdev, pci_choose_state(pdev, state), 1);
 	pci_save_state(pdev);
-	pci_set_power_state(pdev, pci_choose_state(pdev, state));
+	ref_handle = (moal_handle *)handle->pref_mac;
+	if (ref_handle && ref_handle->is_suspended)
+		pci_set_power_state(pdev, pci_choose_state(pdev, state));
 done:
 	PRINTM(MCMND, "<--- Leave woal_pcie_suspend --->\n");
 	LEAVE();
@@ -633,8 +622,6 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 	int i;
 
 	ENTER();
-
-	PRINTM(MCMND, "<--- Enter woal_pcie_resume --->\n");
 	if (pdev) {
 		cardp = (pcie_service_card *)pci_get_drvdata(pdev);
 		if (!cardp || !cardp->handle) {
@@ -648,6 +635,10 @@ static int woal_pcie_resume(struct pci_dev *pdev)
 		return -ENOSYS;
 	}
 	handle = cardp->handle;
+	if (handle->second_mac)
+		PRINTM(MCMND, "<--- Enter woal_pcie_resume# --->\n");
+	else
+		PRINTM(MCMND, "<--- Enter woal_pcie_resume --->\n");
 	if (handle->is_suspended == MFALSE) {
 		PRINTM(MWARN, "Device already resumed\n");
 		goto done;
@@ -1003,9 +994,16 @@ static irqreturn_t woal_pcie_interrupt(int irq, void *dev_id)
 	}
 	PRINTM(MINFO, "*** IN PCIE IRQ ***\n");
 	handle->main_state = MOAL_RECV_INT;
-	PRINTM(MINTR, "*\n");
+	if (handle->second_mac)
+		PRINTM(MINTR, "**\n");
+	else
+		PRINTM(MINTR, "*\n");
 
 	ret = mlan_interrupt(0xffff, handle->pmlan_adapter);
+	if (handle->is_suspended) {
+		PRINTM(MINTR, "Receive interrupt in hs_suspended\n");
+		goto exit;
+	}
 	queue_work(handle->workqueue, &handle->main_work);
 
 exit:
@@ -1056,7 +1054,10 @@ static irqreturn_t woal_pcie_msix_interrupt(int irq, void *dev_id)
 	}
 	PRINTM(MINFO, "*** IN PCIE IRQ ***\n");
 	handle->main_state = MOAL_RECV_INT;
-	PRINTM(MINTR, "*\n");
+	if (handle->second_mac)
+		PRINTM(MINTR, "**\n");
+	else
+		PRINTM(MINTR, "*\n");
 	ret = mlan_interrupt(ctx->msg_id, handle->pmlan_adapter);
 	queue_work(handle->workqueue, &handle->main_work);
 

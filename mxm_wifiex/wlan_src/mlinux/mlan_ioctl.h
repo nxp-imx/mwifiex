@@ -1259,8 +1259,9 @@ typedef MLAN_PACK_START struct _otp_region_info {
 	t_u8 country_code[2];
 	t_u8 region_code;
 	t_u8 environment;
-	t_u16 force_reg : 1;
-	t_u16 reserved : 15;
+	t_u8 force_reg : 1;
+	t_u8 reserved : 7;
+	t_u8 dfs_region;
 } MLAN_PACK_END otp_region_info_t;
 
 /** Type definition of mlan_ds_custom_reg_domain */
@@ -1636,6 +1637,15 @@ typedef struct _mlan_ds_get_stats {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
+	// Ownership error counters
+	/*Error Ownership error count*/
+	t_u32 dwCtlErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwBcnErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwMgtErrCnt;
+	/*Control Ownership error count*/
+	t_u32 dwDatErrCnt;
 } mlan_ds_get_stats, *pmlan_ds_get_stats;
 
 /** Type definition of mlan_ds_uap_stats for MLAN_OID_GET_STATS */
@@ -1771,6 +1781,8 @@ typedef struct _mlan_ds_get_signal {
 typedef struct _mlan_fw_info {
 	/** Firmware version */
 	t_u32 fw_ver;
+	/** Firmware Hotfix version */
+	t_u8 hotfix_version;
 	/** MAC address */
 	mlan_802_11_mac_addr mac_addr;
 	/** 802.11n device capabilities */
@@ -2402,7 +2414,7 @@ typedef struct _sta_info_data {
 	/** ie length */
 	t_u16 ie_len;
 	/** ie buffer */
-	t_u8 ie_buf[];
+	t_u8 ie_buf[1];
 } sta_info_data;
 
 /** mlan_ds_sta_list structure for MLAN_OID_UAP_STA_LIST */
@@ -2933,7 +2945,9 @@ typedef struct _mlan_ds_beacon_stuck_param_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND 0
+#define HOST_SLEEP_DEF_COND                                                    \
+	(HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA |       \
+	 HOST_SLEEP_COND_MAC_EVENT)
 
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO 0xff

@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -127,10 +127,10 @@ Change Log:
 #endif /* USB8997 */
 
 #ifdef USB8978
-#define USB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusb8978_combo.bin"
-#define USB8978_DEFAULT_WLAN_FW_NAME "nxp/usb8978_wlan.bin"
-#define USBUART8978_DEFAULT_COMBO_FW_NAME "nxp/usbuart8978_combo.bin"
-#define USBUSB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusb8978_combo.bin"
+#define USB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw416_combo.bin"
+#define USB8978_DEFAULT_WLAN_FW_NAME "nxp/usbiw416_wlan.bin"
+#define USBUART8978_DEFAULT_COMBO_FW_NAME "nxp/usbuartiw416_combo.bin"
+#define USBUSB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw416_combo.bin"
 #endif /* USB8978 */
 
 #ifdef USB8897
@@ -155,11 +155,11 @@ Change Log:
 #ifdef USB9097
 #define USB9097_B0 0x01
 #define USB9097_B1 0x02
-#define USB9097_DEFAULT_COMBO_FW_NAME "nxp/usbusb9097_combo_v1.bin"
-#define USB9097_DEFAULT_WLAN_FW_NAME "nxp/usb9097_wlan_v1.bin"
-#define USB9097_WLAN_V1_FW_NAME "nxp/usb9097_wlan_v1.bin"
-#define USBUART9097_COMBO_V1_FW_NAME "nxp/usbuart9097_combo_v1.bin"
-#define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusb9097_combo_v1.bin"
+#define USB9097_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
+#define USB9097_DEFAULT_WLAN_FW_NAME "nxp/usbiw620_wlan_v1.bin"
+#define USB9097_WLAN_V1_FW_NAME "nxp/usbiw620_wlan_v1.bin"
+#define USBUART9097_COMBO_V1_FW_NAME "nxp/usbuartiw620_combo_v1.bin"
+#define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
 #endif /* USB9097 */
 
 /** urb context */

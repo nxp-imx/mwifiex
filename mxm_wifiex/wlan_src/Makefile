@@ -37,7 +37,7 @@ CONFIG_SD8897=n
 CONFIG_USB8897=n
 CONFIG_PCIE8897=n
 CONFIG_SD8977=n
-CONFIG_SD8978=n
+CONFIG_SD8978=y
 CONFIG_USB8978=n
 CONFIG_SD8997=y
 CONFIG_USB8997=n
@@ -338,6 +338,7 @@ endif
 #ccflags-y += -Wmissing-field-initializers
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
+#ccflags-y += -Wunused-const-variable
 #############################################################################
 # Make Targets
 #############################################################################

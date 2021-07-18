@@ -496,6 +496,10 @@ static t_void wlan_scan_create_channel_list(
 			if (radio_type && (pscan_region->band != BAND_A))
 				continue;
 		}
+		PRINTM(MCMD_D,
+		       "create_channel_list: region=%d band=%d num_cfp=%d\n",
+		       pscan_region->region, pscan_region->band,
+		       pscan_region->num_cfp);
 		if ((puser_scan_in &&
 		     (puser_scan_in->bss_mode == MLAN_SCAN_MODE_IBSS)) ||
 		    pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
@@ -586,7 +590,7 @@ static t_void wlan_scan_create_channel_list(
 
 			pscan_chan_list[chan_idx].chan_number =
 				(t_u8)cfp->channel;
-			PRINTM(MINFO,
+			PRINTM(MCMD_D,
 			       "chan=%d, mode=%d, passive_to_active=%d\n",
 			       pscan_chan_list[chan_idx].chan_number,
 			       pscan_chan_list[chan_idx]
@@ -737,6 +741,8 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 				    radio_type_to_band(
 					    ptmp_chan_list->bandcfg.chanBand),
 				    ptmp_chan_list->chan_number)) {
+				PRINTM(MCMND, "Block scan chan = %d\n",
+				       ptmp_chan_list->chan_number);
 				ptmp_chan_list++;
 				continue;
 			}
@@ -747,7 +753,7 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 				first_chan = 0;
 			}
 
-			PRINTM(MINFO,
+			PRINTM(MCMD_D,
 			       "Scan: Chan(%3d), bandcfg(%x), Mode(%d,%d), Dur(%d)\n",
 			       ptmp_chan_list->chan_number,
 			       ptmp_chan_list->bandcfg,
@@ -2439,7 +2445,7 @@ static t_void wlan_ret_802_11_scan_store_beacon(mlan_private *pmpriv,
 	t_u32 adj_idx;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u8 *tmp_buf;
-	t_u16 bcn_size = 0;
+	t_u32 bcn_size = 0;
 	t_u32 bcn_offset = 0;
 
 	ENTER();
@@ -2714,11 +2720,19 @@ static t_void wlan_ret_802_11_scan_store_beacon(mlan_private *pmpriv,
 		     (pmadapter->bcn_buf + pmadapter->bcn_buf_size)) &&
 		    (pmadapter->bcn_buf_size < MAX_SCAN_BEACON_BUFFER)) {
 			/* no space for this entry, realloc bcn buffer */
-			ret = pmadapter->callbacks.moal_malloc(
-				pmadapter->pmoal_handle,
-				pmadapter->bcn_buf_size +
-					DEFAULT_SCAN_BEACON_BUFFER,
-				MLAN_MEM_DEF, (t_u8 **)&tmp_buf);
+			if (pmadapter->callbacks.moal_vmalloc &&
+			    pmadapter->callbacks.moal_vfree)
+				ret = pmadapter->callbacks.moal_vmalloc(
+					pmadapter->pmoal_handle,
+					pmadapter->bcn_buf_size +
+						DEFAULT_SCAN_BEACON_BUFFER,
+					(t_u8 **)&tmp_buf);
+			else
+				ret = pmadapter->callbacks.moal_malloc(
+					pmadapter->pmoal_handle,
+					pmadapter->bcn_buf_size +
+						DEFAULT_SCAN_BEACON_BUFFER,
+					MLAN_MEM_DEF, (t_u8 **)&tmp_buf);
 
 			if ((ret == MLAN_STATUS_SUCCESS) && (tmp_buf)) {
 				PRINTM(MCMND,
@@ -2747,9 +2761,15 @@ static t_void wlan_ret_802_11_scan_store_beacon(mlan_private *pmpriv,
 						&pmadapter->pscan_table[adj_idx]);
 				}
 				pmadapter->pbcn_buf_end = tmp_buf + bcn_size;
-				pmadapter->callbacks.moal_mfree(
-					pmadapter->pmoal_handle,
-					(t_u8 *)pmadapter->bcn_buf);
+				if (pmadapter->callbacks.moal_vmalloc &&
+				    pmadapter->callbacks.moal_vfree)
+					pmadapter->callbacks.moal_vfree(
+						pmadapter->pmoal_handle,
+						(t_u8 *)pmadapter->bcn_buf);
+				else
+					pmadapter->callbacks.moal_mfree(
+						pmadapter->pmoal_handle,
+						(t_u8 *)pmadapter->bcn_buf);
 				pmadapter->bcn_buf = tmp_buf;
 				pmadapter->bcn_buf_size +=
 					DEFAULT_SCAN_BEACON_BUFFER;
@@ -3558,6 +3578,44 @@ static t_void wlan_scan_delete_table_entry(mlan_private *pmpriv,
 }
 
 /**
+ *  @brief Delete all entry's age out
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *
+ *  @return             N/A
+ */
+static void wlan_scan_delete_ageout_entry(mlan_private *pmpriv)
+{
+	BSSDescriptor_t *pbss_entry;
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	t_s32 table_idx = pmadapter->num_in_scan_table - 1;
+	t_u32 i = 0;
+	t_u32 age_in_secs = 0;
+	t_u32 age_ts_usec = 0;
+
+	ENTER();
+#define SCAN_RESULT_AGEOUT 10
+	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
+						  &age_in_secs, &age_ts_usec);
+
+	for (i = 0; i < pmadapter->num_in_scan_table; i++) {
+		pbss_entry = &pmadapter->pscan_table[table_idx];
+		if (age_in_secs >
+		    (pbss_entry->age_in_secs + SCAN_RESULT_AGEOUT)) {
+			PRINTM(MCMND,
+			       "SCAN: ageout AP MAC Addr-" MACSTR
+			       " ssid: %-32s\n",
+			       MAC2STR(pbss_entry->mac_address),
+			       pbss_entry->ssid.ssid);
+			wlan_scan_delete_table_entry(pmpriv, table_idx);
+		}
+		table_idx--;
+	}
+	LEAVE();
+	return;
+}
+
+/**
  *  @brief Delete all occurrences of a given SSID from the scan table
  *
  *  Iterate through the scan table and delete all entries that match a given
@@ -4089,6 +4147,8 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 		       sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST);
 		pmadapter->num_in_scan_table = 0;
 		pmadapter->pbcn_buf_end = pmadapter->bcn_buf;
+	} else {
+		wlan_scan_delete_ageout_entry(pmpriv);
 	}
 	for (i = 0; i < pmadapter->num_in_chan_stats; i++)
 		pmadapter->pchan_stats[i].cca_scan_duration = 0;
@@ -4416,6 +4476,10 @@ mlan_status wlan_ret_802_11_scan(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	PRINTM(MINFO, "SCAN_RESP: returned %d APs before parsing\n",
 	       pscan_rsp->number_of_sets);
 
+	/* Update the age_in_second */
+	pmadapter->callbacks.moal_get_system_time(
+		pmadapter->pmoal_handle, &pmadapter->age_in_secs, &age_ts_usec);
+
 	num_in_table = pmadapter->num_in_scan_table;
 	pbss_info = pscan_rsp->bss_desc_and_tlv_buffer;
 
@@ -4499,7 +4563,7 @@ mlan_status wlan_ret_802_11_scan(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 			 * for use in join
 			 */
 			bss_new_entry->bss_band = band;
-
+			bss_new_entry->age_in_secs = pmadapter->age_in_secs;
 			cfp = wlan_find_cfp_by_band_and_channel(
 				pmadapter, (t_u8)bss_new_entry->bss_band,
 				(t_u16)bss_new_entry->channel);
@@ -4645,9 +4709,6 @@ mlan_status wlan_ret_802_11_scan(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 
 	/* Update the total number of BSSIDs in the scan table */
 	pmadapter->num_in_scan_table = num_in_table;
-	/* Update the age_in_second */
-	pmadapter->callbacks.moal_get_system_time(
-		pmadapter->pmoal_handle, &pmadapter->age_in_secs, &age_ts_usec);
 	if (is_bgscan_resp)
 		goto done;
 	wlan_request_cmd_lock(pmadapter);
@@ -4771,6 +4832,7 @@ mlan_status wlan_cmd_802_11_scan_ext(mlan_private *pmpriv,
 				(t_u16)(sizeof(pext_scan_cmd->reserved)) +
 				S_DS_GEN));
 			pext_scan_cmd->ext_scan_type = EXT_SCAN_CANCEL;
+			pmpriv->adapter->cmd_lock = MFALSE;
 			LEAVE();
 			return MLAN_STATUS_SUCCESS;
 		}
@@ -4840,6 +4902,7 @@ mlan_status wlan_ret_802_11_scan_ext(mlan_private *pmpriv,
 		LEAVE();
 		return MLAN_STATUS_SUCCESS;
 	} else if (ext_scan_type == EXT_SCAN_ENHANCE) {
+		pmpriv->adapter->cmd_lock = MTRUE;
 		/* Setup the timer after scan command response */
 		pcb->moal_start_timer(pmpriv->adapter->pmoal_handle,
 				      pmpriv->adapter->pmlan_cmd_timer, MFALSE,
@@ -4989,16 +5052,18 @@ done:
  *
  *  @return                MLAN_STATUS_FAILURE/MLAN_STATUS_SUCCESS
  */
-static mlan_status wlan_update_ssid_in_beacon_buf(mlan_adapter *pmadapter,
-						  BSSDescriptor_t *pbss_entry,
-						  BSSDescriptor_t *pnew_entry,
-						  IEEEtypes_Ssid_t *pssid)
+static mlan_status wlan_update_ssid_in_beacon_buf(
+	mlan_adapter *pmadapter, BSSDescriptor_t *pbss_entry,
+	BSSDescriptor_t *pnew_entry, IEEEtypes_Ssid_t *pssid,
+	IEEEtypes_ExtCap_t *pnew_extcap, IEEEtypes_Generic_t *pnew_rsnx)
 {
 	mlan_callbacks *pcb = (pmlan_callbacks)&pmadapter->callbacks;
 	t_u8 *pbeacon_buf = MNULL;
 	t_u32 beacon_buf_size = 0;
 	t_s8 offset = pnew_entry->ssid.ssid_len - pbss_entry->ssid.ssid_len;
+	IEEEtypes_ExtCap_t *pextcap;
 	mlan_status ret = MLAN_STATUS_FAILURE;
+	t_u32 rsnx_offset = 0;
 
 	if (pnew_entry->ssid.ssid_len >= pbss_entry->ssid.ssid_len)
 		beacon_buf_size =
@@ -5008,6 +5073,11 @@ static mlan_status wlan_update_ssid_in_beacon_buf(mlan_adapter *pmadapter,
 		beacon_buf_size =
 			pbss_entry->beacon_buf_size -
 			(pbss_entry->ssid.ssid_len - pnew_entry->ssid.ssid_len);
+
+	rsnx_offset = beacon_buf_size;
+	if (pnew_rsnx)
+		beacon_buf_size +=
+			pnew_rsnx->ieee_hdr.len + sizeof(IEEEtypes_Header_t);
 
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle, beacon_buf_size,
 			       MLAN_MEM_DEF, (t_u8 **)&pbeacon_buf);
@@ -5057,8 +5127,21 @@ static mlan_status wlan_update_ssid_in_beacon_buf(mlan_adapter *pmadapter,
 		pnew_entry->ht_info_offset += offset;
 	if (pnew_entry->pbss_co_2040)
 		pnew_entry->bss_co_2040_offset += offset;
-	if (pnew_entry->pext_cap)
+	if (pnew_entry->pext_cap) {
 		pnew_entry->ext_cap_offset += offset;
+		if (pnew_extcap) {
+			pextcap = (IEEEtypes_ExtCap_t
+					   *)(pnew_entry->pbeacon_buf +
+					      pnew_entry->ext_cap_offset);
+			memcpy_ext(pmadapter,
+				   pbeacon_buf + pnew_entry->ext_cap_offset,
+				   (t_u8 *)pnew_extcap,
+				   pnew_extcap->ieee_hdr.len +
+					   sizeof(IEEEtypes_Header_t),
+				   pextcap->ieee_hdr.len +
+					   sizeof(IEEEtypes_Header_t));
+		}
+	}
 	if (pnew_entry->poverlap_bss_scan_param)
 		pnew_entry->overlap_bss_offset += offset;
 	if (pnew_entry->pvht_cap)
@@ -5079,6 +5162,12 @@ static mlan_status wlan_update_ssid_in_beacon_buf(mlan_adapter *pmadapter,
 		pnew_entry->he_cap_offset += offset;
 	if (pnew_entry->phe_oprat)
 		pnew_entry->he_oprat_offset += offset;
+	if (pnew_rsnx)
+		memcpy_ext(
+			pmadapter, pbeacon_buf + rsnx_offset, (t_u8 *)pnew_rsnx,
+			pnew_rsnx->ieee_hdr.len + sizeof(IEEEtypes_Header_t),
+			pnew_rsnx->ieee_hdr.len + sizeof(IEEEtypes_Header_t));
+	DBG_HEXDUMP(MCMD_D, "MBSSID beacon buf", pbeacon_buf, beacon_buf_size);
 	ret = MLAN_STATUS_SUCCESS;
 done:
 	return ret;
@@ -5097,14 +5186,25 @@ done:
 static void wlan_gen_multi_bssid_by_bssid_index(pmlan_adapter pmadapter,
 						BSSDescriptor_t *pbss_entry,
 						BSSDescriptor_t *pnew_entry,
-						t_u8 bssid_index)
+						t_u8 bssid_index,
+						t_u8 max_bssid_indicator)
 {
 	t_u8 mask = 0xff;
 	t_u8 new_bssid[6];
+	t_u8 bssid_a;
+	t_u8 src_bssid[6];
+
+	memcpy_ext(pmadapter, (t_u8 *)src_bssid, pbss_entry->mac_address,
+		   sizeof(mlan_802_11_mac_addr), sizeof(src_bssid));
 	memcpy_ext(pmadapter, (t_u8 *)new_bssid,
 		   (t_u8 *)&pbss_entry->mac_address,
 		   sizeof(mlan_802_11_mac_addr), sizeof(new_bssid));
-	new_bssid[5] = (new_bssid[5] + bssid_index) & mask;
+
+	mask = (mask >> (8 - max_bssid_indicator));
+	bssid_a = src_bssid[5] & (~mask);
+	src_bssid[5] = (src_bssid[5] + bssid_index) & mask;
+	new_bssid[5] = bssid_a | src_bssid[5];
+
 	memcpy_ext(pmadapter, (t_u8 *)&pnew_entry->mac_address, new_bssid,
 		   sizeof(new_bssid), sizeof(mlan_802_11_mac_addr));
 	memcpy_ext(pmadapter, (t_u8 *)&pnew_entry->multi_bssid_ap_addr,
@@ -5121,12 +5221,14 @@ static void wlan_gen_multi_bssid_by_bssid_index(pmlan_adapter pmadapter,
  *  @param pbss_profile     A pointer to IEEEtypes_NonTransBSSIDprofile_t
  *  @param num_in_table     A pointer to buffer to save num of entry in scan
  * table.
+ *  @param  max_bssid_indicator max bssid indicator
  *
  *  @return                 N/A
  */
 static t_void wlan_parse_non_trans_bssid_profile(
 	mlan_private *pmpriv, BSSDescriptor_t *pbss_entry,
-	IEEEtypes_NonTransBSSIDProfile_t *pbss_profile, t_u32 *num_in_table)
+	IEEEtypes_NonTransBSSIDProfile_t *pbss_profile, t_u32 *num_in_table,
+	t_u8 max_bssid_indicator)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	IEEEtypes_Header_t *pheader =
@@ -5141,6 +5243,8 @@ static t_void wlan_parse_non_trans_bssid_profile(
 	mlan_callbacks *pcb = (pmlan_callbacks)&pmadapter->callbacks;
 	BSSDescriptor_t *bss_new_entry = MNULL;
 	t_u8 *pbeacon_buf = MNULL;
+	IEEEtypes_ExtCap_t *pextcap = MNULL;
+	IEEEtypes_Generic_t *prsnx = MNULL;
 
 	ENTER();
 
@@ -5176,6 +5280,18 @@ static t_void wlan_parse_non_trans_bssid_profile(
 			       pbssid_index->bssid_index);
 			ret = MTRUE;
 			break;
+		case EXT_CAPABILITY:
+			pextcap = (IEEEtypes_ExtCap_t *)pos;
+			DBG_HEXDUMP(MCMD_D, "MBSSID extcap", pos,
+				    pextcap->ieee_hdr.len +
+					    sizeof(IEEEtypes_Header_t));
+			break;
+		case RSNX_IE:
+			prsnx = (IEEEtypes_Generic_t *)pos;
+			DBG_HEXDUMP(MCMD_D, "MBSSID RSNX", pos,
+				    prsnx->ieee_hdr.len +
+					    sizeof(IEEEtypes_Header_t));
+			break;
 		case SSID:
 			pssid = (IEEEtypes_Ssid_t *)pos;
 			PRINTM(MCMND, "MBSSID: Find mbssid ssid=%s\n",
@@ -5200,7 +5316,8 @@ static t_void wlan_parse_non_trans_bssid_profile(
 			   sizeof(BSSDescriptor_t), sizeof(BSSDescriptor_t));
 		wlan_gen_multi_bssid_by_bssid_index(pmadapter, pbss_entry,
 						    bss_new_entry,
-						    pbssid_index->bssid_index);
+						    pbssid_index->bssid_index,
+						    max_bssid_indicator);
 		if (pssid) {
 			memset(pmadapter, (t_u8 *)&bss_new_entry->ssid, 0,
 			       sizeof(mlan_802_11_ssid));
@@ -5210,8 +5327,8 @@ static t_void wlan_parse_non_trans_bssid_profile(
 				   MLAN_MAX_SSID_LENGTH);
 			if (MLAN_STATUS_SUCCESS !=
 			    wlan_update_ssid_in_beacon_buf(
-				    pmadapter, pbss_entry, bss_new_entry,
-				    pssid)) {
+				    pmadapter, pbss_entry, bss_new_entry, pssid,
+				    pextcap, prsnx)) {
 				PRINTM(MERROR,
 				       "Fail to update MBSSID beacon buf\n");
 				pcb->moal_mfree(pmadapter->pmoal_handle,
@@ -5273,7 +5390,8 @@ static t_void wlan_parse_multi_bssid_ie(mlan_private *pmpriv,
 			break;
 		}
 		wlan_parse_non_trans_bssid_profile(
-			pmpriv, pbss_entry, pbssid_profile, num_in_table);
+			pmpriv, pbss_entry, pbssid_profile, num_in_table,
+			pmulti_bssid->max_bssid_indicator);
 		pcurrent_ptr += pbssid_profile->ieee_hdr.len + 2;
 		bytes_left -= pbssid_profile->ieee_hdr.len + 2;
 	}
@@ -5378,6 +5496,9 @@ static mlan_status wlan_parse_ext_scan_result(mlan_private *pmpriv,
 	PRINTM(MINFO, "EXT_SCAN: bss_descript_size %d\n", scan_resp_size);
 	PRINTM(MINFO, "EXT_SCAN: returned %d APs before parsing\n",
 	       number_of_sets);
+	/* Update the age_in_second */
+	pmadapter->callbacks.moal_get_system_time(
+		pmadapter->pmoal_handle, &pmadapter->age_in_secs, &age_ts_usec);
 
 	num_in_table = pmadapter->num_in_scan_table;
 	ptlv = (MrvlIEtypes_Data_t *)pscan_resp;
@@ -5511,6 +5632,7 @@ static mlan_status wlan_parse_ext_scan_result(mlan_private *pmpriv,
 			/* Save the band designation for this entry for use in
 			 * join */
 			bss_new_entry->bss_band = band;
+			bss_new_entry->age_in_secs = pmadapter->age_in_secs;
 
 			cfp = wlan_find_cfp_by_band_and_channel(
 				pmadapter, (t_u8)bss_new_entry->bss_band,

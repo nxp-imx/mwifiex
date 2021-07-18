@@ -346,8 +346,8 @@ extern t_u32 mlan_drvdbg;
 		(x)->rx_pkt_offset = wlan_le16_to_cpu((x)->rx_pkt_offset);     \
 		(x)->rx_pkt_type = wlan_le16_to_cpu((x)->rx_pkt_type);         \
 		(x)->seq_num = wlan_le16_to_cpu((x)->seq_num);                 \
-		(x)->rx_info = wlan_le32_to_cpu((x)->rx_info);                 \
-	}
+		(x)->rx_info = wlan_le32_to_cpu((x)->rx_info);
+}
 
 #else
 /** Convert ulong n/w to host */
@@ -473,7 +473,7 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define DEFAULT_BCN_MISS_TIMEOUT 10
 
 /** Maximum buffer space for beacons retrieved from scan responses */
-#define MAX_SCAN_BEACON_BUFFER 49152
+#define MAX_SCAN_BEACON_BUFFER 102400
 /** Default buffer space for beacons retrieved from scan responses */
 #define DEFAULT_SCAN_BEACON_BUFFER 4096
 
@@ -2337,6 +2337,8 @@ typedef struct _mlan_adapter {
 	t_u8 fw_ver;
 	/** firmware minor version */
 	t_u8 fw_min_ver;
+	/** firmare hotfix version */
+	t_u8 fw_hotfix_ver;
 	/** uap firmware version */
 	t_u8 uap_fw_ver;
 	/** mac address retrun from get_hw_spec */
@@ -2403,6 +2405,8 @@ typedef struct _mlan_adapter {
 	 *       FALSE - No cmd response to process
 	 */
 	t_u8 cmd_resp_received;
+	/** block download cmd to firmware */
+	t_u8 cmd_lock;
 	/** Event received:
 	 *       TRUE - Event received from fw, and yet to process
 	 *       FALSE - No events to process
@@ -2539,7 +2543,7 @@ typedef struct _mlan_adapter {
 	t_u8 scan_block;
 	/** Extended scan or legacy scan */
 	t_u8 ext_scan;
-	t_u16 bcn_buf_size;
+	t_u32 bcn_buf_size;
 	/** Beacon buffer */
 	t_u8 *bcn_buf;
 	/** Pointer to valid beacon buffer end */

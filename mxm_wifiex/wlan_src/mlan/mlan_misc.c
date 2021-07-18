@@ -683,15 +683,16 @@ mlan_status wlan_misc_ioctl_mac_control(pmlan_adapter pmadapter,
 t_void wlan_wakeup_card_timeout_func(void *function_context)
 {
 	pmlan_adapter pmadapter = (pmlan_adapter)function_context;
+	mlan_private *pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
 
 	ENTER();
 
 	PRINTM(MERROR, "%s: ps_state=%d\n", __FUNCTION__, pmadapter->ps_state);
 	if (pmadapter->ps_state != PS_STATE_AWAKE) {
+		PRINTM_NETINTF(MERROR, pmpriv);
 		PRINTM(MERROR, "Wakeup card timeout!\n");
 		pmadapter->pm_wakeup_timeout++;
-		wlan_recv_event(wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
-				MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 	}
 	pmadapter->wakeup_fw_timer_is_set = MFALSE;
 
@@ -1741,10 +1742,8 @@ sta_node *wlan_get_station_entry(mlan_private *priv, t_u8 *mac)
 		LEAVE();
 		return MNULL;
 	}
-	sta_ptr = (sta_node *)util_peek_list(
-		priv->adapter->pmoal_handle, &priv->sta_list,
-		priv->adapter->callbacks.moal_spin_lock,
-		priv->adapter->callbacks.moal_spin_unlock);
+	sta_ptr = (sta_node *)util_peek_list(priv->adapter->pmoal_handle,
+					     &priv->sta_list, MNULL, MNULL);
 
 	while (sta_ptr && (sta_ptr != (sta_node *)&priv->sta_list)) {
 		if (!memcmp(priv->adapter, sta_ptr->mac_addr, mac,
@@ -1792,9 +1791,7 @@ sta_node *wlan_add_station_entry(mlan_private *priv, t_u8 *mac)
 	memcpy_ext(priv->adapter, sta_ptr->mac_addr, mac, MLAN_MAC_ADDR_LENGTH,
 		   MLAN_MAC_ADDR_LENGTH);
 	util_enqueue_list_tail(priv->adapter->pmoal_handle, &priv->sta_list,
-			       (pmlan_linked_list)sta_ptr,
-			       priv->adapter->callbacks.moal_spin_lock,
-			       priv->adapter->callbacks.moal_spin_unlock);
+			       (pmlan_linked_list)sta_ptr, MNULL, MNULL);
 #ifdef DRV_EMBEDDED_AUTHENTICATOR
 	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) &&
 	    IsAuthenticatorEnabled(priv->psapriv))
@@ -1833,9 +1830,7 @@ t_void wlan_delete_station_entry(mlan_private *priv, t_u8 *mac)
 						  sta_ptr->cm_connectioninfo);
 #endif
 		util_unlink_list(priv->adapter->pmoal_handle, &priv->sta_list,
-				 (pmlan_linked_list)sta_ptr,
-				 priv->adapter->callbacks.moal_spin_lock,
-				 priv->adapter->callbacks.moal_spin_unlock);
+				 (pmlan_linked_list)sta_ptr, MNULL, MNULL);
 		priv->adapter->callbacks.moal_mfree(priv->adapter->pmoal_handle,
 						    (t_u8 *)sta_ptr);
 	}

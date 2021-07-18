@@ -1396,10 +1396,16 @@ static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
 
 	/* SM power save */
-	if (ISSUPP_MIMOPS(priv->adapter->hw_dot_11n_dev_cap))
-		RESETHT_SM_POWERSAVE(ht_cap->ht_cap_info); /* Enable HT SMPS*/
-	else
-		SETHT_STATIC_SMPS(ht_cap->ht_cap_info); /* Disable HT SMPS */
+	RESETHT_SM_POWERSAVE(ht_cap->ht_cap_info); /* Clear to HT SMPS static
+						      mode*/
+	if (ISSUPP_MIMOPS(usr_dot_11n_dev_cap)) {
+		if (ISSUPP_SMPS_DYNAMIC_MODE(usr_dot_11n_dev_cap))
+			SETHT_SMPS_DYNAMIC(ht_cap->ht_cap_info); /* Set to HT
+								    SMPS dynamic
+								    mode */
+	} else {
+		SETHT_SMPS_DISABLE(ht_cap->ht_cap_info); /* Disable HT SMPS */
+	}
 
 	LEAVE();
 }
@@ -1462,8 +1468,8 @@ static void wlan_reset_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
 	/* SM power save */
-	if (!ISSUPP_MIMOPS(priv->adapter->hw_dot_11n_dev_cap))
-		SETHT_STATIC_SMPS(ht_cap->ht_cap_info); /* Disable HT SMPS */
+	if (!ISSUPP_MIMOPS(usr_dot_11n_dev_cap))
+		SETHT_SMPS_DISABLE(ht_cap->ht_cap_info); /* Disable HT SMPS */
 
 	LEAVE();
 }
@@ -3046,6 +3052,7 @@ int wlan_get_rxreorder_tbl(mlan_private *priv, rx_reorder_tbl *buf)
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 		ptbl->start_win = rx_reorder_tbl_ptr->start_win;
 		ptbl->win_size = rx_reorder_tbl_ptr->win_size;
+
 		ptbl->amsdu = rx_reorder_tbl_ptr->amsdu;
 		for (i = 0; i < rx_reorder_tbl_ptr->win_size; ++i) {
 			if (rx_reorder_tbl_ptr->rx_reorder_ptr[i])
