@@ -1693,6 +1693,7 @@ enum ext_mod_params {
 #endif
 	EXT_TX_WORK,
 	EXT_RPS,
+	EXT_TX_SKB_CLONE,
 	EXT_MAX_PARAM,
 };
 

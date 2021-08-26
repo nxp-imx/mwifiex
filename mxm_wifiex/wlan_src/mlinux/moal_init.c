@@ -115,6 +115,7 @@ static int slew_rate = 3;
 #endif
 int tx_work = 0;
 static int rps = 0;
+static int tx_skb_clone = 0;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -1096,6 +1097,19 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "rps %s\n",
 			       moal_extflg_isset(handle, EXT_RPS) ? "on" :
 								    "off");
+		} else if (strncmp(line, "tx_skb_clone",
+				   strlen("tx_skb_clone")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_TX_SKB_CLONE);
+			else
+				moal_extflg_clear(handle, EXT_TX_SKB_CLONE);
+			PRINTM(MMSG, "tx_skb_clone %s\n",
+			       moal_extflg_isset(handle, EXT_TX_SKB_CLONE) ?
+				       "on" :
+				       "off");
 		}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		else if (strncmp(line, "dfs_offload", strlen("dfs_offload")) ==
@@ -1442,6 +1456,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		moal_extflg_set(handle, EXT_TX_WORK);
 	if (rps)
 		moal_extflg_set(handle, EXT_RPS);
+	if (tx_skb_clone)
+		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
@@ -1659,6 +1675,12 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "rps=0x%x\n", data);
 				rps = data;
+			}
+		} else if (!strncmp(prop->name, "tx_skb_clone",
+				    strlen("tx_skb_clone"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "tx_skb_clone=0x%x\n", data);
+				tx_skb_clone = data;
 			}
 		}
 #ifdef MFG_CMD_SUPPORT
@@ -2201,6 +2223,10 @@ module_param(tx_work, uint, 0660);
 MODULE_PARM_DESC(tx_work, "1: Enable tx_work; 0: Disable tx_work");
 module_param(rps, uint, 0660);
 MODULE_PARM_DESC(rps, "1: Enable rps; 0: Disable rps");
+module_param(tx_skb_clone, uint, 0660);
+MODULE_PARM_DESC(tx_skb_clone,
+		 "1: Enable tx_skb_clone; 0: Disable tx_skb_clone");
+
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");
 module_param(init_cfg, charp, 0);
