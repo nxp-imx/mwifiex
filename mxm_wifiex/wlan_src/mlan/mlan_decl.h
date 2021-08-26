@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "266"
+#define MLAN_RELEASE_VERSION "266.p2"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -435,8 +435,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD9098 "SD9098"
 /** SD9177 Card */
 #define CARD_SD9177 "SD9177"
-/** SD9177 Card */
-#define CARD_SD8801 "SD9177"
+/** SD8801 Card */
+#define CARD_SD8801 "SD8801"
 #endif
 
 #ifdef PCIE
