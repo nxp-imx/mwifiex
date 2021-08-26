@@ -60,9 +60,6 @@
 	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
 	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
 	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
-      dfs53cfg=0|1|2 <use Fw Default | New W53 | Old W53>
-	  SD8887: antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
-	  SD8897/SD8997: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
 	  slew_rate: Slew Rate Control value = 0|1|2|3 (0 is the slowest slew rate and 03 has the highest slew rate (default))
 	  init_cfg=<init config (MAC addresses, registers etc.) file name>
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=nxp/init_cfg.conf
@@ -99,7 +96,6 @@
 	  pcie_int_mode=0|1|2 <Legacy mode, MSI mode (default), MSI-X mode>
 	  pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
       ring_size=32|64|128|256|512 <adma ring size for 9097/9098>
-	  aggrctrl=1|0 <enable Tx aggr | disable Tx aggr>
 	  usb_aggr=0|1|2 <use MLAN default (disabled) | enable USB aggr | disable USB aggr>
 	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
 	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
@@ -256,21 +252,6 @@
 	sdiocmd53r = <SDIO Cmd52 read status>
 	hs_skip_count = <number of skipped suspends>
 	hs_force_count = <number of forced suspends>
-
-	Issue SDIO cmd52 read/write through proc.
-	Usage:
-		echo "sdcmd52rw=<func> <reg> [data]" > /proc/mwlan/adapterX/config
-	where the parameters:
-		func: The function number to use (0-7)
-		reg:  The address of the register
-		data: The value to write, read if the value is absent
-		For SDIO MMC driver, only function 0 and WLAN function access is allowed.
-		And there is a limitation for function 0 write, only vendor specific CCCR
-		registers (0xf0 -0xff) are permiited.
-	Examples:
-		echo "sdcmd52rw= 0 4" > /proc/mwlan/adapterX/config      # read func 0 address 4
-		cat /proc/mwlan/adapterX/config                          # display the register value
-		echo "sdcmd52rw= 1 3 0xf" > /proc/mwlan/adapterX/config  # write 0xf to func 1 address 3
 
 	Issue debug_dump command through proc.
 	Usage:
@@ -1326,8 +1307,20 @@ hssetpara
 		mlanutl mlanX hssetpara condition [GPIO# [gap]] (optional)[type ind_GPIO# [level]] (optional)[type event_force_ignore event_use_ext_gap ext_gap [gpio_wave]] (optional)[type hs_wakeup_interval]
 
 	This command takes one (condition), two (condition and GPIO#) or three
-	(condition, GPIO# and gap).If more than three parameters, it can set different or multiple features indicating by type and
-        the detailed usage is the same as hscfg above.
+	(condition, GPIO# and gap).If more than three parameters, it can set different or multiple features indicating by type.
+
+	If type=1, it will set indication gpio and its level. And the parameter format will be (condition, GPIO#,gap and type,ind_GPIO#) or
+        (condition, GPIO#, gap, type, ind_GPIO# and level).
+
+        If type=2, it will set extend host sleep wakup method. And the parameter format will be (condition, GPIO#, gap, type, force_ignore,
+        use_ext_gap, ext_gap [gpio_wave]). gpio_wave parameter is optional and default value is 0(falling edge). Each bit of
+        event_force_ignore and event_use_ext_gap will be defined to one same event, and set one same event(same bit) in those two
+        parameters is not allowed. Set bit(s) in event_force_ignore means the event(s) will be forced ignore in firmware silently.
+        Set bit(s) in event_use_ext_gap mean the event(s) will use extend gap to inform host. Not set means not handle.
+
+        If type=3, it will set hs_wakeup_interval.
+
+        If no parameter provided, get is performed.
 
 	where Condition is:
 		bit 0 = 1   -- broadcast data
@@ -1372,7 +1365,7 @@ hssetpara
 	where ext_gap is the extend gap based on third parameter Gap. Only valid when use_ext_gap is used.
 	The total gap is (Gap + (x+1)*ext_gap). x means the bit number(start from 0) of this reason in use_ext_gap.
 
-	where gpio_wave is used to set GPIO wave level for hscfg extend. 0 means falling edge, 1 means rising edge.
+	where gpio_wave is used to set GPIO wave level for host sleep extend. 0 means falling edge, 1 means rising edge.
 	This parameter is optional and default value is 0.
 
 	where hs_wakeup_interval is used to set host sleep wakeup interval and the type must set to 3 to indicate
@@ -1410,7 +1403,7 @@ hssetpara
 		mlanutl mlan0 hssetpara 2 1 0xa0 2 0 0x1 10 1: Unicast data
 		                                       Use GPIO 1
                                                        Gap 160 ms
-                                                       type=2 to set extend hscfg feature
+                                                       type=2 to set extend host sleep feature
                                                        Force_ignore not used
                                                        Disconnect will use extend gap to indicate host
                                                        Use gap 170.
@@ -1418,7 +1411,7 @@ hssetpara
 		mlanutl mlan0 hssetpara 2 1 0xa0 2 0x1 0 0 0: Unicast data
 		                                       Use GPIO 1
                                                        Gap 160 ms
-                                                       type=2 to set extend hscfg feature
+                                                       type=2 to set extend host sleep feature
                                                        Falling edge
                                                        Force ignore Disconnect
                                                        Extend gap not used

@@ -3027,9 +3027,8 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 		if (req_fw_nowait) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
 			if ((request_firmware_nowait(
-				    THIS_MODULE, FW_ACTION_UEVENT,
-				    dpd_data_cfg, handle->hotplug_device,
-				    GFP_KERNEL, handle,
+				    THIS_MODULE, FW_ACTION_UEVENT, dpd_data_cfg,
+				    handle->hotplug_device, GFP_KERNEL, handle,
 				    woal_request_init_dpd_conf_callback)) < 0) {
 #else
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
@@ -3190,9 +3189,8 @@ static mlan_status woal_req_cal_data(moal_handle *handle,
 		if (req_fw_nowait) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
 			if ((request_firmware_nowait(
-				    THIS_MODULE, FW_ACTION_UEVENT,
-				    cal_data_cfg, handle->hotplug_device,
-				    GFP_KERNEL, handle,
+				    THIS_MODULE, FW_ACTION_UEVENT, cal_data_cfg,
+				    handle->hotplug_device, GFP_KERNEL, handle,
 				    woal_request_init_user_conf_callback)) <
 			    0) {
 #else
@@ -5815,15 +5813,17 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	// kernel crash with cloned skb without copy
 	// uap0  <-->muap0 bridge
 	/* STA role need skb copy to improve throughput.but uAP unicast not */
-	if ((skb->cloned && priv->bss_role == MLAN_BSS_ROLE_STA) ||
+	if ((moal_extflg_isset(priv->phandle, EXT_TX_SKB_CLONE)) ||
+	    (skb->cloned && priv->bss_role == MLAN_BSS_ROLE_STA) ||
 	    (skb->cloned && priv->bss_role == MLAN_BSS_ROLE_UAP &&
 	     (!is_unicast_ether_addr(((struct ethhdr *)skb->data)->h_dest))) ||
 	    (skb_headroom(skb) <
 	     (MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
 	      priv->extra_tx_head_len))) {
-		PRINTM(MWARN,
-		       "Tx: skb cloned %d or Insufficient skb headroom %d\n",
-		       skb->cloned, skb_headroom(skb));
+		PRINTM(MINFO,
+		       "Tx: skb cloned %d skb headroom %d tx_skb_clone=%d \n",
+		       skb->cloned, skb_headroom(skb),
+		       moal_extflg_isset(priv->phandle, EXT_TX_SKB_CLONE));
 		/* Insufficient skb headroom - allocate a new skb */
 		new_skb = skb_realloc_headroom(
 			skb, MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
@@ -9069,6 +9069,14 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 
 	/* Init module parameters */
 	woal_init_module_param(handle);
+#ifdef IMX_SUPPORT
+#ifdef SDIO
+	if (IS_SD(handle->card_type)) {
+		moal_extflg_set(handle, EXT_TX_WORK);
+		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
+	}
+#endif
+#endif
 
 	if (handle->params.mac_addr
 #ifdef MFG_CMD_SUPPORT

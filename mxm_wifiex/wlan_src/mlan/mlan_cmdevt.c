@@ -972,7 +972,11 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 	case HOST_CMD_APCMD_STA_DEAUTH:
 #endif
 	case HostCMD_APCMD_ACS_SCAN:
+#ifdef IMX_SUPPORT
+		timeout = MRVDRV_TIMER_10S;
+#else
 		timeout = MRVDRV_TIMER_5S;
+#endif
 		break;
 	default:
 #ifdef IMX_SUPPORT
@@ -981,13 +985,13 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 		 * timeout are observed for commands like 0x5e, 0x16, 0xd1.
 		 * Observed that response has come just after default timeout of
 		 * 2 seconds for these commands. This random timeout is not
-		 * observed when the default timeout is increased to 5 seconds
-		 * (As an work around, Increase the default timeout to 5
+		 * observed when the default timeout is increased to 10 seconds
+		 * (As an work around, Increase the default timeout to 10
 		 * seconds. Need to further debug exact reason for delay in cmd
 		 * responses)
 		 *
 		 */
-		timeout = MRVDRV_TIMER_1S * 5;
+		timeout = MRVDRV_TIMER_10S;
 #else
 		timeout = MRVDRV_TIMER_1S * 2;
 #endif

@@ -2581,7 +2581,7 @@ static void mlan_delay_for_sleep_cookie(mlan_adapter *pmadapter,
 	}
 
 	if (count >= max_delay_loop_cnt)
-		PRINTM(MERROR, "sleep cookie not found!!\n");
+		PRINTM(MINFO, "sleep cookie not found!!\n");
 }
 #endif
 
