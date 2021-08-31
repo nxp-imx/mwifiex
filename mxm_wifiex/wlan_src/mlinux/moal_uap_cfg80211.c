@@ -1651,12 +1651,20 @@ int woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 		woal_cfg80211_init_p2p_client(new_priv);
 	else if (type == NL80211_IFTYPE_P2P_GO)
 		woal_cfg80211_init_p2p_go(new_priv);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+	ret = cfg80211_register_netdevice(ndev);
+#else
 	ret = register_netdevice(ndev);
+#endif
 	if (ret) {
 		handle->priv[new_priv->bss_index] = NULL;
 		handle->priv_num--;
 		if (ndev->reg_state == NETREG_REGISTERED) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+			cfg80211_unregister_netdevice(ndev);
+#else
 			unregister_netdevice(ndev);
+#endif
 			free_netdev(ndev);
 			ndev = NULL;
 		}
@@ -1837,7 +1845,11 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 		vir_priv->phandle->priv[vir_priv->bss_index] = NULL;
 		priv->phandle->priv_num--;
 		if (dev->reg_state == NETREG_REGISTERED)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+			cfg80211_unregister_netdevice(dev);
+#else
 			unregister_netdevice(dev);
+#endif
 	}
 	return ret;
 }
@@ -1876,7 +1888,11 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				netif_device_detach(priv->netdev);
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+					cfg80211_unregister_netdevice(priv->netdev);
+#else
 					unregister_netdevice(priv->netdev);
+#endif
 				handle->priv[i] = NULL;
 				vir_intf++;
 			}
