@@ -655,6 +655,7 @@ done:
 	return ret;
 }
 
+#ifdef DEBUG_SUPPORT
 /**
  * @brief vendor command to get driver memory dump
  *
@@ -714,6 +715,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 /**
  * @brief vendor command to get supported feature set
@@ -4100,6 +4102,7 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.policy = VENDOR_CMD_RAW_DATA,
 #endif
 	},
+#ifdef DEBUG_SUPPORT
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,
@@ -4113,6 +4116,7 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.policy = VENDOR_CMD_RAW_DATA,
 #endif
 	},
+#endif
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,

@@ -1886,6 +1886,7 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 }
 #endif
 
+#ifdef DEBUG_SUPPORT
 #ifdef PCIE8897
 /**
  *  @brief This function dump firmware memory to file
@@ -2053,7 +2054,9 @@ done:
 	return;
 }
 #endif
+#endif
 
+#ifdef DEBUG_SUPPORT
 #if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097)
 /**
  *  @brief This function dump firmware memory to file
@@ -2239,6 +2242,7 @@ done:
 	return;
 }
 #endif
+#endif
 
 /**
  *  @brief This function check if this is second mac
@@ -2257,6 +2261,7 @@ static t_u8 woal_pcie_is_second_mac(moal_handle *handle)
 	return MFALSE;
 }
 
+#ifdef DEBUG_SUPPORT
 static void woal_pcie_dump_fw_info(moal_handle *phandle)
 {
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
@@ -2281,6 +2286,7 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);
 }
+#endif
 
 static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 {
@@ -2468,7 +2474,9 @@ static moal_if_ops pcie_ops = {
 	.read_data_sync = woal_pcie_read_data_sync,
 	.write_data_sync = woal_pcie_write_data_sync,
 	.get_fw_name = woal_pcie_get_fw_name,
+#ifdef DEBUG_SUPPORT
 	.dump_fw_info = woal_pcie_dump_fw_info,
+#endif
 	.reg_dbg = woal_pcie_reg_dbg,
 	.dump_reg_info = woal_pcie_dump_reg_info,
 	.is_second_mac = woal_pcie_is_second_mac,
