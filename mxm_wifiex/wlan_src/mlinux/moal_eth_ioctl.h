@@ -364,7 +364,11 @@ typedef struct _ssu_params_cfg {
 
 #define PRIV_CMD_LPM "lpm"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data, int cmd);
+#else
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
+#endif
 
 /*
  * For android private commands, fixed value of ioctl is used.
