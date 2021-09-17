@@ -3751,7 +3751,11 @@ const struct net_device_ops woal_netdev_ops = {
 	.ndo_open = woal_open,
 	.ndo_start_xmit = woal_hard_start_xmit,
 	.ndo_stop = woal_close,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+	.ndo_siocdevprivate = woal_do_ioctl,
+#else
 	.ndo_do_ioctl = woal_do_ioctl,
+#endif
 	.ndo_set_mac_address = woal_set_mac_address,
 	.ndo_tx_timeout = woal_tx_timeout,
 	.ndo_get_stats = woal_get_stats,
@@ -3826,7 +3830,11 @@ const struct net_device_ops woal_uap_netdev_ops = {
 	.ndo_open = woal_open,
 	.ndo_start_xmit = woal_hard_start_xmit,
 	.ndo_stop = woal_close,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+	.ndo_siocdevprivate = woal_uap_do_ioctl,
+#else
 	.ndo_do_ioctl = woal_uap_do_ioctl,
+#endif
 	.ndo_set_mac_address = woal_set_mac_address,
 	.ndo_tx_timeout = woal_tx_timeout,
 	.ndo_get_stats = woal_get_stats,
