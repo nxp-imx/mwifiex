@@ -1859,7 +1859,7 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 		priv->phandle->priv_num--;
 		if (dev->reg_state == NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-			cfg80211_unregister_netdevice(ndev);
+			cfg80211_unregister_netdevice(dev);
 #else
 			unregister_netdevice(dev);
 #endif
@@ -1902,7 +1902,7 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-					cfg80211_unregister_netdevice(ndev);
+					cfg80211_unregister_netdevice(priv->netdev);
 #else
 					unregister_netdevice(priv->netdev);
 #endif
