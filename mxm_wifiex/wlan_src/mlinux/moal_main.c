@@ -4071,7 +4071,7 @@ const struct net_device_ops woal_uap_netdev_ops = {
 	.ndo_start_xmit = woal_hard_start_xmit,
 	.ndo_stop = woal_close,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-	.ndo_siocdevprivate = woal_do_ioctl,
+	.ndo_siocdevprivate = woal_uap_do_ioctl,
 #else
 	.ndo_do_ioctl = woal_uap_do_ioctl,
 #endif
