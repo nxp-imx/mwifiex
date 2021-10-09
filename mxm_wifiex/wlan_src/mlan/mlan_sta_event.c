@@ -1004,7 +1004,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EXT_SCAN status report (%d)\n",
 		       pmbuf->data_len);
 		pmadapter->ext_scan_timeout = MFALSE;
-		pmadapter->cmd_lock = MFALSE;
 		ret = wlan_handle_event_ext_scan_status(priv, pmbuf);
 		break;
 	case EVENT_MEAS_REPORT_RDY:

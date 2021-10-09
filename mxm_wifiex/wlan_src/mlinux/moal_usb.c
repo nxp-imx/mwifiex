@@ -266,13 +266,13 @@ static void woal_usb_receive(struct urb *urb)
 		if (status == MLAN_STATUS_PENDING) {
 			queue_work(handle->workqueue, &handle->main_work);
 			/* urb for data_ep is re-submitted now, unless we reach
-			 * HIGH_RX_PENDING */
+			 * USB_HIGH_RX_PENDING */
 			/* urb for cmd_ep will be re-submitted in callback
 			 * moal_recv_complete */
 			if (cardp->rx_cmd_ep == context->ep)
 				goto rx_exit;
 			else if (atomic_read(&handle->rx_pending) >=
-				 HIGH_RX_PENDING) {
+				 USB_HIGH_RX_PENDING) {
 				context->pmbuf = NULL;
 				goto rx_exit;
 			}
@@ -1919,6 +1919,8 @@ static void woal_usb_dump_fw_info(moal_handle *phandle)
 
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
+	phandle->is_fw_dump_timer_set = MTRUE;
+	woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
 
 done:
 	LEAVE();

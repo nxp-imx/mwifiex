@@ -1360,14 +1360,21 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	assoc_logger_data *assoc_succ;
 	mlan_ds_bss *bss;
+	IEEEtypes_MgmtHdr_t *hdr;
 
 	ENTER();
 
-	if (pmpriv->curr_bss_params.host_mlme)
-		passoc_rsp =
-			(IEEEtypes_AssocRsp_t *)((t_u8 *)(&resp->params) +
+	if (pmpriv->curr_bss_params.host_mlme) {
+		hdr = (IEEEtypes_MgmtHdr_t *)&resp->params;
+		if (!memcmp(pmpriv->adapter, hdr->BssId,
+			    pmpriv->pattempted_bss_desc->mac_address,
+			    MLAN_MAC_ADDR_LENGTH))
+			passoc_rsp = (IEEEtypes_AssocRsp_t
+					      *)((t_u8 *)(&resp->params) +
 						 sizeof(IEEEtypes_MgmtHdr_t));
-	else
+		else
+			passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
+	} else
 
 		passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
 	passoc_rsp->status_code = wlan_le16_to_cpu(passoc_rsp->status_code);
@@ -1432,7 +1439,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	/* Send a Media Connected event, according to the Spec */
 	pmpriv->media_connected = MTRUE;
-
 	pmpriv->adapter->pps_uapsd_mode = MFALSE;
 	pmpriv->adapter->tx_lock_flag = MFALSE;
 	pmpriv->adapter->delay_null_pkt = MFALSE;

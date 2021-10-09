@@ -28,6 +28,16 @@
 /** device support 2.4G 242 tone RUs */
 #define AX_2G_20MHZ_SUPPORT MBIT(5)
 
+/*
+ * 0 indicates support for HE-MCS 0-7 for n spatial streams
+ * 1 indicates support for HE-MCS 0-9 for n spatial streams
+ * 2 indicates support for HE-MCS 0-11 for n spatial streams
+ * 3 indicates that n spatial streams is not supported for HE PPDUs
+ */
+#define GET_HE_NSSMCS(MCSMapSet, nss) ((MCSMapSet >> (2 * (nss - 1))) & 0x3)
+#define SET_HE_NSSMCS(MCSMapSet, nss, value)                                   \
+	(MCSMapSet |= (value & 0x3) << (2 * (nss - 1)))
+
 t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
 				   BSSDescriptor_t *pbss_desc);
 mlan_status wlan_11ax_ioctl_twtcfg(pmlan_adapter pmadapter,

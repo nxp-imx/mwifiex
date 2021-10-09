@@ -1588,7 +1588,11 @@ static int process_getlog(int argc, char *argv[])
 		       "gOwnrshpCtlErrCnt                  %u\n"
 		       "gOwnrshpBcnErrCnt                  %u\n"
 		       "gOwnrshpMgtErrCnt                  %u\n"
-		       "gOwnrshpDatErrCnt                  %u\n",
+		       "gOwnrshpDatErrCnt                  %u\n"
+		       "bigtk_mmeGoodCnt                   %u\n"
+		       "bigtk_replayErrCnt                 %u\n"
+		       "bigtk_micErrCnt                    %u\n"
+		       "bigtk_mmeNotFoundCnt               %u\n",
 		       stats->rx_stuck_issue_cnt[0],
 		       stats->rx_stuck_issue_cnt[1],
 		       stats->rx_stuck_recovery_cnt, stats->rx_stuck_tsf[0],
@@ -1601,7 +1605,9 @@ static int process_getlog(int argc, char *argv[])
 		       stats->rx_Isr2_NotDone_Cnt, stats->gdma_abort_cnt,
 		       stats->g_reset_rx_mac_cnt, stats->dwCtlErrCnt,
 		       stats->dwBcnErrCnt, stats->dwMgtErrCnt,
-		       stats->dwDatErrCnt);
+		       stats->dwDatErrCnt, stats->bigtk_mmeGoodCnt,
+		       stats->bigtk_replayErrCnt, stats->bigtk_micErrCnt,
+		       stats->bigtk_mmeNotFoundCnt);
 	}
 
 	if (cmd->used_len == sizeof(struct eth_priv_get_log)) {

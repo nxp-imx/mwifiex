@@ -235,6 +235,9 @@ Change log:
 /** Private command ID for hostcmd */
 #define WOAL_HOST_CMD (WOAL_IOCTL + 17)
 
+/** Private command ID for arpfilter */
+#define WOAL_ARP_FILTER (WOAL_IOCTL + 19)
+
 /** Private command ID to set ints and get chars */
 #define WOAL_SET_INTS_GET_CHARS (WOAL_IOCTL + 21)
 /** Private command ID to read EEPROM data */

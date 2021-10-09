@@ -414,6 +414,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.mfg_mode = pmdevice->mfg_mode;
 #endif
 	pmadapter->init_para.auto_ds = pmdevice->auto_ds;
+	pmadapter->init_para.ext_scan = pmdevice->ext_scan;
 	pmadapter->init_para.ps_mode = pmdevice->ps_mode;
 	if (pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_2K ||
 	    pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_4K ||
@@ -635,6 +636,74 @@ mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
 		ret = pmadapter->ops.dnld_fw(pmadapter, pmfw);
 		if (ret != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "wlan_dnld_fw fail ret=0x%x\n", ret);
+			LEAVE();
+			return ret;
+		}
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function mask host interrupt from firmware
+ *
+ *  @param padapter   A pointer to a t_void pointer to store
+ *                         mlan_adapter structure pointer
+ *
+ *  @return                MLAN_STATUS_SUCCESS
+ *                             The firmware download succeeded.
+ *                         MLAN_STATUS_FAILURE
+ *                             The firmware download failed.
+ */
+mlan_status mlan_disable_host_int(t_void *padapter)
+{
+	mlan_status ret = MLAN_STATUS_FAILURE;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+
+	ENTER();
+	MASSERT(padapter);
+
+	/* mask host interrupt from firmware */
+	if (pmadapter->ops.disable_host_int) {
+		ret = pmadapter->ops.disable_host_int(pmadapter);
+		if (ret != MLAN_STATUS_SUCCESS) {
+			PRINTM(MERROR,
+			       "mlan_disable_host_int fail ret = 0x%x\n", ret);
+			LEAVE();
+			return ret;
+		}
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function unmask host interrupt from firmware
+ *
+ *  @param padapter   A pointer to a t_void pointer to store
+ *                         mlan_adapter structure pointer
+ *
+ *  @return                MLAN_STATUS_SUCCESS
+ *                             The firmware download succeeded.
+ *                         MLAN_STATUS_FAILURE
+ *                             The firmware download failed.
+ */
+mlan_status mlan_enable_host_int(t_void *padapter)
+{
+	mlan_status ret = MLAN_STATUS_FAILURE;
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+
+	ENTER();
+	MASSERT(padapter);
+
+	/* unmask host interrupt from firmware */
+	if (pmadapter->ops.enable_host_int) {
+		ret = pmadapter->ops.enable_host_int(pmadapter);
+		if (ret != MLAN_STATUS_SUCCESS) {
+			PRINTM(MERROR, "mlan_enable_host_int fail ret = 0x%x\n",
+			       ret);
 			LEAVE();
 			return ret;
 		}
@@ -1164,7 +1233,6 @@ process_start:
 			    wlan_11h_radar_detected_tx_blocked(pmadapter)) {
 				if (pmadapter->cmd_sent ||
 				    pmadapter->curr_cmd ||
-				    pmadapter->cmd_lock ||
 				    !wlan_is_send_cmd_allowed(
 					    pmadapter->tdls_status) ||
 				    !wlan_is_cmd_pending(pmadapter)) {
@@ -1224,7 +1292,6 @@ process_start:
 			pmadapter->vdll_ctrl.pending_block = MNULL;
 		}
 		if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
-		    !pmadapter->cmd_lock &&
 		    wlan_is_send_cmd_allowed(pmadapter->tdls_status)) {
 			if (wlan_exec_next_cmd(pmadapter) ==
 			    MLAN_STATUS_FAILURE) {

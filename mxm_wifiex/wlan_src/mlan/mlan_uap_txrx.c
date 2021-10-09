@@ -244,6 +244,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
+
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_CTRL) {
 		if (pmbuf->u.tx_info.data_rate) {
 			memcpy_ext(pmpriv->adapter, dst_mac,
@@ -423,7 +424,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	}
 #endif
 
-	pmbuf->priority = prx_pd->priority;
+	pmbuf->priority |= prx_pd->priority;
 	memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if ((rx_pkt_type != PKT_TYPE_BAR) && (prx_pd->priority < MAX_NUM_TID)) {

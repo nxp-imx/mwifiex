@@ -2214,6 +2214,7 @@ t_u32 wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 		case BAND_B | BAND_G:
 		case BAND_A | BAND_B | BAND_G:
 		case BAND_A | BAND_B:
+		case BAND_A | BAND_B | BAND_G | BAND_GN:
 		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN:
 		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC:
 		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC |

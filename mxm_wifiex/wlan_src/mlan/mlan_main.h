@@ -402,6 +402,11 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 /** Maximum event buffer size */
 #define MAX_EVENT_SIZE (3 * 1024)
 
+#ifdef STA_SUPPORT
+/** Maximum buffer size for ARP filter */
+#define ARP_FILTER_MAX_BUF_SIZE 68
+#endif /* STA_SUPPORT */
+
 /** 60 seconds */
 #define MRVDRV_TIMER_60S 60000
 /** 10 seconds */
@@ -1817,6 +1822,8 @@ typedef struct _mef_cfg_data {
 
 /** Type definition of mef_entry*/
 typedef struct _mef_entry {
+	/** Flag for auto arp entry*/
+	int enable_autoarp_entry;
 	/** Num for wowlan entry*/
 	int num_wowlan_entry;
 	/** Num for IPv6 neighbor solicitation message offload */
@@ -1892,6 +1899,7 @@ typedef struct _mlan_init_para {
 	/** adma ring size */
 	t_u16 ring_size;
 #endif
+	t_u8 ext_scan;
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -2018,6 +2026,8 @@ typedef struct _mlan_sdio_card {
 	t_u32 mpa_sent_no_ports;
 	/** last wr_bitmap from FW */
 	t_u32 last_recv_wr_bitmap;
+	/** last wr_bitmap from FW */
+	t_u32 last_recv_rd_bitmap;
 	/** last mp_wr_bitmap */
 	t_u32 last_mp_wr_bitmap[SDIO_MP_DBG_NUM];
 	/** last ports for cmd53 write data */
@@ -2265,6 +2275,10 @@ typedef struct _adapter_operations {
 					pmlan_buffer pmbuf);
 	/** handle dump interface specific info */
 	mlan_status (*debug_dump)(mlan_adapter *pmadapter);
+	/** disable host interrupt */
+	mlan_status (*disable_host_int)(mlan_adapter *pmadapter);
+	/** enable host interrupt */
+	mlan_status (*enable_host_int)(mlan_adapter *pmadapter);
 	/**Interface header length*/
 	t_u32 intf_header_len;
 } mlan_adapter_operations;
@@ -2405,8 +2419,6 @@ typedef struct _mlan_adapter {
 	 *       FALSE - No cmd response to process
 	 */
 	t_u8 cmd_resp_received;
-	/** block download cmd to firmware */
-	t_u8 cmd_lock;
 	/** Event received:
 	 *       TRUE - Event received from fw, and yet to process
 	 *       FALSE - No events to process
@@ -2687,6 +2699,12 @@ typedef struct _mlan_adapter {
 	/** RX pending for forwarding packets */
 	mlan_scalar pending_bridge_pkts;
 
+#ifdef STA_SUPPORT
+	/** ARP filter buffer */
+	t_u8 arp_filter[ARP_FILTER_MAX_BUF_SIZE];
+	/** ARP filter buffer size */
+	t_u32 arp_filter_size;
+#endif /* STA_SUPPORT */
 	/** Minimum delay between HsActive and HostWake (in msec) */
 	t_u16 min_wake_holdoff;
 	/** Host sleep wake interval(in msec) */
@@ -2714,7 +2732,7 @@ typedef struct _mlan_adapter {
 	/** management frame wakeup filter config */
 	mlan_mgmt_frame_wakeup mgmt_filter[MAX_MGMT_FRAME_FILTER];
 	/** Bypass TX queue pkt count  */
-	t_u16 bypass_pkt_count;
+	t_u32 bypass_pkt_count;
 #ifdef STA_SUPPORT
 	/** warm-reset IOCTL request buffer pointer */
 	pmlan_ioctl_req pwarm_reset_ioctl_req;
@@ -2901,6 +2919,7 @@ t_void wlan_release_cmd_lock(mlan_adapter *pmadapter);
 #ifdef STA_SUPPORT
 /** Flush the scan pending queue */
 t_void wlan_flush_scan_queue(pmlan_adapter pmadapter);
+t_void wlan_move_cmd_to_cmd_pending_q(pmlan_adapter pmadapter);
 mlan_status wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter,
 					 pmlan_ioctl_req pioctl_req);
 #endif
@@ -3118,6 +3137,17 @@ mlan_status wlan_ret_p2p_params_config(pmlan_private pmpriv,
 mlan_status wlan_misc_p2p_config(pmlan_adapter pmadapter,
 				 pmlan_ioctl_req pioctl_req);
 #endif
+mlan_status wlan_cmd_gpio_tsf_latch(pmlan_private pmpriv,
+				    HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
+				    mlan_ioctl_req *pioctl_buf,
+				    t_void *pdata_buf);
+mlan_status wlan_ret_gpio_tsf_latch(pmlan_private pmpriv,
+				    HostCmd_DS_COMMAND *resp,
+				    mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_misc_gpio_tsf_latch_config(pmlan_adapter pmadapter,
+					    pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_get_tsf_info(pmlan_adapter pmadapter,
+				   pmlan_ioctl_req pioctl_req);
 /** get ralist info */
 int wlan_get_ralist_info(mlan_private *priv, pralist_info buf);
 /** dump ralist */
@@ -3804,6 +3834,7 @@ mlan_status wlan_set_drvdbg(pmlan_adapter pmadapter,
 
 mlan_status wlan_misc_hotspot_cfg(pmlan_adapter pmadapter,
 				  pmlan_ioctl_req pioctl_req);
+
 #ifdef STA_SUPPORT
 mlan_status wlan_misc_ext_capa_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
@@ -3985,6 +4016,12 @@ mlan_status wlan_cmd_config_dyn_bw(pmlan_private pmpriv,
 				   t_void *pdata_buf);
 mlan_status wlan_ret_dyn_bw(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			    mlan_ioctl_req *pioctl_buf);
+
+#ifdef UAP_SUPPORT
+/** wacp mode misc ioctl */
+mlan_status wlan_misc_ioctl_wacp_mode(pmlan_adapter pmadapter,
+				      mlan_ioctl_req *pioctl_req);
+#endif
 
 mlan_status wlan_power_ioctl_set_get_lpm(pmlan_adapter pmadapter,
 					 pmlan_ioctl_req pioctl_req);

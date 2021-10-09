@@ -84,6 +84,104 @@ done:
 }
 
 /**
+ *  @brief This function check if cmd allowed to send to firmware
+ *         during scan
+ *
+ *  @param cmd_id     cmd id
+ *
+ *  @return           MTRUE/MFALSE
+ */
+static t_u8 wlan_is_cmd_allowed_during_scan(t_u16 cmd_id)
+{
+	t_u8 ret = MTRUE;
+	ENTER();
+	switch (cmd_id) {
+	case HostCmd_CMD_FUNC_INIT:
+	case HostCmd_CMD_CFG_DATA:
+	case HostCmd_CMD_REGION_POWER_CFG:
+	case HostCmd_CHANNEL_TRPC_CONFIG:
+	case HostCmd_CMD_FUNC_SHUTDOWN:
+	case HostCmd_CMD_802_11_ASSOCIATE:
+	case HostCmd_CMD_802_11_DEAUTHENTICATE:
+	case HostCmd_CMD_802_11_DISASSOCIATE:
+	case HostCmd_CMD_802_11_AD_HOC_START:
+	case HostCmd_CMD_802_11_AD_HOC_JOIN:
+	case HostCmd_CMD_802_11_AD_HOC_STOP:
+	case HostCmd_CMD_11N_ADDBA_REQ:
+	case HostCmd_CMD_11N_ADDBA_RSP:
+	case HostCmd_CMD_11N_DELBA:
+	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
+	case HostCmd_CMD_TDLS_CONFIG:
+	case HostCmd_CMD_TDLS_OPERATION:
+	case HostCmd_CMD_SOFT_RESET:
+#ifdef UAP_SUPPORT
+	case HOST_CMD_APCMD_SYS_RESET:
+	case HOST_CMD_APCMD_BSS_START:
+	case HOST_CMD_APCMD_BSS_STOP:
+	case HOST_CMD_APCMD_STA_DEAUTH:
+#endif
+	case HostCMD_APCMD_ACS_SCAN:
+		ret = MFALSE;
+		break;
+	default:
+		break;
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function move the cmd from scan_pending_q to
+ *        cmd_pending_q
+ *
+ *  @param cmd_id     cmd id
+ *
+ *  @return           MTRUE/MFALSE
+ */
+t_void wlan_move_cmd_to_cmd_pending_q(pmlan_adapter pmadapter)
+{
+	cmd_ctrl_node *pcmd_node = MNULL;
+
+	ENTER();
+
+	wlan_request_cmd_lock(pmadapter);
+	while ((pcmd_node = (cmd_ctrl_node *)util_peek_list(
+			pmadapter->pmoal_handle, &pmadapter->scan_pending_q,
+			MNULL, MNULL))) {
+		util_unlink_list(pmadapter->pmoal_handle,
+				 &pmadapter->scan_pending_q,
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
+		wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node, MTRUE);
+	}
+	wlan_release_cmd_lock(pmadapter);
+	LEAVE();
+}
+
+/**
+ *  @brief This function inserts command node to scan_pending_q or
+ *  cmd_pending_q
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pcmd_node    A pointer to cmd_ctrl_node structure
+ *  @return             N/A
+ */
+
+static t_void wlan_queue_cmd(mlan_private *pmpriv, cmd_ctrl_node *pcmd_node,
+			     t_u16 cmd_no)
+{
+	ENTER();
+	if (pmpriv->adapter->scan_processing &&
+	    pmpriv->adapter->ext_scan_type == EXT_SCAN_ENHANCE) {
+		if (MFALSE == wlan_is_cmd_allowed_during_scan(cmd_no)) {
+			wlan_queue_scan_cmd(pmpriv, pcmd_node);
+			return;
+		}
+	}
+	wlan_insert_cmd_to_pending_q(pmpriv->adapter, pcmd_node, MTRUE);
+	LEAVE();
+}
+
+/**
  *  @brief Internal function used to flush the scan pending queue
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -330,7 +428,12 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 		PRINTM(MERROR, "mp_wr_bitmap=0x%x curr_wr_port=0x%x\n",
 		       pmadapter->pcard_sd->mp_wr_bitmap,
 		       pmadapter->pcard_sd->curr_wr_port);
-		PRINTM(MERROR, "mp_invalid_update=%d\n",
+		PRINTM(MMSG, "mp_data_port_mask = 0x%x\n",
+		       pmadapter->pcard_sd->mp_data_port_mask);
+
+		PRINTM(MERROR,
+		       "last_recv_rd_bitmap=0x%x mp_invalid_update=%d\n",
+		       pmadapter->pcard_sd->last_recv_rd_bitmap,
 		       pmadapter->pcard_sd->mp_invalid_update);
 		PRINTM(MERROR, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
 		       pmadapter->pcard_sd->last_recv_wr_bitmap,
@@ -915,10 +1018,12 @@ static mlan_status wlan_ret_host_cmd(pmlan_private pmpriv,
  *  @param pmpriv       A pointer to mlan_private structure
  *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
  *  @param pdata_buf    A pointer to data buffer
+ *  @param cmd_no       A pointer to cmd_no
  *  @return             MLAN_STATUS_SUCCESS
  */
 static mlan_status wlan_cmd_host_cmd(pmlan_private pmpriv,
-				     HostCmd_DS_COMMAND *cmd, t_void *pdata_buf)
+				     HostCmd_DS_COMMAND *cmd, t_void *pdata_buf,
+				     t_u16 *cmd_no)
 {
 	mlan_ds_misc_cmd *pcmd_ptr = (mlan_ds_misc_cmd *)pdata_buf;
 
@@ -927,7 +1032,9 @@ static mlan_status wlan_cmd_host_cmd(pmlan_private pmpriv,
 	/* Copy the HOST command to command buffer */
 	memcpy_ext(pmpriv->adapter, (void *)cmd, pcmd_ptr->cmd, pcmd_ptr->len,
 		   MRVDRV_SIZE_OF_CMD_BUFFER);
-	PRINTM(MINFO, "Host command size = %d\n", pcmd_ptr->len);
+	*cmd_no = wlan_le16_to_cpu(cmd->command);
+	PRINTM(MCMND, "Prepare Host command: 0x%x size = %d\n", *cmd_no,
+	       pcmd_ptr->len);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -972,11 +1079,7 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 	case HOST_CMD_APCMD_STA_DEAUTH:
 #endif
 	case HostCMD_APCMD_ACS_SCAN:
-#ifdef IMX_SUPPORT
-		timeout = MRVDRV_TIMER_10S;
-#else
 		timeout = MRVDRV_TIMER_5S;
-#endif
 		break;
 	default:
 #ifdef IMX_SUPPORT
@@ -985,15 +1088,15 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 		 * timeout are observed for commands like 0x5e, 0x16, 0xd1.
 		 * Observed that response has come just after default timeout of
 		 * 2 seconds for these commands. This random timeout is not
-		 * observed when the default timeout is increased to 10 seconds
-		 * (As an work around, Increase the default timeout to 10
+		 * observed when the default timeout is increased to 5 seconds
+		 * (As an work around, Increase the default timeout to 5
 		 * seconds. Need to further debug exact reason for delay in cmd
 		 * responses)
 		 *
 		 */
-		timeout = MRVDRV_TIMER_10S;
+		timeout = MRVDRV_TIMER_1S * 5;
 #else
-		timeout = MRVDRV_TIMER_1S * 2;
+		timeout = MRVDRV_TIMER_1S * 5;
 #endif
 		break;
 	}
@@ -1717,7 +1820,7 @@ mlan_status wlan_prepare_cmd(mlan_private *pmpriv, t_u16 cmd_no,
 					      cmd_oid, pioctl_buf, pdata_buf,
 					      cmd_ptr);
 	else {
-		ret = wlan_cmd_host_cmd(pmpriv, cmd_ptr, pdata_buf);
+		ret = wlan_cmd_host_cmd(pmpriv, cmd_ptr, pdata_buf, &cmd_no);
 		pcmd_node->cmd_flag |= CMD_F_HOSTCMD;
 	}
 
@@ -1744,7 +1847,7 @@ mlan_status wlan_prepare_cmd(mlan_private *pmpriv, t_u16 cmd_no,
 		    pmadapter->ext_scan && pmadapter->ext_scan_enh &&
 		    pmadapter->ext_scan_type == EXT_SCAN_ENHANCE) {
 			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
-						     MFALSE);
+						     MTRUE);
 		} else
 			wlan_queue_scan_cmd(pmpriv, pcmd_node);
 	} else {
@@ -1755,8 +1858,7 @@ mlan_status wlan_prepare_cmd(mlan_private *pmpriv, t_u16 cmd_no,
 			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
 						     MFALSE);
 		else
-			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
-						     MTRUE);
+			wlan_queue_cmd(pmpriv, pcmd_node, cmd_no);
 #ifdef STA_SUPPORT
 	}
 #endif
@@ -5489,6 +5591,242 @@ mlan_status wlan_ret_p2p_params_config(pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 #endif
+
+/**
+ *  @brief This function prepares command of GPIO TSF LATCH.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req buf
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_gpio_tsf_latch(pmlan_private pmpriv,
+				    HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
+				    mlan_ioctl_req *pioctl_buf,
+				    t_void *pdata_buf)
+{
+	HostCmd_DS_GPIO_TSF_LATCH_PARAM_CONFIG *gpio_tsf_config =
+		&cmd->params.gpio_tsf_latch;
+	mlan_ds_gpio_tsf_latch *cfg = (mlan_ds_gpio_tsf_latch *)pdata_buf;
+	mlan_ds_misc_cfg *misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+	mlan_ds_tsf_info *tsf_info = (mlan_ds_tsf_info *)pdata_buf;
+	MrvlIEtypes_GPIO_TSF_LATCH_CONFIG *gpio_tsf_latch_config = MNULL;
+	MrvlIEtypes_GPIO_TSF_LATCH_REPORT *gpio_tsf_latch_report = MNULL;
+	t_u8 *tlv = MNULL;
+	ENTER();
+
+	cmd->size = sizeof(HostCmd_DS_GPIO_TSF_LATCH_PARAM_CONFIG) + S_DS_GEN;
+	cmd->command = wlan_cpu_to_le16(HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG);
+	gpio_tsf_config->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		tlv = (t_u8 *)gpio_tsf_config->tlv_buf;
+		if (misc_cfg->sub_command == MLAN_OID_MISC_GPIO_TSF_LATCH) {
+			gpio_tsf_latch_config =
+				(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG *)tlv;
+			gpio_tsf_latch_config->header.type = wlan_cpu_to_le16(
+				TLV_TYPE_GPIO_TSF_LATCH_CONFIG);
+			gpio_tsf_latch_config->header.len = wlan_cpu_to_le16(
+				sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG) -
+				sizeof(MrvlIEtypesHeader_t));
+			gpio_tsf_latch_config->clock_sync_mode =
+				cfg->clock_sync_mode;
+			gpio_tsf_latch_config->clock_sync_Role =
+				cfg->clock_sync_Role;
+			gpio_tsf_latch_config->clock_sync_gpio_pin_number =
+				cfg->clock_sync_gpio_pin_number;
+			gpio_tsf_latch_config->clock_sync_gpio_level_toggle =
+				cfg->clock_sync_gpio_level_toggle;
+			gpio_tsf_latch_config->clock_sync_gpio_pulse_width =
+				wlan_cpu_to_le16(
+					cfg->clock_sync_gpio_pulse_width);
+			cmd->size += sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG);
+			tlv += sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG);
+			PRINTM(MCMND,
+			       "Set GPIO TSF latch config: Mode=%d Role=%d, GPIO Pin Number=%d, GPIO level/toggle=%d GPIO pulse width=%d\n",
+			       cfg->clock_sync_mode, cfg->clock_sync_Role,
+			       cfg->clock_sync_gpio_pin_number,
+			       cfg->clock_sync_gpio_level_toggle,
+			       (int)cfg->clock_sync_gpio_pulse_width);
+		}
+	} else if (cmd_action == HostCmd_ACT_GEN_GET) {
+		tlv = (t_u8 *)gpio_tsf_config->tlv_buf;
+		if (misc_cfg->sub_command == MLAN_OID_MISC_GPIO_TSF_LATCH) {
+			gpio_tsf_latch_config =
+				(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG *)tlv;
+			gpio_tsf_latch_config->header.type = wlan_cpu_to_le16(
+				TLV_TYPE_GPIO_TSF_LATCH_CONFIG);
+			gpio_tsf_latch_config->header.len = wlan_cpu_to_le16(
+				sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG) -
+				sizeof(MrvlIEtypesHeader_t));
+			cmd->size += sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG);
+			tlv += sizeof(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG);
+		}
+
+		if (misc_cfg->sub_command == MLAN_OID_MISC_GET_TSF_INFO) {
+			gpio_tsf_latch_report =
+				(MrvlIEtypes_GPIO_TSF_LATCH_REPORT *)tlv;
+			gpio_tsf_latch_report->header.type = wlan_cpu_to_le16(
+				TLV_TYPE_GPIO_TSF_LATCH_REPORT);
+			gpio_tsf_latch_report->header.len = wlan_cpu_to_le16(
+				sizeof(MrvlIEtypes_GPIO_TSF_LATCH_REPORT) -
+				sizeof(MrvlIEtypesHeader_t));
+			gpio_tsf_latch_report->tsf_format =
+				wlan_cpu_to_le16(tsf_info->tsf_format);
+			PRINTM(MCMND, "Get TSF info: format=%d\n",
+			       tsf_info->tsf_format);
+			cmd->size += sizeof(MrvlIEtypes_GPIO_TSF_LATCH_REPORT);
+		}
+	}
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of GPIO TSF Latch
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_gpio_tsf_latch(pmlan_private pmpriv,
+				    HostCmd_DS_COMMAND *resp,
+				    mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_GPIO_TSF_LATCH_PARAM_CONFIG *gpio_tsf_config =
+		&resp->params.gpio_tsf_latch;
+	mlan_ds_misc_cfg *cfg = MNULL;
+	MrvlIEtypes_GPIO_TSF_LATCH_CONFIG *gpio_tsf_latch_config = MNULL;
+	MrvlIEtypes_GPIO_TSF_LATCH_REPORT *gpio_tsf_latch_report = MNULL;
+	MrvlIEtypesHeader_t *tlv = MNULL;
+	t_u16 tlv_buf_left = 0;
+	t_u16 tlv_type = 0;
+	t_u16 tlv_len = 0;
+
+	ENTER();
+	if (wlan_le16_to_cpu(gpio_tsf_config->action) == HostCmd_ACT_GEN_GET) {
+		if (pioctl_buf) {
+			cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+			tlv = (MrvlIEtypesHeader_t *)(gpio_tsf_config->tlv_buf);
+			tlv_buf_left =
+				resp->size -
+				(sizeof(HostCmd_DS_GPIO_TSF_LATCH_PARAM_CONFIG) +
+				 S_DS_GEN);
+			while (tlv_buf_left >= sizeof(MrvlIEtypesHeader_t)) {
+				tlv_type = wlan_le16_to_cpu(tlv->type);
+				tlv_len = wlan_le16_to_cpu(tlv->len);
+				if (tlv_buf_left <
+				    (tlv_len + sizeof(MrvlIEtypesHeader_t))) {
+					PRINTM(MERROR,
+					       "Error processing gpio tsf latch config TLVs, bytes left < TLV length\n");
+					break;
+				}
+				switch (tlv_type) {
+				case TLV_TYPE_GPIO_TSF_LATCH_CONFIG:
+					if (cfg->sub_command ==
+					    MLAN_OID_MISC_GPIO_TSF_LATCH) {
+						gpio_tsf_latch_config =
+							(MrvlIEtypes_GPIO_TSF_LATCH_CONFIG
+								 *)tlv;
+						cfg->param.gpio_tsf_latch_config
+							.clock_sync_mode =
+							gpio_tsf_latch_config
+								->clock_sync_mode;
+						cfg->param.gpio_tsf_latch_config
+							.clock_sync_Role =
+							gpio_tsf_latch_config
+								->clock_sync_Role;
+						cfg->param.gpio_tsf_latch_config
+							.clock_sync_gpio_pin_number =
+							gpio_tsf_latch_config
+								->clock_sync_gpio_pin_number;
+						cfg->param.gpio_tsf_latch_config
+							.clock_sync_gpio_level_toggle =
+							gpio_tsf_latch_config
+								->clock_sync_gpio_level_toggle;
+						cfg->param.gpio_tsf_latch_config
+							.clock_sync_gpio_pulse_width =
+							wlan_le16_to_cpu(
+								gpio_tsf_latch_config
+									->clock_sync_gpio_pulse_width);
+						PRINTM(MCMND,
+						       "Get GPIO TSF latch config: Mode=%d Role=%d, GPIO Pin Number=%d, GPIO level/toggle=%d GPIO pulse width=%d\n",
+						       cfg->param
+							       .gpio_tsf_latch_config
+							       .clock_sync_mode,
+						       cfg->param
+							       .gpio_tsf_latch_config
+							       .clock_sync_Role,
+						       cfg->param
+							       .gpio_tsf_latch_config
+							       .clock_sync_gpio_pin_number,
+						       cfg->param
+							       .gpio_tsf_latch_config
+							       .clock_sync_gpio_level_toggle,
+						       (int)cfg->param
+							       .gpio_tsf_latch_config
+							       .clock_sync_gpio_pulse_width);
+					}
+					break;
+				case TLV_TYPE_GPIO_TSF_LATCH_REPORT:
+					if (cfg->sub_command ==
+					    MLAN_OID_MISC_GET_TSF_INFO) {
+						gpio_tsf_latch_report =
+							(MrvlIEtypes_GPIO_TSF_LATCH_REPORT
+								 *)tlv;
+						cfg->param.tsf_info
+							.tsf_format = wlan_le16_to_cpu(
+							gpio_tsf_latch_report
+								->tsf_format);
+						cfg->param.tsf_info
+							.tsf_info = wlan_le16_to_cpu(
+							gpio_tsf_latch_report
+								->tsf_info);
+						cfg->param.tsf_info
+							.tsf = wlan_le64_to_cpu(
+							gpio_tsf_latch_report
+								->tsf);
+						cfg->param.tsf_info
+							.tsf_offset = wlan_le16_to_cpu(
+							gpio_tsf_latch_report
+								->tsf_offset);
+						PRINTM(MCMND,
+						       "Get GPIO TSF latch report : format=%d\n info=%d tsf=%llu offset=%d",
+						       cfg->param.tsf_info
+							       .tsf_format,
+						       cfg->param.tsf_info
+							       .tsf_info,
+						       cfg->param.tsf_info.tsf,
+						       cfg->param.tsf_info
+							       .tsf_offset);
+					}
+					break;
+				default:
+					break;
+				}
+				tlv_buf_left -=
+					tlv_len + sizeof(MrvlIEtypesHeader_t);
+				tlv = (MrvlIEtypesHeader_t
+					       *)((t_u8 *)tlv + tlv_len +
+						  sizeof(MrvlIEtypesHeader_t));
+			}
+			if (cfg->sub_command == MLAN_OID_MISC_GPIO_TSF_LATCH)
+				pioctl_buf->data_read_written =
+					sizeof(mlan_ds_gpio_tsf_latch);
+			else if (cfg->sub_command == MLAN_OID_MISC_GET_TSF_INFO)
+				pioctl_buf->data_read_written =
+					sizeof(mlan_ds_tsf_info);
+		}
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
 
 /**
  *  @brief This function prepares command of mimo switch configuration.

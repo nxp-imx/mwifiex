@@ -374,6 +374,14 @@ struct eth_priv_get_log {
 	t_u32 dwMgtErrCnt;
 	/*Control Ownership error count*/
 	t_u32 dwDatErrCnt;
+	/*BIGTK MME good count*/
+	t_u32 bigtk_mmeGoodCnt;
+	/*BIGTK Replay error count*/
+	t_u32 bigtk_replayErrCnt;
+	/*BIGTK MIC error count*/
+	t_u32 bigtk_micErrCnt;
+	/*BIGTK MME not included count*/
+	t_u32 bigtk_mmeNotFoundCnt;
 };
 
 /** MLAN MAC Address Length */

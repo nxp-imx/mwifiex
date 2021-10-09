@@ -603,6 +603,7 @@ enum mrvl_wlan_vendor_attr_wifi_logger {
 /**vendor event*/
 enum vendor_event {
 	event_hang = 0,
+	event_fw_dump_done = 1,
 	event_rssi_monitor = 0x1501,
 	event_cloud_keep_alive = 0x10003,
 	event_dfs_radar_detected = 0x10004,

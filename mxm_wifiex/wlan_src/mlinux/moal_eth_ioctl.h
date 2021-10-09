@@ -148,6 +148,7 @@ typedef struct _chan_stats {
 #ifdef SDIO
 #define PRIV_CMD_SDCMD52RW "sdcmd52rw"
 #endif
+#define PRIV_CMD_ARPFILTER "arpfilter"
 #define PRIV_CMD_HOTSPOTCFG "hotspotcfg"
 #define PRIV_CMD_MGMT_FRAME_CTRL "mgmtframectrl"
 #define PRIV_CMD_QCONFIG "qconfig"
@@ -235,6 +236,8 @@ typedef struct _chan_stats {
 #define PRIV_CMD_CFG_OPP_PS "cfg_opp_ps"
 #endif
 #endif
+#define PRIV_CMD_CFG_CLOCK_SYNC "clocksync"
+#define PRIV_CMD_CFG_GET_TSF_INFO "gettsfinfo"
 #define PRIV_CMD_DFS_REPEATER_CFG "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -365,11 +368,11 @@ typedef struct _ssu_params_cfg {
 #define PRIV_CMD_LPM "lpm"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data, int cmd);
+int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data,
+		  int cmd);
 #else
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 #endif
-
 /*
  * For android private commands, fixed value of ioctl is used.
  * Internally commands are differentiated using strings.

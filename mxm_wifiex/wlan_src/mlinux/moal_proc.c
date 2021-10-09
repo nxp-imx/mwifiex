@@ -513,7 +513,10 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 #endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
 		PRINTM(MERROR, "Recevie debug_dump command\n");
-		handle->driver_status = MTRUE;
+#ifdef USB
+		if (!IS_USB(handle->card_type))
+#endif
+			handle->driver_status = MTRUE;
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
@@ -799,6 +802,156 @@ static const struct file_operations config_proc_fops = {
 };
 #endif
 
+static int woal_drv_dump_read(struct seq_file *sfp, void *data)
+{
+	moal_handle *handle = (moal_handle *)sfp->private;
+	int ret = 0;
+
+	ENTER();
+
+	if (MODULE_GET == 0) {
+		LEAVE();
+		return 0;
+	}
+
+	if (!handle) {
+		PRINTM(MERROR, "handle is NULL!\n");
+		LEAVE();
+		return 0;
+	}
+	if (!handle->drv_dump_buf || !handle->drv_dump_len)
+		handle->drv_dump_buf =
+			woal_dump_drv_info(handle, &handle->drv_dump_len);
+	if (!handle->drv_dump_buf || !handle->drv_dump_len) {
+		PRINTM(MERROR,
+		       "driver dump buffer is NULL or total length is zero\n");
+		goto done;
+	}
+	if (sfp->size < handle->drv_dump_len) {
+		PRINTM(MERROR,
+		       "drv dump size too big, size=%d, drv_dump_len=%d\n",
+		       (int)sfp->size, handle->drv_dump_len);
+		sfp->count = sfp->size;
+		ret = 0;
+		MODULE_PUT;
+		return ret;
+	}
+	memset(sfp->buf, 0x00, sfp->size);
+	sfp->count = handle->drv_dump_len;
+	moal_memcpy_ext(handle, sfp->buf, handle->drv_dump_buf,
+			handle->drv_dump_len, sfp->size);
+done:
+	moal_vfree(handle, handle->drv_dump_buf);
+	handle->drv_dump_len = 0;
+	handle->drv_dump_buf = NULL;
+	MODULE_PUT;
+	LEAVE();
+	return 0;
+}
+
+static int woal_drv_dump_proc_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+	return single_open(file, woal_drv_dump_read, PDE_DATA(inode));
+#else
+	return single_open(file, woal_drv_dump_read, PDE(inode)->data);
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops drv_dump_fops = {
+	.proc_open = woal_drv_dump_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+static const struct file_operations drv_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = woal_drv_dump_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
+static int woal_fw_dump_read(struct seq_file *sfp, void *data)
+{
+	moal_handle *handle = (moal_handle *)sfp->private;
+	int ret = 0;
+
+	ENTER();
+
+	if (MODULE_GET == 0) {
+		LEAVE();
+		return 0;
+	}
+
+	if (!handle) {
+		PRINTM(MERROR, "handle is null!\n");
+		goto done;
+	}
+
+	if (handle->fw_dump == MTRUE) {
+		PRINTM(MERROR, "fw dump is in progress\n");
+		goto done;
+	}
+
+	if (!handle->fw_dump_buf || !handle->fw_dump_len) {
+		PRINTM(MERROR,
+		       "fw dump buffer is NULL or total length is zero\n");
+		goto done;
+	}
+
+	if (sfp->size < handle->fw_dump_len) {
+		PRINTM(MERROR,
+		       "fw dump size too big, size=%d, fw_dump_len=%ld\n",
+		       (int)sfp->size, (long int)handle->fw_dump_len);
+		sfp->count = sfp->size;
+		ret = 0;
+		MODULE_PUT;
+		return ret;
+	}
+
+	sfp->count = handle->fw_dump_len;
+	moal_memcpy_ext(handle, sfp->buf, handle->fw_dump_buf,
+			handle->fw_dump_len, sfp->size);
+	moal_vfree(handle, handle->fw_dump_buf);
+	handle->fw_dump_buf = NULL;
+	handle->fw_dump_len = 0;
+
+done:
+	MODULE_PUT;
+	LEAVE();
+	return 0;
+}
+
+static int woal_fw_dump_proc_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+	return single_open(file, woal_fw_dump_read, PDE_DATA(inode));
+#else
+	return single_open(file, woal_fw_dump_read, PDE(inode)->data);
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops fw_dump_fops = {
+	.proc_open = woal_fw_dump_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+static const struct file_operations fw_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = woal_fw_dump_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
 /**
  *  @brief wifi status proc read function
  *
@@ -875,7 +1028,7 @@ int woal_string_to_number(char *s)
 	} else
 		base = 10;
 
-	for (s = s; *s; s++) {
+	for (; *s; s++) {
 		if ((*s >= '0') && (*s <= '9'))
 			r = (r * base) + (*s - '0');
 		else if ((*s >= 'A') && (*s <= 'F'))
@@ -910,7 +1063,7 @@ mlan_status woal_root_proc_init(void)
 	}
 
 	/* create /proc/mwlan/wifi_status */
-	proc_create_data(STATUS_PROC, 0644, proc_mwlan, &wifi_status_proc_fops,
+	proc_create_data(STATUS_PROC, 0666, proc_mwlan, &wifi_status_proc_fops,
 			 NULL);
 
 	LEAVE();
@@ -949,6 +1102,8 @@ void woal_proc_init(moal_handle *handle)
 	struct proc_dir_entry *pde = proc_mwlan;
 #endif
 	char config_proc_dir[20];
+	char drv_dump_dir[20];
+	char fw_dump_dir[20];
 
 	ENTER();
 
@@ -992,7 +1147,7 @@ void woal_proc_init(moal_handle *handle)
 
 	strcpy(config_proc_dir, "config");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	r = proc_create_data(config_proc_dir, 0644, handle->proc_wlan,
+	r = proc_create_data(config_proc_dir, 0666, handle->proc_wlan,
 			     &config_proc_fops, handle);
 #else
 	r = create_proc_entry(config_proc_dir, 0644, handle->proc_wlan);
@@ -1003,6 +1158,34 @@ void woal_proc_init(moal_handle *handle)
 #endif
 	if (!r)
 		PRINTM(MERROR, "Fail to create proc config\n");
+
+	strcpy(drv_dump_dir, "drv_dump");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	r = proc_create_data(drv_dump_dir, 0644, handle->proc_wlan,
+			     &drv_dump_fops, handle);
+#else
+	r = create_proc_entry(drv_dump_dir, 0644, handle->proc_wlan);
+	if (r) {
+		r->data = handle;
+		r->proc_fops = &drv_dump_fops;
+	}
+#endif
+	if (!r)
+		PRINTM(MERROR, "Failed to create proc drv dump\n");
+
+	strcpy(fw_dump_dir, "fw_dump");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	r = proc_create_data(fw_dump_dir, 0644, handle->proc_wlan,
+			     &fw_dump_fops, handle);
+#else
+	r = create_proc_entry(fw_dump_dir, 0644, handle->proc_wlan);
+	if (r) {
+		r->data = handle;
+		r->proc_fops = &fw_dump_fops;
+	}
+#endif
+	if (!r)
+		PRINTM(MERROR, "Failed to create proc fw dump\n");
 
 done:
 	LEAVE();
@@ -1018,6 +1201,8 @@ done:
 void woal_proc_exit(moal_handle *handle)
 {
 	char config_proc_dir[20];
+	char drv_dump_dir[20];
+	char fw_dump_dir[20];
 
 	ENTER();
 
@@ -1025,6 +1210,10 @@ void woal_proc_exit(moal_handle *handle)
 	if (handle->proc_wlan) {
 		strcpy(config_proc_dir, "config");
 		remove_proc_entry(config_proc_dir, handle->proc_wlan);
+		strcpy(drv_dump_dir, "drv_dump");
+		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
+		strcpy(fw_dump_dir, "fw_dump");
+		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 		/* Remove only if we are the only instance using this */
@@ -1041,6 +1230,16 @@ void woal_proc_exit(moal_handle *handle)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 		}
 #endif
+	}
+	if (handle->fw_dump_buf) {
+		moal_vfree(handle, handle->fw_dump_buf);
+		handle->fw_dump_buf = NULL;
+		handle->fw_dump_len = 0;
+	}
+	if (handle->drv_dump_buf) {
+		moal_vfree(handle, handle->drv_dump_buf);
+		handle->drv_dump_len = 0;
+		handle->drv_dump_buf = NULL;
 	}
 	LEAVE();
 }

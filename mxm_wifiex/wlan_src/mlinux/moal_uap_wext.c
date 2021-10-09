@@ -75,14 +75,15 @@ static const struct iw_priv_args woal_uap_priv_args[] = {
 	 "version"},
 	{WOAL_UAP_VEREXT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128,
 	 "verext"},
-#ifdef WIFI_DIRECT_SUPPORT
-#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	{WOAL_UAP_SETONEINT_GETONEINT, IW_PRIV_TYPE_INT | 1,
 	 IW_PRIV_TYPE_INT | 1, ""},
+#ifdef WIFI_DIRECT_SUPPORT
+#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	{WOAL_UAP_SET_GET_BSS_ROLE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
 	 "bssrole"},
 #endif
 #endif
+
 	{WOAL_UAP_SET_GET_256_CHAR, IW_PRIV_TYPE_CHAR | 256,
 	 IW_PRIV_TYPE_CHAR | 256, ""},
 	{WOAL_WL_FW_RELOAD, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,

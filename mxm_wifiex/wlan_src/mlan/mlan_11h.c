@@ -1306,6 +1306,8 @@ wlan_11h_prepare_custom_ie_chansw(mlan_adapter *pmadapter,
 				pvhttpcEnv_ie->local_max_tp_20mhz = 0xff;
 				pvhttpcEnv_ie->local_max_tp_40mhz = 0xff;
 				pvhttpcEnv_ie->local_max_tp_80mhz = 0xff;
+				pvhttpcEnv_ie->local_max_tp_160mhz_80_80mhz =
+					0xff;
 				pChanSwWrap_ie->len +=
 					sizeof(IEEEtypes_VhtTpcEnvelope_t);
 

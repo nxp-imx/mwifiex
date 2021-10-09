@@ -50,6 +50,10 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 	}, /*event_id 0*/
 	{
 		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_fw_dump_done,
+	}, /*event_id 1*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_rssi_monitor,
 	}, /*event_id 0x1501*/
 	{
@@ -240,6 +244,20 @@ int woal_cfg80211_vendor_event(moal_private *priv, int event, t_u8 *data,
 
 	LEAVE();
 	return ret;
+}
+
+/**
+ * @brief send fw dump complete event to vendorhal
+ *
+ * @param priv       A pointer to moal_private
+ *
+ * @return      N/A
+ */
+void woal_cfg80211_vendor_event_fw_dump(moal_private *priv)
+{
+	PRINTM(MEVENT, "wlan: Notify FW dump complete event\n");
+	woal_cfg80211_vendor_event(priv, event_fw_dump_done, CUS_EVT_FW_DUMP,
+				   strlen(CUS_EVT_FW_DUMP));
 }
 
 /**
@@ -675,7 +693,6 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	int ret = MLAN_STATUS_SUCCESS;
 	int length = 0;
 	char driver_dump_file[128];
-	char path_name[64];
 	struct sk_buff *skb = NULL;
 
 	ENTER();
@@ -687,12 +704,12 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	dev = wdev->netdev;
 	priv = (moal_private *)woal_get_netdev_priv(dev);
 	handle = priv->phandle;
-	memset(path_name, 0, sizeof(path_name));
-	woal_create_dump_dir(handle, path_name, sizeof(path_name));
-	PRINTM(MMSG, "driver dump path name is %s\n", path_name);
-	woal_dump_drv_info(handle, path_name);
 	memset(driver_dump_file, 0, sizeof(driver_dump_file));
-	sprintf(driver_dump_file, "%s/%s", path_name, "file_drv_info");
+	sprintf(driver_dump_file, "/proc/mwlan/");
+	if (handle->handle_idx)
+		sprintf(driver_dump_file, "drv_dump%d", handle->handle_idx);
+	else
+		sprintf(driver_dump_file, "drv_dump");
 	PRINTM(MMSG, "driver dump file is %s\n", driver_dump_file);
 	length = sizeof(driver_dump_file);
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, length);
@@ -2761,9 +2778,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u64 inter_msec = 0;
 	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
 	moal_handle *handle = priv->phandle;
-
-	if (priv->media_connected == MFALSE)
-		return -EFAULT;
 
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
