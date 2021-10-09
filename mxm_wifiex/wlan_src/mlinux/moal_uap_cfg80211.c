@@ -1377,6 +1377,19 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 		ret = -EFAULT;
 		goto done;
 	}
+
+	/** Set wacp_mode for uAP/P2P-GO */
+	if (priv->phandle->params.wacp_mode) {
+		PRINTM(MIOCTL, "wacp_mode: %d\n",
+		       priv->phandle->params.wacp_mode);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_wacp_mode(priv, MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "Set wacp_mode failed\n");
+			ret = -EFAULT;
+			goto done;
+		}
+	}
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	woal_enable_dfs_support(priv, &priv->chan);
 #endif
@@ -1846,7 +1859,7 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 		priv->phandle->priv_num--;
 		if (dev->reg_state == NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-			cfg80211_unregister_netdevice(dev);
+			cfg80211_unregister_netdevice(ndev);
 #else
 			unregister_netdevice(dev);
 #endif
@@ -1889,7 +1902,7 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-					cfg80211_unregister_netdevice(priv->netdev);
+					cfg80211_unregister_netdevice(ndev);
 #else
 					unregister_netdevice(priv->netdev);
 #endif
@@ -2104,6 +2117,7 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 	struct net_device *dev = wdev->netdev;
 #endif
+
 	ENTER();
 
 	PRINTM(MIOCTL, "del virtual intf %s\n", dev->name);

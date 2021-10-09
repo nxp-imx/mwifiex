@@ -412,6 +412,7 @@ mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 		    cipher != WLAN_CIPHER_SUITE_GCMP &&
 #endif
 #if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		    cipher != WLAN_CIPHER_SUITE_BIP_GMAC_128 &&
 		    cipher != WLAN_CIPHER_SUITE_BIP_GMAC_256 &&
 		    cipher != WLAN_CIPHER_SUITE_GCMP_256 &&
 #endif
@@ -480,11 +481,21 @@ mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 
 		if (cipher == WLAN_CIPHER_SUITE_AES_CMAC
 #if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
-		    || cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256
+		    || cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128 ||
+		    cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256
 #endif
 		) {
 			sec->param.encrypt_key.key_flags |=
 				KEY_FLAG_AES_MCAST_IGTK;
+
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+			if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_128;
+			else if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_256;
+#endif
 		}
 	} else {
 		if (key_index == KEY_INDEX_CLEAR_ALL)
@@ -1506,6 +1517,17 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       t_u8 key_index)
 {
 	PRINTM(MINFO, "set default mgmt key, key index=%d\n", key_index);
+
+	return 0;
+}
+#endif
+
+#if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
+int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
+					 struct net_device *netdev,
+					 t_u8 key_index)
+{
+	PRINTM(MINFO, "set default beacon key, key index=%d\n", key_index);
 
 	return 0;
 }
@@ -4596,7 +4618,47 @@ void woal_cfg80211_notify_sched_scan_stop(moal_private *priv)
 #endif
 	);
 	priv->sched_scanning = MFALSE;
-	PRINTM(MEVENT, "Sched_Scan stopped\n");
+	PRINTM(MEVENT, "Notify sched scan stopped\n");
+}
+
+/**
+ * @brief sched_scan work handler
+ *
+ * @param work            a pointer to work_struct
+ *
+ * @return                0 -- success, otherwise fail
+ */
+void woal_sched_scan_work_queue(struct work_struct *work)
+{
+	struct delayed_work *delayed_work =
+		container_of(work, struct delayed_work, work);
+	moal_private *priv =
+		container_of(delayed_work, moal_private, sched_scan_work);
+	ENTER();
+
+	if (priv->sched_scanning)
+		woal_cfg80211_notify_sched_scan_stop(priv);
+
+	LEAVE();
+}
+
+/**
+ * @brief report sched_scan result to kernel
+ *
+ * @param priv          A pointer moal_private structure
+ *
+ * @return          N/A
+ */
+void woal_report_sched_scan_result(moal_private *priv)
+{
+	cfg80211_sched_scan_results(priv->wdev->wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+				    ,
+				    priv->bg_scan_reqid
+#endif
+	);
+	queue_delayed_work(priv->sched_scan_workqueue, &priv->sched_scan_work,
+			   msecs_to_jiffies(2000));
 }
 #endif
 #endif

@@ -654,6 +654,28 @@ mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock)
 }
 
 /**
+ *  @brief  This function collects AMSDU TP statistics.
+ *
+ *  @param pmoal Pointer to the MOAL context
+ *  @param amsdu_process_delay          amsdu process time
+ *  @param amsdu_copy_delay             amsdu copy time
+ *
+ *  @return         N/A
+ */
+void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
+			      t_s32 amsdu_copy_delay)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	handle->tp_acnt.rx_amsdu_delay[handle->tp_acnt.rx_amsdu_index] =
+		amsdu_process_delay;
+	handle->tp_acnt.rx_amsdu_copy_delay[handle->tp_acnt.rx_amsdu_index] =
+		amsdu_copy_delay;
+	handle->tp_acnt.rx_amsdu_index++;
+	if (handle->tp_acnt.rx_amsdu_index >= TXRX_MAX_SAMPLE)
+		handle->tp_acnt.rx_amsdu_index = 0;
+}
+
+/**
  *  @brief  This function collects TP statistics.
  *
  *  @param pmoal Pointer to the MOAL context
@@ -1189,13 +1211,13 @@ mlan_status moal_recv_complete(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 		else {
 			woal_free_mlan_buffer(handle, pmbuf);
 			if ((atomic_read(&handle->rx_pending) <
-			     LOW_RX_PENDING) &&
+			     USB_LOW_RX_PENDING) &&
 			    atomic_read(&cardp->rx_data_urb_pending) <
 				    MVUSB_RX_DATA_URB)
 				woal_usb_submit_rx_data_urbs(handle);
 		}
 	} else if (port == cardp->rx_data_ep) {
-		if ((atomic_read(&handle->rx_pending) < LOW_RX_PENDING) &&
+		if ((atomic_read(&handle->rx_pending) < USB_LOW_RX_PENDING) &&
 		    atomic_read(&cardp->rx_data_urb_pending) <
 			    MVUSB_RX_DATA_URB)
 			woal_usb_submit_rx_data_urbs(handle);
@@ -1327,6 +1349,7 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	t_u8 rx_info_flag = MFALSE;
 	int j;
 	struct ethhdr *ethh = NULL;
+	struct net_device *netdev = NULL;
 
 	ENTER();
 	if (pmbuf) {
@@ -1411,8 +1434,10 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				       "\n",
 				       priv->netdev->name,
 				       MAC2STR(ethh->h_source));
-			skb->dev = priv->netdev;
-			skb->protocol = eth_type_trans(skb, priv->netdev);
+			if (!netdev)
+				netdev = priv->netdev;
+			skb->dev = netdev;
+			skb->protocol = eth_type_trans(skb, netdev);
 			skb->ip_summed = CHECKSUM_NONE;
 
 #if defined(USB) || defined(PCIE)
@@ -1530,8 +1555,15 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				if (atomic_read(&handle->rx_pending) >
 				    MAX_RX_PENDING_THRHLD)
 					netif_rx(skb);
-				else
-					netif_rx_ni(skb);
+				else {
+					if (handle->params.net_rx == MTRUE) {
+						local_bh_disable();
+						netif_receive_skb(skb);
+						local_bh_enable();
+					} else {
+						netif_rx_ni(skb);
+					}
+				}
 			}
 			if (priv->phandle->tp_acnt.on) {
 				if (pmbuf && pmbuf->in_ts_sec)
@@ -1546,52 +1578,56 @@ done:
 }
 
 #if defined(PCIE) || defined(SDIO)
-void woal_request_busfreq_pmqos_add(t_u16 card_type)
+void woal_request_busfreq_pmqos_add(t_void *handle)
 {
+	moal_handle *pmhandle = (moal_handle *)handle;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #ifdef IMX_SUPPORT
-	if (IS_PCIE(card_type)) {
+	if (IS_PCIE(pmhandle->card_type)) {
 		request_bus_freq(BUS_FREQ_HIGH);
 	}
 #endif
 #endif
-
+	if (moal_extflg_isset(pmhandle, EXT_PMQOS)) {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 #ifdef IMX_SUPPORT
-	pm_qos_add_request(&woal_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+		pm_qos_add_request(&woal_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-	cpu_latency_qos_add_request(&woal_pm_qos_req, 0);
+		cpu_latency_qos_add_request(&woal_pm_qos_req, 0);
 #endif
 #endif
-
+	}
 	return;
 }
 
-void woal_release_busfreq_pmqos_remove(t_u16 card_type)
+void woal_release_busfreq_pmqos_remove(t_void *handle)
 {
+	moal_handle *pmhandle = (moal_handle *)handle;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #ifdef IMX_SUPPORT
-	if (IS_PCIE(card_type)) {
+	if (IS_PCIE(pmhandle->card_type)) {
 		release_bus_freq(BUS_FREQ_HIGH);
 	}
 #endif
 #endif
 
+	if (moal_extflg_isset(pmhandle, EXT_PMQOS)) {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 #ifdef IMX_SUPPORT
-	pm_qos_remove_request(&woal_pm_qos_req);
+		pm_qos_remove_request(&woal_pm_qos_req);
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-	cpu_latency_qos_remove_request(&woal_pm_qos_req);
+		cpu_latency_qos_remove_request(&woal_pm_qos_req);
 #endif
 #endif
+	}
 	return;
 }
 #endif /*defined(PCIE) || defined(SDIO)*/
@@ -1612,7 +1648,7 @@ static int woal_check_media_connected(t_void *pmoal)
 	     i++) {
 		if (!pmpriv)
 			continue;
-		if ((pmpriv->media_connected == MTRUE)) {
+		if (pmpriv->media_connected == MTRUE) {
 			return MTRUE;
 		}
 	}
@@ -1630,17 +1666,17 @@ static void moal_connection_status_check_pmqos(t_void *pmoal)
 {
 	moal_handle *pmhandle = (moal_handle *)pmoal;
 	if ((woal_check_media_connected(pmoal) == MTRUE)) {
-		if ((pmhandle->request_pm == MFALSE)) {
+		if (pmhandle->request_pm == MFALSE) {
 			pmhandle->request_pm = MTRUE;
 #if defined(PCIE) || defined(SDIO)
-			woal_request_busfreq_pmqos_add(pmhandle->card_type);
+			woal_request_busfreq_pmqos_add(pmhandle);
 #endif
 		}
 	} else {
 		if (pmhandle->request_pm == MTRUE) {
 			pmhandle->request_pm = MFALSE;
 #if defined(PCIE) || defined(SDIO)
-			woal_release_busfreq_pmqos_remove(pmhandle->card_type);
+			woal_release_busfreq_pmqos_remove(pmhandle);
 #endif
 		}
 	}
@@ -1725,8 +1761,14 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 	t_u8 radar_detected;
 
+	t_u8 auto_fw_dump = MFALSE;
 	ENTER();
 	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
+		if (!handle->is_fw_dump_timer_set) {
+			PRINTM(MMSG, "FW trigger fw dump\n");
+			handle->is_fw_dump_timer_set = MTRUE;
+			woal_mod_timer(&handle->fw_dump_timer, MOAL_TIMER_5S);
+		}
 		woal_store_firmware_dump(pmoal, pmevent);
 		handle->driver_status = MTRUE;
 		ref_handle = (moal_handle *)handle->pref_mac;
@@ -1740,12 +1782,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 #if defined(PCIE)
 	if (pmevent->event_id == MLAN_EVENT_ID_SSU_DUMP_FILE) {
-		woal_store_ssu_dump(pmoal, pmevent);
 		goto done;
 	}
 #endif /* SSU_SUPPORT */
 	if (pmevent->event_id == MLAN_EVENT_ID_STORE_HOST_CMD_RESP) {
-		woal_save_host_cmdresp(handle, (mlan_cmdresp_event *)pmevent);
 		goto done;
 	}
 	priv = woal_bss_index_to_priv(pmoal, pmevent->bss_index);
@@ -2278,18 +2318,12 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		ref_handle = (moal_handle *)priv->phandle->pref_mac;
 		if (ref_handle)
 			ref_handle->driver_status = MTRUE;
+		if (drvdbg & MFW_D)
+			auto_fw_dump = MTRUE;
+
 		woal_moal_debug_info(priv, NULL, MFALSE);
-		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
-				     strlen(CUS_EVT_DRIVER_HANG));
-#ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
-			woal_cfg80211_vendor_event(priv, event_hang,
-						   CUS_EVT_DRIVER_HANG,
-						   strlen(CUS_EVT_DRIVER_HANG));
-#endif
-#endif
-		woal_process_hang(priv->phandle);
+		if (!auto_fw_dump && !handle->fw_dump)
+			woal_process_hang(priv->phandle);
 		wifi_status = 2;
 		break;
 	case MLAN_EVENT_ID_DRV_WIFI_STATUS:
@@ -2337,6 +2371,18 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 				wake_up_interruptible(
 					&priv->phandle->reassoc_thread.wait_q);
+			} else {
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
+				if (priv->mrvl_rssi_low) {
+					cfg80211_cqm_rssi_notify(
+						priv->netdev,
+						NL80211_CQM_RSSI_THRESHOLD_EVENT_LOW,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+						0,
+#endif
+						GFP_KERNEL);
+				}
+#endif
 			}
 		}
 #endif
@@ -2359,14 +2405,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			    !priv->phandle->cfg80211_suspend) {
 				woal_inform_bss_from_scan_result(priv, NULL,
 								 MOAL_NO_WAIT);
-				cfg80211_sched_scan_results(priv->wdev->wiphy
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-							    ,
-							    priv->bg_scan_reqid
-#endif
-				);
+				PRINTM(MMSG,
+				       "wlan: Report sched_scan result\n");
+				woal_report_sched_scan_result(priv);
 				priv->last_event = 0;
-				woal_bgscan_stop_event(priv);
 				PRINTM(MEVENT,
 				       "Reporting Sched_Scan results\n");
 			}
@@ -2988,6 +3030,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						PRINTM(MEVENT,
 						       "HostMlme %s: Receive deauth/disassociate\n",
 						       priv->netdev->name);
+						if (!priv->wdev->current_bss) {
+							PRINTM(MEVENT,
+							       "HostMlme: Drop deauth/disassociate, current_bss = null\n");
+							break;
+						}
 						priv->cfg_disconnect = MTRUE;
 						woal_mgmt_frame_register(
 							priv,
@@ -3003,11 +3050,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						priv->host_mlme = MFALSE;
 						priv->auth_flag = 0;
 						priv->auth_alg = 0xFFFF;
-						if (!priv->wdev->current_bss) {
-							PRINTM(MEVENT,
-							       "HostMlme: Drop deauth/disassociate, we already disconnected\n");
-							break;
-						}
 					}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 					woal_rx_mgmt_pkt_event(

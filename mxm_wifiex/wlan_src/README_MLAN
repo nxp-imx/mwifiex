@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel from 2.6.32 to 5.8.0.
+	The driver code supports Linux kernel from 2.6.32 to 5.13.4.
 
 2) FOR DRIVER INSTALL
 
@@ -49,7 +49,10 @@
 	  dev_cap_mask=<Bit mask of the device capability>
 	  mac_addr=xx:xx:xx:xx:xx:xx <override the MAC address (in hex)>
 	  auto_ds=0|1|2 <use MLAN default | enable auto deepsleep | disable auto deepsleep>
+	  ext_scan=0|1|2 <use MLAN default | Enable Extended Scan| Enable Enhanced Extended Scan>
+      net_rx=0|1 <use netif_rx_ni in rx | use netif_receive_skb in rx>
 	  ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
+	  sched_scan=0|1 <disable sched_scan | enable sched_scan default>
 	  max_tx_buf=2048|4096|8192 <maximum AMSDU Tx buffer size>
 	  pm_keep_power=1|0 <PM keep power in suspend (default) | PM no power in suspend>
 	  shutdown_hs=1|0 <Enable HS when shutdown | No HS when shutdown (default)>
@@ -151,10 +154,10 @@
 	num_rx_pkts_err = <number of Rx packets failed to receive from device>
 	carrier "on" | "off"
 	tx queue "stopped" | "started"
-	tkip_mic_failures = 0                           // Only for uAP
+	tkip_mic_failures = 0                           // Only for uAP (use of WEP/TKIP is not recommended anymore)
 	ccmp_decrypt_errors = 0                         // Only for uAP
-	wep_undecryptable_count = 0                     // Only for uAP
-	wep_icv_error_count = 0                         // Only for uAP
+	wep_undecryptable_count = 0                     // Only for uAP  (use of WEP/TKIP is not recommended anymore)
+	wep_icv_error_count = 0                         // Only for uAP  (use of WEP/TKIP is not recommended anymore)
 	decrypt_failure_count = 0                       // Only for uAP
 	mcast_tx_count = 0                              // Only for uAP
 	failed_count = 0                                // Only for uAP
@@ -168,7 +171,7 @@
 	mcast_rx_frame_count = 0                        // Only for uAP
 	fcs_error_count = 0                             // Only for uAP
 	tx_frame_count = 0                              // Only for uAP
-	rsna_tkip_cm_invoked = 0                        // Only for uAP
+	rsna_tkip_cm_invoked = 0                        // Only for uAP  (use of WEP/TKIP is not recommended anymore)
 	rsna_4way_hshk_failures = 0                     // Only for uAP
 
 	The following debug info are provided in /proc/net/mwlan/adapterX/mlanY|uapY|wfdY/debug,
@@ -259,6 +262,10 @@
 
 	Examples:
 		echo "debug_dump" > /proc/mwlan/adapterX/config      # dump driver internal debug status.
+	To obtain fw dump or driver dump, use command:
+	        cat /proc/mwlan/adapter0/drv_dump > file_drv_dump     #save the drv dump to file_drv_dump
+	        cat /proc/mwlan/adapter0/fw_dump > file_fw_dump       #save the fw dump to file_fw_dump
+            cat /proc/mwlan/adapter1/drv_dump > file_drv_dump_2   #save the adapter1 drv dump to file_drv_dump_2
 
 	Use dmesg or cat /var/log/debug to check driver debug messages.
 
@@ -538,7 +545,7 @@ getlog
 
 	dot11TransmittedFrameCount		Increments for each successfully transmitted MSDU
 
-	dot11WeplcvErrCnt			Increment when WEP decryption error for key index 0.3
+	dot11WeplcvErrCnt			Increment when WEP  (use of WEP/TKIP is not recommended anymore)decryption error for key index 0.3
 
 	beaconReceivedCnt			Increments when received beacon
 
@@ -581,9 +588,9 @@ getlog
 
 	dot11RSNAStatsRobustMgmtCCMPReplays	Increments when a robust management frame discarded by CCMP replay error
 
-	dot11RSNAStatsTKIPICVErrors		Increments when a MPDU discarded by TKIP ICV error
+	dot11RSNAStatsTKIPICVErrors		Increments when a MPDU discarded by TKIP ICV error //(use of WEP/TKIP is not recommended anymore)
 
-	dot11RSNAStatsTKIPReplays		Increments when a MPDU discarded by TKIP replay error
+	dot11RSNAStatsTKIPReplays		Increments when a MPDU discarded by TKIP replay error  //(use of WEP/TKIP is not recommended anymore)
 
 	dot11RSNAStatsCCMPDecryptErrors		Increments when a MPDU discarded by CCMP decryption error
 

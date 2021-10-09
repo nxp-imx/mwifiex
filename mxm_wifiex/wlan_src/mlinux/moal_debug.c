@@ -1032,6 +1032,9 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 		mp_aggr_pkt_limit = info->mp_aggr_pkt_limit;
 		seq_printf(sfp, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
 			   info->last_recv_wr_bitmap, info->last_mp_index);
+		seq_printf(sfp,
+			   "last_recv_rd_bitmap=0x%x mp_data_port_mask=0x%x\n",
+			   info->last_recv_rd_bitmap, info->mp_data_port_mask);
 		for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
 			seq_printf(
 				sfp,
@@ -1076,6 +1079,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 #endif
 	seq_printf(sfp, "tcp_ack_drop_cnt=%d\n", priv->tcp_ack_drop_cnt);
 	seq_printf(sfp, "tcp_ack_cnt=%d\n", priv->tcp_ack_cnt);
+	seq_printf(sfp, "tcp_ack_payload=%d\n", priv->tcp_ack_payload);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	for (i = 0; i < 4; i++)
 		seq_printf(sfp, "wmm_tx_pending[%d]:%d\n", i,

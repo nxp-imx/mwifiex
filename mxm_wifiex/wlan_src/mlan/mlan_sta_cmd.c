@@ -686,7 +686,22 @@ static mlan_status wlan_cmd_802_11_hs_cfg(pmlan_private pmpriv,
 	}
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_HS_CFG_ENH);
 
-	cmd->size = S_DS_GEN + sizeof(HostCmd_DS_802_11_HS_CFG_ENH);
+	if (!hs_activate && (pdata_buf->conditions != HOST_SLEEP_CFG_CANCEL) &&
+	    ((pmadapter->arp_filter_size > 0) &&
+	     (pmadapter->arp_filter_size <= ARP_FILTER_MAX_BUF_SIZE))) {
+		PRINTM(MINFO, "Attach %d bytes ArpFilter to HSCfg cmd\n",
+		       pmadapter->arp_filter_size);
+		memcpy_ext(pmpriv->adapter,
+			   ((t_u8 *)phs_cfg) +
+				   sizeof(HostCmd_DS_802_11_HS_CFG_ENH),
+			   pmadapter->arp_filter, pmadapter->arp_filter_size,
+			   pmadapter->arp_filter_size);
+		cmd->size = pmadapter->arp_filter_size +
+			    sizeof(HostCmd_DS_802_11_HS_CFG_ENH) + S_DS_GEN;
+		tlv = (t_u8 *)phs_cfg + sizeof(HostCmd_DS_802_11_HS_CFG_ENH) +
+		      pmadapter->arp_filter_size;
+	} else
+		cmd->size = S_DS_GEN + sizeof(HostCmd_DS_802_11_HS_CFG_ENH);
 
 	if (hs_activate) {
 		cmd->size = wlan_cpu_to_le16(cmd->size);
@@ -1265,7 +1280,12 @@ static mlan_status wlan_cmd_802_11_key_material(pmlan_private pmpriv,
 			~(wlan_cpu_to_le16(KEY_INFO_MCAST_KEY));
 		pkey_material->key_param_set.key_info |=
 			wlan_cpu_to_le16(KEY_INFO_AES_MCAST_IGTK);
-		pkey_material->key_param_set.key_type = KEY_TYPE_ID_AES_CMAC;
+		if (pkey->key_flags & KEY_FLAG_GMAC_128)
+			pkey_material->key_param_set.key_type =
+				KEY_TYPE_ID_BIP_GMAC_128;
+		else
+			pkey_material->key_param_set.key_type =
+				KEY_TYPE_ID_AES_CMAC;
 		pkey_material->key_param_set.key_params.cmac_aes.key_len =
 			wlan_cpu_to_le16(pkey->key_len);
 		memcpy_ext(pmpriv->adapter,
@@ -1277,7 +1297,39 @@ static mlan_status wlan_cmd_802_11_key_material(pmlan_private pmpriv,
 					     S_DS_GEN + KEY_PARAMS_FIXED_LEN +
 					     sizeof(cmac_aes_param) +
 					     sizeof(pkey_material->action));
-		PRINTM(MCMND, "Set CMAC AES Key\n");
+		if (pkey->key_flags & KEY_FLAG_GMAC_128)
+			PRINTM(MCMND, "Set AES 128 GMAC Key\n");
+		else
+			PRINTM(MCMND, "Set CMAC AES Key\n");
+		goto done;
+	}
+	if (pkey->key_len == WPA_IGTK_256_KEY_LEN &&
+	    (pkey->key_flags & KEY_FLAG_AES_MCAST_IGTK)) {
+		if (pkey->key_flags &
+		    (KEY_FLAG_RX_SEQ_VALID | KEY_FLAG_TX_SEQ_VALID))
+			memcpy_ext(pmpriv->adapter,
+				   pkey_material->key_param_set.key_params
+					   .cmac_aes.ipn,
+				   pkey->pn, SEQ_MAX_SIZE, IGTK_PN_SIZE);
+		pkey_material->key_param_set.key_info &=
+			~(wlan_cpu_to_le16(KEY_INFO_MCAST_KEY));
+		pkey_material->key_param_set.key_info |=
+			wlan_cpu_to_le16(KEY_INFO_AES_MCAST_IGTK);
+		pkey_material->key_param_set.key_type =
+			KEY_TYPE_ID_BIP_GMAC_256;
+		pkey_material->key_param_set.key_params.cmac_aes.key_len =
+			wlan_cpu_to_le16(pkey->key_len);
+		memcpy_ext(pmpriv->adapter,
+			   pkey_material->key_param_set.key_params.cmac_aes.key,
+			   pkey->key_material, pkey->key_len,
+			   WPA_IGTK_256_KEY_LEN);
+		pkey_material->key_param_set.length = wlan_cpu_to_le16(
+			KEY_PARAMS_FIXED_LEN + sizeof(gmac_aes_256_param));
+		cmd->size = wlan_cpu_to_le16(sizeof(MrvlIEtypesHeader_t) +
+					     S_DS_GEN + KEY_PARAMS_FIXED_LEN +
+					     sizeof(gmac_aes_256_param) +
+					     sizeof(pkey_material->action));
+		PRINTM(MCMND, "Set AES 256 GMAC Key\n");
 		goto done;
 	}
 	if (pkey->key_len == WPA_TKIP_KEY_LEN) {
@@ -2680,6 +2732,47 @@ mlan_status wlan_cmd_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 }
 
 /**
+ *  @brief This function set ipv6 ra offload configuration.
+ *
+ *  @param pmpriv         A pointer to mlan_private structure
+ *  @param pcmd         A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action
+ *  @param pdata_buf    A pointer to information buffer
+ *  @return             N/A
+ */
+
+mlan_status wlan_cmd_ipv6_ra_offload(mlan_private *pmpriv,
+				     HostCmd_DS_COMMAND *pcmd, t_u16 cmd_action,
+				     void *pdata_buf)
+{
+	HostCmd_DS_IPV6_RA_OFFLOAD *ipv6_ra_cfg = &pcmd->params.ipv6_ra_offload;
+	mlan_ds_misc_ipv6_ra_offload *ipv6_ra_offload =
+		(mlan_ds_misc_ipv6_ra_offload *)pdata_buf;
+	MrvlIEtypesHeader_t *ie = &ipv6_ra_cfg->ipv6_addr_param.Header;
+
+	ENTER();
+
+	pcmd->command = wlan_cpu_to_le16(HostCmd_CMD_IPV6_RA_OFFLOAD_CFG);
+	ipv6_ra_cfg->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		ipv6_ra_cfg->enable = ipv6_ra_offload->enable;
+		ie->type = wlan_cpu_to_le16(TLV_TYPE_IPV6_RA_OFFLOAD);
+		ie->len = wlan_cpu_to_le16(16);
+		memcpy_ext(pmpriv->adapter,
+			   ipv6_ra_cfg->ipv6_addr_param.ipv6_addr,
+			   ipv6_ra_offload->ipv6_addr, 16,
+			   sizeof(ipv6_ra_cfg->ipv6_addr_param.ipv6_addr));
+		pcmd->size = wlan_cpu_to_le16(
+			S_DS_GEN + sizeof(HostCmd_DS_IPV6_RA_OFFLOAD));
+	} else if (cmd_action == HostCmd_ACT_GEN_GET)
+		pcmd->size = wlan_cpu_to_le16(S_DS_GEN +
+					      sizeof(ipv6_ra_cfg->action));
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function sends get sta band channel command to firmware.
  *
  *  @param priv         A pointer to mlan_private structure
@@ -3310,6 +3403,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_802_11_MIMO_SWITCH:
 		ret = wlan_cmd_802_11_mimo_switch(pmpriv, cmd_ptr, pdata_buf);
 		break;
+	case HostCmd_CMD_IPV6_RA_OFFLOAD_CFG:
+		ret = wlan_cmd_ipv6_ra_offload(pmpriv, cmd_ptr, cmd_action,
+					       pdata_buf);
+		break;
 	case HostCmd_CMD_STA_CONFIGURE:
 		ret = wlan_cmd_sta_config(pmpriv, cmd_ptr, cmd_action,
 					  pioctl_buf, pdata_buf);
@@ -3367,6 +3464,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		break;
 	case HostCmd_CMD_TWT_CFG:
 		ret = wlan_cmd_twt_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
+	case HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
+		ret = wlan_cmd_gpio_tsf_latch(pmpriv, cmd_ptr, cmd_action,
+					      pioctl_buf, pdata_buf);
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG:
 		ret = wlan_cmd_rxabortcfg(pmpriv, cmd_ptr, cmd_action,

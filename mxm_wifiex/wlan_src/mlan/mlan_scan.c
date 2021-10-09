@@ -46,7 +46,7 @@ Change log:
 /** minimum scan time for passive to active scan */
 #define MIN_PASSIVE_TO_ACTIVE_SCAN_TIME 150
 
-#define MRVDRV_MAX_CHANNELS_PER_SCAN 40
+#define MRVDRV_MAX_CHANNELS_PER_SCAN 38
 /** The maximum number of channels the firmware can scan per command */
 #define MRVDRV_MAX_CHANNELS_PER_SPECIFIC_SCAN 4
 
@@ -4832,7 +4832,6 @@ mlan_status wlan_cmd_802_11_scan_ext(mlan_private *pmpriv,
 				(t_u16)(sizeof(pext_scan_cmd->reserved)) +
 				S_DS_GEN));
 			pext_scan_cmd->ext_scan_type = EXT_SCAN_CANCEL;
-			pmpriv->adapter->cmd_lock = MFALSE;
 			LEAVE();
 			return MLAN_STATUS_SUCCESS;
 		}
@@ -4902,7 +4901,6 @@ mlan_status wlan_ret_802_11_scan_ext(mlan_private *pmpriv,
 		LEAVE();
 		return MLAN_STATUS_SUCCESS;
 	} else if (ext_scan_type == EXT_SCAN_ENHANCE) {
-		pmpriv->adapter->cmd_lock = MTRUE;
 		/* Setup the timer after scan command response */
 		pcb->moal_start_timer(pmpriv->adapter->pmoal_handle,
 				      pmpriv->adapter->pmlan_cmd_timer, MFALSE,
@@ -5902,6 +5900,7 @@ done:
 					 MLAN_STATUS_SUCCESS);
 	}
 	wlan_release_cmd_lock(pmadapter);
+	wlan_move_cmd_to_cmd_pending_q(pmadapter);
 	pmadapter->bgscan_reported = MFALSE;
 	wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_SCAN_REPORT, MNULL);
 	LEAVE();

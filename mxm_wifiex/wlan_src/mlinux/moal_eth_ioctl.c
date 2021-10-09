@@ -6552,6 +6552,58 @@ done:
 }
 #endif /* SDIO */
 
+#ifdef STA_SUPPORT
+/**
+ *  @brief arpfilter ioctl function
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return		0 --success, otherwise fail
+ */
+static int woal_priv_arpfilter(moal_private *priv, t_u8 *respbuf,
+			       t_u32 respbuflen)
+{
+	int ret = 0;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *req = NULL;
+	t_u8 *data_ptr = NULL;
+	t_u32 buf_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_GEN_IE;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+	misc->param.gen_ie.type = MLAN_IE_TYPE_ARP_FILTER;
+
+	data_ptr = respbuf + (strlen(CMD_NXP) + strlen(PRIV_CMD_ARPFILTER));
+	buf_len = *((t_u16 *)data_ptr);
+	misc->param.gen_ie.len = buf_len;
+	moal_memcpy_ext(priv->phandle, (void *)(misc->param.gen_ie.ie_data),
+			data_ptr + sizeof(buf_len), buf_len, MAX_IE_SIZE);
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+#endif /* STA_SUPPORT */
+
 /**
  *  @brief Set / Get Auto ARP Response configuration
  *
@@ -10889,6 +10941,7 @@ static int woal_channel_switch(moal_private *priv, t_u8 block_tx,
 		pvhttpcEnv_ie->local_max_tp_20mhz = 0xff;
 		pvhttpcEnv_ie->local_max_tp_40mhz = 0xff;
 		pvhttpcEnv_ie->local_max_tp_80mhz = 0xff;
+		pvhttpcEnv_ie->local_max_tp_160mhz_80_80mhz = 0xff;
 		pChanSwWrap_ie->len += sizeof(IEEEtypes_VhtTpcEnvelope_t);
 		pcust_chansw_ie->ie_length +=
 			pChanSwWrap_ie->len + sizeof(IEEEtypes_Header_t);
@@ -12800,6 +12853,192 @@ done:
 }
 #endif
 #endif
+
+/**
+ * @brief               Set/Get GPIO TSF latch clock sync config parameters
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_cfg_clock_sync(moal_private *priv, t_u8 *respbuf,
+				    t_u32 respbuflen)
+{
+	int header_len = 0, user_data_len = 0;
+	int ret = 0, data[5];
+	mlan_ds_gpio_tsf_latch *clock_sync_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc_cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_CFG_CLOCK_SYNC);
+
+	memset(data, 0, sizeof(data));
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+
+	if (user_data_len > 5) {
+		PRINTM(MERROR, "invalid parameters\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	misc_cfg->sub_command = MLAN_OID_MISC_GPIO_TSF_LATCH;
+	clock_sync_cfg = &misc_cfg->param.gpio_tsf_latch_config;
+	memset(clock_sync_cfg, 0, sizeof(mlan_ds_gpio_tsf_latch));
+
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		req->action = MLAN_ACT_GET;
+		user_data_len = 0;
+	} else {
+		req->action = MLAN_ACT_SET;
+		switch (user_data_len) {
+		case 5:
+			clock_sync_cfg->clock_sync_gpio_pulse_width =
+				(t_u16)data[4];
+			/* fall through */
+		case 4:
+			if (data[3] < 0 || data[3] > 1) {
+				PRINTM(MERROR, "Invalid Level/Trigger\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			clock_sync_cfg->clock_sync_gpio_level_toggle =
+				(t_u8)data[3];
+			/* fall through */
+		case 3:
+			if (data[2] < 1 || data[2] > 255) {
+				PRINTM(MERROR,
+				       "Invalid number of GPIO Pin Number\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			clock_sync_cfg->clock_sync_gpio_pin_number =
+				(t_u8)data[2];
+			/* fall through */
+		case 2:
+			if (data[1] < 0 || data[1] > 2) {
+				PRINTM(MERROR, "Invalid Role\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			clock_sync_cfg->clock_sync_Role = (t_u8)data[1];
+			/* fall through */
+		case 1:
+			if (data[0] < 0 || data[0] > 2) {
+				PRINTM(MERROR, "Invalid Mode\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			clock_sync_cfg->clock_sync_mode = (t_u8)data[0];
+			break;
+		default:
+			break;
+		}
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!user_data_len) {
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)clock_sync_cfg,
+				sizeof(mlan_ds_gpio_tsf_latch), respbuflen);
+		ret = sizeof(mlan_ds_gpio_tsf_latch);
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set/Get GPIO TSF latch get tsf info config parameters
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_cfg_get_tsf_info(moal_private *priv, t_u8 *respbuf,
+				      t_u32 respbuflen)
+{
+	int header_len = 0, user_data_len = 0;
+	int ret = 0, data[1];
+	mlan_ds_tsf_info *tsf_info;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc_cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_CFG_GET_TSF_INFO);
+
+	memset(data, 0, sizeof(data));
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+
+	if (user_data_len > 1) {
+		PRINTM(MERROR, "invalid parameters\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_GET;
+	misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	misc_cfg->sub_command = MLAN_OID_MISC_GET_TSF_INFO;
+	tsf_info = &misc_cfg->param.tsf_info;
+	memset(tsf_info, 0, sizeof(mlan_ds_tsf_info));
+	if (user_data_len == 1) {
+		if (data[0] < 0 || data[0] > 1) {
+			PRINTM(MERROR, "Invalid tsf Format\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		tsf_info->tsf_format = data[0];
+	}
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)tsf_info,
+			sizeof(mlan_ds_tsf_info), respbuflen);
+	ret = sizeof(mlan_ds_tsf_info);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #ifdef WIFI_DIRECT_SUPPORT
@@ -15875,6 +16114,14 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			      strlen(PRIV_CMD_HAL_PHY_CFG) - strlen(CMD_NXP);
 			len = woal_priv_hal_phy_cfg_cmd(priv, pdata, len);
 			goto handled;
+#ifdef STA_SUPPORT
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_ARPFILTER,
+				    strlen(PRIV_CMD_ARPFILTER)) == 0) {
+			/* ARPFilter Configuration */
+			len = woal_priv_arpfilter(priv, buf,
+						  priv_cmd.total_len);
+			goto handled;
+#endif
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_AUTO_ARP,
 				    strlen(PRIV_CMD_AUTO_ARP)) == 0) {
 			/* Auto ARP enable/disable */
@@ -16266,6 +16513,20 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			goto handled;
 #endif
 #endif
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_CFG_CLOCK_SYNC,
+				    strlen(PRIV_CMD_CFG_CLOCK_SYNC)) == 0) {
+			/* Set/Get P2P NoA (Notice of Absence) parameters */
+			len = woal_priv_cfg_clock_sync(priv, buf,
+						       priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_CFG_GET_TSF_INFO,
+				    strlen(PRIV_CMD_CFG_GET_TSF_INFO)) == 0) {
+			/* Set/Get P2P OPP-PS parameters */
+			len = woal_priv_cfg_get_tsf_info(priv, buf,
+							 priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_DFS_REPEATER_CFG,
 				    strlen(PRIV_CMD_DFS_REPEATER_CFG)) == 0) {
@@ -17179,10 +17440,12 @@ int wlan_get_scan_table_ret_entry(BSSDescriptor_t *pbss_desc, t_u8 **ppbuffer,
  *  @return          0 --success, otherwise fail
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data, int cmd)
+int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data,
+		  int cmd)
 #else
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 #endif
+
 {
 	int ret = 0;
 

@@ -197,6 +197,8 @@ static const struct iw_priv_args woal_private_args[] = {
 	 "sysclock"},
 	{WOAL_HOST_CMD, IW_PRIV_TYPE_BYTE | 2047, IW_PRIV_TYPE_BYTE | 2047,
 	 "hostcmd"},
+	{WOAL_ARP_FILTER, IW_PRIV_TYPE_BYTE | 2047, IW_PRIV_TYPE_BYTE | 2047,
+	 "arpfilter"},
 	{WOAL_SET_INTS_GET_CHARS, IW_PRIV_TYPE_INT | 16,
 	 IW_PRIV_TYPE_BYTE | 256, ""},
 	{WOAL_READ_EEPROM, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_BYTE | 256,

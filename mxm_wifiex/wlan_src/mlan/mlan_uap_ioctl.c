@@ -2007,6 +2007,11 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_WIFI_DIRECT_CONFIG)
 			status = wlan_misc_p2p_config(pmadapter, pioctl_req);
 #endif
+		if (misc->sub_command == MLAN_OID_MISC_GPIO_TSF_LATCH)
+			status = wlan_misc_gpio_tsf_latch_config(pmadapter,
+								 pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_GET_TSF_INFO)
+			status = wlan_misc_get_tsf_info(pmadapter, pioctl_req);
 
 		if (misc->sub_command == MLAN_OID_MISC_DFS_REAPTER_MODE) {
 			mlan_ds_misc_cfg *misc_cfg = MNULL;
@@ -2087,6 +2092,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_get_cfp_table(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RANGE_EXT)
 			status = wlan_misc_ioctl_range_ext(pmadapter,
+							   pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_WACP_MODE)
+			status = wlan_misc_ioctl_wacp_mode(pmadapter,
 							   pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:

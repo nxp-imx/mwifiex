@@ -803,7 +803,7 @@ static int woal_11n_prio_tbl(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 
-	if ((wrq->u.data.pointer == NULL)) {
+	if (wrq->u.data.pointer == NULL) {
 		LEAVE();
 		return -EINVAL;
 	}
@@ -3899,6 +3899,57 @@ done:
 }
 
 /**
+ *  @brief arpfilter ioctl function
+ *
+ *  @param priv     A pointer to moal_private structure
+ *  @param wrq      A pointer to iwreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int woal_arp_filter(moal_private *priv, struct iwreq *wrq)
+{
+	int ret = 0;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *req = NULL;
+	int data_length = wrq->u.data.length, copy_len;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	copy_len = MIN(sizeof(misc->param.gen_ie.ie_data),
+		       sizeof(int) * data_length);
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_GEN_IE;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+	misc->param.gen_ie.type = MLAN_IE_TYPE_ARP_FILTER;
+	misc->param.gen_ie.len = data_length;
+
+	/* get the whole command from user */
+	if (copy_from_user(misc->param.gen_ie.ie_data, wrq->u.data.pointer,
+			   copy_len)) {
+		PRINTM(MERROR, "copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set/get IP address
  *
  *  @param priv         A pointer to moal_private structure
@@ -6633,6 +6684,9 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 
 	case WOAL_HOST_CMD:
 		ret = woal_host_command(priv, wrq);
+		break;
+	case WOAL_ARP_FILTER:
+		ret = woal_arp_filter(priv, wrq);
 		break;
 	case WOAL_SET_INTS_GET_CHARS:
 		switch ((int)wrq->u.data.flags) {

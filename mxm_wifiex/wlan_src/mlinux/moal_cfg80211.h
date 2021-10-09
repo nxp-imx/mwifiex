@@ -48,6 +48,9 @@
 #define WLAN_CIPHER_SUITE_AES_CMAC 0x000FAC06
 #endif
 #if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+#ifndef WLAN_CIPHER_SUITE_BIP_GMAC_128
+#define WLAN_CIPHER_SUITE_BIP_GMAC_128 0x000FAC0B
+#endif
 #ifndef WLAN_CIPHER_SUITE_BIP_GMAC_256
 #define WLAN_CIPHER_SUITE_BIP_GMAC_256 0x000FAC0C
 #endif
@@ -206,6 +209,12 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       t_u8 key_index);
 #endif
 
+#if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
+int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
+					 struct net_device *netdev,
+					 t_u8 key_index);
+#endif
+
 #if KERNEL_VERSION(3, 1, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 				 struct cfg80211_gtk_rekey_data *data);
@@ -356,7 +365,7 @@ int woal_cfg80211_deinit_p2p(moal_private *priv);
 #endif /* WIFI_DIRECT_SUPPORT */
 
 /** Define for remain on channel duration timer */
-#define MAX_REMAIN_ON_CHANNEL_DURATION (1000)
+#define MAX_REMAIN_ON_CHANNEL_DURATION (5000)
 
 int woal_cfg80211_remain_on_channel_cfg(moal_private *priv, t_u8 wait_option,
 					t_u8 remove, t_u8 *status,
@@ -453,6 +462,8 @@ void woal_channel_switch_event(moal_private *priv, chan_band_info *pchan_info);
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 void woal_bgscan_stop_event(moal_private *priv);
 void woal_cfg80211_notify_sched_scan_stop(moal_private *priv);
+void woal_sched_scan_work_queue(struct work_struct *work);
+void woal_report_sched_scan_result(moal_private *priv);
 #endif
 #endif
 

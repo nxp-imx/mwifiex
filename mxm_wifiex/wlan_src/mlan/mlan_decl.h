@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "266.p4"
+#define MLAN_RELEASE_VERSION "283"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -2039,7 +2039,8 @@ typedef struct _mlan_callbacks {
 				   t_u32 drop_point);
 	void (*moal_tp_accounting_rx_param)(t_void *pmoal, unsigned int type,
 					    unsigned int rsvd1);
-
+	void (*moal_amsdu_tp_accounting)(t_void *pmoal, t_s32 delay,
+					 t_s32 copy_delay);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */
@@ -2180,6 +2181,8 @@ typedef struct _mlan_device {
 	t_u32 drv_mode;
 	/** dfs w53 cfg */
 	t_u8 dfs53cfg;
+	/** extend enhance scan */
+	t_u8 ext_scan;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */
@@ -2252,5 +2255,10 @@ MLAN_API t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode,
 MLAN_API mlan_status mlan_ioctl(t_void *padapter, pmlan_ioctl_req pioctl_req);
 /** mlan select wmm queue */
 MLAN_API t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid);
+
+/** mlan mask host interrupt */
+MLAN_API mlan_status mlan_disable_host_int(t_void *padapter);
+/** mlan unmask host interrupt */
+MLAN_API mlan_status mlan_enable_host_int(t_void *padapter);
 
 #endif /* !_MLAN_DECL_H_ */
