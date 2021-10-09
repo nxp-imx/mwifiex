@@ -1403,6 +1403,8 @@ typedef MLAN_PACK_START struct {
 	t_u8 local_max_tp_20mhz; /**< Local Maximum Transmit Power for 20 MHZ>*/
 	t_u8 local_max_tp_40mhz; /**< Local Maximum Transmit Power for 40 MHZ>*/
 	t_u8 local_max_tp_80mhz; /**< Local Maximum Transmit Power for 80 MHZ>*/
+	t_u8 local_max_tp_160mhz_80_80mhz; /**< Local Maximum Transmit Power for
+					      160/80+80 MHZ>*/
 } MLAN_PACK_END IEEEtypes_VhtTpcEnvelope_t;
 
 /*  IEEE Quiet Period Element (7.3.2.23) */

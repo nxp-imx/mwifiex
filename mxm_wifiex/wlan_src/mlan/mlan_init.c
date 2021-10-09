@@ -474,6 +474,9 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	wlan_11h_priv_init(priv);
 
 #ifdef UAP_SUPPORT
+	priv->is_11n_enabled = MFALSE;
+	priv->is_11ac_enabled = MFALSE;
+	priv->is_11ax_enabled = MFALSE;
 	priv->uap_bss_started = MFALSE;
 	priv->uap_host_based = MFALSE;
 	memset(pmadapter, &priv->uap_state_chan_cb, 0,
@@ -516,10 +519,13 @@ mlan_status wlan_init_priv(pmlan_private priv)
 #if defined(STA_SUPPORT)
 	priv->pmfcfg.mfpc = 0;
 	priv->pmfcfg.mfpr = 0;
+	memset(pmadapter, &priv->pmfcfg, 0, sizeof(priv->pmfcfg));
 #endif
 	priv->sec_info.wapi_enabled = MFALSE;
 	priv->wapi_ie_len = 0;
 	priv->sec_info.wapi_key_on = MFALSE;
+	priv->osen_ie_len = 0;
+	memset(pmadapter, &priv->osen_ie, 0, sizeof(priv->osen_ie));
 
 	memset(pmadapter, &priv->wps, 0, sizeof(priv->wps));
 	memset(pmadapter, &priv->gen_ie_buf, 0, sizeof(priv->gen_ie_buf));
@@ -527,6 +533,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 #endif /* STA_SUPPORT */
 	priv->wmm_required = MTRUE;
 	priv->wmm_enabled = MFALSE;
+	priv->disconnect_reason_code = 0;
 	priv->wmm_qosinfo = 0;
 	priv->saved_wmm_qosinfo = 0;
 	priv->host_tdls_cs_support = MTRUE;
@@ -534,8 +541,14 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	priv->tdls_cs_channel = 0;
 	priv->supp_regulatory_class_len = 0;
 	priv->chan_supp_len = 0;
+	memset(pmadapter, &priv->chan_supp, 0, sizeof(priv->chan_supp));
+	memset(pmadapter, &priv->supp_regulatory_class, 0,
+	       sizeof(priv->supp_regulatory_class));
 	priv->tdls_idle_time = TDLS_IDLE_TIMEOUT;
 	priv->txaggrctrl = MTRUE;
+	for (i = 0; i < MAX_MGMT_IE_INDEX; i++)
+		memset(pmadapter, &priv->mgmt_ie[i], 0, sizeof(custom_ie));
+	priv->mgmt_frame_passthru_mask = 0;
 #ifdef STA_SUPPORT
 	priv->pcurr_bcn_buf = MNULL;
 	priv->curr_bcn_size = 0;
@@ -549,6 +562,10 @@ mlan_status wlan_init_priv(pmlan_private priv)
 		   sizeof(priv->ext_cap), sizeof(priv->def_ext_cap));
 #endif /* STA_SUPPORT */
 
+	priv->amsdu_rx_cnt = 0;
+	priv->msdu_in_rx_amsdu_cnt = 0;
+	priv->amsdu_tx_cnt = 0;
+	priv->msdu_in_tx_amsdu_cnt = 0;
 	for (i = 0; i < MAX_NUM_TID; i++)
 		priv->addba_reject[i] = ADDBA_RSP_STATUS_ACCEPT;
 	priv->addba_reject[6] = ADDBA_RSP_STATUS_REJECT;
@@ -578,9 +595,12 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	}
 #endif
 	priv->user_rxwinsize = priv->add_ba_param.rx_win_size;
-
+	memset(pmadapter, priv->rx_seq, 0, sizeof(priv->rx_seq));
 	priv->port_ctrl_mode = MTRUE;
 	priv->port_open = MFALSE;
+	priv->prior_port_status = MFALSE;
+	priv->tx_pause = MFALSE;
+	priv->hotspot_cfg = 0;
 
 	priv->intf_hr_len = pmadapter->ops.intf_header_len;
 #ifdef USB
@@ -634,7 +654,17 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #ifdef STA_SUPPORT
 	pmadapter->pwarm_reset_ioctl_req = MNULL;
 #endif
+	pmadapter->pscan_ioctl_req = MNULL;
 	pmadapter->cmd_sent = MFALSE;
+	pmadapter->mlan_processing = MFALSE;
+	pmadapter->main_process_cnt = 0;
+	pmadapter->mlan_rx_processing = MFALSE;
+	pmadapter->more_rx_task_flag = MFALSE;
+	pmadapter->more_task_flag = MFALSE;
+	pmadapter->delay_task_flag = MFALSE;
+	pmadapter->data_sent = MFALSE;
+	pmadapter->data_sent_cnt = 0;
+
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		pmadapter->pcard_sd->int_mode = pmadapter->init_para.int_mode;
@@ -687,13 +717,20 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->cmd_resp_received = MFALSE;
 	pmadapter->event_received = MFALSE;
 	pmadapter->data_received = MFALSE;
-
+	pmadapter->seq_num = 0;
+	pmadapter->num_cmd_timeout = 0;
+	pmadapter->last_init_cmd = 0;
+	pmadapter->pending_ioctl = MFALSE;
+	pmadapter->scan_processing = MFALSE;
 	pmadapter->cmd_timer_is_set = MFALSE;
+	pmadapter->dnld_cmd_in_secs = 0;
 
 	/* PnP and power profile */
 	pmadapter->surprise_removed = MFALSE;
 	/* FW hang report */
 	pmadapter->fw_hang_report = MFALSE;
+	pmadapter->ecsa_enable = MFALSE;
+	pmadapter->getlog_enable = MFALSE;
 
 	if (!pmadapter->init_para.ps_mode) {
 		pmadapter->ps_mode = DEFAULT_PS_MODE;
@@ -727,7 +764,14 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	memset(pmadapter, pmadapter->pscan_table, 0,
 	       (sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST));
 	pmadapter->active_scan_triggered = MFALSE;
-	pmadapter->ext_scan = EXT_SCAN_TYPE_ENH;
+	if (!pmadapter->init_para.ext_scan)
+		pmadapter->ext_scan = EXT_SCAN_TYPE_ENH;
+	else if (pmadapter->init_para.ext_scan == EXT_SCAN_TYPE_ENH)
+		pmadapter->ext_scan = EXT_SCAN_TYPE_ENH;
+	else
+		pmadapter->ext_scan = MTRUE;
+	pmadapter->ext_scan_enh = MFALSE;
+	pmadapter->ext_scan_timeout = MFALSE;
 	pmadapter->scan_probes = DEFAULT_PROBES;
 
 	memset(pmadapter, pmadapter->bcn_buf, 0, pmadapter->bcn_buf_size);
@@ -760,6 +804,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 					     */
 
 	pmadapter->pm_wakeup_card_req = MFALSE;
+	pmadapter->pm_wakeup_timeout = 0;
 
 	pmadapter->pm_wakeup_fw_try = MFALSE;
 
@@ -871,6 +916,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	memset(pmadapter, &pmadapter->saved_sleep_period, 0,
 	       sizeof(pmadapter->saved_sleep_period));
 	pmadapter->tx_lock_flag = MFALSE;
+	pmadapter->rx_lock_flag = MFALSE;
+	pmadapter->main_lock_flag = MFALSE;
 	pmadapter->null_pkt_interval = 0;
 	pmadapter->fw_bands = 0;
 	pmadapter->config_bands = 0;
@@ -889,6 +936,11 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		   MRVDRV_DEFAULT_COUNTRY_CODE, COUNTRY_CODE_LEN,
 		   COUNTRY_CODE_LEN);
 	pmadapter->bcn_miss_time_out = DEFAULT_BCN_MISS_TIMEOUT;
+#ifdef STA_SUPPORT
+	memset(pmadapter, &pmadapter->arp_filter, 0,
+	       sizeof(pmadapter->arp_filter));
+	pmadapter->arp_filter_size = 0;
+#endif /* STA_SUPPORT */
 
 #ifdef PCIE
 	if (IS_PCIE(pmadapter->card_type)) {

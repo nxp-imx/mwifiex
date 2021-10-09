@@ -230,6 +230,13 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
 	t_u8 eapol_type[2] = {0x88, 0x8e};
 	t_u8 tdls_action_type[2] = {0x89, 0x0d};
+	t_u32 in_ts_sec, in_ts_usec;
+	t_u32 out_ts_sec, out_ts_usec;
+	t_u32 in_copy_ts_sec, in_copy_ts_usec;
+	t_u32 out_copy_ts_sec, out_copy_ts_usec;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 copy_delay = 0;
+	t_u32 delay = 0;
 
 	ENTER();
 
@@ -260,7 +267,9 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		       total_pkt_len);
 		goto done;
 	}
-
+	if (pmadapter->tp_state_on)
+		pcb->moal_get_system_time(pmadapter->pmoal_handle, &in_ts_sec,
+					  &in_ts_usec);
 	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
 
 	// rx_trace 7
@@ -321,10 +330,23 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		daggr_mbuf->extra_ts_usec = pmbuf->extra_ts_usec;
 		daggr_mbuf->pparent = pmbuf;
 		daggr_mbuf->priority = pmbuf->priority;
+		if (pmadapter->tp_state_on)
+			pcb->moal_get_system_time(pmadapter->pmoal_handle,
+						  &in_copy_ts_sec,
+						  &in_copy_ts_usec);
 		memcpy_ext(pmadapter,
 			   daggr_mbuf->pbuf + daggr_mbuf->data_offset, data,
 			   pkt_len, daggr_mbuf->data_len);
-
+		if (pmadapter->tp_state_on) {
+			pcb->moal_get_system_time(pmadapter->pmoal_handle,
+						  &out_copy_ts_sec,
+						  &out_copy_ts_usec);
+			copy_delay +=
+				(t_s32)(out_copy_ts_sec - in_copy_ts_sec) *
+				1000000;
+			copy_delay +=
+				(t_s32)(out_copy_ts_usec - in_copy_ts_usec);
+		}
 #ifdef UAP_SUPPORT
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 			ret = wlan_uap_recv_packet(priv, daggr_mbuf);
@@ -384,6 +406,14 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		}
 
 		data += pkt_len + pad;
+	}
+	if (pmadapter->tp_state_on) {
+		pcb->moal_get_system_time(pmadapter->pmoal_handle, &out_ts_sec,
+					  &out_ts_usec);
+		delay += (t_s32)(out_ts_sec - in_ts_sec) * 1000000;
+		delay += (t_s32)(out_ts_usec - in_ts_usec);
+		pmadapter->callbacks.moal_amsdu_tp_accounting(
+			pmadapter->pmoal_handle, delay, copy_delay);
 	}
 
 done:

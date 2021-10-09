@@ -29,8 +29,6 @@
 #include "mlan_11n.h"
 #include "mlan_11ac.h"
 
-#define NO_NSS_SUPPORT 0x3
-
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -197,7 +195,6 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 			       t_u8 bands)
 {
 	t_u32 usr_dot_11ac_dev_cap;
-
 	ENTER();
 
 	if (bands & BAND_A)
@@ -207,6 +204,7 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 
 	vht_cap->vht_cap_info = usr_dot_11ac_dev_cap;
 
+	RESET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info);
 	LEAVE();
 }
 

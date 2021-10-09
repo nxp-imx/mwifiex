@@ -356,12 +356,8 @@ static mlan_status wlan_get_info_bss_info(pmlan_adapter pmadapter,
 	info->param.bss_info.listen_interval = pmpriv->listen_interval;
 
 	/* Association ID */
-	if (pmpriv->assoc_rsp_buf)
-		info->param.bss_info.assoc_id =
-			(t_u16)((IEEEtypes_AssocRsp_t *)pmpriv->assoc_rsp_buf)
-				->a_id;
-	else
-		info->param.bss_info.assoc_id = 0;
+	info->param.bss_info.assoc_id =
+		(t_u16)((IEEEtypes_AssocRsp_t *)pmpriv->assoc_rsp_buf)->a_id;
 
 	/* AP/Peer supported rates */
 	memset(pmadapter, info->param.bss_info.peer_supp_rates, 0,
@@ -462,6 +458,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
 		pget_info->param.fw_info.max_ap_assoc_sta =
 			pmadapter->max_sta_conn;
+		pget_info->param.fw_info.fw_beacon_prot =
+			IS_FW_SUPPORT_BEACON_PROT(pmadapter) ? 0x01 : 0x00;
 		break;
 	case MLAN_OID_GET_BSS_INFO:
 		status = wlan_get_info_bss_info(pmadapter, pioctl_req);
@@ -2882,9 +2880,9 @@ static mlan_status wlan_sec_ioctl_set_wep_key(pmlan_adapter pmadapter,
 			/* Copy the required key as the current key */
 			pwep_key = &pmpriv->wep_key[index];
 			if (!pwep_key->key_length) {
-				if (&pmpriv->sec_info.wpa_enabled ||
-				    &pmpriv->sec_info.wpa2_enabled ||
-				    &pmpriv->sec_info.wapi_enabled) {
+				if (pmpriv->sec_info.wpa_enabled ||
+				    pmpriv->sec_info.wpa2_enabled ||
+				    pmpriv->sec_info.wapi_enabled) {
 					ret = MLAN_STATUS_SUCCESS;
 					goto exit;
 				}
@@ -3944,6 +3942,28 @@ static mlan_status wlan_misc_ioctl_gen_ie(pmlan_adapter pmadapter,
 					       (t_u16)misc->param.gen_ie.len);
 		}
 		break;
+	case MLAN_IE_TYPE_ARP_FILTER:
+		memset(pmadapter, pmadapter->arp_filter, 0,
+		       sizeof(pmadapter->arp_filter));
+		if (misc->param.gen_ie.len > ARP_FILTER_MAX_BUF_SIZE) {
+			pmadapter->arp_filter_size = 0;
+			PRINTM(MERROR, "Invalid ARP Filter Size\n");
+			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
+			ret = MLAN_STATUS_FAILURE;
+		} else if (misc->param.gen_ie.len <=
+			   sizeof(MrvlIEtypesHeader_t)) {
+			pmadapter->arp_filter_size = 0;
+			PRINTM(MINFO, "Clear ARP filter\n");
+		} else {
+			memcpy_ext(pmadapter, pmadapter->arp_filter,
+				   misc->param.gen_ie.ie_data,
+				   misc->param.gen_ie.len,
+				   ARP_FILTER_MAX_BUF_SIZE);
+			pmadapter->arp_filter_size = misc->param.gen_ie.len;
+			HEXDUMP("ArpFilter", pmadapter->arp_filter,
+				pmadapter->arp_filter_size);
+		}
+		break;
 	default:
 		PRINTM(MERROR, "Invalid IE type\n");
 		pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
@@ -4322,6 +4342,84 @@ static mlan_status wlan_misc_ioctl_subscribe_evt(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Set ARP filter based on IP address
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *  @param ipv4_addr    ipv4 Address
+ *
+ *  @return             MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status wlan_ipaddr_arp_filter(pmlan_adapter pmadapter,
+					  pmlan_ioctl_req pioctl_req,
+					  t_u32 ipv4_addr)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u8 *buf;
+	arpfilter_header *arpfilter = MNULL;
+	filter_entry *entry = MNULL;
+	t_u32 len;
+
+	ENTER();
+
+	pcb->moal_malloc(pmadapter->pmoal_handle, MRVDRV_SIZE_OF_CMD_BUFFER,
+			 MLAN_MEM_DEF, &buf);
+	if (!buf) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Construct the ARP filter TLV */
+	arpfilter = (arpfilter_header *)buf;
+	arpfilter->type = wlan_cpu_to_le16(TLV_TYPE_ARP_FILTER);
+
+	if (ipv4_addr) {
+		arpfilter->len = wlan_cpu_to_le16(sizeof(filter_entry) * 3);
+		entry = (filter_entry *)(buf + sizeof(arpfilter_header));
+		entry->addr_type = wlan_cpu_to_le16(ADDR_TYPE_BROADCAST);
+		entry->eth_type = wlan_cpu_to_le16(ETHER_TYPE_ARP);
+		entry->ipv4_addr = wlan_cpu_to_le32(ipv4_addr);
+		entry++;
+		entry->addr_type = wlan_cpu_to_le16(ADDR_TYPE_UNICAST);
+		entry->eth_type = wlan_cpu_to_le16(ETHER_TYPE_ANY);
+		entry->ipv4_addr = wlan_cpu_to_le32(IPV4_ADDR_ANY);
+		entry++;
+		entry->addr_type = wlan_cpu_to_le16(ADDR_TYPE_MULTICAST);
+		entry->eth_type = wlan_cpu_to_le16(ETHER_TYPE_ANY);
+		entry->ipv4_addr = wlan_cpu_to_le32(IPV4_ADDR_ANY);
+	} else
+		arpfilter->len = 0;
+
+	/* Update the total length */
+	len = sizeof(arpfilter_header) + wlan_le16_to_cpu(arpfilter->len);
+
+	memset(pmadapter, pmadapter->arp_filter, 0,
+	       sizeof(pmadapter->arp_filter));
+	if (len > ARP_FILTER_MAX_BUF_SIZE) {
+		pmadapter->arp_filter_size = 0;
+		PRINTM(MERROR, "Invalid ARP Filter Size\n");
+		pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
+		ret = MLAN_STATUS_FAILURE;
+	} else if (len <= sizeof(MrvlIEtypesHeader_t)) {
+		pmadapter->arp_filter_size = 0;
+		PRINTM(MINFO, "Clear ARP filter\n");
+	} else {
+		memcpy_ext(pmadapter, pmadapter->arp_filter, buf, len,
+			   ARP_FILTER_MAX_BUF_SIZE);
+		pmadapter->arp_filter_size = len;
+		HEXDUMP("ArpFilter", pmadapter->arp_filter,
+			pmadapter->arp_filter_size);
+	}
+
+done:
+	if (buf)
+		pcb->moal_mfree(pmadapter->pmoal_handle, buf);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief MEF configuration
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -4470,6 +4568,13 @@ static mlan_status wlan_misc_ioctl_ipaddr_cfg(pmlan_adapter pmadapter,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+	if (misc->param.ipaddr_cfg.op_code & MLAN_IPADDR_OP_ARP_FILTER)
+		ret = wlan_ipaddr_arp_filter(pmadapter, pioctl_req,
+					     ipv4_addr[0]);
+	else if (pmpriv->op_code & MLAN_IPADDR_OP_ARP_FILTER)
+		ret = wlan_ipaddr_arp_filter(pmadapter, pioctl_req, 0);
+	if (ret == MLAN_STATUS_FAILURE)
+		goto done;
 
 	/* Save the values in MLAN */
 	if (pioctl_req->action == MLAN_ACT_SET) {
@@ -4756,6 +4861,40 @@ static mlan_status wlan_misc_ioctl_get_sensor_temp(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief IPv6 Router Advertisement offload configuration
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_misc_ioctl_ipv6_ra_offload(pmlan_adapter pmadapter,
+					    mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_IPV6_RA_OFFLOAD_CFG,
+			       cmd_action, 0, (t_void *)pioctl_req,
+			       &misc->param.ipv6_ra_offload);
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Gtk Rekey Offload
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -4882,6 +5021,7 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_region(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_WARM_RESET:
+		PRINTM(MCMND, "Request WARM RESET\n");
 		util_enqueue_list_tail(pmadapter->pmoal_handle,
 				       &pmadapter->ioctl_pending_q,
 				       (pmlan_linked_list)pioctl_req,
@@ -5022,6 +5162,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_operclass_validation(pmadapter,
 							      pioctl_req);
 		break;
+	case MLAN_OID_MISC_IPV6_RA_OFFLOAD:
+		status = wlan_misc_ioctl_ipv6_ra_offload(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_GTK_REKEY_OFFLOAD:
 		status = wlan_misc_ioctl_gtk_rekey_offload(pmadapter,
 							   pioctl_req);
@@ -5072,6 +5215,12 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 #endif
 	case MLAN_OID_MISC_HAL_PHY_CFG:
 		status = wlan_misc_hal_phy_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_GPIO_TSF_LATCH:
+		status = wlan_misc_gpio_tsf_latch_config(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_GET_TSF_INFO:
+		status = wlan_misc_get_tsf_info(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_RX_ABORT_CFG:
 		status = wlan_misc_ioctl_rxabortcfg(pmadapter, pioctl_req);

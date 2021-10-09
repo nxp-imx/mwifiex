@@ -45,7 +45,7 @@ CONFIG_PCIE8997=y
 CONFIG_SD8987=y
 CONFIG_SD9097=n
 CONFIG_SD9177=n
-CONFIG_SD8801=n
+CONFIG_SD8801=y
 CONFIG_USB8801=n
 CONFIG_USB9097=n
 CONFIG_PCIE9097=n
@@ -130,6 +130,8 @@ CONFIG_IMX_SUPPORT=y
 ifeq ($(CONFIG_IMX_SUPPORT),y)
 ccflags-y += -DIMX_SUPPORT
 endif
+KERNELDIR ?= /usr/src/arm/linux_5_10_y_kernel/linux-nxp
+CROSS_COMPILE ?= /opt/fsl-imx-internal-xwayland/5.10-gatesgarth/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-
 
 LD += -S
 

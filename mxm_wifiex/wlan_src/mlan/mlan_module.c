@@ -57,6 +57,8 @@ EXPORT_SYMBOL(mlan_is_main_process_running);
 #ifdef PCIE
 EXPORT_SYMBOL(mlan_set_int_mode);
 #endif
+EXPORT_SYMBOL(mlan_disable_host_int);
+EXPORT_SYMBOL(mlan_enable_host_int);
 
 MODULE_DESCRIPTION("M-WLAN MLAN Driver");
 MODULE_AUTHOR("NXP");

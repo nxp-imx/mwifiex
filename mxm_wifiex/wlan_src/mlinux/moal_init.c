@@ -66,12 +66,19 @@ static int host_mlme;
 /** Auto deep sleep */
 static int auto_ds;
 
+/** net_rx mode*/
+static int net_rx;
+
+static int ext_scan;
+
 /** IEEE PS mode */
 static int ps_mode;
 /** passive to active scan */
 static int p2a_scan;
 /** scan chan gap */
 static int scan_chan_gap;
+/** sched scan */
+static int sched_scan = 1;
 /** Max Tx buffer size */
 int max_tx_buf;
 
@@ -89,6 +96,8 @@ static int max_uap_bss = DEF_UAP_BSS;
 static char *uap_name;
 /** Max uAP station number */
 static int uap_max_sta;
+/** WACP mode */
+static int wacp_mode = WACP_MODE_DEFAULT;
 #endif
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -116,6 +125,7 @@ static int slew_rate = 3;
 int tx_work = 0;
 static int rps = 0;
 static int tx_skb_clone = 0;
+static int pmqos = 0;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -147,7 +157,8 @@ static char *band_steer_cfg;
 
 #if defined(STA_WEXT) || defined(UAP_WEXT)
 /** CFG80211 and WEXT mode */
-static int cfg80211_wext = STA_WEXT_MASK | UAP_WEXT_MASK;
+static int cfg80211_wext =
+	STA_WEXT_MASK | UAP_WEXT_MASK | STA_CFG80211_MASK | UAP_CFG80211_MASK;
 #else
 /** CFG80211 mode */
 static int cfg80211_wext = STA_CFG80211_MASK | UAP_CFG80211_MASK;
@@ -250,6 +261,9 @@ t_u32 drvdbg = DEFAULT_DEBUG_MASK;
 #endif /* DEBUG_LEVEL1 */
 
 static card_type_entry card_type_map_tbl[] = {
+#ifdef SD8801
+	{CARD_TYPE_SD8801, 0, CARD_SD8801},
+#endif
 #ifdef SD8887
 	{CARD_TYPE_SD8887, 0, CARD_SD8887},
 #endif
@@ -289,6 +303,10 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef PCIE9098
 	{CARD_TYPE_PCIE9098, 0, CARD_PCIE9098},
 #endif
+#ifdef USB8801
+	{CARD_TYPE_USB8801, 0, CARD_USB8801},
+#endif
+
 #ifdef USB8897
 	{CARD_TYPE_USB8897, 0, CARD_USB8897},
 #endif
@@ -651,6 +669,18 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->auto_ds = out_data;
 			PRINTM(MMSG, "auto_ds = %d\n", params->auto_ds);
+		} else if (strncmp(line, "net_rx", strlen("net_rx")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->net_rx = out_data;
+			PRINTM(MMSG, "net_rx = %d\n", params->net_rx);
+		} else if (strncmp(line, "ext_scan", strlen("ext_scan")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->ext_scan = out_data;
+			PRINTM(MMSG, "ext_scan = %d\n", params->ext_scan);
 		} else if (strncmp(line, "ps_mode", strlen("ps_mode")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
@@ -671,6 +701,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->scan_chan_gap = out_data;
 			PRINTM(MMSG, "scan_chan_gap = %d\n",
 			       params->scan_chan_gap);
+		} else if (strncmp(line, "sched_scan", strlen("sched_scan")) ==
+			   0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->sched_scan = out_data;
+			PRINTM(MMSG, "sched_scan = %d\n", params->sched_scan);
 		} else if (strncmp(line, "max_tx_buf", strlen("max_tx_buf")) ==
 			   0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1110,6 +1147,17 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_TX_SKB_CLONE) ?
 				       "on" :
 				       "off");
+		} else if (strncmp(line, "pmqos", strlen("pmqos")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_PMQOS);
+			else
+				moal_extflg_clear(handle, EXT_PMQOS);
+			PRINTM(MMSG, "pmqos %s\n",
+			       moal_extflg_isset(handle, EXT_PMQOS) ? "on" :
+								      "off");
 		}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		else if (strncmp(line, "dfs_offload", strlen("dfs_offload")) ==
@@ -1192,6 +1240,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->uap_max_sta = out_data;
 			PRINTM(MMSG, "uap_max_sta=%d\n", params->uap_max_sta);
+		} else if (strncmp(line, "wacp_mode", strlen("wacp_mode")) ==
+			   0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->wacp_mode = out_data;
+			PRINTM(MMSG, "wacp_moe=%d\n", params->wacp_mode);
 		}
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -1282,10 +1337,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.max_uap_bss = max_uap_bss;
 	woal_dup_string(&handle->params.uap_name, uap_name);
 	handle->params.uap_max_sta = uap_max_sta;
+	handle->params.wacp_mode = wacp_mode;
 	if (params) {
 		handle->params.max_uap_bss = params->max_uap_bss;
 		woal_dup_string(&handle->params.uap_name, params->uap_name);
 		handle->params.uap_max_sta = params->uap_max_sta;
+		handle->params.wacp_mode = params->wacp_mode;
 	}
 #endif /* UAP_SUPPORT */
 #ifdef WIFI_DIRECT_SUPPORT
@@ -1304,15 +1361,25 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.auto_ds = auto_ds;
 	if (params)
 		handle->params.auto_ds = params->auto_ds;
+	handle->params.net_rx = net_rx;
+	if (params)
+		handle->params.net_rx = params->net_rx;
+
+	handle->params.ext_scan = ext_scan;
+	if (params)
+		handle->params.ext_scan = params->ext_scan;
+
 	handle->params.ps_mode = ps_mode;
 	handle->params.p2a_scan = p2a_scan;
 	handle->params.scan_chan_gap = scan_chan_gap;
+	handle->params.sched_scan = sched_scan;
 	handle->params.max_tx_buf = max_tx_buf;
 	if (params) {
 		handle->params.ps_mode = params->ps_mode;
 		handle->params.max_tx_buf = params->max_tx_buf;
 		handle->params.p2a_scan = params->p2a_scan;
 		handle->params.scan_chan_gap = params->scan_chan_gap;
+		handle->params.sched_scan = params->sched_scan;
 	}
 #if defined(SDIO)
 	if (intmode)
@@ -1458,6 +1525,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		moal_extflg_set(handle, EXT_RPS);
 	if (tx_skb_clone)
 		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
+	if (pmqos)
+		moal_extflg_set(handle, EXT_PMQOS);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
@@ -1681,6 +1750,11 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "tx_skb_clone=0x%x\n", data);
 				tx_skb_clone = data;
+			}
+		} else if (!strncmp(prop->name, "pmqos", strlen("pmqos"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "pmqos=0x%x\n", data);
+				pmqos = data;
 			}
 		}
 #ifdef MFG_CMD_SUPPORT
@@ -1931,8 +2005,21 @@ void woal_init_from_dev_tree(void)
 				PRINTM(MERROR, "uap_max_sta=0x%x\n", data);
 				uap_max_sta = data;
 			}
+		} else if (!strncmp(prop->name, "wacp_mode",
+				    strlen("wacp_mode"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MERROR, "wacp_mode=0x%x\n", data);
+				wacp_mode = data;
+			}
 		}
 #endif
+		else if (!strncmp(prop->name, "sched_scan",
+				  strlen("sched_scan"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "sched_scan=%d\n", data);
+				sched_scan = data;
+			}
+		}
 	}
 	LEAVE();
 	return;
@@ -2179,6 +2266,10 @@ module_param(auto_ds, int, 0660);
 MODULE_PARM_DESC(
 	auto_ds,
 	"0: MLAN default; 1: Enable auto deep sleep; 2: Disable auto deep sleep");
+module_param(ext_scan, int, 0660);
+MODULE_PARM_DESC(
+	ext_scan,
+	"0: MLAN default; 1: Enable Extended Scan; 2: Enable Enhanced Extended Scan");
 module_param(ps_mode, int, 0660);
 MODULE_PARM_DESC(
 	ps_mode,
@@ -2191,6 +2282,9 @@ module_param(scan_chan_gap, int, 0660);
 MODULE_PARM_DESC(
 	scan_chan_gap,
 	"Time gap between two scans in milliseconds when connected to AP(max value 500ms)");
+module_param(sched_scan, int, 0);
+MODULE_PARM_DESC(sched_scan,
+		 "0: disable sched_scan; 1: enable sched_scan default");
 module_param(max_tx_buf, int, 0);
 MODULE_PARM_DESC(max_tx_buf, "Maximum Tx buffer size (2048/4096/8192)");
 
@@ -2226,6 +2320,8 @@ MODULE_PARM_DESC(rps, "1: Enable rps; 0: Disable rps");
 module_param(tx_skb_clone, uint, 0660);
 MODULE_PARM_DESC(tx_skb_clone,
 		 "1: Enable tx_skb_clone; 0: Disable tx_skb_clone");
+module_param(pmqos, uint, 0660);
+MODULE_PARM_DESC(pmqos, "1: Enable pmqos; 0: Disable pmqos");
 
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");
@@ -2289,7 +2385,9 @@ MODULE_PARM_DESC(wakelock_timeout, "set wakelock_timeout value (ms)");
 
 module_param(dev_cap_mask, uint, 0);
 MODULE_PARM_DESC(dev_cap_mask, "Device capability mask");
-
+module_param(net_rx, int, 0);
+MODULE_PARM_DESC(net_rx,
+		 "0: use netif_rx_ni in rx; 1: use netif_receive_skb in rx");
 #ifdef SDIO
 module_param(sdio_rx_aggr, int, 0);
 MODULE_PARM_DESC(sdio_rx_aggr,
@@ -2364,6 +2462,10 @@ MODULE_PARM_DESC(dfs_offload, "1: enable dfs offload; 0: disable dfs offload.");
 #ifdef UAP_SUPPORT
 module_param(uap_max_sta, int, 0);
 MODULE_PARM_DESC(uap_max_sta, "Maximum station number for UAP/GO.");
+module_param(wacp_mode, int, 0);
+MODULE_PARM_DESC(
+	wacp_mode,
+	"WACP mode for UAP/GO 0: WACP_MODE_DEFAULT; 1: WACP_MODE_1; 2: WACP_MODE_2");
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)

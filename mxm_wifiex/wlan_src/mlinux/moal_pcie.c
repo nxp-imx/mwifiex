@@ -36,6 +36,10 @@ Change log:
 #endif
 #endif
 
+#if IS_ENABLED(CONFIG_IPV6)
+#include <net/addrconf.h>
+#endif
+
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -265,6 +269,11 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 		       atomic_read(&handle->tx_pending),
 		       atomic_read(&handle->ioctl_pending));
 	}
+
+	unregister_inetaddr_notifier(&handle->woal_notifier);
+#if IS_ENABLED(CONFIG_IPV6)
+	unregister_inet6addr_notifier(&handle->woal_inet6_notifier);
+#endif
 
 	/* Remove interface */
 	for (i = 0; i < handle->priv_num; i++)
@@ -582,12 +591,7 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 			goto done;
 		}
 	}
-	flush_workqueue(handle->workqueue);
-	flush_workqueue(handle->evt_workqueue);
-	if (handle->rx_workqueue)
-		flush_workqueue(handle->rx_workqueue);
-	if (handle->tx_workqueue)
-		flush_workqueue(handle->tx_workqueue);
+	woal_flush_workqueue(handle);
 	if (!keep_power) {
 		woal_do_flr(handle, true, false);
 		handle->surprise_removed = MTRUE;
@@ -1906,8 +1910,8 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 	rdwr_status stat;
 	t_u8 i = 0;
 	t_u8 read_reg = 0;
-	t_u32 memory_size = 0, DEBUG_MEMDUMP_FINISH;
-	t_u8 path_name[64], file_name[32], firmware_dump_file[128];
+	t_u32 memory_size = 0;
+	t_u32 memdump_finsh = 0;
 	t_u8 *end_ptr = NULL;
 	memory_type_mapping *mem_type_mapping_tbl = mem_type_mapping_tbl_8897;
 
@@ -1915,16 +1919,17 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
 	}
-	DEBUG_MEMDUMP_FINISH = DEBUG_MEMDUMP_FINISH_8897;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-	/** Create dump directory*/
-	woal_create_dump_dir(phandle, path_name, sizeof(path_name));
-#else
-	memset(path_name, 0, sizeof(path_name));
-	strcpy(path_name, "/data");
-#endif
-	PRINTM(MMSG, "Directory name is %s\n", path_name);
-	woal_dump_drv_info(phandle, path_name);
+	if (!phandle->fw_dump_buf) {
+		ret = moal_vmalloc(phandle, FW_DUMP_INFO_LEN,
+				   &(phandle->fw_dump_buf));
+		if (ret != MLAN_STATUS_SUCCESS || !phandle->fw_dump_buf) {
+			PRINTM(MERROR, "Failed to vmalloc fw dump bufffer\n");
+			return;
+		}
+	} else {
+		memset(phandle->fw_dump_buf, 0x00, FW_DUMP_INFO_LEN);
+	}
+	phandle->fw_dump_len = 0;
 	/* start dump fw memory	*/
 	moal_get_system_time(phandle, &sec, &usec);
 	PRINTM(MMSG, "====PCIE DEBUG MODE OUTPUT START: %u.%06u ====\n", sec,
@@ -1960,7 +1965,7 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 		if (memory_size == 0) {
 			PRINTM(MMSG, "Firmware Dump Finished!\n");
 			ret = woal_pcie_write_reg(phandle, DEBUG_DUMP_CTRL_REG,
-						  DEBUG_MEMDUMP_FINISH);
+						  memdump_finsh);
 			if (ret) {
 				PRINTM(MERROR,
 				       "PCIE Write MEMDUMP_FINISH ERR\n");
@@ -2013,17 +2018,11 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 				       (unsigned int)(dbg_ptr -
 						      mem_type_mapping_tbl[idx]
 							      .mem_Ptr));
-				memset(file_name, 0, sizeof(file_name));
-				sprintf(file_name, "%s%s", "file_pcie_",
-					mem_type_mapping_tbl[idx].mem_name);
-				if (MLAN_STATUS_SUCCESS !=
-				    woal_save_dump_info_to_file(
-					    path_name, file_name,
-					    mem_type_mapping_tbl[idx].mem_Ptr,
-					    memory_size))
-					PRINTM(MMSG,
-					       "Can't save dump file %s in %s\n",
-					       file_name, path_name);
+				woal_save_dump_info_to_buf(
+					phandle,
+					mem_type_mapping_tbl[idx].mem_Ptr,
+					memory_size,
+					mem_type_mapping_tbl[idx].type);
 				moal_vfree(phandle,
 					   mem_type_mapping_tbl[idx].mem_Ptr);
 				mem_type_mapping_tbl[idx].mem_Ptr = NULL;
@@ -2031,15 +2030,11 @@ static void woal_pcie_dump_fw_info_v1(moal_handle *phandle)
 			}
 		} while (1);
 	}
+	woal_append_end_block(phandle);
 	moal_get_system_time(phandle, &sec, &usec);
 	PRINTM(MMSG, "====PCIE DEBUG MODE OUTPUT END: %u.%06u ====\n", sec,
 	       usec);
 	/* end dump fw memory */
-	memset(firmware_dump_file, 0, sizeof(firmware_dump_file));
-	sprintf(firmware_dump_file, "%s/%s", path_name, file_name);
-	moal_memcpy_ext(phandle, phandle->firmware_dump_file,
-			firmware_dump_file, sizeof(firmware_dump_file),
-			sizeof(phandle->firmware_dump_file));
 done:
 	for (idx = 0;
 	     idx < dump_num && idx < ARRAY_SIZE(mem_type_mapping_tbl_8897);
@@ -2073,8 +2068,6 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 	t_u8 doneflag = 0;
 	rdwr_status stat;
 	t_u32 memory_size = 0;
-	t_u8 path_name[64], file_name[32], firmware_dump_file[128];
-	moal_handle *ref_handle;
 	t_u8 *end_ptr = NULL;
 	memory_type_mapping *mem_type_mapping_tbl = &mem_type_mapping_tbl_8997;
 	t_u32 dump_start_reg = 0;
@@ -2097,18 +2090,6 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 		}
 	}
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-	/** Create dump directory*/
-	woal_create_dump_dir(phandle, path_name, sizeof(path_name));
-#else
-	memset(path_name, 0, sizeof(path_name));
-	strcpy(path_name, "/data");
-#endif
-	PRINTM(MMSG, "Create DUMP directory success:dir_name=%s\n", path_name);
-	ref_handle = (moal_handle *)phandle->pref_mac;
-	if (ref_handle)
-		woal_dump_drv_info(ref_handle, path_name);
-	woal_dump_drv_info(phandle, path_name);
 
 	/* start dump fw memory	*/
 	moal_get_system_time(phandle, &sec, &usec);
@@ -2206,17 +2187,14 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 			       mem_type_mapping_tbl->mem_name,
 			       dbg_ptr - mem_type_mapping_tbl->mem_Ptr);
 #endif
-			memset(file_name, 0, sizeof(file_name));
-			sprintf(file_name, "%s%s", "file_pcie_",
-				mem_type_mapping_tbl->mem_name);
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_save_dump_info_to_file(
-				    path_name, file_name,
-				    mem_type_mapping_tbl->mem_Ptr,
-				    dbg_ptr - mem_type_mapping_tbl->mem_Ptr))
-				PRINTM(MMSG, "Can't save dump file %s in %s\n",
-				       file_name, path_name);
-			moal_vfree(phandle, mem_type_mapping_tbl->mem_Ptr);
+			if (phandle->fw_dump_buf) {
+				moal_vfree(phandle, phandle->fw_dump_buf);
+				phandle->fw_dump_buf = NULL;
+				phandle->fw_dump_len = 0;
+			}
+			phandle->fw_dump_buf = mem_type_mapping_tbl->mem_Ptr;
+			phandle->fw_dump_len =
+				dbg_ptr - mem_type_mapping_tbl->mem_Ptr;
 			mem_type_mapping_tbl->mem_Ptr = NULL;
 			break;
 		}
@@ -2225,11 +2203,6 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 	PRINTM(MMSG, "====PCIE DEBUG MODE OUTPUT END: %u.%06u ====\n", sec,
 	       usec);
 	/* end dump fw memory */
-	memset(firmware_dump_file, 0, sizeof(firmware_dump_file));
-	sprintf(firmware_dump_file, "%s/%s", path_name, file_name);
-	moal_memcpy_ext(phandle, phandle->firmware_dump_file,
-			firmware_dump_file, sizeof(firmware_dump_file),
-			sizeof(phandle->firmware_dump_file));
 done:
 	if (mem_type_mapping_tbl->mem_Ptr) {
 		moal_vfree(phandle, mem_type_mapping_tbl->mem_Ptr);
@@ -2273,13 +2246,18 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 		if (phandle->event_fw_dump) {
 			phandle->event_fw_dump = MFALSE;
 			queue_work(phandle->workqueue, &phandle->main_work);
+			phandle->is_fw_dump_timer_set = MTRUE;
+			woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
 			return;
 		}
 	}
 #endif
+	woal_send_fw_dump_complete_event(
+		woal_get_priv(phandle, MLAN_BSS_ROLE_ANY));
 	phandle->fw_dump = MFALSE;
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);
+	woal_process_hang(phandle);
 }
 
 static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
