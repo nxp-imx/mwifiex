@@ -173,9 +173,7 @@ static struct sdio_driver REFDATA wlan_sdio = {
 /********************************************************
 		Local Functions
 ********************************************************/
-#ifdef DEBUG_SUPPORT
 static void woal_sdiommc_dump_fw_info(moal_handle *phandle);
-#endif
 #if 0
 /**  @brief This function dump the sdio register
  *
@@ -1661,7 +1659,6 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 #define SQRAM_SIZE 0x33500
 #define DTCM_SIZE 0x14000
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -1872,9 +1869,7 @@ done:
 	return;
 }
 #endif
-#endif
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -2050,9 +2045,7 @@ done:
 	PRINTM(MMSG, "==== DEBUG MODE END ====\n");
 	return;
 }
-#endif
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -2240,7 +2233,6 @@ done:
 	PRINTM(MMSG, "==== DEBUG MODE END ====\n");
 	return;
 }
-#endif
 
 /**
  *  @brief This function reads and displays SDIO registers for debugging
@@ -2315,7 +2307,6 @@ static void woal_sdiommc_reg_dbg(moal_handle *phandle)
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 }
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -2351,7 +2342,6 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 	queue_work(phandle->workqueue, &phandle->main_work);
 	return;
 }
-
 
 /**
  *  @brief This function save sdio reg info
@@ -2449,7 +2439,6 @@ static int woal_sdiommc_dump_reg_info(moal_handle *phandle, t_u8 *drv_buf)
 	LEAVE();
 	return drv_ptr - (char *)drv_buf;
 }
-#endif
 
 /**
  *  @brief This function reset sdio through sdio bus driver
@@ -2498,10 +2487,8 @@ static moal_if_ops sdiommc_ops = {
 	.read_data_sync = woal_sdiommc_read_data_sync,
 	.write_data_sync = woal_sdiommc_write_data_sync,
 	.get_fw_name = woal_sdiommc_get_fw_name,
-#ifdef DEBUG_SUPPORT
 	.dump_fw_info = woal_sdiommc_dump_fw_info,
 	.dump_reg_info = woal_sdiommc_dump_reg_info,
-#endif
 	.reg_dbg = woal_sdiommc_reg_dbg,
 	.is_second_mac = woal_sdiommc_is_second_mac,
 };
