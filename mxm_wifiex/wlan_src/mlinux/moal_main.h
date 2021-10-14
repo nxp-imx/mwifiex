@@ -2932,14 +2932,12 @@ int woal_enable_hs(moal_private *priv);
 /** Get wakeup reason */
 mlan_status woal_get_wakeup_reason(moal_private *priv,
 				   mlan_ds_hs_wakeup_reason *wakeup_reason);
-#ifdef DEBUG_SUPPORT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 void woal_create_dump_dir(moal_handle *phandle, char *dir_buf, int buf_size);
 #endif
 mlan_status woal_save_dump_info_to_file(char *dir_name, char *file_name,
 					t_u8 *buf, t_u32 buf_len);
 void woal_dump_drv_info(moal_handle *phandle, t_u8 *dir_name);
-#endif
 
 #define FW_DUMP_TYPE_ENDED 0x002
 #define FW_DUMP_TYPE_MEM_ITCM 0x004
@@ -2951,23 +2949,19 @@ void woal_dump_drv_info(moal_handle *phandle, t_u8 *dir_name);
 #define FW_DUMP_TYPE_REG_APU 0x00F
 #define FW_DUMP_TYPE_REG_ICU 0x014
 #ifdef SDIO_MMC
-#ifdef DEBUG_SUPPORT
 void woal_dump_firmware_info(moal_handle *phandle);
 void woal_dump_firmware_info_v2(moal_handle *phandle);
 void woal_dump_firmware_info_v3(moal_handle *phandle);
-#endif
 #endif /* SDIO_MMC */
-
-#ifdef DEBUG_SUPPORT
 /* Store the FW dumps received from events in a file */
 void woal_store_firmware_dump(moal_handle *phandle, pmlan_event pmevent);
+
 #if defined(PCIE)
 void woal_store_ssu_dump(moal_handle *phandle, pmlan_event pmevent);
 #endif /* SSU_SUPPORT */
+
 /** save hostcmd response to file */
 t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent);
-#endif
-
 int woal_pre_warmreset(moal_private *priv);
 int woal_warmreset(moal_private *priv);
 

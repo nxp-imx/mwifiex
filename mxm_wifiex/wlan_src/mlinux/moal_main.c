@@ -7388,7 +7388,6 @@ t_void woal_send_disconnect_to_system(moal_private *priv,
 }
 #endif /* STA_SUPPORT */
 
-#ifdef DEBUG_SUPPORT
 #if defined(PCIE)
 /**
  *  @brief  This function stores the SSU dumps in a file
@@ -7456,13 +7455,10 @@ save_ssudump:
 	return;
 }
 #endif /* SSU_SUPPORT */
-#endif
 
 #define OFFSET_SEQNUM 4
 #define OFFSET_TYPE 8
 #define DUMP_TYPE_ENDE 2
-
-#ifdef DEBUG_SUPPORT
 t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 {
 	struct file *pfile_fwdump = NULL;
@@ -7553,7 +7549,6 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 	LEAVE();
 	return;
 }
-#endif
 
 #define DRV_INFO_SIZE 0x60000
 #define DRV_INFO_PER_INTF 0x11000
@@ -7934,8 +7929,6 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 #define HostCmd_CMD_CFG_DATA 0x008f
 #define DEF_FW_PATH "/lib/firmware/"
 #define DEF_HOSTCMD_PATH "/lib/firmware/nxp/hostcmd.conf"
-
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function save the hostcmd response to file
  *
@@ -8008,7 +8001,6 @@ t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent)
 	filp_close(pfile, NULL);
 	return;
 }
-#endif
 
 /**
  *  @brief This function dump moal hex to file
@@ -8117,7 +8109,6 @@ static int woal_dump_mlan_hex(moal_private *priv, t_u8 *buf)
 	return ptr - (char *)buf;
 }
 
-#ifdef DEBUG_SUPPORT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 /**
  *  @brief This function create dump directory
@@ -8189,9 +8180,7 @@ done:
 	LEAVE();
 }
 #endif
-#endif
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function save dump buf to file
  *
@@ -8258,9 +8247,7 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif
 
-#ifdef DEBUG_SUPPORT
 /**
  *  @brief This function dump drv info to file
  *
@@ -8349,7 +8336,6 @@ done:
 		moal_vfree(phandle, drv_buf);
 	LEAVE();
 }
-#endif
 
 /**
  *  @brief This function displays extra MOAL debug information

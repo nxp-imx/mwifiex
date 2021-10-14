@@ -61,9 +61,6 @@ CONFIG_PCIE9098=y
 # 2: All PRINTM()
 CONFIG_DEBUG=1
 
-# Enable Debug
-CONFIG_DEBUG_SUPPORT=n
-
 # Enable STA mode support
 CONFIG_STA_SUPPORT=y
 
@@ -152,10 +149,6 @@ ifeq ($(CONFIG_DEBUG),2)
 	ccflags-y += -DDEBUG_LEVEL1
 	ccflags-y += -DDEBUG_LEVEL2
 	DBG=	-dbg
-endif
-
-ifeq ($(CONFIG_DEBUG_SUPPORT),y)
-	ccflags-y += -DDEBUG_SUPPORT
 endif
 
 ifeq ($(CONFIG_64BIT), y)
