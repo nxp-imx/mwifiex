@@ -133,6 +133,10 @@ Change log:
 #include <linux/suspend.h>
 #endif /* IMX_SUPPORT */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#include <linux/pm_qos.h>
+#endif
+
 #ifndef MIN
 /** Find minimum */
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -2255,6 +2259,15 @@ struct _moal_handle {
 	BOOLEAN is_tp_acnt_timer_set;
 
 	t_u8 request_pm;
+#ifdef IMX_SUPPORT
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+	struct dev_pm_qos_request woal_pm_qos_req;
+#endif
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
+	struct pm_qos_request woal_pm_qos_req;
+#endif
+#endif
 };
 
 /**

@@ -51,15 +51,6 @@ Change log:
 #endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#include <linux/pm_qos.h>
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-#ifdef IMX_SUPPORT
-static struct pm_qos_request woal_pm_qos_req;
-#endif
-#endif
 #endif /*defined(PCIE) || defined(SDIO)*/
 
 /********************************************************
@@ -1592,12 +1583,13 @@ void woal_request_busfreq_pmqos_add(t_void *handle)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 #ifdef IMX_SUPPORT
-		pm_qos_add_request(&woal_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+		pm_qos_add_request(&pmhandle->woal_pm_qos_req,
+				   PM_QOS_CPU_DMA_LATENCY, 0);
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-		cpu_latency_qos_add_request(&woal_pm_qos_req, 0);
+		cpu_latency_qos_add_request(&pmhandle->woal_pm_qos_req, 0);
 #endif
 #endif
 	}
@@ -1619,12 +1611,12 @@ void woal_release_busfreq_pmqos_remove(t_void *handle)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 #ifdef IMX_SUPPORT
-		pm_qos_remove_request(&woal_pm_qos_req);
+		pm_qos_remove_request(&pmhandle->woal_pm_qos_req);
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-		cpu_latency_qos_remove_request(&woal_pm_qos_req);
+		cpu_latency_qos_remove_request(&pmhandle->woal_pm_qos_req);
 #endif
 #endif
 	}
