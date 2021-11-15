@@ -125,7 +125,11 @@ static int slew_rate = 3;
 int tx_work = 0;
 static int rps = 0;
 static int tx_skb_clone = 0;
+#ifdef IMX_SUPPORT
+static int pmqos = 1;
+#else
 static int pmqos = 0;
+#endif
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
