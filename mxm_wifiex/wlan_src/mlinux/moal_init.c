@@ -30,6 +30,8 @@ static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
 
+static char *hw_name;
+
 /** MAC address */
 static char *mac_addr;
 /** Module param cfg file */
@@ -68,6 +70,8 @@ static int auto_ds;
 
 /** net_rx mode*/
 static int net_rx;
+/** amsdu deaggr mode */
+static int amsdu_deaggr;
 
 static int ext_scan;
 
@@ -593,6 +597,12 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_FW_SERIAL) ?
 				       "on" :
 				       "off");
+		} else if (strncmp(line, "hw_name", strlen("hw_name")) == 0) {
+			if (parse_line_read_string(line, &out_str) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			woal_dup_string(&params->hw_name, out_str);
+			PRINTM(MMSG, "hw_name=%s\n", params->hw_name);
 		} else if (strncmp(line, "mac_addr", strlen("mac_addr")) == 0) {
 			if (parse_line_read_string(line, &out_str) !=
 			    MLAN_STATUS_SUCCESS)
@@ -616,6 +626,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->drv_mode = out_data;
 			PRINTM(MMSG, "drv_mode = %d\n", params->drv_mode);
 		}
+#ifdef DEBUG_LEVEL1
+		else if (strncmp(line, "drvdbg", strlen("drvdbg")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->drvdbg = out_data;
+			PRINTM(MMSG, "drvdbg = %d\n", params->drvdbg);
+		}
+#endif
 #ifdef STA_SUPPORT
 		else if (strncmp(line, "max_sta_bss", strlen("max_sta_bss")) ==
 			 0) {
@@ -679,6 +698,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->net_rx = out_data;
 			PRINTM(MMSG, "net_rx = %d\n", params->net_rx);
+		} else if (strncmp(line, "amsdu_deaggr",
+				   strlen("amsdu_deaggr")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->amsdu_deaggr = out_data;
+			PRINTM(MMSG, "amsdu_deaggr = %d\n",
+			       params->amsdu_deaggr);
 		} else if (strncmp(line, "ext_scan", strlen("ext_scan")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
@@ -1318,6 +1345,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		handle->params.fw_reload = params->fw_reload;
 	if (fw_serial)
 		moal_extflg_set(handle, EXT_FW_SERIAL);
+	woal_dup_string(&handle->params.hw_name, hw_name);
+	if (params && params->hw_name)
+		woal_dup_string(&handle->params.hw_name, params->hw_name);
+
 	woal_dup_string(&handle->params.mac_addr, mac_addr);
 	if (params && params->mac_addr)
 		woal_dup_string(&handle->params.mac_addr, params->mac_addr);
@@ -1329,6 +1360,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.drv_mode = drv_mode;
 	if (params)
 		handle->params.drv_mode = params->drv_mode;
+#ifdef DEBUG_LEVEL1
+	handle->params.drvdbg = drvdbg;
+	if (params)
+		handle->params.drvdbg = params->drvdbg;
+#endif
+
 #ifdef STA_SUPPORT
 	handle->params.max_sta_bss = max_sta_bss;
 	woal_dup_string(&handle->params.sta_name, sta_name);
@@ -1368,6 +1405,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.net_rx = net_rx;
 	if (params)
 		handle->params.net_rx = params->net_rx;
+
+	handle->params.amsdu_deaggr = amsdu_deaggr;
+	if (params)
+		handle->params.amsdu_deaggr = params->amsdu_deaggr;
 
 	handle->params.ext_scan = ext_scan;
 	if (params)
@@ -1597,6 +1638,11 @@ void woal_free_module_param(moal_handle *handle)
 		kfree(params->fw_name);
 		params->fw_name = NULL;
 	}
+	if (params->hw_name) {
+		kfree(params->hw_name);
+		params->hw_name = NULL;
+	}
+
 	if (params->mac_addr) {
 		kfree(params->mac_addr);
 		params->mac_addr = NULL;
@@ -1780,6 +1826,12 @@ void woal_init_from_dev_tree(void)
 						     &string_data)) {
 				fw_name = (char *)string_data;
 				PRINTM(MIOCTL, "fw_name=%s\n", fw_name);
+			}
+		} else if (!strncmp(prop->name, "hw_name", strlen("hw_name"))) {
+			if (!of_property_read_string(dt_node, prop->name,
+						     &string_data)) {
+				hw_name = (char *)string_data;
+				PRINTM(MIOCTL, "hw_name=%s\n", hw_name);
 			}
 		}
 #if defined(STA_WEXT) || defined(UAP_WEXT)
@@ -2217,6 +2269,9 @@ MODULE_PARM_DESC(hw_test, "0: Disable hardware test; 1: Enable hardware test");
 module_param(dts_enable, int, 0);
 MODULE_PARM_DESC(dts_enable, "0: Disable DTS; 1: Enable DTS");
 #endif
+module_param(hw_name, charp, 0660);
+MODULE_PARM_DESC(hw_name, "hardware name");
+
 module_param(fw_name, charp, 0660);
 MODULE_PARM_DESC(fw_name, "Firmware name");
 module_param(req_fw_nowait, int, 0);
@@ -2392,6 +2447,10 @@ MODULE_PARM_DESC(dev_cap_mask, "Device capability mask");
 module_param(net_rx, int, 0);
 MODULE_PARM_DESC(net_rx,
 		 "0: use netif_rx_ni in rx; 1: use netif_receive_skb in rx");
+module_param(amsdu_deaggr, int, 0);
+MODULE_PARM_DESC(amsdu_deaggr,
+		 "0: default; 1: Try to avoid buf copy in amsud deaggregation");
+
 #ifdef SDIO
 module_param(sdio_rx_aggr, int, 0);
 MODULE_PARM_DESC(sdio_rx_aggr,

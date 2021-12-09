@@ -452,9 +452,9 @@ static t_s32 wlan_find_best_network_in_list(mlan_private *pmpriv)
  * of channels sent in a scan command and to disable the firmware channel scan
  *                          filter.
  *
- *  @return                 N/A
+ *  @return                 num of channel
  */
-static t_void wlan_scan_create_channel_list(
+static t_u8 wlan_scan_create_channel_list(
 	mlan_private *pmpriv, const wlan_user_scan_cfg *puser_scan_in,
 	ChanScanParamSet_t *pscan_chan_list, t_u8 filtered_scan)
 {
@@ -602,6 +602,7 @@ static t_void wlan_scan_create_channel_list(
 	}
 
 	LEAVE();
+	return chan_idx;
 }
 
 /**
@@ -1082,6 +1083,7 @@ static mlan_status wlan_scan_setup_scan_config(
 	MrvlIEtypes_BssMode_t *pbss_mode;
 	MrvlIEtypes_Extension_t *phe_cap;
 	t_u16 len = 0;
+	t_u8 num_of_channel = 0;
 
 	ENTER();
 
@@ -1568,9 +1570,14 @@ static mlan_status wlan_scan_setup_scan_config(
 		}
 
 	} else {
-		PRINTM(MINFO, "Scan: Creating full region channel list\n");
-		wlan_scan_create_channel_list(pmpriv, puser_scan_in,
-					      pscan_chan_list, *pfiltered_scan);
+		num_of_channel =
+			wlan_scan_create_channel_list(pmpriv, puser_scan_in,
+						      pscan_chan_list,
+						      *pfiltered_scan);
+		PRINTM(MCMND, "Scan: Creating full region channel list %d\n",
+		       num_of_channel);
+		if (num_of_channel > MRVDRV_MAX_CHANNELS_PER_SCAN)
+			pmadapter->ext_scan_type = EXT_SCAN_DEFAULT;
 	}
 
 	LEAVE();
@@ -2070,6 +2077,16 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 				(*(pbss_entry->prsn_ie)).ieee_hdr.len +
 					sizeof(IEEEtypes_Header_t));
 			break;
+		case RSNX_IE:
+			pbss_entry->prsnx_ie =
+				(IEEEtypes_Generic_t *)pcurrent_ptr;
+			pbss_entry->rsnx_offset =
+				(t_u16)(pcurrent_ptr - pbss_entry->pbeacon_buf);
+			HEXDUMP("InterpretIE: Resp RSNX_IE",
+				(t_u8 *)pbss_entry->prsnx_ie,
+				(*(pbss_entry->prsnx_ie)).ieee_hdr.len +
+					sizeof(IEEEtypes_Header_t));
+			break;
 		case WAPI_IE:
 			pbss_entry->pwapi_ie =
 				(IEEEtypes_Generic_t *)pcurrent_ptr;
@@ -2379,6 +2396,11 @@ static t_void wlan_adjust_ie_in_bss_entry(mlan_private *pmpriv,
 				(IEEEtypes_Extension_t
 					 *)(pbss_entry->pbeacon_buf +
 					    pbss_entry->he_oprat_offset);
+		}
+		if (pbss_entry->prsnx_ie) {
+			pbss_entry->prsnx_ie =
+				(IEEEtypes_Generic_t *)(pbss_entry->pbeacon_buf +
+							pbss_entry->rsnx_offset);
 		}
 	} else {
 		pbss_entry->pwpa_ie = MNULL;
@@ -2710,6 +2732,10 @@ static t_void wlan_ret_802_11_scan_store_beacon(mlan_private *pmpriv,
 				pnew_beacon->he_oprat_offset =
 					pmadapter->pscan_table[beacon_idx]
 						.he_oprat_offset;
+			if (pnew_beacon->prsnx_ie)
+				pnew_beacon->rsnx_offset =
+					pmadapter->pscan_table[beacon_idx]
+						.rsnx_offset;
 		}
 		/* Point the new entry to its permanent storage space */
 		pnew_beacon->pbeacon_buf = pbcn_store;
@@ -2970,6 +2996,11 @@ static mlan_status wlan_update_curr_bcn(mlan_private *pmpriv)
 					 *)(pcurr_bss->pbeacon_buf +
 					    pcurr_bss->he_oprat_offset);
 		}
+		if (pcurr_bss->prsnx_ie) {
+			pcurr_bss->prsnx_ie =
+				(IEEEtypes_Generic_t *)(pcurr_bss->pbeacon_buf +
+							pcurr_bss->rsnx_offset);
+		}
 
 		PRINTM(MINFO, "current beacon restored %d\n",
 		       pmpriv->curr_bcn_size);
@@ -3185,6 +3216,8 @@ static t_void wlan_scan_process_results(mlan_private *pmpriv)
 				MNULL;
 			pmpriv->curr_bss_params.bss_descriptor.he_oprat_offset =
 				0;
+			pmpriv->curr_bss_params.bss_descriptor.prsnx_ie = MNULL;
+			pmpriv->curr_bss_params.bss_descriptor.rsnx_offset = 0;
 			pmpriv->curr_bss_params.bss_descriptor.pbeacon_buf =
 				MNULL;
 			pmpriv->curr_bss_params.bss_descriptor.beacon_buf_size =

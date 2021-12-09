@@ -406,6 +406,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_PASSPHRASE (PROPRIETARY_TLV_BASE_ID + 0x3c) /* 0x013c */
 /** TLV type : SAE Password */
 #define TLV_TYPE_SAE_PASSWORD (PROPRIETARY_TLV_BASE_ID + 0x141) /* 0x0241 */
+/** TLV type : SAE PWE Derivation Mode */
+#define TLV_TYPE_WPA3_SAE_PWE_DERIVATION_MODE                                  \
+	(PROPRIETARY_TLV_BASE_ID + 339) /* 0x0100 + 0x153 */
 /** TLV type : Encryption Protocol TLV */
 #define TLV_TYPE_ENCRYPTION_PROTO                                              \
 	(PROPRIETARY_TLV_BASE_ID + 0x40) /* 0x0140                             \
@@ -5480,6 +5483,17 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_SAE_Password_t {
 	char sae_password[1];
 } MLAN_PACK_END MrvlIEtypes_SAE_Password_t;
 
+/** MrvlIEtypes_SAE_PWE_Mode_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_SAE_PWE_Mode_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** WPA3 SAE mechanism for PWE derivation */
+	char pwe[1];
+} MLAN_PACK_END MrvlIEtypes_SAE_PWE_Mode_t;
+
+/** SAE H2E capability bit in RSNX */
+#define SAE_H2E_BIT 5
+
 /* rsnMode -
  *      Bit 0    : No RSN
  *      Bit 1-2  : RFU
@@ -6202,6 +6216,18 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_uap_max_sta_cnt_t {
 	/** max station count */
 	t_u16 uap_max_sta;
 } MLAN_PACK_END MrvlIEtypes_uap_max_sta_cnt_t;
+
+#define MRVL_ACTION_CHAN_SWITCH_ANNOUNCE (PROPRIETARY_TLV_BASE_ID + 0x341)
+
+/** MrvlIEtypes_uap_chan_switch */
+typedef MLAN_PACK_START struct _MrvlIEtypes_action_chan_switch_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/* 0 send broadcast CSA action frame, 1 send unicast CSA action frame */
+	t_u32 mode;
+	/**ie buf*/
+	t_u8 ie_buf[];
+} MLAN_PACK_END MrvlIEtypes_action_chan_switch_t;
 
 /** MrvlIEtypes_sta_ageout_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_sta_ageout_t {

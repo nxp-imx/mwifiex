@@ -340,7 +340,10 @@ static chan_freq_power_t channel_freq_power_A[] = {
 	{153, 5765, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{161, 5805, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
+	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{169, 5845, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{173, 5865, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{177, 5885, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
 
 /** Band: 'A', Region: Canada IC */
 static chan_freq_power_t channel_freq_power_CAN_A[] = {

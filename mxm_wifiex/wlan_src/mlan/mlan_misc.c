@@ -2156,8 +2156,8 @@ static t_void wlan_tdls_cs_start(pmlan_private pmpriv, t_u8 *peer_mac_addr,
 			tdls_all_cfg->u.tdls_chan_switch
 				.secondary_channel_offset =
 				wlan_get_second_channel_offset(
-					tdls_all_cfg->u.tdls_chan_switch
-						.primary_channel);
+					pmpriv, tdls_all_cfg->u.tdls_chan_switch
+							.primary_channel);
 		}
 		PRINTM(MCMND, "Start TDLS CS: channel=%d\n",
 		       tdls_all_cfg->u.tdls_chan_switch.primary_channel);
@@ -2175,7 +2175,7 @@ static t_void wlan_tdls_cs_start(pmlan_private pmpriv, t_u8 *peer_mac_addr,
 			tdls_all_cfg->u.tdls_chan_switch
 				.secondary_channel_offset =
 				wlan_get_second_channel_offset(
-					pmpriv->tdls_cs_channel);
+					pmpriv, pmpriv->tdls_cs_channel);
 		} else {
 			tdls_all_cfg->u.tdls_chan_switch.band = BAND_2GHZ;
 		}
@@ -2682,13 +2682,13 @@ mlan_status wlan_misc_ioctl_tdls_get_ies(pmlan_adapter pmadapter,
 		} else {
 			ht_info->ht_info.field2 =
 				wlan_get_second_channel_offset(
-					pbss_desc->channel);
+					pmpriv, pbss_desc->channel);
 		}
 		if (vht_oprat &&
 		    vht_oprat->ieee_hdr.element_id == VHT_OPERATION) {
 			ht_info->ht_info.field2 =
 				wlan_get_second_channel_offset(
-					pbss_desc->channel);
+					pmpriv, pbss_desc->channel);
 			ht_info->ht_info.field2 |= MBIT(2);
 		}
 		if (sta_ptr)
@@ -2807,309 +2807,6 @@ mlan_status wlan_get_info_ver_ext(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief This function convert mlan_wifi_rate to wifi_rate.
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param rateStats   wifi_rate_stat array
- *  @param pnum_rate   A pointer to num_rate
- *
- *  @return           N/A
- */
-t_void wlan_fill_hal_wifi_rate_in_host(pmlan_private pmpriv,
-				       OUT wifi_rate_stat rateStats[],
-				       t_u32 *pnumRate)
-{
-	t_u32 total_num_rate = 0;
-	t_u32 mcs_idx = 0;
-	t_u8 index = 0;
-	t_u8 rate_info = 0;
-
-	ENTER();
-
-	/* HT MCS */
-	for (mcs_idx = 0; mcs_idx < MCS_NUM_SUPP; mcs_idx++) {
-		/* 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
-		rateStats[total_num_rate].rate.preamble = 2;
-		/* 0:20MHz, 1:40Mhz, 2:80Mhz, 3:160Mhz */
-		rateStats[total_num_rate].rate.bw = 0;
-		rateStats[total_num_rate].rate.rateMcsIdx = mcs_idx;
-		index = rateStats[total_num_rate].rate.rateMcsIdx;
-		rate_info = MLAN_RATE_FORMAT_HT |
-			    (rateStats[total_num_rate].rate.bw << 2);
-		rateStats[total_num_rate].rate.bitrate =
-			wlan_index_to_data_rate(pmpriv->adapter, index,
-						rate_info, 0) *
-			5;
-		PRINTM(MINFO, "HT[%d] index=0x%x rate_info=0x%x bitrate=0x%x\n",
-		       total_num_rate, index, rate_info,
-		       rateStats[total_num_rate].rate.bitrate / 5);
-
-		/* Get Tx mpdu */
-		rateStats[total_num_rate].tx_mpdu = 0;
-		rateStats[total_num_rate].rx_mpdu = 0;
-
-		/* Todo: mpdu_lost/retries*, need extend GetTxRxRateInfo */
-		rateStats[total_num_rate].mpdu_lost = 0xC1;
-		rateStats[total_num_rate].retries = 0xC2;
-		rateStats[total_num_rate].retries_short = 0xC3;
-		rateStats[total_num_rate].retries_long = 0xC4;
-
-		total_num_rate++;
-	}
-
-	/* VHT MCS */
-	for (mcs_idx = 0; mcs_idx < VHT_NUM_SUPPORT_MCS; mcs_idx++) {
-		/* 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
-		rateStats[total_num_rate].rate.preamble = 3;
-		/* 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
-		rateStats[total_num_rate].rate.nss = 0;
-		/* 0:20MHz, 1:40Mhz, 2:80Mhz, 3:160Mhz */
-		rateStats[total_num_rate].rate.bw = 0;
-		rateStats[total_num_rate].rate.rateMcsIdx = mcs_idx;
-		/* nss 2 ? bw 20MHZ ? */
-		index = rateStats[total_num_rate].rate.rateMcsIdx |
-			(rateStats[total_num_rate].rate.nss << 4);
-		rate_info = MLAN_RATE_FORMAT_VHT |
-			    (rateStats[total_num_rate].rate.bw << 2);
-		rateStats[total_num_rate].rate.bitrate =
-			wlan_index_to_data_rate(pmpriv->adapter, index,
-						rate_info, 0) *
-			5;
-		PRINTM(MINFO,
-		       "VHT[%d] index=0x%x rate_info=0x%x bitrate=0x%x\n",
-		       total_num_rate, index, rate_info,
-		       rateStats[total_num_rate].rate.bitrate / 5);
-
-		rateStats[total_num_rate].tx_mpdu = 0;
-		rateStats[total_num_rate].rx_mpdu = 0;
-
-		/* Todo: mpdu_lost/retries*, need extend GetTxRxRateInfo */
-		rateStats[total_num_rate].mpdu_lost = 0xC1;
-		rateStats[total_num_rate].retries = 0xC2;
-		rateStats[total_num_rate].retries_short = 0xC3;
-		rateStats[total_num_rate].retries_long = 0xC4;
-
-		total_num_rate++;
-	}
-
-	*pnumRate = total_num_rate;
-
-	LEAVE();
-}
-
-/**
- *  @brief This function fill link layer statistic from firmware
- *
- *  @param priv       					A pointer to
- * mlan_private structure
- *  @param link_statistic_ioctl_buf,    A pointer to fill ioctl buffer
- *
- *  @return             MLAN_STATUS_SUCCESS
- */
-static void wlan_fill_link_statistic_in_host(mlan_private *priv,
-					     char *link_statistic_ioctl_buf)
-{
-	char *link_statistic = link_statistic_ioctl_buf;
-	wifi_radio_stat *radio_stat = MNULL;
-	wifi_iface_stat *iface_stat = MNULL;
-	t_u32 num_radio = MAX_RADIO;
-	int i = 0, chan_idx = 0;
-	t_u32 num_peers = 0;
-	sta_node *sta_ptr = MNULL;
-#ifdef WMM
-	t_u8 *ptid = MNULL;
-#endif
-
-	ENTER();
-
-	*((t_u32 *)link_statistic) = num_radio;
-	link_statistic += sizeof(num_radio);
-
-	/* Fill radio stats array */
-	for (i = 0; i < num_radio; i++) {
-		radio_stat = (wifi_radio_stat *)link_statistic;
-		link_statistic += sizeof(wifi_radio_stat);
-
-		radio_stat->radio = 0xF0;
-
-		radio_stat->on_time = 0;
-		radio_stat->tx_time = 0;
-		radio_stat->reserved0 = 0;
-		radio_stat->rx_time = 0;
-		radio_stat->on_time_scan = 0;
-		radio_stat->on_time_nbd = 0;
-		radio_stat->on_time_gscan = 0;
-		radio_stat->on_time_roam_scan = 0;
-		radio_stat->on_time_pno_scan = 0;
-		radio_stat->on_time_hs20 = 0;
-
-		radio_stat->num_channels = 1;
-		for (chan_idx = 0; chan_idx < radio_stat->num_channels;
-		     chan_idx++) {
-			if (radio_stat->num_channels > MAX_NUM_CHAN) {
-				radio_stat->num_channels = MAX_NUM_CHAN;
-				PRINTM(MERROR,
-				       "%s : radio_stat->num_channels=%d\n",
-				       __func__, radio_stat->num_channels);
-				break;
-			}
-
-			if (priv->bss_role == MLAN_BSS_ROLE_STA) {
-				if (priv->media_connected) {
-					radio_stat->channels[chan_idx]
-						.channel.width =
-						priv->curr_bss_params
-							.bss_descriptor
-							.curr_bandwidth;
-					radio_stat->channels[chan_idx]
-						.channel.center_freq =
-						priv->curr_bss_params
-							.bss_descriptor.freq;
-					radio_stat->channels[chan_idx]
-						.channel.center_freq0 = 0;
-					radio_stat->channels[chan_idx]
-						.channel.center_freq1 = 0;
-				}
-			} else {
-				radio_stat->channels[chan_idx].channel.width =
-					priv->uap_state_chan_cb.bandcfg
-						.chanWidth;
-				radio_stat->channels[chan_idx]
-					.channel
-					.center_freq = wlan_11d_chan_2_freq(
-					priv->adapter,
-					priv->uap_state_chan_cb.channel,
-					(priv->uap_state_chan_cb.channel > 14) ?
-						BAND_A :
-						BAND_G);
-				radio_stat->channels[chan_idx]
-					.channel.center_freq0 = 0;
-				radio_stat->channels[chan_idx]
-					.channel.center_freq1 = 0;
-			}
-			radio_stat->channels[chan_idx].on_time = 0xE3;
-			radio_stat->channels[chan_idx].cca_busy_time = 0xE4;
-		}
-	}
-
-	/* Fill iface stats*/
-	iface_stat = (wifi_iface_stat *)link_statistic;
-
-	/* get wifi_interface_link_layer_info in driver, not in firmware */
-	if (priv->bss_role == MLAN_BSS_ROLE_STA) {
-		iface_stat->info.mode = MLAN_INTERFACE_STA;
-		if (priv->media_connected)
-			iface_stat->info.state = MLAN_ASSOCIATING;
-		else
-			iface_stat->info.state = MLAN_DISCONNECTED;
-		iface_stat->info.roaming = MLAN_ROAMING_IDLE;
-		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
-		memcpy_ext(priv->adapter, iface_stat->info.ssid,
-			   priv->curr_bss_params.bss_descriptor.ssid.ssid,
-			   MLAN_MAX_SSID_LENGTH, MLAN_MAX_SSID_LENGTH);
-		memcpy_ext(priv->adapter, iface_stat->info.bssid,
-			   priv->curr_bss_params.bss_descriptor.mac_address,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-	} else {
-		iface_stat->info.mode = MLAN_INTERFACE_SOFTAP;
-		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
-	}
-	memcpy_ext(priv->adapter, iface_stat->info.mac_addr, priv->curr_addr,
-		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-	memcpy_ext(priv->adapter, iface_stat->info.ap_country_str,
-		   priv->adapter->country_code, COUNTRY_CODE_LEN,
-		   COUNTRY_CODE_LEN);
-	memcpy_ext(priv->adapter, iface_stat->info.country_str,
-		   priv->adapter->country_code, COUNTRY_CODE_LEN,
-		   COUNTRY_CODE_LEN);
-
-	iface_stat->beacon_rx = 0;
-	iface_stat->average_tsf_offset = 0;
-	iface_stat->leaky_ap_detected = 0;
-	iface_stat->leaky_ap_avg_num_frames_leaked = 0;
-	iface_stat->leaky_ap_guard_time = 0;
-
-	/* Value of iface_stat should be Reaccumulate by each peer */
-	iface_stat->mgmt_rx = 0;
-	iface_stat->mgmt_action_rx = 0;
-	iface_stat->mgmt_action_tx = 0;
-
-	iface_stat->rssi_mgmt = 0;
-	iface_stat->rssi_data = 0;
-	iface_stat->rssi_ack = 0;
-
-#ifdef WMM
-	for (i = WMM_AC_BK; i <= WMM_AC_VO; i++) {
-		iface_stat->ac[i].ac = i;
-		ptid = ac_to_tid[i];
-		iface_stat->ac[i].tx_mpdu = priv->wmm.packets_out[ptid[0]] +
-					    priv->wmm.packets_out[ptid[1]];
-		iface_stat->ac[i].rx_mpdu = 0;
-		iface_stat->ac[i].tx_mcast = 0;
-		iface_stat->ac[i].rx_mcast = 0;
-		iface_stat->ac[i].rx_ampdu = 0;
-		iface_stat->ac[i].tx_ampdu = 0;
-		iface_stat->ac[i].mpdu_lost = 0;
-		iface_stat->ac[i].retries = 0;
-		iface_stat->ac[i].retries_short = 0;
-		iface_stat->ac[i].retries_long = 0;
-		iface_stat->ac[i].contention_time_min = 0;
-		iface_stat->ac[i].contention_time_max = 0;
-		iface_stat->ac[i].contention_time_avg = 0;
-		iface_stat->ac[i].contention_num_samples = 0;
-	}
-#endif
-
-	if (priv->bss_role == MLAN_BSS_ROLE_STA) {
-		if (priv->media_connected) {
-			iface_stat->peer_info[0].type = WIFI_PEER_AP;
-			memcpy_ext(
-				priv->adapter,
-				iface_stat->peer_info[0].peer_mac_address,
-				priv->curr_bss_params.bss_descriptor.mac_address,
-				MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-			iface_stat->peer_info[0].capabilities =
-				MLAN_CAPABILITY_QOS;
-			wlan_fill_hal_wifi_rate_in_host(
-				priv, iface_stat->peer_info[0].rate_stats,
-				&(iface_stat->peer_info[0].num_rate));
-			num_peers = 1;
-		}
-	} else {
-		sta_ptr = (sta_node *)util_peek_list(
-			priv->adapter->pmoal_handle, &priv->sta_list,
-			priv->adapter->callbacks.moal_spin_lock,
-			priv->adapter->callbacks.moal_spin_unlock);
-		if (sta_ptr) {
-			while (sta_ptr != (sta_node *)&priv->sta_list) {
-				iface_stat->peer_info[num_peers].type =
-					WIFI_PEER_STA;
-				memcpy_ext(priv->adapter,
-					   iface_stat->peer_info[num_peers]
-						   .peer_mac_address,
-					   sta_ptr->mac_addr,
-					   MLAN_MAC_ADDR_LENGTH,
-					   MLAN_MAC_ADDR_LENGTH);
-				iface_stat->peer_info[num_peers].capabilities =
-					MLAN_CAPABILITY_QOS;
-				wlan_fill_hal_wifi_rate_in_host(
-					priv,
-					iface_stat->peer_info[num_peers]
-						.rate_stats,
-					&(iface_stat->peer_info[num_peers]
-						  .num_rate));
-				num_peers++;
-
-				sta_ptr = sta_ptr->pnext;
-			}
-		}
-	}
-	iface_stat->num_peers = num_peers;
-
-	LEAVE();
-}
-
-/**
  *  @brief Set/Get link layer statistics
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -3121,8 +2818,7 @@ mlan_status wlan_ioctl_link_statistic(mlan_private *pmpriv,
 				      pmlan_ioctl_req pioctl_req)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ds_get_info *info = MNULL;
-	t_u8 *link_statistic = MNULL;
+	t_u16 cmd_action = 0;
 
 	ENTER();
 
@@ -3137,18 +2833,27 @@ mlan_status wlan_ioctl_link_statistic(mlan_private *pmpriv,
 		goto exit;
 	}
 
-	/** We will not send HostCmd_CMD_802_11_LINK_STATS to FW */
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		info = (mlan_ds_get_info *)pioctl_req->pbuf;
-		link_statistic = info->param.link_statistic;
-		/** Get the LL STATS from driver */
-		wlan_fill_link_statistic_in_host(pmpriv, link_statistic);
-		DBG_HEXDUMP(
-			MCMD_D,
-			"wlan_ioctl_link_statistic() link_statistic in host",
-			(t_u8 *)link_statistic, 800);
+	switch (pioctl_req->action) {
+	case MLAN_ACT_GET:
+		cmd_action = HostCmd_ACT_GEN_GET;
+		break;
+	case MLAN_ACT_SET:
+		cmd_action = HostCmd_ACT_GEN_SET;
+		break;
+	case MLAN_ACT_CLEAR:
+		cmd_action = HostCmd_ACT_GEN_REMOVE;
+		break;
+	default:
+		ret = MLAN_STATUS_FAILURE;
+		goto exit;
 	}
-	ret = MLAN_STATUS_SUCCESS;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_LINK_STATS,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
 
 exit:
 	LEAVE();

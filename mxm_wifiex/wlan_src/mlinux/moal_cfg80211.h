@@ -108,6 +108,10 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 #endif
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+void woal_regulatory_work_queue(struct work_struct *work);
+#endif
+
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
 
 int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,

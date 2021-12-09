@@ -257,6 +257,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+	if (pmdevice->callbacks.moal_recv_amsdu_packet)
+		PRINTM(MMSG, "Enable moal_recv_amsdu_packet\n");
 
 	/* Allocate memory for adapter structure */
 	if (pmdevice->callbacks.moal_vmalloc && pmdevice->callbacks.moal_vfree)
@@ -1697,6 +1699,50 @@ t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid)
 	ret = wlan_wmm_select_queue(pmpriv, tid);
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief this function handle the amsdu packet after deaggreate.
+ *
+ *  @param padapter	A pointer to mlan_adapter structure
+ *  @param pmbuf    A pointer to the deaggreated buf
+ *  @param drop	    A pointer to return the drop flag.
+ *
+ *  @return			N/A
+ */
+void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
+{
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+	mlan_private *pmpriv;
+	t_u16 eth_type = 0;
+
+	*drop = MFALSE;
+	pmpriv = pmadapter->priv[pmbuf->bss_index];
+	eth_type =
+		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
+						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	switch (eth_type) {
+	case MLAN_ETHER_PKT_TYPE_EAPOL:
+		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
+		if (pmpriv->sec_info.ewpa_enabled) {
+			*drop = MTRUE;
+			wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_EAPOL_PKT,
+					 0, 0, MNULL, pmbuf);
+			wlan_recv_event(pmpriv,
+					MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+					MNULL);
+		}
+		break;
+	case MLAN_ETHER_PKT_TYPE_TDLS_ACTION:
+		PRINTM(MEVENT, "Recevie AMSDU TDLS action frame\n");
+		wlan_process_tdls_action_frame(pmpriv,
+					       pmbuf->pbuf + pmbuf->data_offset,
+					       pmbuf->data_len);
+		break;
+	default:
+		break;
+	}
+	return;
 }
 
 #if defined(SDIO) || defined(PCIE)

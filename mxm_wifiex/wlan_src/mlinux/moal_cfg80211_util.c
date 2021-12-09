@@ -2773,11 +2773,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u32 num_radio = 0, iface_stat_len = 0, radio_stat_len = 0;
 	int err = -1, length = 0, i;
 	char *ioctl_link_stats_buf = NULL;
-	mlan_ds_get_stats stats;
-	t_u64 cur_time = 0;
-	t_u64 inter_msec = 0;
-	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
-	moal_handle *handle = priv->phandle;
 
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
@@ -2799,14 +2794,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		goto done;
 	}
 
-	/* Get Log from the firmware */
-	memset(&stats, 0, sizeof(mlan_ds_get_stats));
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
-		PRINTM(MERROR, "Error getting stats information\n");
-		goto done;
-	}
-
 	ioctl_link_stats_buf = info->param.link_statistic;
 	num_radio = *((t_u32 *)info->param.link_statistic);
 
@@ -2814,44 +2801,9 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 					 sizeof(num_radio));
 	radio_stat_len = num_radio * sizeof(wifi_radio_stat);
 
-	/* Re-write on_time/tx_time/rx_time/on_time_scan from moal handle */
-	PRINTM(MINFO, "handle->on_time=%llu\n", handle->on_time);
-	if (handle->on_time) {
-		moal_get_boot_ktime(handle, &cur_time);
-		inter_msec = moal_do_div(cur_time - handle->on_time, 1000000);
-		PRINTM(MINFO, "cur_time=%llu inter_msec=%llu max_msec=%llu\n",
-		       cur_time, inter_msec, max_msec);
-		/* When we report the time up, u32 is not big enough(represent
-		 * max 49days) and might out of range, make the max value to
-		 * 24days.
-		 */
-		if (inter_msec > max_msec) {
-			PRINTM(MMSG,
-			       "Out of range, set inter_msec=%llu to max_msec=%llu\n",
-			       inter_msec, max_msec);
-			inter_msec = max_msec;
-		}
-	}
-	PRINTM(MINFO, "handle->tx_time=%llu\n", handle->tx_time);
-	PRINTM(MINFO, "handle->rx_time=%llu\n", handle->rx_time);
-	PRINTM(MINFO, "handle->scan_time=%llu\n", handle->scan_time);
-	radio_stat_tmp = radio_stat;
-	for (i = 0; i < num_radio; i++) {
-		radio_stat_tmp->on_time = (t_u32)inter_msec;
-		radio_stat_tmp->tx_time =
-			(t_u32)moal_do_div(handle->tx_time, 1000);
-		radio_stat_tmp->rx_time =
-			(t_u32)moal_do_div(handle->rx_time, 1000);
-		radio_stat_tmp->on_time_scan =
-			(t_u32)moal_do_div(handle->scan_time, 1000);
-		radio_stat_tmp++;
-	}
-
 	iface_stat = (wifi_iface_stat *)(info->param.link_statistic +
 					 sizeof(num_radio) + radio_stat_len);
 	iface_stat_len = sizeof(wifi_iface_stat);
-	/* Fill some fileds */
-	iface_stat->beacon_rx = stats.bcn_rcv_cnt;
 
 	/* could get peer info with separate cmd */
 	for (i = 0; i < iface_stat->num_peers; i++) {

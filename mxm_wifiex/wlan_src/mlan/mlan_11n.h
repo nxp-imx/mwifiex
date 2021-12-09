@@ -123,7 +123,7 @@ mlan_status wlan_cmd_amsdu_aggr_ctrl(mlan_private *priv,
 t_u8 wlan_validate_chan_offset(mlan_private *pmpriv, t_u16 band, t_u32 chan,
 			       t_u8 chan_bw);
 /** get channel offset */
-t_u8 wlan_get_second_channel_offset(int chan);
+t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan);
 
 void wlan_update_11n_cap(mlan_private *pmpriv);
 

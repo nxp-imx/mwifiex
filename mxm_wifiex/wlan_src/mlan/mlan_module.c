@@ -45,6 +45,7 @@ EXPORT_SYMBOL(mlan_ioctl);
 EXPORT_SYMBOL(mlan_main_process);
 EXPORT_SYMBOL(mlan_rx_process);
 EXPORT_SYMBOL(mlan_select_wmm_queue);
+EXPORT_SYMBOL(mlan_process_deaggr_pkt);
 #if defined(SDIO) || defined(PCIE)
 EXPORT_SYMBOL(mlan_interrupt);
 #if defined(SYSKT)

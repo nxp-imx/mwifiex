@@ -551,6 +551,19 @@ static inline void woal_sched_timeout(t_u32 millisec)
 	schedule_timeout((millisec * HZ) / 1000);
 }
 
+/**
+ *  @brief Schedule timeout uninterruptible
+ *
+ *  @param millisec	Timeout duration in milli second
+ *
+ *  @return		N/A
+ */
+static inline void woal_sched_timeout_uninterruptible(t_u32 millisec)
+{
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	schedule_timeout_uninterruptible((millisec * HZ) / 1000);
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #define IN6PTON_XDIGIT 0x00010000
 #define IN6PTON_DIGIT 0x00020000
@@ -1292,6 +1305,8 @@ struct _moal_private {
 	BOOLEAN bss_started;
 	/** host based uap flag */
 	BOOLEAN uap_host_based;
+	/** transition channel */
+	t_u8 trans_chan;
 	/** uAP skip CAC*/
 	BOOLEAN skip_cac;
 	/** tx block flag */
@@ -1734,7 +1749,11 @@ typedef struct _moal_mod_para {
 #ifdef MFG_CMD_SUPPORT
 	int mfg_mode;
 #endif /* MFG_CMD_SUPPORT */
+	char *hw_name;
 	int drv_mode;
+#ifdef DEBUG_LEVEL1
+	int drvdbg;
+#endif
 #ifdef STA_SUPPORT
 	int max_sta_bss;
 	char *sta_name;
@@ -1754,6 +1773,7 @@ typedef struct _moal_mod_para {
 #endif /* WIFI_DIRECT_SUPPORT */
 	int auto_ds;
 	int net_rx;
+	int amsdu_deaggr;
 	int ext_scan;
 	int ps_mode;
 	int p2a_scan;
@@ -2039,6 +2059,10 @@ struct _moal_handle {
 	struct wiphy *wiphy;
 	/** Country code for regulatory domain */
 	t_u8 country_code[COUNTRY_CODE_LEN];
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	/** regulatory work */
+	struct work_struct regulatory_work;
+#endif
 	/** band */
 	enum ieee80211_band band;
 	/** first scan done flag */
@@ -2230,22 +2254,6 @@ struct _moal_handle {
 	mlan_debug_info debug_info;
 	/* block id in module param config file */
 	int blk_id;
-	/** time when FW is active, time is get from boot time, in Nanosecond */
-	t_u64 on_time;
-	/** tx time, in usecs */
-	t_u64 tx_time;
-	/** systime when tx start */
-	wifi_timeval tx_time_start;
-	/** systime when tx end */
-	wifi_timeval tx_time_end;
-	/** rx time, in usecs */
-	t_u64 rx_time;
-	/** scan time, in usecs */
-	t_u64 scan_time;
-	/** systime when scan cmd response return success */
-	wifi_timeval scan_time_start;
-	/** systime when scan event has no more event */
-	wifi_timeval scan_time_end;
 	/** seecond mac flag */
 	t_u8 second_mac;
 	/** moal handle for another mac */
@@ -2914,6 +2922,7 @@ mlan_status woal_broadcast_event(moal_private *priv, t_u8 *payload, t_u32 len);
 mlan_status woal_switch_drv_mode(moal_handle *handle, t_u32 mode);
 #endif
 
+int woal_check_media_connected(t_void *pmoal);
 /** check if any interface is up */
 t_u8 woal_is_any_interface_active(moal_handle *handle);
 /** Get version */
@@ -3395,7 +3404,7 @@ mlan_status woal_set_rekey_data(moal_private *priv,
 mlan_status woal_vdll_req_fw(moal_handle *handle);
 
 void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info);
-t_u8 woal_get_second_channel_offset(int chan);
+t_u8 woal_get_second_channel_offset(moal_private *priv, int chan);
 
 #ifdef IMX_SUPPORT
 void woal_regist_oob_wakeup_irq(moal_handle *handle);

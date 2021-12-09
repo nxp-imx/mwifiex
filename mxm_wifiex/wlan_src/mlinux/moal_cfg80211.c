@@ -127,6 +127,9 @@ static struct ieee80211_channel cfg80211_channels_5ghz[] = {
 	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
+	{.center_freq = 5845, .hw_value = 169, .max_power = 20},
+	{.center_freq = 5865, .hw_value = 173, .max_power = 20},
+	{.center_freq = 5885, .hw_value = 177, .max_power = 20},
 };
 
 struct ieee80211_supported_band cfg80211_band_2ghz = {
@@ -172,6 +175,9 @@ static struct ieee80211_channel mac1_cfg80211_channels_5ghz[] = {
 	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
+	{.center_freq = 5845, .hw_value = 169, .max_power = 20},
+	{.center_freq = 5865, .hw_value = 173, .max_power = 20},
+	{.center_freq = 5885, .hw_value = 177, .max_power = 20},
 };
 
 struct ieee80211_supported_band mac1_cfg80211_band_2ghz = {
