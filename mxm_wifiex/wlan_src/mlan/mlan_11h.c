@@ -118,6 +118,8 @@ static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_1 = {
 /** U-NII sub-band config : Start Channel = 149, NumChans = 5 */
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_upper_band = {149,
 									 5};
+/** U-NII sub-band config : Start Channel = 169, NumChans = 3 */
+static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_4_band = {169, 3};
 
 /** Internally passed structure used to send a CMD_802_11_TPC_INFO command */
 typedef struct {
@@ -352,6 +354,17 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv, t_u8 band,
 		 */
 		switch (cfp_a) {
 		case 0x10: /* USA FCC   */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_lower_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_middle_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_mid_upper_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_upper_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_4_band;
+			break;
 		case 0x20: /* Canada IC */
 		case 0x30: /* Europe ETSI */
 		default:
@@ -1338,19 +1351,24 @@ wlan_11h_prepare_custom_ie_chansw(mlan_adapter *pmadapter,
  *  @brief Check if start channel 165 is allowed to operate in
  *  previous uAP channel's band config
  *
+ *  @param priv          a pointer to mlan_private structure
  *  @param start_chn     Random Start channel choosen after radar detection
  *  @param uap_band_cfg  Private driver uAP band configuration information
  * structure
  *
  *  @return MFALSE if the channel is not allowed in given band
  */
-static t_bool wlan_11h_is_band_valid(t_u8 start_chn, Band_Config_t uap_band_cfg)
+static t_bool wlan_11h_is_band_valid(mlan_private *priv, t_u8 start_chn,
+				     Band_Config_t uap_band_cfg)
 {
 	/* if band width is not 20MHZ (either 40 or 80MHz)
 	 * return MFALSE, 165 is not allowed in bands other than 20MHZ
 	 */
-	if (start_chn == 165 && (uap_band_cfg.chanWidth != CHAN_BW_20MHZ)) {
-		return MFALSE;
+	if (start_chn == 165) {
+		if (priv->adapter->region_code == COUNTRY_CODE_US)
+			return MTRUE;
+		if (uap_band_cfg.chanWidth != CHAN_BW_20MHZ)
+			return MFALSE;
 	}
 	return MTRUE;
 }
@@ -1445,7 +1463,7 @@ static t_u8 wlan_11h_get_uap_start_channel(mlan_private *priv,
 						  wlan_11h_radar_detect_required(
 							  priv, start_chn)) ||
 						 !(wlan_11h_is_band_valid(
-							 start_chn,
+							 priv, start_chn,
 							 uap_band_cfg)))) &&
 					       (++rand_tries <
 						chn_tbl->num_cfp)) {
@@ -2963,6 +2981,7 @@ mlan_status wlan_11h_ioctl_get_channel_nop_info(pmlan_adapter pmadapter,
 				if (ch_nop_info->chan_width == CHAN_BW_80MHZ ||
 				    ch_nop_info->chan_width == CHAN_BW_40MHZ)
 					wlan_11h_update_bandcfg(
+						pmpriv,
 						&ch_nop_info->new_chan.bandcfg,
 						ch_nop_info->new_chan.channel);
 				if (ch_nop_info->chan_width == CHAN_BW_80MHZ)
@@ -3166,7 +3185,6 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 		priv->adapter->pmoal_handle, &sec, &usec);
 	pstate_dfs->dfs_report_time_sec = sec;
 	pstate_dfs->dfs_check_pending = MFALSE;
-	pstate_dfs->dfs_check_priv = MNULL;
 
 	LEAVE();
 	return ret;
@@ -3326,7 +3344,8 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
  *
  *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE or MLAN_STATUS_PENDING
  */
-void wlan_11h_update_bandcfg(Band_Config_t *uap_band_cfg, t_u8 new_channel)
+void wlan_11h_update_bandcfg(mlan_private *pmpriv, Band_Config_t *uap_band_cfg,
+			     t_u8 new_channel)
 {
 	t_u8 chan_offset;
 	ENTER();
@@ -3335,7 +3354,7 @@ void wlan_11h_update_bandcfg(Band_Config_t *uap_band_cfg, t_u8 new_channel)
 	 * Clear the channel bandwidth for 20MHz
 	 * since channel switch could be happening from 40/80MHz to 20MHz
 	 */
-	chan_offset = wlan_get_second_channel_offset(new_channel);
+	chan_offset = wlan_get_second_channel_offset(pmpriv, new_channel);
 	uap_band_cfg->chan2Offset = chan_offset;
 
 	if (!chan_offset) { /* 40MHz/80MHz */
@@ -3897,7 +3916,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 
 				/* DFS only in 5GHz */
 				wlan_11h_update_bandcfg(
-					&pstate_rdh->uap_band_cfg,
+					pmpriv, &pstate_rdh->uap_band_cfg,
 					pstate_rdh->new_channel);
 				PRINTM(MCMD_D,
 				       "RDH_SET_NEW_CHANNEL: uAP band config = 0x%x channel=%d\n",
@@ -4115,7 +4134,8 @@ mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter)
 			pmpriv = priv_list[0];
 			PRINTM(MINFO, "%s: found dfs_slave priv=%p\n", __func__,
 			       pmpriv);
-		} else if (pmadapter->state_dfs.dfs_check_pending) {
+		} else if (pmadapter->state_dfs.dfs_check_pending ||
+			   pmadapter->state_dfs.dfs_check_channel) {
 			pmpriv = (mlan_private *)(pmadapter->state_dfs
 							  .dfs_check_priv);
 			PRINTM(MINFO, "%s: found dfs priv=%p\n", __func__,

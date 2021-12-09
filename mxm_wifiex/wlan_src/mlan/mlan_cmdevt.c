@@ -173,6 +173,8 @@ static t_void wlan_queue_cmd(mlan_private *pmpriv, cmd_ctrl_node *pcmd_node,
 	if (pmpriv->adapter->scan_processing &&
 	    pmpriv->adapter->ext_scan_type == EXT_SCAN_ENHANCE) {
 		if (MFALSE == wlan_is_cmd_allowed_during_scan(cmd_no)) {
+			PRINTM(MCMND, "QUEUE_CMD: cmd=0x%x scan_pending_q\n",
+			       cmd_no);
 			wlan_queue_scan_cmd(pmpriv, pcmd_node);
 			return;
 		}
@@ -2248,6 +2250,7 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 #ifdef STA_SUPPORT
 			if (pmadapter->pwarm_reset_ioctl_req) {
 				/* warm reset complete */
+				PRINTM(MMSG, "wlan: warm reset complete\n");
 				pmadapter->hw_status = WlanHardwareStatusReady;
 				pcb->moal_ioctl_complete(
 					pmadapter->pmoal_handle,
@@ -2372,7 +2375,10 @@ exit:
 t_void wlan_flush_scan_queue(pmlan_adapter pmadapter)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
-
+	mlan_ioctl_req *pioctl_buf = MNULL;
+	HostCmd_DS_COMMAND *pcmd = MNULL;
+	t_u16 cmd_no = 0;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
 	ENTER();
 
 	wlan_request_cmd_lock(pmadapter);
@@ -2382,7 +2388,20 @@ t_void wlan_flush_scan_queue(pmlan_adapter pmadapter)
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->scan_pending_q,
 				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
-		pcmd_node->pioctl_buf = MNULL;
+		pcmd = (HostCmd_DS_COMMAND *)(pcmd_node->cmdbuf->pbuf +
+					      pcmd_node->cmdbuf->data_offset);
+		cmd_no = wlan_le16_to_cpu(pcmd->command);
+		PRINTM(MCMND, "flush scan queue: cmd 0x%02x\n", cmd_no);
+		if (pcmd_node->pioctl_buf &&
+		    cmd_no != HostCmd_CMD_802_11_SCAN &&
+		    cmd_no != HostCmd_CMD_802_11_SCAN_EXT) {
+			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
+			pcmd_node->pioctl_buf = MNULL;
+			pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
+			pcb->moal_ioctl_complete(pmadapter->pmoal_handle,
+						 pioctl_buf,
+						 MLAN_STATUS_FAILURE);
+		}
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 	}
 

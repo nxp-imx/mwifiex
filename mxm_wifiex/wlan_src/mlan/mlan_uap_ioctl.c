@@ -171,6 +171,7 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 
 			if (ret == MLAN_STATUS_SUCCESS) {
 				wlan_11h_update_bandcfg(
+					pmpriv,
 					&pmpriv->uap_state_chan_cb.bandcfg,
 					puap_state_chan_cb->channel);
 				PRINTM(MCMD_D,
@@ -349,11 +350,6 @@ static mlan_status wlan_uap_bss_ioctl_reset(pmlan_adapter pmadapter,
 	pmpriv->addba_reject[6] = pmpriv->addba_reject[7] =
 		ADDBA_RSP_STATUS_REJECT;
 
-	/* hs_configured, hs_activated are reset by main loop */
-	pmadapter->hs_cfg.conditions = HOST_SLEEP_DEF_COND;
-	pmadapter->hs_cfg.gpio = HOST_SLEEP_DEF_GPIO;
-	pmadapter->hs_cfg.gap = HOST_SLEEP_DEF_GAP;
-
 	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_RESET,
 			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
 			       MNULL);
@@ -448,6 +444,37 @@ static mlan_status wlan_uap_bss_ioctl_uap_wmm_param(pmlan_adapter pmadapter,
 		cmd_action = HostCmd_ACT_GEN_SET;
 	else
 		cmd_action = HostCmd_ACT_GEN_GET;
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE, cmd_action,
+			       0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Handle channel switch
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_uap_bss_ioctl_action_chan_switch(pmlan_adapter pmadapter,
+				      pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	cmd_action = HostCmd_ACT_GEN_SET;
+
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE, cmd_action,
 			       0, (t_void *)pioctl_req, MNULL);
@@ -1858,6 +1885,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (bss->sub_command == MLAN_OID_UAP_ADD_STATION)
 			status = wlan_uap_bss_ioctl_add_station(pmadapter,
 								pioctl_req);
+		else if (bss->sub_command == MLAN_OID_ACTION_CHAN_SWITCH)
+			status = wlan_uap_bss_ioctl_action_chan_switch(
+				pmadapter, pioctl_req);
 		break;
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	case MLAN_IOCTL_SCAN:

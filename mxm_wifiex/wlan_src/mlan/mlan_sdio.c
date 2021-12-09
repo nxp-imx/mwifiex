@@ -2850,8 +2850,7 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter)
 			}
 			rx_len = (t_u16)(rx_blocks * MLAN_SDIO_BLOCK_SIZE);
 
-			if ((rx_len > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) ||
-			    (!new_mode && (port == CTRL_PORT)))
+			if (!new_mode && (port == CTRL_PORT))
 				pmbuf = wlan_alloc_mlan_buffer(
 					pmadapter, rx_len, 0,
 					MOAL_MALLOC_BUFFER);

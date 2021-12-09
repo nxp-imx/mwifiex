@@ -1512,6 +1512,9 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 	custom_ie *cptr = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	MrvlIEtypes_wacp_mode_t *tlv_wacp_mode = MNULL;
+	MrvlIEtypes_action_chan_switch_t *tlv_chan_switch = MNULL;
+	IEEEtypes_ChanSwitchAnn_t *csa_ie = MNULL;
+	IEEEtypes_ExtChanSwitchAnn_t *ecsa_ie = MNULL;
 
 	ENTER();
 
@@ -1829,6 +1832,57 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 				       bss->param.ap_channel.bandcfg,
 				       bss->param.ap_channel.channel);
 			}
+		} else if (bss->sub_command == MLAN_OID_ACTION_CHAN_SWITCH) {
+			cmd->size = sizeof(HostCmd_DS_SYS_CONFIG) - 1 +
+				    S_DS_GEN +
+				    sizeof(MrvlIEtypes_action_chan_switch_t);
+			tlv_chan_switch = (MrvlIEtypes_action_chan_switch_t *)
+						  sys_config->tlv_buffer;
+			tlv_chan_switch->header.type = wlan_cpu_to_le16(
+				MRVL_ACTION_CHAN_SWITCH_ANNOUNCE);
+			// mode reserve for future use
+			tlv_chan_switch->mode = 0;
+			if (bss->param.chanswitch.new_oper_class) {
+				tlv_chan_switch->header.len = wlan_cpu_to_le16(
+					sizeof(MrvlIEtypes_action_chan_switch_t) -
+					sizeof(MrvlIEtypesHeader_t) +
+					sizeof(IEEEtypes_ExtChanSwitchAnn_t));
+				ecsa_ie = (IEEEtypes_ExtChanSwitchAnn_t *)
+						  tlv_chan_switch->ie_buf;
+				ecsa_ie->element_id = EXTEND_CHANNEL_SWITCH_ANN;
+				ecsa_ie->len =
+					sizeof(IEEEtypes_ExtChanSwitchAnn_t) -
+					sizeof(IEEEtypes_Header_t);
+				ecsa_ie->chan_switch_mode =
+					bss->param.chanswitch.chan_switch_mode;
+				ecsa_ie->chan_switch_count =
+					bss->param.chanswitch.chan_switch_count;
+				ecsa_ie->new_channel_num =
+					bss->param.chanswitch.new_channel_num;
+				ecsa_ie->new_oper_class =
+					bss->param.chanswitch.new_oper_class;
+				cmd->size +=
+					sizeof(IEEEtypes_ExtChanSwitchAnn_t);
+			} else {
+				tlv_chan_switch->header.len = wlan_cpu_to_le16(
+					sizeof(MrvlIEtypes_action_chan_switch_t) -
+					sizeof(MrvlIEtypesHeader_t) +
+					sizeof(IEEEtypes_ChanSwitchAnn_t));
+				csa_ie = (IEEEtypes_ChanSwitchAnn_t *)
+						 tlv_chan_switch->ie_buf;
+				csa_ie->element_id = CHANNEL_SWITCH_ANN;
+				csa_ie->len =
+					sizeof(IEEEtypes_ChanSwitchAnn_t) -
+					sizeof(IEEEtypes_Header_t);
+				csa_ie->chan_switch_mode =
+					bss->param.chanswitch.chan_switch_mode;
+				csa_ie->chan_switch_count =
+					bss->param.chanswitch.chan_switch_count;
+				csa_ie->new_channel_num =
+					bss->param.chanswitch.new_channel_num;
+				cmd->size += sizeof(IEEEtypes_ChanSwitchAnn_t);
+			}
+			cmd->size = wlan_cpu_to_le16(cmd->size);
 		} else if ((bss->sub_command == MLAN_OID_UAP_BSS_CONFIG) &&
 			   (cmd_action == HostCmd_ACT_GEN_SET)) {
 			ret = wlan_uap_cmd_ap_config(pmpriv, cmd, cmd_action,
@@ -3628,6 +3682,7 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 	sta_node *sta_ptr;
 	t_u8 tlv_len = 0;
 	t_u8 *buf = MNULL;
+	t_u8 *ie_buf = MNULL;
 
 	ENTER();
 	if (pioctl_buf) {
@@ -3638,8 +3693,12 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 		tlv = (MrvlIEtypes_sta_info_t *)buf;
 		info->param.sta_list.sta_count =
 			MIN(info->param.sta_list.sta_count, MAX_NUM_CLIENTS);
+		ie_buf = (t_u8 *)&info->param.sta_list.info[0];
+		ie_buf +=
+			sizeof(sta_info_data) * info->param.sta_list.sta_count;
 		pioctl_buf->data_read_written =
-			sizeof(info->param.sta_list.sta_count);
+			sizeof(mlan_ds_sta_list) -
+			sizeof(sta_info_data) * MAX_NUM_CLIENTS;
 		for (i = 0; i < info->param.sta_list.sta_count; i++) {
 			tlv_len = wlan_le16_to_cpu(tlv->header.len);
 			memcpy_ext(pmpriv->adapter,
@@ -3649,12 +3708,12 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 			info->param.sta_list.info[i].ie_len =
 				tlv_len + sizeof(MrvlIEtypesHeader_t) -
 				sizeof(MrvlIEtypes_sta_info_t);
-			if (info->param.sta_list.info[i].ie_len)
-				memcpy_ext(pmpriv->adapter,
-					   info->param.sta_list.info[i].ie_buf,
-					   tlv->ie_buf,
+			if (info->param.sta_list.info[i].ie_len) {
+				memcpy_ext(pmpriv->adapter, ie_buf, tlv->ie_buf,
 					   info->param.sta_list.info[i].ie_len,
 					   info->param.sta_list.info[i].ie_len);
+				ie_buf += info->param.sta_list.info[i].ie_len;
+			}
 			info->param.sta_list.info[i].power_mgmt_status =
 				tlv->power_mgmt_status;
 			info->param.sta_list.info[i].rssi = tlv->rssi;
@@ -3671,7 +3730,7 @@ static mlan_status wlan_uap_ret_sta_list(pmlan_private pmpriv,
 			} else
 				info->param.sta_list.info[i].bandmode = 0xFF;
 			pioctl_buf->data_read_written +=
-				sizeof(sta_info_data) - 1 +
+				sizeof(sta_info_data) +
 				info->param.sta_list.info[i].ie_len;
 			buf += sizeof(MrvlIEtypes_sta_info_t) +
 			       info->param.sta_list.info[i].ie_len;
@@ -4069,6 +4128,7 @@ static mlan_status wlan_uap_cmd_oper_ctrl(pmlan_private pmpriv,
 				if (bandcfg->chanWidth)
 					bandcfg->chan2Offset =
 						wlan_get_second_channel_offset(
+							pmpriv,
 							uap_oper_ctrl->channel);
 				bandcfg->scanMode = SCAN_MODE_MANUAL;
 				poper_ctl->channel_band.channel =

@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "283.p2"
+#define MLAN_RELEASE_VERSION "293"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -137,6 +137,9 @@ typedef t_s32 t_sval;
 
 /** NET IP alignment */
 #define MLAN_NET_IP_ALIGN 2
+
+/** US country code */
+#define COUNTRY_CODE_US 0x10
 
 /** DMA alignment */
 /* SDIO3.0 Inrevium Adapter require 32 bit DMA alignment */
@@ -1916,6 +1919,9 @@ typedef struct _mlan_callbacks {
 					  t_u32 port, mlan_status status);
 	/** moal_recv_packet */
 	mlan_status (*moal_recv_packet)(t_void *pmoal, pmlan_buffer pmbuf);
+	/** moal_recv_amsdu_packet */
+	mlan_status (*moal_recv_amsdu_packet)(t_void *pmoal,
+					      pmlan_buffer pmbuf);
 	/** moal_recv_event */
 	mlan_status (*moal_recv_event)(t_void *pmoal, pmlan_event pmevent);
 	/** moal_ioctl_complete */
@@ -2233,6 +2239,9 @@ MLAN_API mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf,
 MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 					       pmlan_buffer pmbuf,
 					       mlan_status status);
+
+/** handle amsdu deaggregated packet */
+void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop);
 
 #if defined(SDIO) || defined(PCIE)
 /** interrupt handler */

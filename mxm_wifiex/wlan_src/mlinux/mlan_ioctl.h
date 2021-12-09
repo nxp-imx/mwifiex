@@ -86,6 +86,9 @@ enum _mlan_ioctl_req_id {
 #endif
 
 	MLAN_OID_BSS_FIND_BSSID = 0x0002001D,
+#ifdef UAP_SUPPORT
+	MLAN_OID_ACTION_CHAN_SWITCH = 0x0002001E,
+#endif
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -627,7 +630,7 @@ typedef struct _mlan_multicast_list {
 } mlan_multicast_list, *pmlan_multicast_list;
 
 /** Max channel */
-#define MLAN_MAX_CHANNEL 165
+#define MLAN_MAX_CHANNEL 177
 /** Maximum number of channels in table */
 #define MLAN_MAX_CHANNEL_NUM 128
 
@@ -1119,6 +1122,20 @@ typedef struct _mlan_uap_scan_channels {
 	scan_chan_list chan_list[MLAN_MAX_CHANNEL];
 } mlan_uap_scan_channels;
 
+/** mlan_chan_switch_param */
+typedef struct _mlan_action_chan_switch {
+	/** mode*/
+	t_u8 mode;
+	/** switch mode*/
+	t_u8 chan_switch_mode;
+	/** oper class*/
+	t_u8 new_oper_class;
+	/** new channel */
+	t_u8 new_channel_num;
+	/** chan_switch_count */
+	t_u8 chan_switch_count;
+} mlan_action_chan_switch;
+
 /** mlan_uap_oper_ctrl */
 typedef struct _mlan_uap_oper_ctrl {
 	/** control value
@@ -1232,6 +1249,8 @@ typedef struct _mlan_ds_bss {
 		wmm_parameter_t ap_wmm_para;
 		/** ap scan channels for MLAN_OID_UAP_SCAN_CHANNELS*/
 		mlan_uap_scan_channels ap_scan_channels;
+		/** channel switch for MLAN_OID_UAP_CHAN_SWITCH */
+		mlan_action_chan_switch chanswitch;
 		/** ap channel for MLAN_OID_UAP_CHANNEL*/
 		chan_band_info ap_channel;
 		/** ap operation control for MLAN_OID_UAP_OPER_CTRL*/
@@ -2449,8 +2468,6 @@ typedef struct _sta_info_data {
 	sta_stats stats;
 	/** ie length */
 	t_u16 ie_len;
-	/** ie buffer */
-	t_u8 ie_buf[1];
 } sta_info_data;
 
 /** mlan_ds_sta_list structure for MLAN_OID_UAP_STA_LIST */
@@ -2459,6 +2476,7 @@ typedef struct _mlan_ds_sta_list {
 	t_u16 sta_count;
 	/** station list */
 	sta_info_data info[MAX_NUM_CLIENTS];
+	/* ie_buf will be append at the end */
 } mlan_ds_sta_list, *pmlan_ds_sta_list;
 #endif
 

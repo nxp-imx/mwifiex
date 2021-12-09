@@ -56,6 +56,16 @@ int terminate_flag = 0;
 			Local Variables
 ********************************************************/
 
+#define BAND_B (1U << 0)
+#define BAND_G (1U << 1)
+#define BAND_A (1U << 2)
+#define BAND_GN (1U << 3)
+#define BAND_AN (1U << 4)
+#define BAND_GAC (1U << 5)
+#define BAND_AAC (1U << 6)
+#define BAND_GAX (1U << 8)
+#define BAND_AAX (1U << 9)
+
 /** Stringification of rateId enumeration */
 const char *rateIdStr[] = {"1",	 "2",  "5.5", "11", "--", "6",	"9",  "12",
 			   "18", "24", "36",  "48", "54", "--", "M0", "M1",

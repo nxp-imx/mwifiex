@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel from 2.6.32 to 5.13.4.
+	The driver code supports Linux kernel from 2.6.32 to 5.15.
 
 2) FOR DRIVER INSTALL
 
@@ -51,6 +51,8 @@
 	  auto_ds=0|1|2 <use MLAN default | enable auto deepsleep | disable auto deepsleep>
 	  ext_scan=0|1|2 <use MLAN default | Enable Extended Scan| Enable Enhanced Extended Scan>
       net_rx=0|1 <use netif_rx_ni in rx | use netif_receive_skb in rx>
+      amsdu_deaggr=0|1 <default | Try avoid buf copy in amsud deaggregation>
+
 	  ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
 	  sched_scan=0|1 <disable sched_scan | enable sched_scan default>
 	  max_tx_buf=2048|4096|8192 <maximum AMSDU Tx buffer size>
@@ -60,6 +62,7 @@
 	  dts_enable=0|1 <Disable DTS | Enable DTS (default)>
 	  fw_name = <FW file name>
 		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin
+	  hw_name = <hardware name>
 	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
 	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
 	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>

@@ -234,7 +234,6 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u32 out_ts_sec, out_ts_usec;
 	t_u32 in_copy_ts_sec, in_copy_ts_usec;
 	t_u32 out_copy_ts_sec, out_copy_ts_usec;
-	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 copy_delay = 0;
 	t_u32 delay = 0;
 
@@ -268,8 +267,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		goto done;
 	}
 	if (pmadapter->tp_state_on)
-		pcb->moal_get_system_time(pmadapter->pmoal_handle, &in_ts_sec,
-					  &in_ts_usec);
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &in_ts_sec, &in_ts_usec);
 	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
 
 	// rx_trace 7
@@ -281,7 +280,20 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	}
 	if (pmadapter->tp_state_drop_point == 7 /*RX_DROP_P3*/)
 		goto done;
-
+	prx_pkt = (RxPacketHdr_t *)data;
+	if (pmbuf->pdesc && !memcmp(pmadapter, prx_pkt->eth803_hdr.dest_addr,
+				    priv->curr_addr, MLAN_MAC_ADDR_LENGTH)) {
+		if (pmadapter->callbacks.moal_recv_amsdu_packet) {
+			ret = pmadapter->callbacks.moal_recv_amsdu_packet(
+				pmadapter->pmoal_handle, pmbuf);
+			if (ret == MLAN_STATUS_PENDING) {
+				priv->msdu_in_rx_amsdu_cnt += pmbuf->use_count;
+				priv->amsdu_rx_cnt++;
+				return ret;
+			}
+			goto done;
+		}
+	}
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;
 		/* Length will be in network format, change it to host */
@@ -331,16 +343,16 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		daggr_mbuf->pparent = pmbuf;
 		daggr_mbuf->priority = pmbuf->priority;
 		if (pmadapter->tp_state_on)
-			pcb->moal_get_system_time(pmadapter->pmoal_handle,
-						  &in_copy_ts_sec,
-						  &in_copy_ts_usec);
+			pmadapter->callbacks.moal_get_system_time(
+				pmadapter->pmoal_handle, &in_copy_ts_sec,
+				&in_copy_ts_usec);
 		memcpy_ext(pmadapter,
 			   daggr_mbuf->pbuf + daggr_mbuf->data_offset, data,
 			   pkt_len, daggr_mbuf->data_len);
 		if (pmadapter->tp_state_on) {
-			pcb->moal_get_system_time(pmadapter->pmoal_handle,
-						  &out_copy_ts_sec,
-						  &out_copy_ts_usec);
+			pmadapter->callbacks.moal_get_system_time(
+				pmadapter->pmoal_handle, &out_copy_ts_sec,
+				&out_copy_ts_usec);
 			copy_delay +=
 				(t_s32)(out_copy_ts_sec - in_copy_ts_sec) *
 				1000000;
@@ -408,8 +420,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		data += pkt_len + pad;
 	}
 	if (pmadapter->tp_state_on) {
-		pcb->moal_get_system_time(pmadapter->pmoal_handle, &out_ts_sec,
-					  &out_ts_usec);
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
 		delay += (t_s32)(out_ts_sec - in_ts_sec) * 1000000;
 		delay += (t_s32)(out_ts_usec - in_ts_usec);
 		pmadapter->callbacks.moal_amsdu_tp_accounting(

@@ -674,6 +674,7 @@ static mlan_callbacks woal_callbacks = {
 	.moal_shutdown_fw_complete = moal_shutdown_fw_complete,
 	.moal_send_packet_complete = moal_send_packet_complete,
 	.moal_recv_packet = moal_recv_packet,
+	.moal_recv_amsdu_packet = moal_recv_amsdu_packet,
 	.moal_recv_event = moal_recv_event,
 	.moal_ioctl_complete = moal_ioctl_complete,
 	.moal_alloc_mlan_buffer = moal_alloc_mlan_buffer,
@@ -886,8 +887,9 @@ static void woal_hang_work_queue(struct work_struct *work)
 		}
 	}
 
-	woal_flush_workqueue(reset_handle);
 	mlan_ioctl(reset_handle->pmlan_adapter, NULL);
+	woal_flush_workqueue(reset_handle);
+
 	priv = woal_get_priv(reset_handle, MLAN_BSS_ROLE_ANY);
 	if (priv) {
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
@@ -1866,6 +1868,8 @@ mlan_status woal_init_sw(moal_handle *handle)
 	}
 	moal_memcpy_ext(handle, &device.callbacks, &woal_callbacks,
 			sizeof(mlan_callbacks), sizeof(mlan_callbacks));
+	if (!handle->params.amsdu_deaggr)
+		device.callbacks.moal_recv_amsdu_packet = NULL;
 	device.drv_mode = handle->params.drv_mode;
 	if (MLAN_STATUS_SUCCESS == mlan_register(&device, &pmlan))
 		handle->pmlan_adapter = pmlan;
@@ -3593,9 +3597,6 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 		if (!handle->fw_reload)
 			handle->driver_status = MFALSE;
 	}
-
-	moal_get_boot_ktime(handle, &handle->on_time);
-	PRINTM(MMSG, "on_time is %llu\n", handle->on_time);
 
 	/** data request */
 	memset(&param, 0, sizeof(mlan_init_param));
@@ -6108,12 +6109,9 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 		goto done;
 	}
 	// kernel crash with cloned skb without copy
+	// 2 AGO case
 	// uap0  <-->muap0 bridge
-	/* STA role need skb copy to improve throughput.but uAP unicast not */
-	if ((moal_extflg_isset(priv->phandle, EXT_TX_SKB_CLONE)) ||
-	    (skb->cloned && priv->bss_role == MLAN_BSS_ROLE_STA) ||
-	    (skb->cloned && priv->bss_role == MLAN_BSS_ROLE_UAP &&
-	     (!is_unicast_ether_addr(((struct ethhdr *)skb->data)->h_dest))) ||
+	if (moal_extflg_isset(priv->phandle, EXT_TX_SKB_CLONE) || skb->cloned ||
 	    (skb_headroom(skb) <
 	     (MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
 	      priv->extra_tx_head_len))) {
@@ -6161,15 +6159,6 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
-		if (is_zero_timeval(priv->phandle->tx_time_start)) {
-			priv->phandle->tx_time_start.time_sec =
-				pmbuf->in_ts_sec;
-			priv->phandle->tx_time_start.time_usec =
-				pmbuf->in_ts_usec;
-			PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
-			       priv->phandle->tx_time_start.time_sec,
-			       priv->phandle->tx_time_start.time_usec);
-		}
 		atomic_inc(&priv->phandle->tx_pending);
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
@@ -6623,6 +6612,7 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 #endif
 
 #ifdef UAP_SUPPORT
+	priv->trans_chan = 0;
 	priv->user_cac_period_msec = 0;
 	priv->chan_under_nop = MFALSE;
 #endif
@@ -7143,12 +7133,17 @@ int woal_reassociation_thread(void *data)
 	int i;
 	BOOLEAN reassoc_timer_req;
 	mlan_802_11_ssid req_ssid;
-	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *ssid_bssid = NULL;
 	mlan_status status;
 	mlan_bss_info bss_info;
 	t_u32 timer_val = MOAL_TIMER_10S;
 	t_u8 zero_mac[] = {0, 0, 0, 0, 0, 0};
 	ENTER();
+	ssid_bssid = kmalloc(sizeof(mlan_ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
+		LEAVE();
+		return 0;
+	}
 
 	woal_activate_thread(pmoal_thread);
 	init_waitqueue_entry(&wait, current);
@@ -7279,7 +7274,7 @@ int woal_reassociation_thread(void *data)
 				break;
 			}
 
-			memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+			memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 
 			if (priv->set_asynced_essid_flag == MTRUE) {
 				if (priv->assoc_with_mac &&
@@ -7290,7 +7285,7 @@ int woal_reassociation_thread(void *data)
 					       "Reassoc: Search AP by BSSID & SSID\n");
 					moal_memcpy_ext(
 						priv->phandle,
-						&ssid_bssid.bssid,
+						&ssid_bssid->bssid,
 						&priv->prev_ssid_bssid.bssid,
 						MLAN_MAC_ADDR_LENGTH,
 						sizeof(mlan_802_11_mac_addr));
@@ -7301,7 +7296,8 @@ int woal_reassociation_thread(void *data)
 					       "Set asynced essid: Search AP by ESSID\n");
 				}
 
-				moal_memcpy_ext(priv->phandle, &ssid_bssid.ssid,
+				moal_memcpy_ext(priv->phandle,
+						&ssid_bssid->ssid,
 						&priv->prev_ssid_bssid.ssid,
 						sizeof(mlan_802_11_ssid),
 						sizeof(mlan_802_11_ssid));
@@ -7310,20 +7306,20 @@ int woal_reassociation_thread(void *data)
 				PRINTM(MINFO,
 				       "Reassoc: Search AP by BSSID first\n");
 				moal_memcpy_ext(priv->phandle,
-						&ssid_bssid.bssid,
+						&ssid_bssid->bssid,
 						&priv->prev_ssid_bssid.bssid,
 						MLAN_MAC_ADDR_LENGTH,
 						sizeof(mlan_802_11_mac_addr));
 			}
 
 			status = woal_find_best_network(priv, MOAL_IOCTL_WAIT,
-							&ssid_bssid);
+							ssid_bssid);
 #ifdef STA_WEXT
 			if (status == MLAN_STATUS_SUCCESS) {
 				if (MLAN_STATUS_SUCCESS !=
 				    woal_11d_check_ap_channel(priv,
 							      MOAL_IOCTL_WAIT,
-							      &ssid_bssid)) {
+							      ssid_bssid)) {
 					PRINTM(MERROR,
 					       "Reassoc: The AP's channel is invalid for current region\n");
 					status = MLAN_STATUS_FAILURE;
@@ -7333,7 +7329,7 @@ int woal_reassociation_thread(void *data)
 			/** The find AP without ssid, we need re-search
 			 */
 			if (status == MLAN_STATUS_SUCCESS &&
-			    !ssid_bssid.ssid.ssid_len) {
+			    !ssid_bssid->ssid.ssid_len) {
 				PRINTM(MINFO,
 				       "Reassoc: Skip AP without ssid\n");
 				status = MLAN_STATUS_FAILURE;
@@ -7345,19 +7341,20 @@ int woal_reassociation_thread(void *data)
 				       "Reassoc: AP not found in scan list\n");
 				PRINTM(MINFO, "Reassoc: Search AP by SSID\n");
 				/* Search AP by SSID */
-				memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
-				moal_memcpy_ext(priv->phandle, &ssid_bssid.ssid,
+				memset(ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+				moal_memcpy_ext(priv->phandle,
+						&ssid_bssid->ssid,
 						&priv->prev_ssid_bssid.ssid,
 						sizeof(mlan_802_11_ssid),
 						sizeof(mlan_802_11_ssid));
 				status = woal_find_best_network(
-					priv, MOAL_IOCTL_WAIT, &ssid_bssid);
+					priv, MOAL_IOCTL_WAIT, ssid_bssid);
 #ifdef STA_WEXT
 				if (status == MLAN_STATUS_SUCCESS) {
 					if (MLAN_STATUS_SUCCESS !=
 					    woal_11d_check_ap_channel(
 						    priv, MOAL_IOCTL_WAIT,
-						    &ssid_bssid)) {
+						    ssid_bssid)) {
 						PRINTM(MERROR,
 						       "Reassoc: The AP's channel is invalid for current region\n");
 						status = MLAN_STATUS_FAILURE;
@@ -7373,10 +7370,10 @@ int woal_reassociation_thread(void *data)
 							    MOAL_IOCTL_WAIT);
 				/* Zero SSID implies use BSSID to
 				 * connect */
-				memset(&ssid_bssid.ssid, 0,
+				memset(&ssid_bssid->ssid, 0,
 				       sizeof(mlan_802_11_ssid));
 				status = woal_bss_start(priv, MOAL_IOCTL_WAIT,
-							&ssid_bssid);
+							ssid_bssid);
 			}
 
 			if (priv->media_connected == MFALSE)
@@ -7473,7 +7470,7 @@ int woal_reassociation_thread(void *data)
 		}
 	}
 	woal_deactivate_thread(pmoal_thread);
-
+	kfree(ssid_bssid);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -7532,7 +7529,7 @@ void woal_fw_dump_timer_func(void *context)
  */
 void woal_update_dscp_mapping(moal_private *priv)
 {
-	mlan_ds_misc_assoc_rsp assoc_rsp;
+	mlan_ds_misc_assoc_rsp *assoc_rsp = NULL;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
 	IEEEtypes_Header_t *qos_mapping_ie = NULL;
 	DSCP_Range_t *pdscp_range = NULL;
@@ -7540,14 +7537,18 @@ void woal_update_dscp_mapping(moal_private *priv)
 	DSCP_Exception_t dscp_except[MAX_DSCP_EXCEPTION_NUM];
 	int i, j;
 	ENTER();
-
-	memset(&assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
-	woal_get_assoc_rsp(priv, &assoc_rsp, MOAL_NO_WAIT);
-	passoc_rsp = (IEEEtypes_AssocRsp_t *)assoc_rsp.assoc_resp_buf;
+	assoc_rsp = kmalloc(sizeof(mlan_ds_misc_assoc_rsp), GFP_KERNEL);
+	if (!assoc_rsp) {
+		LEAVE();
+		return;
+	}
+	memset(assoc_rsp, 0, sizeof(mlan_ds_misc_assoc_rsp));
+	woal_get_assoc_rsp(priv, assoc_rsp, MOAL_NO_WAIT);
+	passoc_rsp = (IEEEtypes_AssocRsp_t *)assoc_rsp->assoc_resp_buf;
 	memset(priv->dscp_map, 0xFF, sizeof(priv->dscp_map));
 	qos_mapping_ie = (IEEEtypes_Header_t *)woal_parse_ie_tlv(
 		passoc_rsp->ie_buffer,
-		assoc_rsp.assoc_resp_len - ASSOC_RESP_FIXED_SIZE, QOS_MAPPING);
+		assoc_rsp->assoc_resp_len - ASSOC_RESP_FIXED_SIZE, QOS_MAPPING);
 	if (qos_mapping_ie &&
 	    (qos_mapping_ie->len >= (sizeof(DSCP_Range_t) * MAX_NUM_TID))) {
 		dscp_except_num = (qos_mapping_ie->len -
@@ -7593,6 +7594,7 @@ void woal_update_dscp_mapping(moal_private *priv)
 			}
 		}
 	}
+	kfree(assoc_rsp);
 	LEAVE();
 }
 
@@ -8591,7 +8593,7 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	moal_handle *handle = NULL;
-	char country_name[] = "txpower_XX.bin";
+	char country_name[128];
 	char file_path[256];
 	char *last_slash = NULL;
 	char *fw_name = NULL;
@@ -8610,11 +8612,24 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 		return MLAN_STATUS_FAILURE;
 	}
 	handle = priv->phandle;
+	memset(country_name, 0, sizeof(country_name));
+	if (handle->params.hw_name)
+		sprintf(country_name, "%s_txpower_XX.bin",
+			handle->params.hw_name);
+	else
+		memcpy(country_name, "txpower_XX.bin",
+		       strlen("txpower_XX.bin"));
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
-		memcpy(country_name, "rgpower_XX.bin",
-		       strlen("rgpower_XX.bin"));
+	if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) {
+		memset(country_name, 0, sizeof(country_name));
+		if (handle->params.hw_name)
+			sprintf(country_name, "%s_rgpower_XX.bin",
+				handle->params.hw_name);
+		else
+			memcpy(country_name, "rgpower_XX.bin",
+			       strlen("rgpower_XX.bin"));
+	}
 #endif
 #endif
 
@@ -8656,8 +8671,13 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 	/* Try download WW rgpowertable */
 	if ((handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) &&
 	    (ret == MLAN_STATUS_FILE_ERR)) {
-		memcpy(country_name, "rgpower_WW.bin",
-		       strlen("rgpower_WW.bin"));
+		memset(country_name, 0, sizeof(country_name));
+		if (handle->params.hw_name)
+			sprintf(country_name, "%s_rgpower_WW.bin",
+				handle->params.hw_name);
+		else
+			memcpy(country_name, "rgpower_WW.bin",
+			       strlen("rgpower_WW.bin"));
 		last_slash = strrchr(file_path, '/');
 		if (last_slash)
 			memset(last_slash + 1, 0,
@@ -8825,8 +8845,6 @@ t_void woal_rx_work_queue(struct work_struct *work)
 #endif
 #endif
 #endif
-	wifi_timeval start_timeval;
-	wifi_timeval end_timeval;
 
 	ENTER();
 	if (handle->surprise_removed == MTRUE) {
@@ -8834,19 +8852,8 @@ t_void woal_rx_work_queue(struct work_struct *work)
 		return;
 	}
 
-	woal_get_monotonic_time(&start_timeval);
 	mlan_rx_process(handle->pmlan_adapter, NULL);
 
-	woal_get_monotonic_time(&end_timeval);
-	handle->rx_time += (t_u64)(timeval_to_usec(end_timeval) -
-				   timeval_to_usec(start_timeval));
-	PRINTM(MINFO,
-	       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu rx_time=%llu\n",
-	       __func__, start_timeval.time_sec, start_timeval.time_usec,
-	       end_timeval.time_sec, end_timeval.time_usec,
-	       (t_u64)(timeval_to_usec(end_timeval) -
-		       timeval_to_usec(start_timeval)),
-	       handle->rx_time);
 	LEAVE();
 }
 
@@ -9294,6 +9301,12 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	MLAN_INIT_WORK(&handle->evt_work, woal_evt_work_queue);
 	INIT_LIST_HEAD(&handle->evt_queue);
 	spin_lock_init(&handle->evt_lock);
+
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	MLAN_INIT_WORK(&handle->regulatory_work, woal_regulatory_work_queue);
+#endif
+#endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
@@ -9843,21 +9856,56 @@ done:
 	return ret;
 }
 
+/**
+ *  @brief This function handle the pre_reset
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *
+ *  @return        NULL;
+ */
 static void woal_pre_reset(moal_handle *handle)
 {
 	int intf_num;
+	t_u8 driver_status = handle->driver_status;
+	t_u8 i;
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
+	mlan_debug_info *info = &(handle->debug_info);
+	int ioctl_pending = 0;
+
 	ENTER();
+	if (!driver_status && priv)
+		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 	handle->driver_status = MTRUE;
+
+	if (!driver_status)
+		woal_sched_timeout_uninterruptible(MOAL_TIMER_1S);
+
+	// wait for IOCTL return
+	if (!driver_status && priv) {
+		for (i = 0; i < 5; i++) {
+			woal_get_debug_info(priv, MOAL_IOCTL_WAIT, info);
+			ioctl_pending = atomic_read(&handle->ioctl_pending);
+			if (!info->pending_cmd && !ioctl_pending) {
+				PRINTM(MCMND,
+				       "fw_reload: No pending command and IOCTL\n");
+				break;
+			}
+			woal_sched_timeout_uninterruptible(MOAL_TIMER_1S);
+		}
+	}
 	/** detach network interface */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
-		woal_stop_queue(handle->priv[intf_num]->netdev);
-		netif_device_detach(handle->priv[intf_num]->netdev);
+		if (handle->priv[intf_num]) {
+			woal_stop_queue(handle->priv[intf_num]->netdev);
+			netif_device_detach(handle->priv[intf_num]->netdev);
+		}
 	}
-	woal_flush_workqueue(handle);
 	/** mask host interrupt from firmware */
 	mlan_disable_host_int(handle->pmlan_adapter);
 	/** cancel all pending commands */
 	mlan_ioctl(handle->pmlan_adapter, NULL);
+	woal_flush_workqueue(handle);
+
 	handle->fw_reload = MTRUE;
 	woal_update_firmware_name(handle);
 #ifdef USB
@@ -9867,6 +9915,13 @@ static void woal_pre_reset(moal_handle *handle)
 	LEAVE();
 }
 
+/**
+ *  @brief This function handle pose_reset
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *
+ *  @return        NULL;
+ */
 static void woal_post_reset(moal_handle *handle)
 {
 	mlan_ioctl_req *req = NULL;
@@ -9893,12 +9948,15 @@ static void woal_post_reset(moal_handle *handle)
 		req->action = MLAN_ACT_SET;
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_request_ioctl(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
-				       req, MOAL_IOCTL_WAIT)) {
+				       req, MOAL_IOCTL_WAIT_TIMEOUT)) {
 			kfree(req);
 			goto done;
 		}
 		kfree(req);
 	}
+#ifdef DEBUG_LEVEL1
+	drvdbg = handle->params.drvdbg;
+#endif
 	handle->driver_status = MFALSE;
 	handle->hardware_status = HardwareStatusReady;
 	/* Reset all interfaces */
@@ -9906,30 +9964,35 @@ static void woal_post_reset(moal_handle *handle)
 			MOAL_IOCTL_WAIT, MTRUE);
 	/* Initialize private structures */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
-		woal_init_priv(handle->priv[intf_num], MOAL_IOCTL_WAIT);
+		if (handle->priv[intf_num]) {
+			woal_init_priv(handle->priv[intf_num], MOAL_IOCTL_WAIT);
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #if defined(STA_WEXT) || defined(UAP_WEXT)
-		if ((handle->priv[intf_num]->bss_type ==
-		     MLAN_BSS_TYPE_WIFIDIRECT) &&
-		    (GET_BSS_ROLE(handle->priv[intf_num]) ==
-		     MLAN_BSS_ROLE_UAP)) {
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_bss_role_cfg(handle->priv[intf_num],
-					      MLAN_ACT_SET, MOAL_IOCTL_WAIT,
-					      &bss_role)) {
-				goto done;
+			if ((handle->priv[intf_num]->bss_type ==
+			     MLAN_BSS_TYPE_WIFIDIRECT) &&
+			    (GET_BSS_ROLE(handle->priv[intf_num]) ==
+			     MLAN_BSS_ROLE_UAP)) {
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_bss_role_cfg(handle->priv[intf_num],
+						      MLAN_ACT_SET,
+						      MOAL_IOCTL_WAIT,
+						      &bss_role)) {
+					goto done;
+				}
 			}
-		}
 #endif /* STA_WEXT || UAP_WEXT */
 #endif /* STA_SUPPORT && UAP_SUPPORT */
 #endif /* WIFI_DIRECT_SUPPORT */
+		}
 	}
 
 	/* Enable interfaces */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
-		netif_device_attach(handle->priv[intf_num]->netdev);
-		woal_start_queue(handle->priv[intf_num]->netdev);
+		if (handle->priv[intf_num]) {
+			netif_device_attach(handle->priv[intf_num]->netdev);
+			woal_start_queue(handle->priv[intf_num]->netdev);
+		}
 	}
 done:
 	if (handle->dpd_data) {
@@ -9986,10 +10049,7 @@ void woal_request_fw_reload(moal_handle *phandle, t_u8 mode)
 		} else {
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
-		ref_handle->driver_status = MTRUE;
 	}
-	/** start block IOCTL */
-	handle->driver_status = MTRUE;
 
 	if (mode == FW_RELOAD_WITH_EMULATION) {
 		fw_reload = FW_RELOAD_WITH_EMULATION;

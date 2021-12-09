@@ -1321,7 +1321,7 @@ typedef MLAN_PACK_START struct {
 } MLAN_PACK_END IEEEtypes_ExtChanSwitchAnn_t;
 
 /** Maximum number of subbands in the IEEEtypes_SupportedChannels_t structure */
-#define WLAN_11H_MAX_SUBBANDS 5
+#define WLAN_11H_MAX_SUBBANDS 6
 
 /** Maximum number of DFS channels configured in IEEEtypes_IBSS_DFS_t */
 #define WLAN_11H_MAX_IBSS_DFS_CHANNELS 25
@@ -1976,6 +1976,10 @@ typedef struct _BSSDescriptor_t {
 	IEEEtypes_Generic_t *prsn_ie;
 	/** RSN IE offset in the beacon buffer */
 	t_u16 rsn_offset;
+	/** RSNX IE */
+	IEEEtypes_Generic_t *prsnx_ie;
+	/** RSNX IE offset in the beacon buffer */
+	t_u16 rsnx_offset;
 #ifdef STA_SUPPORT
 	/** WAPI IE */
 	IEEEtypes_Generic_t *pwapi_ie;

@@ -654,12 +654,14 @@ static IEEEtypes_VHTOprat_t *woal_get_vht_oprat_ie(const t_u8 *ie, int len)
 /**
  * @brief convert cfg80211_chan_def to Band_Config
  *
+ * @param priv            A pointer to moal private structure
  * @param bandcfg         A pointer to (Band_Config_t structure
  * @param chandef         A pointer to cfg80211_chan_def structure
  *
  * @return                N/A
  */
-static void woal_convert_chan_to_bandconfig(Band_Config_t *bandcfg,
+static void woal_convert_chan_to_bandconfig(moal_private *priv,
+					    Band_Config_t *bandcfg,
 					    struct cfg80211_chan_def *chandef)
 {
 	ENTER();
@@ -681,8 +683,8 @@ static void woal_convert_chan_to_bandconfig(Band_Config_t *bandcfg,
 			bandcfg->chan2Offset = SEC_CHAN_BELOW;
 		break;
 	case NL80211_CHAN_WIDTH_80:
-		bandcfg->chan2Offset =
-			woal_get_second_channel_offset(chandef->chan->hw_value);
+		bandcfg->chan2Offset = woal_get_second_channel_offset(
+			priv, chandef->chan->hw_value);
 		bandcfg->chanWidth = CHAN_BW_80MHZ;
 		break;
 	case NL80211_CHAN_WIDTH_80P80:
@@ -727,7 +729,7 @@ static void woal_enable_dfs_support(moal_private *priv,
 	pchan_rpt_req = &p11h_cfg->param.chan_rpt_req;
 	pchan_rpt_req->startFreq = 5000;
 	pchan_rpt_req->chanNum = (t_u8)chandef->chan->hw_value;
-	woal_convert_chan_to_bandconfig(&pchan_rpt_req->bandcfg, chandef);
+	woal_convert_chan_to_bandconfig(priv, &pchan_rpt_req->bandcfg, chandef);
 	pchan_rpt_req->host_based = MTRUE;
 	pchan_rpt_req->millisec_dwell_time = 0;
 
@@ -949,7 +951,8 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 	if (priv->phandle->usr_nop_period_sec) {
 		PRINTM(MCMND, "Checking if AP's channel %d is under NOP\n",
 		       priv->channel);
-		woal_convert_chan_to_bandconfig(&bandcfg, &params->chandef);
+		woal_convert_chan_to_bandconfig(priv, &bandcfg,
+						&params->chandef);
 		memset(&chan_nop_info, 0, sizeof(chan_nop_info));
 		chan_nop_info.curr_chan = priv->channel;
 		chan_nop_info.chan_width = bandcfg.chanWidth;
@@ -994,8 +997,8 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 		case NL80211_CHAN_WIDTH_80:
 		case NL80211_CHAN_WIDTH_80P80:
 		case NL80211_CHAN_WIDTH_160:
-			chan2Offset =
-				woal_get_second_channel_offset(priv->channel);
+			chan2Offset = woal_get_second_channel_offset(
+				priv, priv->channel);
 			break;
 		default:
 			PRINTM(MWARN, "Unknown channel width: %d\n",
@@ -1041,8 +1044,8 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 		} else {
 			sys_config->bandcfg.chanBand = BAND_5GHZ;
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
-			chan2Offset =
-				woal_get_second_channel_offset(priv->channel);
+			chan2Offset = woal_get_second_channel_offset(
+				priv, priv->channel);
 #endif
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -1050,7 +1053,7 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			/* Force enable 40MHZ on WFD interface */
 			if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
 				chan2Offset = woal_get_second_channel_offset(
-					priv->channel);
+					priv, priv->channel);
 #endif
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
@@ -1902,7 +1905,8 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-					cfg80211_unregister_netdevice(priv->netdev);
+					cfg80211_unregister_netdevice(
+						priv->netdev);
 #else
 					unregister_netdevice(priv->netdev);
 #endif
@@ -3083,8 +3087,8 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	case NL80211_CHAN_WIDTH_80P80:
 	case NL80211_CHAN_WIDTH_160:
 		uap_channel.bandcfg.chanWidth = CHAN_BW_80MHZ;
-		chan2Offset =
-			woal_get_second_channel_offset(uap_channel.channel);
+		chan2Offset = woal_get_second_channel_offset(
+			priv, uap_channel.channel);
 		break;
 	default:
 		PRINTM(MWARN, "Unknown channel width: %d\n",
@@ -3241,7 +3245,7 @@ int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 	pchan_rpt_req = &p11h_cfg->param.chan_rpt_req;
 	pchan_rpt_req->startFreq = START_FREQ_11A_BAND;
 	pchan_rpt_req->chanNum = (t_u8)chandef->chan->hw_value;
-	woal_convert_chan_to_bandconfig(&pchan_rpt_req->bandcfg, chandef);
+	woal_convert_chan_to_bandconfig(priv, &pchan_rpt_req->bandcfg, chandef);
 	pchan_rpt_req->host_based = MTRUE;
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)

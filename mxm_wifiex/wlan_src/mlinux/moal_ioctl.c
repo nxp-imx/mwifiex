@@ -252,12 +252,19 @@ t_u8 woal_is_valid_alpha2(char *alpha2)
 /**
  * @brief Get second channel offset
  *
+ * @param priv         A pointer to moal_private structure
  * @param chan             channel num
  * @return                second channel offset
  */
-t_u8 woal_get_second_channel_offset(int chan)
+t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 {
 	t_u8 chan2Offset = SEC_CHAN_NONE;
+	mlan_bss_info bss_info;
+
+	/* Special Case: 20Mhz-only Channel */
+	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+	if (bss_info.region_code != COUNTRY_CODE_US && chan == 165)
+		return chan2Offset;
 
 	switch (chan) {
 	case 36:
@@ -272,6 +279,8 @@ t_u8 woal_get_second_channel_offset(int chan)
 	case 140:
 	case 149:
 	case 157:
+	case 165:
+	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -286,11 +295,9 @@ t_u8 woal_get_second_channel_offset(int chan)
 	case 144:
 	case 153:
 	case 161:
+	case 169:
+	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
-		break;
-	case 165:
-		/* Special Case: 20Mhz-only Channel */
-		chan2Offset = SEC_CHAN_NONE;
 		break;
 	}
 	return chan2Offset;
@@ -3302,6 +3309,7 @@ int woal_enable_hs(moal_private *priv)
 	mlan_ds_ps_info pm_info;
 #endif
 	pmlan_ds_misc_keep_alive keep_alive = NULL;
+	t_u8 media_connected = MFALSE;
 
 	ENTER();
 
@@ -3373,8 +3381,9 @@ int woal_enable_hs(moal_private *priv)
 	woal_reconfig_bgscan(priv->phandle);
 #endif
 
+	media_connected = woal_check_media_connected(handle);
 #if IS_ENABLED(CONFIG_IPV6)
-	if (handle->hs_auto_arp) {
+	if (handle->hs_auto_arp && media_connected) {
 		PRINTM(MIOCTL, "Host Sleep enabled... set ipv6 offload\n");
 		/** Set ipv6 router advertisement message offload */
 		woal_set_ipv6_ra_offload(handle, MTRUE);
@@ -3382,8 +3391,7 @@ int woal_enable_hs(moal_private *priv)
 		woal_set_ipv6_ns_offload(handle);
 	}
 #endif
-
-	if (handle->hs_auto_arp) {
+	if (handle->hs_auto_arp && media_connected) {
 		PRINTM(MIOCTL, "Host Sleep enabled... set FW auto arp\n");
 		/* Set auto arp response configuration to Fw */
 		woal_set_auto_arp(handle, MTRUE);

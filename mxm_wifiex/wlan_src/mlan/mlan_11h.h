@@ -192,7 +192,8 @@ extern mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter);
 /** DFS switch to non-DFS channel */
 extern mlan_status wlan_11h_switch_non_dfs_chan(mlan_private *priv, t_u8 *chan);
 
-extern void wlan_11h_update_bandcfg(Band_Config_t *uap_band_cfg,
+extern void wlan_11h_update_bandcfg(mlan_private *pmpriv,
+				    Band_Config_t *uap_band_cfg,
 				    t_u8 new_channel);
 
 /** function checks if interface is active. **/

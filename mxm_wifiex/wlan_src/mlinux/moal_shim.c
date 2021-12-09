@@ -51,6 +51,8 @@ Change log:
 #endif
 #endif
 
+#include <linux/etherdevice.h>
+
 #endif /*defined(PCIE) || defined(SDIO)*/
 
 /********************************************************
@@ -1145,24 +1147,6 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 	}
 
 done:
-	if ((atomic_read(&handle->tx_pending) == 0) &&
-	    !is_zero_timeval(handle->tx_time_start)) {
-		woal_get_monotonic_time(&handle->tx_time_end);
-		handle->tx_time +=
-			(t_u64)(timeval_to_usec(handle->tx_time_end) -
-				timeval_to_usec(handle->tx_time_start));
-		PRINTM(MINFO,
-		       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu tx_time=%llu\n",
-		       __func__, handle->tx_time_start.time_sec,
-		       handle->tx_time_start.time_usec,
-		       handle->tx_time_end.time_sec,
-		       handle->tx_time_end.time_usec,
-		       (t_u64)(timeval_to_usec(handle->tx_time_end) -
-			       timeval_to_usec(handle->tx_time_start)),
-		       handle->tx_time);
-		handle->tx_time_start.time_sec = 0;
-		handle->tx_time_start.time_usec = 0;
-	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -1318,6 +1302,166 @@ mlan_status moal_read_reg(t_void *pmoal, t_u32 reg, t_u32 *data)
 }
 
 #endif /* SDIO || PCIE */
+
+/**
+ *  @brief This function uploads amsdu packet to the network stack
+ *
+ *  @param pmoal Pointer to the MOAL context
+ *  @param pmbuf    Pointer to the mlan buffer structure
+ *
+ *  @return         MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
+{
+	mlan_status status = MLAN_STATUS_FAILURE;
+	struct sk_buff *skb = NULL;
+	struct sk_buff *frame = NULL;
+	int remaining;
+	const struct ethhdr *eth;
+	u8 dst[ETH_ALEN], src[ETH_ALEN];
+	moal_handle *handle = (moal_handle *)pmoal;
+	moal_private *priv = NULL;
+	struct net_device *netdev = NULL;
+	u8 *payload;
+	mlan_buffer mbuf;
+	t_u8 drop = 0;
+	t_u8 rfc1042_eth_hdr[MLAN_MAC_ADDR_LENGTH] = {0xaa, 0xaa, 0x03,
+						      0x00, 0x00, 0x00};
+
+	wifi_timeval t1, t2;
+	t_s32 delay;
+	t_u32 in_ts_sec = 0;
+	t_u32 in_ts_usec = 0;
+
+	ENTER();
+	memset(&mbuf, 0, sizeof(mlan_buffer));
+	mbuf.bss_index = pmbuf->bss_index;
+
+	priv = woal_bss_index_to_priv(pmoal, pmbuf->bss_index);
+	if (priv == NULL) {
+		PRINTM(MERROR, "%s: priv is null\n", __func__);
+		goto done;
+	}
+	netdev = priv->netdev;
+	skb = (struct sk_buff *)pmbuf->pdesc;
+	if (!skb)
+		goto done;
+
+	skb_reserve(skb, pmbuf->data_offset);
+	if (skb_tailroom(skb) < (int)pmbuf->data_len) {
+		PRINTM(MERROR, "skb overflow: tail room=%d, data_len=%d\n",
+		       skb_tailroom(skb), pmbuf->data_len);
+		goto done;
+	}
+	skb_put(skb, pmbuf->data_len);
+
+	// rx_trace 8
+	if (handle->tp_acnt.on) {
+		moal_tp_accounting(pmoal, skb, RX_DROP_P4);
+		woal_get_monotonic_time(&t1);
+		in_ts_sec = t1.time_sec;
+		in_ts_usec = t1.time_usec;
+		if (pmbuf && pmbuf->in_ts_sec) {
+			pmbuf->out_ts_sec = t1.time_sec;
+			pmbuf->out_ts_usec = t1.time_usec;
+		}
+	}
+	if (handle->tp_acnt.drop_point == RX_DROP_P4) {
+		status = MLAN_STATUS_PENDING;
+		dev_kfree_skb(skb);
+		goto done;
+	}
+
+	while (skb != frame) {
+		__be16 len;
+		u8 padding;
+		unsigned int subframe_len;
+		eth = (struct ethhdr *)skb->data;
+		len = ntohs(eth->h_proto);
+		subframe_len = sizeof(struct ethhdr) + len;
+		remaining = skb->len;
+
+		if (subframe_len > remaining) {
+			PRINTM(MERROR,
+			       "Error in len: remaining = %d, subframe_len = %d\n",
+			       remaining, subframe_len);
+			break;
+		}
+		memcpy(dst, eth->h_dest, ETH_ALEN);
+		memcpy(src, eth->h_source, ETH_ALEN);
+
+		padding = (4 - subframe_len) & 0x3;
+
+		skb_pull(skb, sizeof(struct ethhdr));
+
+		if (remaining <= (subframe_len + padding)) {
+			frame = skb;
+			status = MLAN_STATUS_PENDING;
+		} else {
+			frame = skb_clone(skb, GFP_ATOMIC);
+			skb_trim(frame, len);
+			eth = (struct ethhdr *)skb_pull(skb, len + padding);
+			if (!eth) {
+				PRINTM(MERROR, "Invalid amsdu packet\n");
+				break;
+			}
+		}
+		skb_reset_network_header(frame);
+		frame->dev = netdev;
+		frame->priority = skb->priority;
+		payload = frame->data;
+		if (ether_addr_equal(payload, rfc1042_eth_hdr)) {
+			/* Remove RFC1042 */
+			skb_pull(frame, 6);
+			memcpy(skb_push(frame, ETH_ALEN), src, ETH_ALEN);
+			memcpy(skb_push(frame, ETH_ALEN), dst, ETH_ALEN);
+		} else {
+			memcpy(skb_push(frame, sizeof(__be16)), &len,
+			       sizeof(__be16));
+			memcpy(skb_push(frame, ETH_ALEN), src, ETH_ALEN);
+			memcpy(skb_push(frame, ETH_ALEN), dst, ETH_ALEN);
+		}
+		mbuf.pbuf = frame->data;
+		mbuf.data_len = frame->len;
+		mlan_process_deaggr_pkt(handle->pmlan_adapter, &mbuf, &drop);
+		if (drop) {
+			dev_kfree_skb(frame);
+			continue;
+		}
+		frame->protocol = eth_type_trans(frame, netdev);
+		frame->ip_summed = CHECKSUM_NONE;
+		if (in_interrupt())
+			netif_rx(frame);
+		else {
+			if (atomic_read(&handle->rx_pending) >
+			    MAX_RX_PENDING_THRHLD)
+				netif_rx(frame);
+			else {
+				if (handle->params.net_rx == MTRUE) {
+					local_bh_disable();
+					netif_receive_skb(frame);
+					local_bh_enable();
+				} else {
+					netif_rx_ni(frame);
+				}
+			}
+		}
+	}
+	if (handle->tp_acnt.on) {
+		if (pmbuf && pmbuf->in_ts_sec)
+			moal_tp_accounting(handle, pmbuf, RX_TIME_PKT);
+
+		woal_get_monotonic_time(&t2);
+		delay = (t_s32)(t2.time_sec - in_ts_sec) * 1000000;
+		delay += (t_s32)(t2.time_usec - in_ts_usec);
+		moal_amsdu_tp_accounting(pmoal, delay, 0);
+	}
+done:
+	if (status == MLAN_STATUS_PENDING)
+		atomic_dec(&handle->mbufalloc_count);
+	LEAVE();
+	return status;
+}
 
 /**
  *  @brief This function uploads the packet to the network stack
@@ -1631,7 +1775,7 @@ void woal_release_busfreq_pmqos_remove(t_void *handle)
  *  @param pmoal Pointer to the MOAL context
  *
  */
-static int woal_check_media_connected(t_void *pmoal)
+int woal_check_media_connected(t_void *pmoal)
 {
 	int i;
 	moal_handle *pmhandle = (moal_handle *)pmoal;
@@ -1923,28 +2067,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					     sizeof(mlan_event_id));
 		}
 
-		if (!is_zero_timeval(priv->phandle->scan_time_start)) {
-			woal_get_monotonic_time(&priv->phandle->scan_time_end);
-			priv->phandle->scan_time += (t_u64)(
-				timeval_to_usec(priv->phandle->scan_time_end) -
-				timeval_to_usec(
-					priv->phandle->scan_time_start));
-			PRINTM(MINFO,
-			       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu scan_time=%llu\n",
-			       __func__,
-			       priv->phandle->scan_time_start.time_sec,
-			       priv->phandle->scan_time_start.time_usec,
-			       priv->phandle->scan_time_end.time_sec,
-			       priv->phandle->scan_time_end.time_usec,
-			       (t_u64)(timeval_to_usec(
-					       priv->phandle->scan_time_end) -
-				       timeval_to_usec(
-					       priv->phandle->scan_time_start)),
-			       priv->phandle->scan_time);
-			priv->phandle->scan_time_start.time_sec = 0;
-			priv->phandle->scan_time_start.time_usec = 0;
-		}
-
 		if (priv->phandle->scan_pending_on_block == MTRUE) {
 			priv->phandle->scan_pending_on_block = MFALSE;
 			priv->phandle->scan_priv = NULL;
@@ -2232,6 +2354,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			}
 			if (!hw_test && priv->roaming_enabled)
 				woal_config_bgscan_and_rssi(priv, MFALSE);
+			else {
+				cfg80211_cqm_rssi_notify(
+					priv->netdev,
+					NL80211_CQM_RSSI_THRESHOLD_EVENT_LOW,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+					0,
+#endif
+					GFP_KERNEL);
+			}
 			priv->last_event |= EVENT_PRE_BCN_LOST;
 		}
 #endif
@@ -2497,7 +2628,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				       " Radar event for incorrect inferface \n");
 			}
 		} else {
-			PRINTM(MEVENT, "radar detected during BSS active \n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			if (moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD))
 				woal_cfg80211_dfs_vendor_event(

@@ -238,6 +238,8 @@ typedef struct _chan_stats {
 #endif
 #define PRIV_CMD_CFG_CLOCK_SYNC "clocksync"
 #define PRIV_CMD_CFG_GET_TSF_INFO "gettsfinfo"
+#define PRIV_CMD_TRANSITION_CHANNEL "transchan"
+
 #define PRIV_CMD_DFS_REPEATER_CFG "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)

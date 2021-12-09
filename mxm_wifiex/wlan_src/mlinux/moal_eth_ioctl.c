@@ -2803,9 +2803,10 @@ static int woal_priv_get_sta_list(moal_private *priv, t_u8 *respbuf,
 					strlen(PRIV_CMD_GET_STA_LIST));
 	moal_memcpy_ext(
 		priv->phandle, sta_list, &info->param.sta_list,
-		sizeof(mlan_ds_sta_list),
+		ioctl_req->data_read_written,
 		respbuflen - (strlen(CMD_NXP) + strlen(PRIV_CMD_GET_STA_LIST)));
-	ret = sizeof(mlan_ds_sta_list);
+	ret = ioctl_req->data_read_written + strlen(CMD_NXP) +
+	      strlen(PRIV_CMD_GET_STA_LIST);
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
@@ -10788,8 +10789,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u8 band,
 
 #if defined(UAP_SUPPORT)
 /**
- *  @brief determine the center frquency center index for bandwidth
- *         of 80 MHz and 160 MHz
+ *  @brief This function handles channel switch with CSA/ECSA IE.
  *
  ** @param priv          Pointer to moal_private structure
  *  @param block_tx      0-no need block traffic 1- need block traffic
@@ -10801,7 +10801,6 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u8 band,
  *
  *  @return             channel center frequency center, if found; O, otherwise
  */
-
 static int woal_channel_switch(moal_private *priv, t_u8 block_tx,
 			       t_u8 oper_class, t_u8 channel, t_u8 switch_count,
 			       t_u8 band_width, t_u8 ecsa)
@@ -13040,6 +13039,54 @@ done:
 	return ret;
 }
 
+/**
+ * @brief               Set/Get transition channel
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_transition_channel(moal_private *priv, t_u8 *respbuf,
+					t_u32 respbuflen)
+{
+	int header_len = 0, user_data_len = 0;
+	int ret = 0, data[1];
+
+	ENTER();
+	if (!priv || (priv->bss_type != MLAN_BSS_TYPE_UAP)) {
+		PRINTM(MERROR, "priv is null or interface is not AP");
+		ret = -EFAULT;
+		LEAVE();
+		return ret;
+	}
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_TRANSITION_CHANNEL);
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data,
+				sizeof(data) / sizeof(int), &user_data_len);
+		if (user_data_len > 1) {
+			PRINTM(MERROR, "Invalid parameter number\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if (user_data_len)
+			priv->trans_chan = data[0];
+	}
+	data[0] = priv->trans_chan;
+	moal_memcpy_ext(priv->phandle, respbuf, &data, sizeof(data),
+			respbuflen);
+	ret = sizeof(int);
+done:
+
+	LEAVE();
+	return ret;
+}
+
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #ifdef WIFI_DIRECT_SUPPORT
 #define DEF_NOA_INTERVAL 100
@@ -14016,14 +14063,60 @@ done:
 }
 
 /**
- ** @brief               Set extended channel switch ie
- **
+ *  @brief send CSA/ECSA action frame
+ *
  ** @param priv          Pointer to moal_private structure
- ** @param respbuf       Pointer to response buffer
- ** @param resplen       Response buffer length
- **
- ** @return             Number of bytes written, negative for failure.
- **/
+ *  @param block_tx      0-no need block traffic 1- need block traffic
+ *  @param oper_class    oper_class
+ *  @param channel       channel
+ *  @param switch count  how many csa/ecsa beacon will send out
+ *  @param wait_option
+ *
+ *  @return             channel center frequency center, if found; O, otherwise
+ */
+static int woal_action_channel_switch(moal_private *priv, t_u8 block_tx,
+				      t_u8 oper_class, t_u8 channel,
+				      t_u8 switch_count, t_u8 wait_option)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_bss *bss = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	bss = (mlan_ds_bss *)req->pbuf;
+	bss->sub_command = MLAN_OID_ACTION_CHAN_SWITCH;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = MLAN_ACT_SET;
+	bss->param.chanswitch.chan_switch_mode = block_tx;
+	bss->param.chanswitch.new_channel_num = channel;
+	bss->param.chanswitch.chan_switch_count = switch_count;
+	bss->param.chanswitch.new_oper_class = oper_class;
+	ret = woal_request_ioctl(priv, req, wait_option);
+	if (ret != MLAN_STATUS_SUCCESS)
+		goto done;
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set extended channel switch ie
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ * @return             Number of bytes written, negative for failure.
+ */
 static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 					   t_u32 respbuflen)
 {
@@ -14052,7 +14145,12 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 		LEAVE();
 		return ret;
 	}
-
+	if (user_data_len < 4) {
+		PRINTM(MERROR, "Too few arguments\n");
+		ret = -EINVAL;
+		LEAVE();
+		return ret;
+	}
 	if (data[1]) {
 		if (woal_check_valid_channel_operclass(priv, data[2],
 						       data[1])) {
@@ -14061,8 +14159,12 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 	}
-	woal_channel_switch(priv, data[0], data[1], data[2], data[3], data[4],
-			    MFALSE);
+	if (data[3])
+		woal_channel_switch(priv, data[0], data[1], data[2], data[3],
+				    data[4], MFALSE);
+	else
+		woal_action_channel_switch(priv, data[0], data[1], data[2],
+					   data[3], MOAL_IOCTL_WAIT);
 done:
 	LEAVE();
 	return ret;
@@ -16523,10 +16625,18 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_CFG_GET_TSF_INFO,
 				    strlen(PRIV_CMD_CFG_GET_TSF_INFO)) == 0) {
-			/* Set/Get P2P OPP-PS parameters */
+			/* Get TSF info */
 			len = woal_priv_cfg_get_tsf_info(priv, buf,
 							 priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_TRANSITION_CHANNEL,
+				    strlen(PRIV_CMD_TRANSITION_CHANNEL)) == 0) {
+			/* Get/Set Transition channel*/
+			len = woal_priv_transition_channel(priv, buf,
+							   priv_cmd.total_len);
+			goto handled;
+
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_DFS_REPEATER_CFG,
 				    strlen(PRIV_CMD_DFS_REPEATER_CFG)) == 0) {
