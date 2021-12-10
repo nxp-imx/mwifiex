@@ -27,6 +27,7 @@ endif
 LD ?=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
 YMD=		`date +%Y%m%d%H%M`
+PWD := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 #############################################################################
 # Configuration Options
@@ -121,7 +122,7 @@ MODEXT = ko
 ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
-KERNELDIR ?= $(KERNEL_DIR)
+KERNELDIR ?= $(KERNEL_SRC)
 ARCH ?= arm64
 CONFIG_IMX_SUPPORT=y
 ifeq ($(CONFIG_IMX_SUPPORT),y)
@@ -561,6 +562,10 @@ else
 
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+
+modules_install:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
+
 
 endif
 

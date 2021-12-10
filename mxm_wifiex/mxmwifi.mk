@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-KERNEL_DIR := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+KERNEL_SRC := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 TARGET_ARCH := $(TARGET_KERNEL_ARCH)
 MXMWIFI_CROSS_COMPILE := aarch64-linux-gnu-
 
@@ -25,7 +25,7 @@ ARCH ?= $(TARGET_ARCH)
 MXMWIFI_KERNELENVSH := $(MXMWIFI_OUT)/kernelenv.sh
 $(MXMWIFI_KERNELENVSH):
 	mkdir -p $(MXMWIFI_OUT)
-	echo 'export KERNEL_DIR=$(KERNEL_DIR)' > $(MXMWIFI_KERNELENVSH)
+	echo 'export KERNEL_SRC=$(KERNEL_SRC)' > $(MXMWIFI_KERNELENVSH)
 	echo 'export CROSS_COMPILE=$(MXMWIFI_CROSS_COMPILE)' >> $(MXMWIFI_KERNELENVSH)
 	echo 'export ARCH=$(ARCH)' >> $(MXMWIFI_KERNELENVSH)
 
@@ -35,7 +35,6 @@ mxmwifi: $(MXMWIFI_KERNELENVSH) $(MXMWIFI_SRC_PATH)
 	fi
 	@ . $(MXMWIFI_KERNELENVSH); $(kernel_build_shell_env) \
 	$(MAKE)  -C $(MXMWIFI_SRC_PATH) ANDROID=yes \
-		PWD=$(ANDROID_BUILD_TOP)/vendor/nxp-opensource/nxp-mwifiex/mxm_wifiex/wlan_src \
 		$(CLANG_TO_COMPILE) \
 		$(KERNEL_CFLAGS) \
 		ARCH=$(ARCH) \
