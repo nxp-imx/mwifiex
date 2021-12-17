@@ -1902,7 +1902,8 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-					cfg80211_unregister_netdevice(priv->netdev);
+					cfg80211_unregister_netdevice(
+						priv->netdev);
 #else
 					unregister_netdevice(priv->netdev);
 #endif

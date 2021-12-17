@@ -7672,13 +7672,15 @@ static int woal_send_tdls_data_frame(struct wiphy *wiphy,
 	DBG_HEXDUMP(MDAT_D, "TDLS data:", pmbuf->pbuf + pmbuf->data_offset,
 		    pmbuf->data_len);
 
+#if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+	index = skb_get_queue_mapping(skb);
+#endif
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 
 	switch (status) {
 	case MLAN_STATUS_PENDING:
 		atomic_inc(&priv->phandle->tx_pending);
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-		index = skb_get_queue_mapping(skb);
 		atomic_inc(&priv->wmm_tx_pending[index]);
 #endif
 		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);

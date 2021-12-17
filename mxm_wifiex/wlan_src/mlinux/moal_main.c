@@ -5855,12 +5855,14 @@ static void woal_tcp_ack_timer_func(void *context)
 	tcp_session->pmbuf = NULL;
 	spin_unlock_irqrestore(&priv->tcp_sess_lock, flags);
 	if (skb && pmbuf) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+		index = skb_get_queue_mapping(skb);
+#endif
 		status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 		switch (status) {
 		case MLAN_STATUS_PENDING:
 			atomic_inc(&priv->phandle->tx_pending);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-			index = skb_get_queue_mapping(skb);
 			atomic_inc(&priv->wmm_tx_pending[index]);
 			if (atomic_read(&priv->wmm_tx_pending[index]) >=
 			    MAX_TX_PENDING) {
@@ -5919,12 +5921,14 @@ static void woal_send_tcp_ack(moal_private *priv, struct tcp_sess *tcp_session)
 	}
 	tcp_session->ack_skb = NULL;
 	tcp_session->pmbuf = NULL;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+	index = skb_get_queue_mapping(skb);
+#endif
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
 		atomic_inc(&priv->phandle->tx_pending);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-		index = skb_get_queue_mapping(skb);
 		atomic_inc(&priv->wmm_tx_pending[index]);
 		if (atomic_read(&priv->wmm_tx_pending[index]) >=
 		    MAX_TX_PENDING) {
