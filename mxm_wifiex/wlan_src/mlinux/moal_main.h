@@ -872,22 +872,6 @@ typedef enum {
 /** GAP value is optional */
 #define GAP_FLAG_OPTIONAL MBIT(15)
 
-/** Macro to extract the TOS field from a skb */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
-#define SKB_TOS(skb) (ip_hdr(skb)->tos)
-#else
-#define SKB_TOS(skb) (skb->nh.iph->tos)
-#endif
-#define SKB_TIDV6(skb) (ipv6_get_dsfield(ipv6_hdr(skb)))
-#define IS_SKB_MAGIC_VLAN(skb) (skb->priority >= 256 && skb->priority <= 263)
-#define GET_VLAN_PRIO(skb) (skb->priority - 256)
-
-/** Offset for TOS field in the IP header */
-#define IPTOS_OFFSET 5
-
-/** Offset for DSCP in the tos field */
-#define DSCP_OFFSET 2
-
 /** max retry count for wait_event_interupptible_xx while loop */
 #define MAX_RETRY_CNT 100
 /** wait_queue structure */
@@ -1098,7 +1082,7 @@ typedef struct _woal_evt_buf {
 	/** Event len */
 	t_u16 event_len;
 	/** Event buffer */
-	t_u8 event_buf[1024];
+	t_u8 event_buf[1500];
 } woal_evt_buf;
 
 /** woal event */
@@ -1112,7 +1096,7 @@ struct woal_event {
 	union {
 		chan_band_info chan_info;
 		woal_evt_buf evt;
-		mlan_ds_misc_assoc_rsp assoc_resp;
+		mlan_ds_assoc_info assoc_info;
 		int reason_code;
 	};
 };
@@ -1294,6 +1278,8 @@ struct _moal_private {
 	struct workqueue_struct *mclist_workqueue;
 	/** mclist work */
 	struct work_struct mclist_work;
+	/** Scan deferred work*/
+	struct delayed_work scan_deferred_work;
 	/** Statistics of tcp ack tx dropped */
 	t_u32 tcp_ack_drop_cnt;
 	/** Statistics of tcp ack tx in total from kernel */
@@ -2254,6 +2240,22 @@ struct _moal_handle {
 	mlan_debug_info debug_info;
 	/* block id in module param config file */
 	int blk_id;
+	/** time when FW is active, time is get from boot time, in Nanosecond */
+	t_u64 on_time;
+	/** tx time, in usecs */
+	t_u64 tx_time;
+	/** systime when tx start */
+	wifi_timeval tx_time_start;
+	/** systime when tx end */
+	wifi_timeval tx_time_end;
+	/** rx time, in usecs */
+	t_u64 rx_time;
+	/** scan time, in usecs */
+	t_u64 scan_time;
+	/** systime when scan cmd response return success */
+	wifi_timeval scan_time_start;
+	/** systime when scan event has no more event */
+	wifi_timeval scan_time_end;
 	/** seecond mac flag */
 	t_u8 second_mac;
 	/** moal handle for another mac */
@@ -2276,6 +2278,7 @@ struct _moal_handle {
 	struct pm_qos_request woal_pm_qos_req;
 #endif
 #endif
+	t_u32 ips_ctrl;
 };
 
 /**
@@ -3060,6 +3063,10 @@ void woal_ioctl_get_info_resp(moal_private *priv, mlan_ds_get_info *info);
 mlan_status woal_get_assoc_rsp(moal_private *priv,
 			       mlan_ds_misc_assoc_rsp *assoc_rsp,
 			       t_u8 wait_option);
+mlan_status woal_get_assoc_req(moal_private *priv,
+			       mlan_ds_misc_assoc_req *assoc_req,
+			       t_u8 wait_option);
+
 /** Get signal information */
 mlan_status woal_get_signal_info(moal_private *priv, t_u8 wait_option,
 				 mlan_ds_get_signal *signal);
@@ -3259,6 +3266,7 @@ t_void woal_main_work_queue(struct work_struct *work);
 t_void woal_rx_work_queue(struct work_struct *work);
 t_void woal_evt_work_queue(struct work_struct *work);
 t_void woal_mclist_work_queue(struct work_struct *work);
+t_void woal_scan_deferred_work_queue(struct work_struct *work);
 
 netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
 #ifdef STA_SUPPORT

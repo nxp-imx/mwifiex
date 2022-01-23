@@ -77,6 +77,8 @@ mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
 				       int key_len, t_u8 index,
 				       t_u8 wait_option);
 
+t_u8 is_cfg80211_special_region_code(t_u8 *region_string);
+
 /**
  * If multiple wiphys are registered e.g. a regular netdev with
  * assigned ieee80211_ptr and you won't know whether it points
@@ -104,7 +106,7 @@ pmoal_private woal_get_scan_interface(pmoal_handle handle);
 void woal_host_mlme_disconnect(pmoal_private priv, u16 reason_code, u8 *sa);
 void woal_host_mlme_work_queue(struct work_struct *work);
 void woal_host_mlme_process_assoc_resp(moal_private *priv,
-				       mlan_ds_misc_assoc_rsp *assoc_rsp);
+				       mlan_ds_assoc_info *assoc_info);
 #endif
 #endif
 

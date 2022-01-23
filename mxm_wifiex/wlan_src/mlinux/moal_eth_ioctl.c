@@ -5206,8 +5206,8 @@ static int woal_priv_set_essid(moal_private *priv, t_u8 *respbuf,
 {
 	mlan_802_11_ssid req_ssid;
 	mlan_ssid_bssid ssid_bssid;
-#ifdef REASSOCIATION
 	moal_handle *handle = priv->phandle;
+#ifdef REASSOCIATION
 	mlan_bss_info bss_info;
 #endif
 	int ret = 0;
@@ -10368,6 +10368,67 @@ done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief clear NOP list
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @return                 0 --success, otherwise fail
+ */
+static int woal_uap_clear_nop(moal_private *priv)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_cfg *ds_11hcfg = NULL;
+
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = MLAN_ACT_CLEAR;
+
+	ds_11hcfg = (mlan_ds_11h_cfg *)req->pbuf;
+	ds_11hcfg->sub_command = MLAN_OID_11H_CHAN_NOP_INFO;
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status == MLAN_STATUS_FAILURE) {
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function clear nop flags.
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_clear_nop(moal_private *priv, t_u8 *respbuf,
+			       t_u32 respbuflen)
+{
+	int ret = 0;
+
+	ENTER();
+	PRINTM(MCMND, "clear nop\n");
+	ret = woal_uap_clear_nop(priv);
+	ret = sizeof(int);
 	LEAVE();
 	return ret;
 }
@@ -15606,6 +15667,61 @@ done:
 	return ret;
 }
 
+static int woal_priv_ips_cfg(moal_private *priv, t_u8 *respbuf,
+			     t_u32 respbuflen)
+{
+	moal_handle *handle = priv->phandle;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	t_u32 data[1];
+	int ret = 0;
+	int user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	if (strlen(respbuf) == (strlen(CMD_NXP) + strlen(PRIV_CMD_IPS_CFG))) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
+		parse_arguments(respbuf + strlen(CMD_NXP) +
+					strlen(PRIV_CMD_IPS_CFG),
+				data, ARRAY_SIZE(data), &user_data_len);
+	}
+	if (user_data_len) {
+		/* Allocate an IOCTL request buffer */
+		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+		if (req == NULL) {
+			ret = -ENOMEM;
+			goto done;
+		}
+		/* Fill request buffer */
+		misc = (mlan_ds_misc_cfg *)req->pbuf;
+		misc->sub_command = MLAN_OID_MISC_IPS_CFG;
+		req->req_id = MLAN_IOCTL_MISC_CFG;
+		misc->param.ips_ctrl = data[0];
+		req->action = MLAN_ACT_SET;
+		/* Send IOCTL request to MLAN */
+		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+		if (status != MLAN_STATUS_SUCCESS) {
+			ret = -EFAULT;
+			goto done;
+		}
+		handle->ips_ctrl = data[0];
+	} else {
+		data[0] = handle->ips_ctrl;
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
+				sizeof(data), respbuflen);
+	}
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
 /**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
@@ -16532,6 +16648,12 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_dfs_testing(priv, buf,
 						    priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_CLEAR_NOP,
+				    strlen(PRIV_CMD_CLEAR_NOP)) == 0) {
+			/* Set/Get DFS Testing settings */
+			len = woal_priv_clear_nop(priv, buf,
+						  priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_DFS53_CFG,
 				    strlen(PRIV_CMD_DFS53_CFG)) == 0) {
 			/* Set/Get DFS W53 settings */
@@ -16808,6 +16930,10 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get TP accounting state */
 			len = woal_priv_set_tp_state(priv, buf,
 						     priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_IPS_CFG,
+				    strlen(PRIV_CMD_IPS_CFG)) == 0) {
+			len = woal_priv_ips_cfg(priv, buf, priv_cmd.total_len);
 			goto handled;
 		} else {
 			PRINTM(MERROR,

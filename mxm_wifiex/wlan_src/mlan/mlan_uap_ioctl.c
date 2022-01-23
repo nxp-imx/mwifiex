@@ -1936,6 +1936,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				pmadapter->fw_release_number;
 			pget_info->param.fw_info.hotfix_version =
 				pmadapter->fw_hotfix_ver;
+			pget_info->param.fw_info.tx_buf_size =
+				pmadapter->tx_buf_size;
+
 			pget_info->param.fw_info.fw_bands = pmadapter->fw_bands;
 			pget_info->param.fw_info.ecsa_enable =
 				pmadapter->ecsa_enable;
@@ -2192,8 +2195,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_11h_ioctl_dfs_testing(pmadapter,
 							    pioctl_req);
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_NOP_INFO)
-			status = wlan_11h_ioctl_get_channel_nop_info(
-				pmadapter, pioctl_req);
+			status = wlan_11h_ioctl_channel_nop_info(pmadapter,
+								 pioctl_req);
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_REPORT_REQUEST)
 			status = wlan_11h_ioctl_dfs_chan_report(pmpriv,
 								pioctl_req);

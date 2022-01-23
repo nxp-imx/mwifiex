@@ -1321,8 +1321,7 @@ typedef MLAN_PACK_START struct {
 } MLAN_PACK_END IEEEtypes_ExtChanSwitchAnn_t;
 
 /** Maximum number of subbands in the IEEEtypes_SupportedChannels_t structure */
-#define WLAN_11H_MAX_SUBBANDS 6
-
+#define WLAN_11H_MAX_SUBBANDS 5
 /** Maximum number of DFS channels configured in IEEEtypes_IBSS_DFS_t */
 #define WLAN_11H_MAX_IBSS_DFS_CHANNELS 25
 

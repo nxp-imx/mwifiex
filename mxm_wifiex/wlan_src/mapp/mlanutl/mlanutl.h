@@ -158,6 +158,10 @@ enum _mlan_act_ioctl {
 #define ACTION_GET 0
 /** Action field value : set */
 #define ACTION_SET 1
+/** Action field value:  add */
+#define ACTION_ADD 2
+/** Action field value:  remove */
+#define ACTION_REMOVE 3
 
 /** Maximum number of TID */
 #define MAX_NUM_TID 8

@@ -349,6 +349,8 @@ enum _mlan_ioctl_req_id {
 #endif
 	MLAN_OID_MISC_GPIO_TSF_LATCH = 0x00200082,
 	MLAN_OID_MISC_GET_TSF_INFO = 0x00200083,
+	MLAN_OID_MISC_ASSOC_REQ = 0x00200084,
+	MLAN_OID_MISC_IPS_CFG = 0x00200085,
 };
 
 /** Sub command size */
@@ -630,7 +632,7 @@ typedef struct _mlan_multicast_list {
 } mlan_multicast_list, *pmlan_multicast_list;
 
 /** Max channel */
-#define MLAN_MAX_CHANNEL 177
+#define MLAN_MAX_CHANNEL 165
 /** Maximum number of channels in table */
 #define MLAN_MAX_CHANNEL_NUM 128
 
@@ -691,6 +693,26 @@ typedef struct _mlan_ds_misc_assoc_rsp {
 	/** Response buffer length */
 	t_u32 assoc_resp_len;
 } mlan_ds_misc_assoc_rsp, *pmlan_ds_misc_assoc_rsp;
+
+/** Type definition of mlan_ds_misc_assoc_req for MLAN_OID_MISC_ASSOC_REQ */
+typedef struct _mlan_ds_misc_assoc_req {
+	/** Associate req buffer */
+	t_u8 assoc_req_buf[ASSOC_RSP_BUF_SIZE];
+	/** Response buffer length */
+	t_u32 assoc_req_len;
+} mlan_ds_misc_assoc_req, *pmlan_ds_misc_assoc_req;
+
+/** mlan_ds_assoc_info */
+typedef struct _mlan_ds_assoc_info {
+	/** Associate req buffer */
+	t_u8 assoc_resp_buf[ASSOC_RSP_BUF_SIZE];
+	/** Response buffer length */
+	t_u32 assoc_resp_len;
+	/** Associate req buffer */
+	t_u8 assoc_req_buf[ASSOC_RSP_BUF_SIZE];
+	/** Response buffer length */
+	t_u32 assoc_req_len;
+} mlan_ds_assoc_info, *pmlan_ds_assoc_info;
 
 /** mlan_ssid_bssid  data structure for
  *  MLAN_OID_BSS_START and MLAN_OID_BSS_FIND_BSS
@@ -1816,6 +1838,8 @@ typedef struct _mlan_fw_info {
 	t_u32 fw_ver;
 	/** Firmware Hotfix version */
 	t_u8 hotfix_version;
+	/** tx buf size */
+	t_u16 tx_buf_size;
 	/** MAC address */
 	mlan_802_11_mac_addr mac_addr;
 	/** 802.11n device capabilities */
@@ -5317,6 +5341,8 @@ typedef struct _mlan_ds_misc_cfg {
 		t_u32 wws_cfg;
 		/** Get associate response for MLAN_OID_MISC_ASSOC_RSP */
 		mlan_ds_misc_assoc_rsp assoc_resp;
+		/** Get associate request for MLAN_OID_MISC_ASSOC_REQ */
+		mlan_ds_misc_assoc_req assoc_req;
 		/** Function init/shutdown for MLAN_OID_MISC_INIT_SHUTDOWN */
 		t_u32 func_init_shutdown;
 		/** Custom IE for MLAN_OID_MISC_CUSTOM_IE */
@@ -5432,6 +5458,7 @@ typedef struct _mlan_ds_misc_cfg {
 #ifdef UAP_SUPPORT
 		t_u8 wacp_mode;
 #endif
+		t_u32 ips_ctrl;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

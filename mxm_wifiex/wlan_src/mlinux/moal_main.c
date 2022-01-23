@@ -3598,6 +3598,9 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 			handle->driver_status = MFALSE;
 	}
 
+	moal_get_boot_ktime(handle, &handle->on_time);
+	PRINTM(MMSG, "on_time is %llu\n", handle->on_time);
+
 	/** data request */
 	memset(&param, 0, sizeof(mlan_init_param));
 
@@ -3878,79 +3881,54 @@ void woal_fill_mlan_buffer(moal_private *priv, mlan_buffer *pmbuf,
 {
 	wifi_timeval tstamp;
 	struct ethhdr *eth;
-	t_u8 tid = 0;
 	dot11_txcontrol *txcontrol;
 	t_u8 tx_ctrl_flag = MFALSE;
 	int i = 0;
 	ENTER();
-	/*
-	 * skb->priority values from 256->263 are magic values to
-	 * directly indicate a specific 802.1d priority.  This is used
-	 * to allow 802.1d priority to be passed directly in from VLAN
-	 * tags, etc.
-	 */
-	if (IS_SKB_MAGIC_VLAN(skb)) {
-		tid = GET_VLAN_PRIO(skb);
-	} else {
-		eth = (struct ethhdr *)skb->data;
 
-		switch (eth->h_proto) {
-		case __constant_htons(ETH_P_IP):
-			tid = priv->dscp_map[SKB_TOS(skb) >> DSCP_OFFSET];
-			if (tid == 0xFF)
-				tid = (IPTOS_PREC(SKB_TOS(skb)) >>
-				       IPTOS_OFFSET);
-			PRINTM(MDAT_D,
-			       "packet type ETH_P_IP: dscp[%x], map[%x], tid=%d\n",
-			       SKB_TOS(skb) >> DSCP_OFFSET,
-			       priv->dscp_map[SKB_TOS(skb) >> DSCP_OFFSET],
-			       tid);
-			break;
-		case __constant_htons(ETH_P_IPV6):
-			tid = SKB_TIDV6(skb);
-			PRINTM(MDAT_D,
-			       "packet type ETH_P_IPV6: %04x, tid=%#x prio=%#x\n",
-			       eth->h_proto, tid, skb->priority);
-			break;
-		case __constant_htons(ETH_P_ARP):
-			tid = 0;
-			PRINTM(MDATA, "ARP packet %04x\n", eth->h_proto);
-			break;
-		default:
-			tid = 0;
-			if (priv->tx_protocols.protocol_num) {
-				for (i = 0; i < priv->tx_protocols.protocol_num;
-				     i++) {
-					if (eth->h_proto ==
-					    __constant_htons(
-						    priv->tx_protocols
-							    .protocols[i]))
-						tx_ctrl_flag = MTRUE;
-				}
+	eth = (struct ethhdr *)skb->data;
+
+	switch (eth->h_proto) {
+	case __constant_htons(ETH_P_IP):
+		PRINTM(MINFO, "packet type ETH_P_IP: %04x, prio=%#x\n",
+		       eth->h_proto, skb->priority);
+		break;
+	case __constant_htons(ETH_P_IPV6):
+		PRINTM(MINFO, "packet type ETH_P_IPV6: %04x, prio=%#x\n",
+		       eth->h_proto, skb->priority);
+		break;
+	case __constant_htons(ETH_P_ARP):
+		skb->priority = 0;
+		PRINTM(MINFO, "ARP packet %04x prio=%#x\n", eth->h_proto,
+		       skb->priority);
+		break;
+	default:
+		skb->priority = 0;
+		if (priv->tx_protocols.protocol_num) {
+			for (i = 0; i < priv->tx_protocols.protocol_num; i++) {
+				if (eth->h_proto ==
+				    __constant_htons(
+					    priv->tx_protocols.protocols[i]))
+					tx_ctrl_flag = MTRUE;
 			}
-			if (tx_ctrl_flag) {
-				txcontrol = (dot11_txcontrol
-						     *)(skb->data +
-							sizeof(struct ethhdr));
-				pmbuf->u.tx_info.data_rate =
-					txcontrol->datarate;
-				pmbuf->u.tx_info.channel = txcontrol->channel;
-				pmbuf->u.tx_info.bw = txcontrol->bw;
-				pmbuf->u.tx_info.tx_power.val =
-					txcontrol->power;
-				pmbuf->u.tx_info.retry_limit =
-					txcontrol->retry_limit;
-				tid = txcontrol->priority;
-				memmove(skb->data + sizeof(dot11_txcontrol),
-					skb->data, sizeof(struct ethhdr));
-				skb_pull(skb, sizeof(dot11_txcontrol));
-				pmbuf->flags |= MLAN_BUF_FLAG_TX_CTRL;
-			}
-			break;
 		}
+		if (tx_ctrl_flag) {
+			txcontrol = (dot11_txcontrol *)(skb->data +
+							sizeof(struct ethhdr));
+			pmbuf->u.tx_info.data_rate = txcontrol->datarate;
+			pmbuf->u.tx_info.channel = txcontrol->channel;
+			pmbuf->u.tx_info.bw = txcontrol->bw;
+			pmbuf->u.tx_info.tx_power.val = txcontrol->power;
+			pmbuf->u.tx_info.retry_limit = txcontrol->retry_limit;
+			skb->priority = txcontrol->priority;
+			memmove(skb->data + sizeof(dot11_txcontrol), skb->data,
+				sizeof(struct ethhdr));
+			skb_pull(skb, sizeof(dot11_txcontrol));
+			pmbuf->flags |= MLAN_BUF_FLAG_TX_CTRL;
+		}
+		break;
 	}
-
-	skb->priority = tid;
+	PRINTM(MDAT_D, "packet %04x prio=%#x\n", eth->h_proto, skb->priority);
 
 	/* Record the current time the packet was queued; used to determine
 	 *   the amount of time the packet was queued in the driver before it
@@ -4010,6 +3988,7 @@ const struct net_device_ops woal_netdev_ops = {
 };
 #endif
 
+#define MAX_MTU_SIZE 2000
 /**
  *  @brief This function initializes the private structure
  *          and dev structure for station mode
@@ -4021,8 +4000,20 @@ const struct net_device_ops woal_netdev_ops = {
  */
 mlan_status woal_init_sta_dev(struct net_device *dev, moal_private *priv)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	mlan_fw_info fw_info;
+#endif
 	ENTER();
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.tx_buf_size > (MAX_MTU_SIZE + MLAN_MIN_DATA_HEADER_LEN +
+				   priv->extra_tx_head_len)) {
+		dev->max_mtu = MAX_MTU_SIZE;
+		PRINTM(MMSG, "wlan: %s set max_mtu %d\n", dev->name,
+		       dev->max_mtu);
+	}
+#endif
 	/* Setup the OS Interface to our functions */
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 29)
 	dev->open = woal_open;
@@ -4101,9 +4092,21 @@ const struct net_device_ops woal_uap_netdev_ops = {
 mlan_status woal_init_uap_dev(struct net_device *dev, moal_private *priv)
 {
 	mlan_status status = MLAN_STATUS_SUCCESS;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	mlan_fw_info fw_info;
+#endif
 
 	ENTER();
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.tx_buf_size > (MAX_MTU_SIZE + MLAN_MIN_DATA_HEADER_LEN +
+				   priv->extra_tx_head_len)) {
+		dev->max_mtu = MAX_MTU_SIZE;
+		PRINTM(MMSG, "wlan: %s set max_mtu %d\n", dev->name,
+		       dev->max_mtu);
+	}
+#endif
 	/* Setup the OS Interface to our functions */
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 29)
 	dev->open = woal_open;
@@ -4409,6 +4412,9 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 	}
 	MLAN_INIT_WORK(&priv->mclist_work, woal_mclist_work_queue);
 
+	INIT_DELAYED_WORK(&priv->scan_deferred_work,
+			  woal_scan_deferred_work_queue);
+
 	/* Initialize priv structure */
 	woal_init_priv(priv, MOAL_IOCTL_WAIT);
 
@@ -4616,10 +4622,12 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 #endif
 #endif
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA ||
 	    GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
 		woal_deinit_wifi_hal(priv);
+#endif
 #endif
 
 		/* Clear the priv in handle */
@@ -5559,7 +5567,6 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb
 )
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct ethhdr *eth = NULL;
 	t_u8 tid = 0;
 	t_u8 index = 0;
 
@@ -5568,32 +5575,7 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb
 		LEAVE();
 		return index;
 	}
-	/*
-	 * skb->priority values from 256->263 are magic values to
-	 * directly indicate a specific 802.1d priority.  This is used
-	 * to allow 802.1d priority to be passed directly in from VLAN
-	 * tags, etc.
-	 */
-	if (IS_SKB_MAGIC_VLAN(skb)) {
-		tid = GET_VLAN_PRIO(skb);
-	} else {
-		eth = (struct ethhdr *)skb->data;
-		switch (eth->h_proto) {
-		case __constant_htons(ETH_P_IP):
-			tid = priv->dscp_map[SKB_TOS(skb) >> DSCP_OFFSET];
-			if (tid == 0xFF)
-				tid = (IPTOS_PREC(SKB_TOS(skb)) >>
-				       IPTOS_OFFSET);
-			break;
-		case __constant_htons(ETH_P_IPV6):
-			tid = SKB_TIDV6(skb);
-			break;
-		case __constant_htons(ETH_P_ARP):
-		default:
-			break;
-		}
-	}
-
+	tid = skb->priority = cfg80211_classify8021d(skb, NULL);
 	index = mlan_select_wmm_queue(priv->phandle->pmlan_adapter,
 				      priv->bss_index, tid);
 	PRINTM(MDATA, "select queue: tid=%d, index=%d\n", tid, index);
@@ -5856,12 +5838,14 @@ static void woal_tcp_ack_timer_func(void *context)
 	tcp_session->pmbuf = NULL;
 	spin_unlock_irqrestore(&priv->tcp_sess_lock, flags);
 	if (skb && pmbuf) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+		index = skb_get_queue_mapping(skb);
+#endif
 		status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 		switch (status) {
 		case MLAN_STATUS_PENDING:
 			atomic_inc(&priv->phandle->tx_pending);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-			index = skb_get_queue_mapping(skb);
 			atomic_inc(&priv->wmm_tx_pending[index]);
 			if (atomic_read(&priv->wmm_tx_pending[index]) >=
 			    MAX_TX_PENDING) {
@@ -5920,12 +5904,14 @@ static void woal_send_tcp_ack(moal_private *priv, struct tcp_sess *tcp_session)
 	}
 	tcp_session->ack_skb = NULL;
 	tcp_session->pmbuf = NULL;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+	index = skb_get_queue_mapping(skb);
+#endif
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
 		atomic_inc(&priv->phandle->tx_pending);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-		index = skb_get_queue_mapping(skb);
 		atomic_inc(&priv->wmm_tx_pending[index]);
 		if (atomic_read(&priv->wmm_tx_pending[index]) >=
 		    MAX_TX_PENDING) {
@@ -6101,9 +6087,10 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	ENTER();
 
 	priv->num_tx_timeout = 0;
-	if (!skb->len || (skb->len > ETH_FRAME_LEN)) {
+	if (!skb->len ||
+	    (skb->len > (priv->netdev->mtu + sizeof(struct ethhdr)))) {
 		PRINTM(MERROR, "Tx Error: Bad skb length %d : %d\n", skb->len,
-		       ETH_FRAME_LEN);
+		       priv->netdev->mtu);
 		dev_kfree_skb_any(skb);
 		priv->stats.tx_dropped++;
 		goto done;
@@ -6159,6 +6146,15 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
+		if (is_zero_timeval(priv->phandle->tx_time_start)) {
+			priv->phandle->tx_time_start.time_sec =
+				pmbuf->in_ts_sec;
+			priv->phandle->tx_time_start.time_usec =
+				pmbuf->in_ts_usec;
+			PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
+			       priv->phandle->tx_time_start.time_sec,
+			       priv->phandle->tx_time_start.time_usec);
+		}
 		atomic_inc(&priv->phandle->tx_pending);
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
@@ -6488,8 +6484,10 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 		memset(&priv->sme_current, 0,
 		       sizeof(struct cfg80211_connect_params));
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		woal_init_wifi_hal(priv);
+#endif
 #endif
 	}
 #endif /* STA_SUPPORT */
@@ -6507,8 +6505,10 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 		memset(&priv->beacon_after, 0,
 		       sizeof(struct cfg80211_beacon_data));
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		woal_init_wifi_hal(priv);
+#endif
 #endif
 #endif
 	}
@@ -8742,6 +8742,45 @@ t_void woal_mclist_work_queue(struct work_struct *work)
 }
 
 /**
+ *  @brief This workqueue function handles woal scan deferred work
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+t_void woal_scan_deferred_work_queue(struct work_struct *work)
+{
+#ifdef STA_CFG80211
+	struct delayed_work *delayed_work =
+		container_of(work, struct delayed_work, work);
+	moal_private *priv =
+		container_of(delayed_work, moal_private, scan_deferred_work);
+	unsigned long flags;
+#endif
+
+	ENTER();
+
+	PRINTM(MINFO, "Reporting scan results from scan deferred wq\n");
+
+#ifdef STA_CFG80211
+	if (IS_STA_CFG80211(priv->phandle->params.cfg80211_wext)) {
+		if (priv->phandle->scan_request) {
+			woal_inform_bss_from_scan_result(priv, NULL,
+							 MOAL_NO_WAIT);
+			spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
+			woal_cfg80211_scan_done(priv->phandle->scan_request,
+						MFALSE);
+			priv->phandle->scan_request = NULL;
+			spin_unlock_irqrestore(&priv->phandle->scan_req_lock,
+					       flags);
+		}
+	}
+#endif
+
+	LEAVE();
+}
+
+/**
  *  @brief This workqueue function handles woal event queue
  *
  *  @param work    A pointer to work_struct
@@ -8809,7 +8848,7 @@ t_void woal_evt_work_queue(struct work_struct *work)
 
 		case WOAL_EVENT_ASSOC_RESP:
 			woal_host_mlme_process_assoc_resp(
-				(moal_private *)evt->priv, &evt->assoc_resp);
+				(moal_private *)evt->priv, &evt->assoc_info);
 			break;
 #endif
 #endif
@@ -8845,15 +8884,33 @@ t_void woal_rx_work_queue(struct work_struct *work)
 #endif
 #endif
 #endif
+	wifi_timeval start_timeval;
+	wifi_timeval end_timeval;
 
 	ENTER();
 	if (handle->surprise_removed == MTRUE) {
 		LEAVE();
 		return;
 	}
-
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	if (handle->cfg80211_suspend == MTRUE) {
+		LEAVE();
+		return;
+	}
+#endif
+	woal_get_monotonic_time(&start_timeval);
 	mlan_rx_process(handle->pmlan_adapter, NULL);
 
+	woal_get_monotonic_time(&end_timeval);
+	handle->rx_time += (t_u64)(timeval_to_usec(end_timeval) -
+				   timeval_to_usec(start_timeval));
+	PRINTM(MINFO,
+	       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu rx_time=%llu\n",
+	       __func__, start_timeval.time_sec, start_timeval.time_usec,
+	       end_timeval.time_sec, end_timeval.time_usec,
+	       (t_u64)(timeval_to_usec(end_timeval) -
+		       timeval_to_usec(start_timeval)),
+	       handle->rx_time);
 	LEAVE();
 }
 
@@ -9927,6 +9984,10 @@ static void woal_post_reset(moal_handle *handle)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int intf_num;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	t_u8 country_code[COUNTRY_CODE_LEN];
+#endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #if defined(STA_WEXT) || defined(UAP_WEXT)
@@ -9994,6 +10055,28 @@ static void woal_post_reset(moal_handle *handle)
 			woal_start_queue(handle->priv[intf_num]->netdev);
 		}
 	}
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	if (handle->country_code[0] && handle->country_code[1]) {
+		memset(country_code, 0, sizeof(country_code));
+		if (MTRUE ==
+		    is_cfg80211_special_region_code(handle->country_code)) {
+			country_code[0] = 'W';
+			country_code[1] = 'W';
+		} else {
+			country_code[0] = handle->country_code[0];
+			country_code[1] = handle->country_code[1];
+		}
+
+		if (handle->params.cntry_txpwr && priv)
+			woal_request_country_power_table(priv, country_code);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
+			queue_work(handle->evt_workqueue,
+				   &handle->regulatory_work);
+#endif
+	}
+#endif
+
 done:
 	if (handle->dpd_data) {
 		release_firmware(handle->dpd_data);
