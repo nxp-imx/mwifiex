@@ -565,7 +565,7 @@ static const struct wiphy_coalesce_support coalesce_support = {
  *
  *  @return     MTRUE/MFALSE
  */
-static t_u8 is_cfg80211_special_region_code(t_u8 *region_string)
+t_u8 is_cfg80211_special_region_code(t_u8 *region_string)
 {
 	t_u8 i;
 	region_code_t cfg80211_special_region_code[] = {
@@ -2329,15 +2329,16 @@ void woal_host_mlme_work_queue(struct work_struct *work)
  * case
  *
  *  @param priv  	pointer to moal_private
- *  @param assoc_rsp	pointer to mlan_ds_misc_assoc_rsp
+ *  @param assoc_info	pointer to mlan_ds_assoc_info
  *
  *  @return        N/A
  */
 void woal_host_mlme_process_assoc_resp(moal_private *priv,
-				       mlan_ds_misc_assoc_rsp *assoc_rsp)
+				       mlan_ds_assoc_info *assoc_info)
 {
 	struct cfg80211_bss *bss = NULL;
 	unsigned long flags;
+	u8 *assoc_req_buf = NULL;
 
 	if (priv) {
 		if (priv->auth_flag & HOST_MLME_ASSOC_DONE) {
@@ -2350,27 +2351,27 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 				return;
 			}
 
-			if (assoc_rsp->assoc_resp_len) {
+			if (assoc_info->assoc_resp_len) {
 				PRINTM(MCMND,
 				       "HostMlme: %s assoc_resp_len=%d, frame_control=0x%x\n",
 				       priv->netdev->name,
-				       assoc_rsp->assoc_resp_len,
+				       assoc_info->assoc_resp_len,
 				       ((struct ieee80211_mgmt *)
-						assoc_rsp->assoc_resp_buf)
+						assoc_info->assoc_resp_buf)
 					       ->frame_control);
 				if (ieee80211_is_assoc_resp(
 					    ((struct ieee80211_mgmt *)
-						     assoc_rsp->assoc_resp_buf)
+						     assoc_info->assoc_resp_buf)
 						    ->frame_control) ||
 				    ieee80211_is_reassoc_resp(
 					    ((struct ieee80211_mgmt *)
-						     assoc_rsp->assoc_resp_buf)
+						     assoc_info->assoc_resp_buf)
 						    ->frame_control)) {
 					spin_lock_irqsave(&priv->connect_lock,
 							  flags);
 					if (le16_to_cpu(
 						    ((struct ieee80211_mgmt
-							      *)assoc_rsp
+							      *)assoc_info
 							     ->assoc_resp_buf)
 							    ->u.assoc_resp
 							    .status_code) !=
@@ -2386,30 +2387,39 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 					}
 					spin_unlock_irqrestore(
 						&priv->connect_lock, flags);
+					/*Populate Assoc req buf only if len is
+					 * non zero . i.e. we received assoc req
+					 * buffer from fw.*/
+					if (assoc_info->assoc_req_len)
+						assoc_req_buf =
+							assoc_info
+								->assoc_req_buf;
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len, -1,
-						NULL, 0);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len, -1,
+						assoc_req_buf,
+						assoc_info->assoc_req_len);
 #else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len, -1);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len, -1);
 #else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 					cfg80211_rx_assoc_resp(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len);
 #else
 					cfg80211_send_rx_assoc(
 						priv->netdev, bss,
-						assoc_rsp->assoc_resp_buf,
-						assoc_rsp->assoc_resp_len);
+						assoc_info->assoc_resp_buf,
+						assoc_info->assoc_resp_len);
 #endif
 #endif
 #endif
@@ -2434,14 +2444,25 @@ static void woal_assoc_resp_event(moal_private *priv,
 	struct woal_event *evt;
 	unsigned long flags;
 	moal_handle *handle = priv->phandle;
+	mlan_ds_misc_assoc_req assoc_req;
+	memset(&assoc_req, 0, sizeof(mlan_ds_misc_assoc_req));
+	woal_get_assoc_req(priv, &assoc_req, MOAL_IOCTL_WAIT);
 
 	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
 	if (evt) {
 		evt->priv = priv;
 		evt->type = WOAL_EVENT_ASSOC_RESP;
-		moal_memcpy_ext(priv->phandle, &evt->assoc_resp, passoc_rsp,
-				sizeof(mlan_ds_misc_assoc_rsp),
-				sizeof(mlan_ds_misc_assoc_rsp));
+		moal_memcpy_ext(priv->phandle, evt->assoc_info.assoc_resp_buf,
+				passoc_rsp->assoc_resp_buf,
+				passoc_rsp->assoc_resp_len, ASSOC_RSP_BUF_SIZE);
+		evt->assoc_info.assoc_resp_len =
+			MIN(passoc_rsp->assoc_resp_len, ASSOC_RSP_BUF_SIZE);
+		moal_memcpy_ext(priv->phandle, evt->assoc_info.assoc_req_buf,
+				assoc_req.assoc_req_buf,
+				assoc_req.assoc_req_len, ASSOC_RSP_BUF_SIZE);
+		evt->assoc_info.assoc_req_len =
+			MIN(assoc_req.assoc_req_len, ASSOC_RSP_BUF_SIZE);
+
 		INIT_LIST_HEAD(&evt->link);
 		spin_lock_irqsave(&handle->evt_lock, flags);
 		list_add_tail(&evt->link, &handle->evt_queue);
@@ -3477,7 +3498,7 @@ woal_reg_apply_beaconing_flags(struct wiphy *wiphy,
 	int band, i;
 	t_u32 rule_flags = 0;
 
-	for (band = 0; band < NUM_NL80211_BANDS; band++) {
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
 		sband = wiphy->bands[band];
 		if (!sband)
 			continue;
@@ -3745,8 +3766,17 @@ void woal_regulatory_work_queue(struct work_struct *work)
 	moal_handle *handle = container_of(work, moal_handle, regulatory_work);
 	struct wiphy *wiphy = handle->wiphy;
 	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
-	if (priv && wiphy)
+	enum ieee80211_band band;
+
+	if (priv && wiphy) {
 		woal_update_custom_regdomain(priv, wiphy);
+		band = priv->phandle->band;
+		priv->phandle->band = IEEE80211_BAND_2GHZ;
+		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		priv->phandle->band = IEEE80211_BAND_5GHZ;
+		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+		priv->phandle->band = band;
+	}
 }
 #endif
 
@@ -3773,6 +3803,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	int ret = 0;
 #endif
+	t_u8 load_power_table = MFALSE;
 	mlan_fw_info fw_info;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	char *reg_alpha2 = NULL;
@@ -3841,6 +3872,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 				return;
 #endif
 			}
+			load_power_table = MTRUE;
 		}
 	}
 	if (MTRUE != is_cfg80211_special_region_code(region)) {
@@ -3859,8 +3891,8 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		reg_alpha2 = priv->phandle->params.reg_alpha2;
 		if ((handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) &&
-		    !handle->params.txpwrlimit_cfg && reg_alpha2 &&
-		    woal_is_valid_alpha2(reg_alpha2))
+		    !handle->params.txpwrlimit_cfg && load_power_table &&
+		    reg_alpha2 && woal_is_valid_alpha2(reg_alpha2))
 			queue_work(handle->evt_workqueue,
 				   &handle->regulatory_work);
 #endif
@@ -3869,7 +3901,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		PRINTM(MCMND, "Regulatory domain BY_CORE\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE &&
-		    !handle->params.txpwrlimit_cfg)
+		    load_power_table && !handle->params.txpwrlimit_cfg)
 			queue_work(handle->evt_workqueue,
 				   &handle->regulatory_work);
 #endif
@@ -3878,7 +3910,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		PRINTM(MCMND, "Regulatory domain BY_USER\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE &&
-		    !handle->params.txpwrlimit_cfg)
+		    load_power_table && !handle->params.txpwrlimit_cfg)
 			queue_work(handle->evt_workqueue,
 				   &handle->regulatory_work);
 #endif
@@ -4044,8 +4076,8 @@ static mlan_status woal_uap_scan(moal_private *priv,
 	woal_sched_timeout(5);
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
-#endif
 done:
+#endif
 	if (role == MLAN_BSS_ROLE_UAP)
 		woal_role_switch(tmp_priv, MOAL_IOCTL_WAIT, MLAN_BSS_ROLE_UAP);
 	if (band_change)
@@ -4080,6 +4112,39 @@ static int woal_find_wps_ie_in_probereq(const t_u8 *ie, int len)
 		left_len -= (ie_len + 2);
 	}
 
+	return MFALSE;
+}
+
+/** scan result expired value */
+#define SCAN_RESULT_EXPIRTED 1
+/**
+ *  @brief check if the scan result expired
+ *
+ *  @param priv         A pointer to moal_private
+ *
+ *
+ *  @return             MTRUE/MFALSE;
+ */
+static t_u8 woal_is_uap_scan_result_expired(moal_private *priv)
+{
+	mlan_scan_resp scan_resp;
+	wifi_timeval t;
+	ENTER();
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_scan_table(priv, MOAL_IOCTL_WAIT, &scan_resp)) {
+		LEAVE();
+		return MTRUE;
+	}
+	if (!scan_resp.num_in_scan_table) {
+		LEAVE();
+		return MTRUE;
+	}
+	woal_get_monotonic_time(&t);
+	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_EXPIRTED)) {
+		LEAVE();
+		return MTRUE;
+	}
+	LEAVE();
 	return MFALSE;
 }
 
@@ -4129,8 +4194,6 @@ static t_u8 woal_is_scan_result_expired(moal_private *priv)
 		return MTRUE;
 	}
 	woal_get_monotonic_time(&t);
-/** scan result expired value */
-#define SCAN_RESULT_EXPIRTED 1
 	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_EXPIRTED)) {
 		LEAVE();
 		return MTRUE;
@@ -4245,7 +4308,11 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	if (priv->fake_scan_complete || !woal_is_scan_result_expired(priv)) {
 		PRINTM(MEVENT,
 		       "scan result not expired or fake scan complete flag is on\n");
-		return -EAGAIN;
+		priv->phandle->scan_request = request;
+		queue_delayed_work(priv->phandle->evt_workqueue,
+				   &priv->scan_deferred_work,
+				   msecs_to_jiffies(1000));
+		return MLAN_STATUS_SUCCESS;
 	}
 	memset(&bss_info, 0, sizeof(bss_info));
 	if (MLAN_STATUS_SUCCESS ==
@@ -4267,6 +4334,12 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 	priv->phandle->scan_request = request;
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
+	if (is_zero_timeval(priv->phandle->scan_time_start)) {
+		woal_get_monotonic_time(&priv->phandle->scan_time_start);
+		PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
+		       priv->phandle->scan_time_start.time_sec,
+		       priv->phandle->scan_time_start.time_usec);
+	}
 	scan_req = kmalloc(sizeof(wlan_user_scan_cfg), GFP_KERNEL);
 	memset(scan_req, 0x00, sizeof(wlan_user_scan_cfg));
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
@@ -4372,9 +4445,15 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		}
 #endif
 #ifdef UAP_CFG80211
-		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-			scan_req->chan_list[i].scan_time =
-				PASSIVE_SCAN_CHAN_TIME;
+		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
+			if (!woal_is_uap_scan_result_expired(priv))
+				scan_req->chan_list[i].scan_time =
+					MIN_SPECIFIC_SCAN_CHAN_TIME;
+
+			else
+				scan_req->chan_list[i].scan_time =
+					PASSIVE_SCAN_CHAN_TIME;
+		}
 #endif
 	}
 	if (priv->phandle->scan_request->ie &&
@@ -4872,6 +4951,8 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	unsigned long flags;
 	mlan_ds_misc_assoc_rsp *assoc_rsp = NULL;
 	IEEEtypes_AssocRsp_t *passoc_rsp = NULL;
+	mlan_ds_misc_assoc_req assoc_req;
+
 	mlan_ssid_bssid *ssid_bssid = NULL;
 	moal_handle *handle = priv->phandle;
 	int i;
@@ -5017,6 +5098,8 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 			priv->ft_md = 0;
 			priv->ft_cap = 0;
 		}
+		memset(&assoc_req, 0, sizeof(mlan_ds_misc_assoc_req));
+		woal_get_assoc_req(priv, &assoc_req, MOAL_IOCTL_WAIT);
 	}
 	spin_lock_irqsave(&priv->connect_lock, flags);
 	priv->cfg_connect = MFALSE;
@@ -5025,11 +5108,11 @@ static int woal_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		       "wlan: Connected to bssid " MACSTR " successfully\n",
 		       MAC2STR(priv->cfg_bssid));
 		spin_unlock_irqrestore(&priv->connect_lock, flags);
-		cfg80211_connect_result(priv->netdev, priv->cfg_bssid, NULL, 0,
-					passoc_rsp->ie_buffer,
-					assoc_rsp->assoc_resp_len -
-						ASSOC_RESP_FIXED_SIZE,
-					WLAN_STATUS_SUCCESS, GFP_KERNEL);
+		cfg80211_connect_result(
+			priv->netdev, priv->cfg_bssid, assoc_req.assoc_req_buf,
+			assoc_req.assoc_req_len, passoc_rsp->ie_buffer,
+			assoc_rsp->assoc_resp_len - ASSOC_RESP_FIXED_SIZE,
+			WLAN_STATUS_SUCCESS, GFP_KERNEL);
 	} else {
 		PRINTM(MINFO, "wlan: Failed to connect to bssid " MACSTR "\n",
 		       MAC2STR(priv->cfg_bssid));
@@ -6318,8 +6401,10 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 						msecs_to_jiffies(
 							ROAMING_WAKE_LOCK_TIMEOUT));
 #endif
+#ifdef REASSOCIATION
 					wake_up_interruptible(
 						&handle->reassoc_thread.wait_q);
+#endif
 				}
 			}
 		}
@@ -6383,6 +6468,8 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 
 done:
 	handle->cfg80211_suspend = MFALSE;
+	queue_work(handle->rx_workqueue, &handle->rx_work);
+
 	PRINTM(MCMND, "<--- Leave woal_cfg80211_resume --->\n");
 	return 0;
 }
@@ -8986,6 +9073,16 @@ int woal_cfg80211_uap_add_station(struct wiphy *wiphy, struct net_device *dev,
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
+		struct station_info *sinfo = NULL;
+		sinfo = kzalloc(sizeof(struct station_info), GFP_KERNEL);
+		if (sinfo) {
+			cfg80211_new_sta(dev, mac, sinfo, GFP_KERNEL);
+			kfree(sinfo);
+		}
+	}
+#endif
 done:
 	LEAVE();
 	return ret;
@@ -9228,7 +9325,6 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 			mcs_supp = priv->phandle->params.antcfg & 0xf;
 			if (mcs_supp != 3 && mcs_supp != 0)
 				cfg_11n->param.supported_mcs_set[1] = 0;
-			cfg_11n->param.supported_mcs_set[4] = 0;
 		}
 		woal_cfg80211_setup_ht_cap(
 			&wiphy->bands[IEEE80211_BAND_2GHZ]->ht_cap, hw_dev_cap,

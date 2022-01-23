@@ -3072,6 +3072,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_hal_phy_cfg(pmpriv, cmd_ptr, cmd_action,
 					   pdata_buf);
 		break;
+	case HostCmd_CMD_IPS_CONFIG:
+		ret = wlan_cmd_ips_config(pmpriv, cmd_ptr, cmd_action,
+					  pdata_buf);
+		break;
 	case HOST_CMD_PMIC_CONFIGURE:
 		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
 		cmd_ptr->size = wlan_cpu_to_le16(S_DS_GEN);

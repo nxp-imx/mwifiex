@@ -125,6 +125,7 @@ static int process_addbareject(int argc, char *argv[]);
 static int process_hssetpara(int argc, char *argv[]);
 static int process_mefcfg(int argc, char *argv[]);
 static int process_cloud_keep_alive(int argc, char *argv[]);
+static int process_min_ba_threshold_cfg(int argc, char *argv[]);
 
 struct command_node command_list[] = {
 	{"version", process_version},
@@ -155,6 +156,7 @@ struct command_node command_list[] = {
 	{"hssetpara", process_hssetpara},
 	{"mefcfg", process_mefcfg},
 	{"cloud_keep_alive", process_cloud_keep_alive},
+	{"min_ba_threshold", process_min_ba_threshold_cfg},
 };
 
 static char *usage[] = {
@@ -192,6 +194,7 @@ static char *usage[] = {
 	"         hssetpara",
 	"         mefcfg",
 	"         cloud_keep_alive",
+	"         min_ba_threshold",
 };
 
 /** Socket */
@@ -938,18 +941,40 @@ static int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 	return MLAN_STATUS_SUCCESS;
 }
 
-#define SUBID_OFFSET 2
-static t_u16 supported_subcmd[] = {0x104, 0x111, 0x11b, 0x11e, 0x27};
+#define CMDCODE_OFFSET 0
+#define SUBID_OFFSET (S_DS_GEN + 2)
 
-static int check_if_hostcmd_subcmd_allowed(t_u8 *buf)
+static const t_u16 debug_cmd = 0x008b;
+static t_u16 supported_cmd[] = {0x0130};
+/* If the hostcmd CmdCode is 0x008b (debug cmd), then below SUBIDs will be
+ * allowed */
+static t_u16 supported_8b_subcmd[] = {0x104, 0x111, 0x11b, 0x11e, 0x27, 0x101};
+
+static int check_if_hostcmd_allowed(t_u8 *buf)
 {
-	t_u32 maxcnt = sizeof(supported_subcmd) / sizeof(supported_subcmd[0]);
+	t_u32 maxcnt_cmd = sizeof(supported_cmd) / sizeof(supported_cmd[0]);
+	t_u32 maxcnt_subcmd =
+		sizeof(supported_8b_subcmd) / sizeof(supported_8b_subcmd[0]);
 
-	for (int i = 0; i < maxcnt; i++) {
-		if (!memcmp(buf + SUBID_OFFSET, (supported_subcmd + i),
+	/* Check if CmdCode is 0x008b (debug cmd from debug.conf) */
+	if (!memcmp(buf + CMDCODE_OFFSET, &debug_cmd, sizeof(t_u16))) {
+		for (int i = 0; i < maxcnt_subcmd; i++) {
+			/* Check if SUBID matches with allowed subcmd */
+			if (!memcmp(buf + SUBID_OFFSET,
+				    (supported_8b_subcmd + i), sizeof(t_u16)))
+				return MLAN_STATUS_SUCCESS;
+		}
+		return MLAN_STATUS_NOTFOUND;
+	}
+
+	for (int i = 0; i < maxcnt_cmd; i++) {
+		/* If CmdCode is other than 0x008b, then only check the CmdCode
+		 */
+		if (!memcmp(buf + CMDCODE_OFFSET, (supported_cmd + i),
 			    sizeof(t_u16)))
 			return MLAN_STATUS_SUCCESS;
 	}
+
 	return MLAN_STATUS_NOTFOUND;
 }
 
@@ -1161,11 +1186,10 @@ static int process_hostcmd(int argc, char *argv[])
 	}
 
 	if (call_ioctl) {
+		/* raw_buf points to start of command id */
 		raw_buf = buffer + strlen(CMD_NXP) + strlen(argv[2]) +
-			  sizeof(t_u32) + S_DS_GEN; /* raw_buf points to start
-						       of actual <raw data> */
-		if (check_if_hostcmd_subcmd_allowed(raw_buf) !=
-		    MLAN_STATUS_SUCCESS) {
+			  sizeof(t_u32);
+		if (check_if_hostcmd_allowed(raw_buf) != MLAN_STATUS_SUCCESS) {
 			printf("ERR:Entered hostcmd not allowed!\n");
 			goto done;
 		}
@@ -5009,6 +5033,83 @@ static int process_cloud_keep_alive(int argc, char *argv[])
 		free(cmd);
 
 done:
+	return ret;
+}
+
+/**
+ *  @brief Implement Minimum BA Threshold command
+ *  @param argc   Number of arguments
+ *  @param argv   A pointer to arguments array
+ *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static int process_min_ba_threshold_cfg(int argc, char *argv[])
+{
+	int ret = 0;
+	t_u8 min_ba_thres = 0;
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	memset(buffer, 0, BUFFER_LENGTH);
+
+	/* Sanity tests */
+	if (argc < 3 || argc > 4) {
+		printf("Error: invalid no of arguments\n");
+		printf("mlanutl mlanX min_ba_threshold [#]\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: min_ba_threshold fail\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Process result */
+	if (argc == 3) {
+		memcpy(&min_ba_thres, buffer, sizeof(min_ba_thres));
+		printf("Min Tx BA Threshold: %d\n", min_ba_thres);
+	}
+
+done:
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
 	return ret;
 }
 

@@ -1635,7 +1635,7 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 		}
 		udelay(100);
 	}
-	if (ctrl_data == debug_host_ready) {
+	if (ctrl_data == debug_host_ready || tries == MAX_POLL_TRIES) {
 		PRINTM(MERROR, "Fail to pull ctrl_data\n");
 		return RDWR_STATUS_FAILURE;
 	}

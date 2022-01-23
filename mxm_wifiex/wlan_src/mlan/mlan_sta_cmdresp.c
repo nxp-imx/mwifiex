@@ -191,12 +191,12 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 		pmadapter->pscan_ioctl_req = MNULL;
 		/* Need to indicate IOCTL complete */
 		if (pscan_ioctl_req) {
-			pscan_ioctl_req->status_code = MLAN_ERROR_CMD_SCAN_FAIL;
+			pscan_ioctl_req->status_code = MLAN_ERROR_NO_ERROR;
 			/* Indicate ioctl complete */
 			pcb->moal_ioctl_complete(
 				pmadapter->pmoal_handle,
 				(pmlan_ioctl_req)pscan_ioctl_req,
-				MLAN_STATUS_FAILURE);
+				MLAN_STATUS_SUCCESS);
 		}
 		wlan_release_cmd_lock(pmadapter);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_SCAN_REPORT, MNULL);
@@ -3306,6 +3306,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_HAL_PHY_CFG:
 		ret = wlan_ret_hal_phy_cfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_IPS_CONFIG:
+		ret = wlan_ret_ips_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_RATE_ADAPT_CFG:
 		ret = wlan_ret_rate_adapt_cfg(pmpriv, resp, pioctl_buf);

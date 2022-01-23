@@ -485,8 +485,7 @@ mlan_status wlan_uap_recv_packet(mlan_private *priv, pmlan_buffer pmbuf)
 	       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
 
 	/* don't do packet forwarding in disconnected state */
-	if ((priv->media_connected == MFALSE) ||
-	    (pmbuf->data_len > MV_ETH_FRAME_LEN))
+	if (priv->media_connected == MFALSE)
 		goto upload;
 
 	if (prx_pkt->eth803_hdr.dest_addr[0] & 0x01) {
@@ -637,8 +636,7 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 
 	/* don't do packet forwarding in disconnected state */
 	/* don't do packet forwarding when packet > 1514 */
-	if ((priv->media_connected == MFALSE) ||
-	    ((pmbuf->data_len - prx_pd->rx_pkt_offset) > MV_ETH_FRAME_LEN))
+	if (priv->media_connected == MFALSE)
 		goto upload;
 
 	if (prx_pkt->eth803_hdr.dest_addr[0] & 0x01) {

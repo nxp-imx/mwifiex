@@ -835,6 +835,14 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_ADHOC_LINK_LOST,
 				MNULL);
 		break;
+	case EVENT_ASSOC_REQ_IE:
+		pmpriv->assoc_req_size = pmbuf->data_len - sizeof(eventcause);
+		evt_buf =
+			(pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause));
+		memcpy_ext(pmpriv->adapter, pmpriv->assoc_req_buf, evt_buf,
+			   pmbuf->data_len - sizeof(eventcause),
+			   MRVDRV_ASSOC_RSP_BUF_SIZE);
+		break;
 
 	case EVENT_FW_DEBUG_INFO:
 		pevent->bss_index = pmpriv->bss_index;

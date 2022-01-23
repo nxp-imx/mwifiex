@@ -127,9 +127,6 @@ static struct ieee80211_channel cfg80211_channels_5ghz[] = {
 	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
-	{.center_freq = 5845, .hw_value = 169, .max_power = 20},
-	{.center_freq = 5865, .hw_value = 173, .max_power = 20},
-	{.center_freq = 5885, .hw_value = 177, .max_power = 20},
 };
 
 struct ieee80211_supported_band cfg80211_band_2ghz = {
@@ -146,6 +143,24 @@ struct ieee80211_supported_band cfg80211_band_5ghz = {
 	.n_channels = ARRAY_SIZE(cfg80211_channels_5ghz),
 	.bitrates = cfg80211_rates + 4,
 	.n_bitrates = ARRAY_SIZE(cfg80211_rates) - 4,
+};
+
+/** Channel definitions for 2 GHz to be advertised to cfg80211 */
+static struct ieee80211_channel macl_cfg80211_channels_2ghz[] = {
+	{.center_freq = 2412, .hw_value = 1, .max_power = 20},
+	{.center_freq = 2417, .hw_value = 2, .max_power = 20},
+	{.center_freq = 2422, .hw_value = 3, .max_power = 20},
+	{.center_freq = 2427, .hw_value = 4, .max_power = 20},
+	{.center_freq = 2432, .hw_value = 5, .max_power = 20},
+	{.center_freq = 2437, .hw_value = 6, .max_power = 20},
+	{.center_freq = 2442, .hw_value = 7, .max_power = 20},
+	{.center_freq = 2447, .hw_value = 8, .max_power = 20},
+	{.center_freq = 2452, .hw_value = 9, .max_power = 20},
+	{.center_freq = 2457, .hw_value = 10, .max_power = 20},
+	{.center_freq = 2462, .hw_value = 11, .max_power = 20},
+	{.center_freq = 2467, .hw_value = 12, .max_power = 20},
+	{.center_freq = 2472, .hw_value = 13, .max_power = 20},
+	{.center_freq = 2484, .hw_value = 14, .max_power = 20},
 };
 
 /** Channel definitions for 5 GHz to be advertised to cfg80211 */
@@ -175,15 +190,12 @@ static struct ieee80211_channel mac1_cfg80211_channels_5ghz[] = {
 	{.center_freq = 5785, .hw_value = 157, .max_power = 20},
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
-	{.center_freq = 5845, .hw_value = 169, .max_power = 20},
-	{.center_freq = 5865, .hw_value = 173, .max_power = 20},
-	{.center_freq = 5885, .hw_value = 177, .max_power = 20},
 };
 
 struct ieee80211_supported_band mac1_cfg80211_band_2ghz = {
-	.channels = cfg80211_channels_2ghz,
+	.channels = macl_cfg80211_channels_2ghz,
 	.band = IEEE80211_BAND_2GHZ,
-	.n_channels = ARRAY_SIZE(cfg80211_channels_2ghz),
+	.n_channels = ARRAY_SIZE(macl_cfg80211_channels_2ghz),
 	.bitrates = cfg80211_rates,
 	.n_bitrates = ARRAY_SIZE(cfg80211_rates),
 };
@@ -2667,11 +2679,19 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				break;
 			case IEEE80211_STYPE_DEAUTH:
 			case IEEE80211_STYPE_DISASSOC:
+				/* Need cancel the CAC when stop hostapd during
+				 * CAC*/
+				if (priv->phandle->is_cac_timer_set)
+					woal_cancel_chanrpt_event(priv);
+
+				if (!priv->bss_started) {
+					PRINTM(MCMND,
+					       "Drop deauth packet before AP started\n");
+					goto done;
+				}
 				PRINTM(MMSG,
 				       "wlan: HostMlme %s send deauth/disassoc\n",
 				       priv->netdev->name);
-				if (priv->phandle->is_cac_timer_set)
-					woal_cancel_chanrpt_event(priv);
 
 				break;
 			case IEEE80211_STYPE_ASSOC_RESP:
@@ -2742,7 +2762,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 #endif
 
-		if (chan) {
+		if (chan && priv->bss_type != MLAN_BSS_ROLE_UAP) {
 			duration = (wait > MGMT_TX_DEFAULT_WAIT_TIME) ?
 					   wait :
 					   MGMT_TX_DEFAULT_WAIT_TIME;
@@ -4540,7 +4560,7 @@ void woal_cfg80211_free_iftype_data(struct wiphy *wiphy)
 {
 	enum nl80211_band band;
 
-	for (band = NL80211_BAND_2GHZ; band < NUM_NL80211_BANDS; ++band) {
+	for (band = NL80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; ++band) {
 		if (!wiphy->bands[band])
 			continue;
 		if (!wiphy->bands[band]->iftype_data)
@@ -4844,7 +4864,6 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				}
 #endif
 			}
-			bands->ht_cap.mcs.rx_mask[4] = 0;
 		}
 
 		if (wiphy->bands[IEEE80211_BAND_5GHZ]) {

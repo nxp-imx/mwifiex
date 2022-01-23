@@ -271,12 +271,6 @@ static INLINE void wlan_update_station_del_ba_count(mlan_private *priv,
 static INLINE void wlan_update_del_ba_count(mlan_private *priv, raListTbl *ptr)
 {
 	t_s8 rssi;
-#ifdef UAP_802_11N
-#ifdef UAP_SUPPORT
-	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-		return wlan_update_station_del_ba_count(priv, ptr);
-#endif /* UAP_SUPPORT */
-#endif /* UAP_802_11N */
 	if (ptr->is_tdls_link)
 		return wlan_update_station_del_ba_count(priv, ptr);
 	rssi = priv->snr - priv->nf;

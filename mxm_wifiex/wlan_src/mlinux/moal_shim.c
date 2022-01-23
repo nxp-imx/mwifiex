@@ -1076,6 +1076,7 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				if (status == MLAN_STATUS_SUCCESS) {
 					priv->stats.tx_packets++;
 					priv->stats.tx_bytes += skb->len;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 					woal_packet_fate_monitor(
 						priv, PACKET_TYPE_TX,
@@ -1083,14 +1084,17 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 						FRAME_TYPE_ETHERNET_II, 0, 0,
 						skb->data, skb->data_len);
 #endif
+#endif
 				} else {
 					priv->stats.tx_errors++;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 					woal_packet_fate_monitor(
 						priv, PACKET_TYPE_TX,
 						TX_PKT_FATE_DRV_DROP_OTHER,
 						FRAME_TYPE_ETHERNET_II, 0, 0,
 						skb->data, skb->data_len);
+#endif
 #endif
 				}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
@@ -1147,6 +1151,24 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 	}
 
 done:
+	if ((atomic_read(&handle->tx_pending) == 0) &&
+	    !is_zero_timeval(handle->tx_time_start)) {
+		woal_get_monotonic_time(&handle->tx_time_end);
+		handle->tx_time +=
+			(t_u64)(timeval_to_usec(handle->tx_time_end) -
+				timeval_to_usec(handle->tx_time_start));
+		PRINTM(MINFO,
+		       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu tx_time=%llu\n",
+		       __func__, handle->tx_time_start.time_sec,
+		       handle->tx_time_start.time_usec,
+		       handle->tx_time_end.time_sec,
+		       handle->tx_time_end.time_usec,
+		       (t_u64)(timeval_to_usec(handle->tx_time_end) -
+			       timeval_to_usec(handle->tx_time_start)),
+		       handle->tx_time);
+		handle->tx_time_start.time_sec = 0;
+		handle->tx_time_start.time_usec = 0;
+	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -1543,6 +1565,7 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 					       __func__);
 					status = MLAN_STATUS_FAILURE;
 					priv->stats.rx_dropped++;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 					woal_packet_fate_monitor(
 						priv, PACKET_TYPE_RX,
@@ -1551,6 +1574,7 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 						(t_u8 *)(pmbuf->pbuf +
 							 pmbuf->data_offset),
 						pmbuf->data_len);
+#endif
 #endif
 					goto done;
 				}
@@ -1611,6 +1635,7 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 						(skb->len - max_rx_data_size);
 			}
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			if (!woal_filter_packet(priv, skb->data, skb->len, 0)) {
 				PRINTM(MEVENT, "drop filtered packet %s\n",
@@ -1626,13 +1651,16 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				goto done;
 			}
 #endif
+#endif
 			priv->stats.rx_bytes += skb->len;
 			priv->stats.rx_packets++;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			woal_packet_fate_monitor(priv, PACKET_TYPE_RX,
 						 RX_PKT_FATE_SUCCESS,
 						 FRAME_TYPE_ETHERNET_II, 0, 0,
 						 skb->data, skb->len);
+#endif
 #endif
 			if (handle->params.wakelock_timeout) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
@@ -2067,6 +2095,28 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					     sizeof(mlan_event_id));
 		}
 
+		if (!is_zero_timeval(priv->phandle->scan_time_start)) {
+			woal_get_monotonic_time(&priv->phandle->scan_time_end);
+			priv->phandle->scan_time += (t_u64)(
+				timeval_to_usec(priv->phandle->scan_time_end) -
+				timeval_to_usec(
+					priv->phandle->scan_time_start));
+			PRINTM(MINFO,
+			       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu scan_time=%llu\n",
+			       __func__,
+			       priv->phandle->scan_time_start.time_sec,
+			       priv->phandle->scan_time_start.time_usec,
+			       priv->phandle->scan_time_end.time_sec,
+			       priv->phandle->scan_time_end.time_usec,
+			       (t_u64)(timeval_to_usec(
+					       priv->phandle->scan_time_end) -
+				       timeval_to_usec(
+					       priv->phandle->scan_time_start)),
+			       priv->phandle->scan_time);
+			priv->phandle->scan_time_start.time_sec = 0;
+			priv->phandle->scan_time_start.time_usec = 0;
+		}
+
 		if (priv->phandle->scan_pending_on_block == MTRUE) {
 			priv->phandle->scan_pending_on_block = MFALSE;
 			priv->phandle->scan_priv = NULL;
@@ -2492,8 +2542,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					msecs_to_jiffies(
 						ROAMING_WAKE_LOCK_TIMEOUT));
 #endif
+#ifdef REASSOCIATION
 				wake_up_interruptible(
 					&priv->phandle->reassoc_thread.wait_q);
+#endif
 			} else {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 				if (priv->mrvl_rssi_low) {
@@ -2846,8 +2898,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			       pchan_info->bandcfg.chanBand,
 			       pchan_info->bandcfg.chanWidth,
 			       pchan_info->bandcfg.chan2Offset);
-			if (priv->uap_host_based &&
-			    (priv->channel != pchan_info->channel))
+			if (priv->uap_host_based)
 				woal_channel_switch_event(priv, pchan_info);
 		}
 #endif
@@ -3244,6 +3295,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						MLAN_MAC_ADDR_LENGTH,
 					GFP_ATOMIC);
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 				woal_packet_fate_monitor(
 					priv, PACKET_TYPE_RX,
@@ -3254,6 +3306,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					pmevent->event_len -
 						sizeof(pmevent->event_id) -
 						MLAN_MAC_ADDR_LENGTH);
+#endif
 #endif
 			}
 #endif /* KERNEL_VERSION */
@@ -3411,12 +3464,14 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 #endif
 			}
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			woal_packet_fate_monitor(priv, PACKET_TYPE_TX,
 						 ack ? TX_PKT_FATE_ACKED :
 						       TX_PKT_FATE_SENT,
 						 FRAME_TYPE_80211_MGMT, 0, 0,
 						 skb->data, skb->len);
+#endif
 #endif
 #endif
 			dev_kfree_skb_any(skb);

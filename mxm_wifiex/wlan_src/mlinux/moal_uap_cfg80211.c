@@ -1509,6 +1509,7 @@ moal_private *woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
+
 	spin_lock_init(&priv->connect_lock);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -2652,17 +2653,24 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		woal_cancel_cac_block(priv);
 #endif
 
-	if (priv->media_connected == MFALSE) {
-		PRINTM(MINFO, "cfg80211: Media not connected!\n");
-		LEAVE();
-		return 0;
-	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	if (param) {
 		mac_addr = param->mac;
 		reason_code = param->reason_code;
 	}
 #endif
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
+		if (mac_addr)
+			cfg80211_del_sta(dev, mac_addr, GFP_KERNEL);
+	}
+#endif
+	if (priv->media_connected == MFALSE) {
+		PRINTM(MINFO, "cfg80211: Media not connected!\n");
+		LEAVE();
+		return 0;
+	}
+
 	/** we will not send deauth to p2p interface, it might cause WPS failure
 	 */
 	if (mac_addr) {
@@ -3252,7 +3260,11 @@ int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 	pchan_rpt_req->millisec_dwell_time = cac_time_ms;
 #else
 	pchan_rpt_req->millisec_dwell_time = IEEE80211_DFS_MIN_CAC_TIME_MS;
-
+#endif
+	/* Since kernel doesn't support 600sec cac_timer for channels 120, 124,
+	 * and 128 (weather channels) in ETSI region, overwrite kernel's
+	 * cac_timer.
+	 */
 	if ((woal_is_etsi_country(priv->phandle->country_code) == MTRUE)) {
 		if (chandef->chan->hw_value == 120 ||
 		    chandef->chan->hw_value == 124 ||
@@ -3267,7 +3279,6 @@ int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 				IEEE80211_DFS_MIN_CAC_TIME_MS * 10;
 		}
 	}
-#endif
 	if (priv->user_cac_period_msec) {
 		pchan_rpt_req->millisec_dwell_time = priv->user_cac_period_msec;
 		PRINTM(MCMD_D,

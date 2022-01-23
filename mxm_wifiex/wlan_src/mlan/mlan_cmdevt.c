@@ -7189,7 +7189,10 @@ mlan_status wlan_ret_chan_region_cfg(pmlan_private pmpriv,
 
 	/* Add FW cfp tables and region info */
 	wlan_add_fw_cfp_tables(pmpriv, tlv_buf, tlv_buf_left);
-
+	if (pmadapter->otp_region) {
+		wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
+				     pmadapter->fw_bands);
+	}
 	if (!pioctl_buf)
 		goto done;
 
@@ -7485,7 +7488,7 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 	left_len = resp->size - sizeof(HostCmd_DS_802_11_LINK_STATISTIC) -
 		   S_DS_GEN;
 	tlv = (MrvlIEtypesHeader_t *)(plink_stat->value);
-	DBG_HEXDUMP(MCMD_D, "tlv:", (void *)tlv, 1024);
+	DBG_HEXDUMP(MDAT_D, "tlv:", (void *)tlv, 1024);
 	while (left_len > sizeof(MrvlIEtypesHeader_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv->type);
 		tlv_len = wlan_le16_to_cpu(tlv->len);
@@ -7729,7 +7732,7 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 				fw_ifaceStat->peer_info[peerIdx]
 					.rate_stats[rate_idx]
 					.retries_long);
-			PRINTM(MCMND,
+			PRINTM(MDAT_D,
 			       "0x%x  0x%x  0x%x  0x%x  0x%x  0x%x  0x%x\n",
 			       iface_stat->peer_info[peerIdx]
 				       .rate_stats[rate_idx]
@@ -8347,6 +8350,29 @@ mlan_status wlan_ret_hal_phy_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		misc_cfg->param.hal_phy_cfg_params.dot11b_psd_mask_cfg =
 			cfg_cmd->dot11b_psd_mask_cfg;
 	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+mlan_status wlan_cmd_ips_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+				t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_IPS_CONFIG *ips_cfg = MNULL;
+	t_u32 enable = *(t_u32 *)pdata_buf;
+
+	ENTER();
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_IPS_CONFIG);
+	ips_cfg = &cmd->params.ips_cfg;
+	ips_cfg->enable = wlan_cpu_to_le32(enable);
+	cmd->size = S_DS_GEN + sizeof(HostCmd_DS_IPS_CONFIG);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+mlan_status wlan_ret_ips_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+			     mlan_ioctl_req *pioctl_buf)
+{
+	ENTER();
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

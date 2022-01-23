@@ -1182,7 +1182,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			   pvht_cap->header.len, sizeof(VHT_capa_t));
 		bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
 		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band,
-				      MTRUE, bw_80p80);
+				      MFALSE, bw_80p80);
 
 		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));

@@ -898,6 +898,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	pmpriv->pattempted_bss_desc = pbss_desc;
 	/* clear assoc_rsp_size */
 	pmpriv->assoc_rsp_size = 0;
+	pmpriv->assoc_req_size = 0;
 
 	memcpy_ext(pmadapter, passo->peer_sta_addr, pbss_desc->mac_address,
 		   sizeof(pbss_desc->mac_address),

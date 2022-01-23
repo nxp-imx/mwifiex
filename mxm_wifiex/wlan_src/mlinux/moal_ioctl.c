@@ -108,10 +108,16 @@ static region_code_mapping_t hw_region_code_mapping[] = {
 
 /** Country code for ETSI */
 static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
-	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK",
-	"EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "KR", "LV",
-	"LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "RU",
-	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NE"};
+	"AL", "AD", "AT", "AU", "BE", "BA", "BG", "HR", "CY", "CZ", "DK", "EE",
+	"FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "LV", "LI", "LT",
+	"LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "SM", "RS", "SI",
+	"SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NE", "NZ", "DZ", "AO",
+	"AM", "AW", "BH", "BD", "BT", "BO", "BQ", "BW", "VG", "BF", "BI", "KH",
+	"CL", "CN", "KM", "CG", "CD", "CW", "EG", "FO", "GF", "PF", "GE", "GI",
+	"GP", "HK", "IN", "ID", "IM", "IL", "JE", "KE", "XK", "KW", "LA", "LR",
+	"MW", "MV", "MQ", "MR", "YT", "MA", "MZ", "MM", "NA", "NC", "NG", "OM",
+	"PS", "PT", "QA", "RW", "RE", "BL", "MF", "VC", "SA", "SC", "ZA", "SZ",
+	"SY", "TZ", "TG", "TN", "AE", "VA", "EH", "YE", "ZM", "ZW"};
 
 /********************************************************
 			Global Variables
@@ -263,7 +269,7 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 
 	/* Special Case: 20Mhz-only Channel */
 	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
-	if (bss_info.region_code != COUNTRY_CODE_US && chan == 165)
+	if (chan == 165)
 		return chan2Offset;
 
 	switch (chan) {
@@ -279,8 +285,6 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	case 140:
 	case 149:
 	case 157:
-	case 165:
-	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -295,8 +299,6 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	case 144:
 	case 153:
 	case 161:
-	case 169:
-	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
 	}
@@ -1831,6 +1833,53 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ *  @brief Get assoc_req IEs buffer
+ *
+ *  @param priv                 A pointer to moal_private structure
+ *  @param assoc_rsp            A pointer to mlan_ds_misc_assoc_rsp structure
+ *  @param wait_option          wait option
+ *
+ *  @return                     MLAN_STATUS_SUCCESS -- success, otherwise fail
+ */
+mlan_status woal_get_assoc_req(moal_private *priv,
+			       mlan_ds_misc_assoc_req *assoc_req,
+			       t_u8 wait_option)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *req = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		PRINTM(MERROR,
+		       "Fail to allocate buffer for get assoc request\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	misc = (pmlan_ds_misc_cfg)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_ASSOC_REQ;
+	req->action = MLAN_ACT_GET;
+
+	ret = woal_request_ioctl(priv, req, wait_option);
+	if (ret == MLAN_STATUS_SUCCESS && assoc_req)
+		moal_memcpy_ext(priv->phandle, assoc_req,
+				&misc->param.assoc_req,
+				sizeof(mlan_ds_misc_assoc_req),
+				sizeof(mlan_ds_misc_assoc_req));
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
 #endif
 
 /**

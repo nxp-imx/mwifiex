@@ -214,6 +214,7 @@ typedef struct _chan_stats {
 #endif
 #define PRIV_CMD_SLEEP_PARAMS "sleepparams"
 #define PRIV_CMD_DFS_TESTING "dfstesting"
+#define PRIV_CMD_CLEAR_NOP "clear_nop"
 #define PRIV_CMD_DFS53_CFG "dfs53cfg"
 #define PRIV_CMD_CFP_CODE "cfpcode"
 #define PRIV_CMD_CWMODE "cwmode"
@@ -304,6 +305,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_CCK_DESENSE_CFG "cck_desense_cfg"
 #define PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG "dot11mc_unassoc_ftm_cfg"
 #define PRIV_CMD_HAL_PHY_CFG "hal_phy_cfg"
+#define PRIV_CMD_IPS_CFG "ips_cfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD (SIOCDEVPRIVATE + 1)

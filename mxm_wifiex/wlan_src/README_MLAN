@@ -433,6 +433,7 @@ SYNOPSIS
 	mlanutl mlanX hssetpara condition [GPIO# [gap]] [ind_GPIO# [level]]
 	mlanutl mlanX mefcfg <mef.conf>
         mlanutl mlanX cloud_keep_alive <keep_alive.conf> <start/stop/reset>
+	mlanutl mlanX min_ba_threshold <n>
 
 DESCRIPTION
 	Those commands are used to send additional commands to the NXP MLAN
@@ -1459,3 +1460,15 @@ cloud_keep_alive
                 mlanutl mlan0 cloud_keep_alive keep_alive.conf start
                 mlanutl mlan0 cloud_keep_alive keep_alive.conf stop
                 mlanutl mlan0 cloud_keep_alive keep_alive.conf reset
+min_ba_threshold
+        This command is to set minimum Tx BA setup threshold
+
+        Usage:
+               mlanutl mlanX min_ba_threshold <n>
+
+        where the parameters are:
+             <n>: minimum BA Threshold  :0-16 (default is 16)
+        Example:
+               mlanutl mlan0 min_ba_threshold     : get min_ba_threshold value
+               mlanutl mlan0 min_ba_threshold 10  : set minimum BA threshold to 10
+

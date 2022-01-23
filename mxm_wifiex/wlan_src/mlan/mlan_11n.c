@@ -2294,7 +2294,7 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	t_u8 chan2Offset = SEC_CHAN_NONE;
 
 	/* Special Case: 20Mhz-only Channel */
-	if (priv->adapter->region_code != COUNTRY_CODE_US && chan == 165)
+	if (chan == 165)
 		return chan2Offset;
 
 	switch (chan) {
@@ -2310,8 +2310,6 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 140:
 	case 149:
 	case 157:
-	case 165:
-	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -2326,8 +2324,6 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 144:
 	case 153:
 	case 161:
-	case 169:
-	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
 	}

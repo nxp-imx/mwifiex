@@ -756,7 +756,6 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 	t_u32 supp_feature_set = 0;
 
 	ENTER();
-
 	supp_feature_set = WLAN_FEATURE_INFRA
 #if defined(UAP_SUPPORT) && defined(STA_SUPPORT)
 			   | WLAN_FEATURE_AP_STA
@@ -2301,7 +2300,7 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 				MIN(packet_filter_len, nla_len(iter));
 			pkt_filter->state = PACKET_FILTER_STATE_START;
 			spin_unlock_irqrestore(&pkt_filter->lock, flags);
-			DBG_HEXDUMP(MCMD_D, "packet_filter_program",
+			DBG_HEXDUMP(MDAT_D, "packet_filter_program",
 				    pkt_filter->packet_filter_program,
 				    pkt_filter->packet_filter_len);
 			break;
@@ -2695,10 +2694,10 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	if (pkt_filter->state != PACKET_FILTER_STATE_START)
 		goto done;
 
-	DBG_HEXDUMP(MCMD_D, "packet_filter_program",
+	DBG_HEXDUMP(MDAT_D, "packet_filter_program",
 		    pkt_filter->packet_filter_program,
 		    pkt_filter->packet_filter_len);
-	DBG_HEXDUMP(MCMD_D, "packet_filter_data", data, len);
+	DBG_HEXDUMP(MDAT_D, "packet_filter_data", data, len);
 	spin_lock_irqsave(&pkt_filter->lock, flags);
 	ret = process_packet(pkt_filter->packet_filter_program,
 			     pkt_filter->packet_filter_len, data, len,
@@ -2773,6 +2772,11 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u32 num_radio = 0, iface_stat_len = 0, radio_stat_len = 0;
 	int err = -1, length = 0, i;
 	char *ioctl_link_stats_buf = NULL;
+	mlan_ds_get_stats stats;
+	t_u64 cur_time = 0;
+	t_u64 inter_msec = 0;
+	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
+	moal_handle *handle = priv->phandle;
 
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
@@ -2800,6 +2804,39 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	radio_stat = (wifi_radio_stat *)(info->param.link_statistic +
 					 sizeof(num_radio));
 	radio_stat_len = num_radio * sizeof(wifi_radio_stat);
+
+	/* Re-write on_time/tx_time/rx_time/on_time_scan from moal handle */
+	PRINTM(MINFO, "handle->on_time=%llu\n", handle->on_time);
+	if (handle->on_time) {
+		moal_get_boot_ktime(handle, &cur_time);
+		inter_msec = moal_do_div(cur_time - handle->on_time, 1000000);
+		PRINTM(MINFO, "cur_time=%llu inter_msec=%llu max_msec=%llu\n",
+		       cur_time, inter_msec, max_msec);
+		/* When we report the time up, u32 is not big enough(represent
+		 * max 49days) and might out of range, make the max value to
+		 * 24days.
+		 */
+		if (inter_msec > max_msec) {
+			PRINTM(MMSG,
+			       "Out of range, set inter_msec=%llu to max_msec=%llu\n",
+			       inter_msec, max_msec);
+			inter_msec = max_msec;
+		}
+	}
+	PRINTM(MINFO, "handle->tx_time=%llu\n", handle->tx_time);
+	PRINTM(MINFO, "handle->rx_time=%llu\n", handle->rx_time);
+	PRINTM(MINFO, "handle->scan_time=%llu\n", handle->scan_time);
+	radio_stat_tmp = radio_stat;
+	for (i = 0; i < num_radio; i++) {
+		radio_stat_tmp->on_time = (t_u32)inter_msec;
+		radio_stat_tmp->tx_time =
+			(t_u32)moal_do_div(handle->tx_time, 1000);
+		radio_stat_tmp->rx_time =
+			(t_u32)moal_do_div(handle->rx_time, 1000);
+		radio_stat_tmp->on_time_scan =
+			(t_u32)moal_do_div(handle->scan_time, 1000);
+		radio_stat_tmp++;
+	}
 
 	iface_stat = (wifi_iface_stat *)(info->param.link_statistic +
 					 sizeof(num_radio) + radio_stat_len);
@@ -2832,38 +2869,38 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		goto done;
 	}
 
-	PRINTM(MCMD_D, "%s: <<< Start DUMP\n", __func__);
-	PRINTM(MCMD_D, "sizeof(wifi_radio_stat)=%zu\n",
+	PRINTM(MDAT_D, "%s: <<< Start DUMP\n", __func__);
+	PRINTM(MDAT_D, "sizeof(wifi_radio_stat)=%zu\n",
 	       sizeof(wifi_radio_stat));
-	DBG_HEXDUMP(MCMD_D, "radio_stat", (t_u8 *)radio_stat, radio_stat_len);
-	PRINTM(MCMD_D, "sizeof(wifi_channel_stat)=%zu\n",
+	DBG_HEXDUMP(MDAT_D, "radio_stat", (t_u8 *)radio_stat, radio_stat_len);
+	PRINTM(MDAT_D, "sizeof(wifi_channel_stat)=%zu\n",
 	       sizeof(wifi_channel_stat));
-	DBG_HEXDUMP(MCMD_D, "iface_stat", (t_u8 *)iface_stat, iface_stat_len);
-	PRINTM(MCMD_D, "num_radio=%d\n", num_radio);
+	DBG_HEXDUMP(MDAT_D, "iface_stat", (t_u8 *)iface_stat, iface_stat_len);
+	PRINTM(MDAT_D, "num_radio=%d\n", num_radio);
 	radio_stat_tmp = radio_stat;
 	for (i = 0; i < num_radio; i++) {
-		PRINTM(MCMD_D, "--radio_stat[%d]--\n", i);
-		PRINTM(MCMD_D, "radio=%d\n", radio_stat_tmp->radio);
-		PRINTM(MCMD_D, "on_time=%d\n", radio_stat_tmp->on_time);
-		PRINTM(MCMD_D, "tx_time=%d\n", radio_stat_tmp->tx_time);
-		PRINTM(MCMD_D, "reserved0=%d\n", radio_stat_tmp->reserved0);
-		PRINTM(MCMD_D, "rx_time=%d\n", radio_stat_tmp->rx_time);
-		PRINTM(MCMD_D, "on_time_scan=%d\n",
+		PRINTM(MDAT_D, "--radio_stat[%d]--\n", i);
+		PRINTM(MDAT_D, "radio=%d\n", radio_stat_tmp->radio);
+		PRINTM(MDAT_D, "on_time=%d\n", radio_stat_tmp->on_time);
+		PRINTM(MDAT_D, "tx_time=%d\n", radio_stat_tmp->tx_time);
+		PRINTM(MDAT_D, "reserved0=%d\n", radio_stat_tmp->reserved0);
+		PRINTM(MDAT_D, "rx_time=%d\n", radio_stat_tmp->rx_time);
+		PRINTM(MDAT_D, "on_time_scan=%d\n",
 		       radio_stat_tmp->on_time_scan);
-		PRINTM(MCMD_D, "on_time_nbd=%d\n", radio_stat_tmp->on_time_nbd);
-		PRINTM(MCMD_D, "on_time_gscan=%d\n",
+		PRINTM(MDAT_D, "on_time_nbd=%d\n", radio_stat_tmp->on_time_nbd);
+		PRINTM(MDAT_D, "on_time_gscan=%d\n",
 		       radio_stat_tmp->on_time_gscan);
-		PRINTM(MCMD_D, "on_time_roam_scan=%d\n",
+		PRINTM(MDAT_D, "on_time_roam_scan=%d\n",
 		       radio_stat_tmp->on_time_roam_scan);
-		PRINTM(MCMD_D, "on_time_pno_scan=%d\n",
+		PRINTM(MDAT_D, "on_time_pno_scan=%d\n",
 		       radio_stat_tmp->on_time_pno_scan);
-		PRINTM(MCMD_D, "on_time_hs20=%d\n",
+		PRINTM(MDAT_D, "on_time_hs20=%d\n",
 		       radio_stat_tmp->on_time_hs20);
-		PRINTM(MCMD_D, "num_channels=%d\n",
+		PRINTM(MDAT_D, "num_channels=%d\n",
 		       radio_stat_tmp->num_channels);
 		radio_stat_tmp++;
 	}
-	PRINTM(MCMD_D, "%s: >>> End DUMP\n", __func__);
+	PRINTM(MDAT_D, "%s: >>> End DUMP\n", __func__);
 
 	err = cfg80211_vendor_cmd_reply(skb);
 	if (unlikely(err))
@@ -3019,7 +3056,7 @@ static int woal_cfg80211_subcmd_link_statistic_clr(struct wiphy *wiphy,
 	/* Send IOCTL request to MLAN */
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status == MLAN_STATUS_SUCCESS)
-		PRINTM(MMSG, "enable link layer statistic successfully\n");
+		PRINTM(MMSG, "disable link layer statistic successfully\n");
 
 	length = NLA_HDRLEN + sizeof(stats_clear_rsp_mask) + sizeof(stop_rsp);
 	/* Alloc the SKB for vendor_event */

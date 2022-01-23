@@ -412,6 +412,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		pget_info->param.fw_info.fw_ver = pmadapter->fw_release_number;
 		pget_info->param.fw_info.hotfix_version =
 			pmadapter->fw_hotfix_ver;
+		pget_info->param.fw_info.tx_buf_size = pmadapter->tx_buf_size;
+
 		memcpy_ext(pmadapter, &pget_info->param.fw_info.mac_addr,
 			   pmpriv->curr_addr, MLAN_MAC_ADDR_LENGTH,
 			   MLAN_MAC_ADDR_LENGTH);
@@ -4234,6 +4236,36 @@ static mlan_status wlan_misc_ioctl_get_assoc_rsp(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Get the associate request IEs
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_SUCCESS --success
+ */
+static mlan_status wlan_misc_ioctl_get_assoc_req(pmlan_adapter pmadapter,
+						 pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if ((pioctl_req->action == MLAN_ACT_GET) && pmpriv->assoc_req_size) {
+		memcpy_ext(pmadapter, misc->param.assoc_req.assoc_req_buf,
+			   pmpriv->assoc_req_buf, pmpriv->assoc_req_size,
+			   ASSOC_RSP_BUF_SIZE);
+		misc->param.assoc_req.assoc_req_len =
+			MIN(ASSOC_RSP_BUF_SIZE, pmpriv->assoc_req_size);
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Send function softreset command to firmware
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -4832,6 +4864,30 @@ mlan_status wlan_misc_ioctl_tp_state(pmlan_adapter pmadapter,
 	return ret;
 }
 
+static mlan_status wlan_misc_ioctl_ips_cfg(pmlan_adapter pmadapter,
+					   pmlan_ioctl_req pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	cmd_action = HostCmd_ACT_GEN_SET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_IPS_CONFIG, cmd_action, 0,
+			       (t_void *)pioctl_req, &misc->param.ips_ctrl);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
 static mlan_status wlan_misc_ioctl_get_sensor_temp(pmlan_adapter pmadapter,
 						   pmlan_ioctl_req pioctl_req)
 {
@@ -5046,6 +5102,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_ASSOC_RSP:
 		status = wlan_misc_ioctl_get_assoc_rsp(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_ASSOC_REQ:
+		status = wlan_misc_ioctl_get_assoc_req(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_INIT_SHUTDOWN:
 		status = wlan_misc_ioctl_init_shutdown(pmadapter, pioctl_req);
@@ -5262,6 +5321,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_TP_STATE:
 		status = wlan_misc_ioctl_tp_state(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_IPS_CFG:
+		status = wlan_misc_ioctl_ips_cfg(pmadapter, pioctl_req);
 		break;
 	default:
 		if (pioctl_req)
