@@ -2772,7 +2772,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u32 num_radio = 0, iface_stat_len = 0, radio_stat_len = 0;
 	int err = -1, length = 0, i;
 	char *ioctl_link_stats_buf = NULL;
-	mlan_ds_get_stats stats;
 	t_u64 cur_time = 0;
 	t_u64 inter_msec = 0;
 	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
