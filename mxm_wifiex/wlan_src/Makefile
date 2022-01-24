@@ -344,6 +344,7 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
+ccflags-y += -Wno-stringop-truncation
 #############################################################################
 # Make Targets
 #############################################################################
