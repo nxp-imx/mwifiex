@@ -2861,8 +2861,12 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_start_queue(priv->netdev);
 		moal_memcpy_ext(priv->phandle, priv->current_addr,
 				pmevent->event_buf + 6, ETH_ALEN, ETH_ALEN);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+		eth_hw_addr_set(priv->netdev, priv->current_addr);
+#else
 		moal_memcpy_ext(priv->phandle, priv->netdev->dev_addr,
 				priv->current_addr, ETH_ALEN, ETH_ALEN);
+#endif
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
 #ifdef STA_SUPPORT

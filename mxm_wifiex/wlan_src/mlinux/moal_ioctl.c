@@ -854,8 +854,12 @@ mlan_status woal_request_set_mac_address(moal_private *priv, t_u8 wait_option)
 		       "set mac address failed! status=%d, error_code=0x%x\n",
 		       status, req->status_code);
 	} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+		eth_hw_addr_set(priv->netdev, priv->current_addr);
+#else
 		moal_memcpy_ext(priv->phandle, priv->netdev->dev_addr,
 				priv->current_addr, ETH_ALEN, ETH_ALEN);
+#endif
 		HEXDUMP("priv->MacAddr:", priv->current_addr, ETH_ALEN);
 	}
 done:
@@ -1928,8 +1932,12 @@ mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
 			moal_memcpy_ext(priv->phandle, priv->current_addr,
 					&info->param.fw_info.mac_addr,
 					sizeof(mlan_802_11_mac_addr), ETH_ALEN);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+		eth_hw_addr_set(priv->netdev, priv->current_addr);
+#else
 		moal_memcpy_ext(priv->phandle, priv->netdev->dev_addr,
 				priv->current_addr, ETH_ALEN, ETH_ALEN);
+#endif
 		if (fw_info)
 			moal_memcpy_ext(priv->phandle, fw_info,
 					&info->param.fw_info,
