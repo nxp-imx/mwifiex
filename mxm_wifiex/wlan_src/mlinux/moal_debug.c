@@ -743,7 +743,9 @@ static int woal_histogram_read(struct seq_file *sfp, void *data)
 
 static int woal_histogram_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_histogram_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_histogram_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_histogram_read, PDE(inode)->data);
@@ -942,7 +944,9 @@ static int woal_log_read(struct seq_file *sfp, void *data)
  */
 static int woal_log_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_log_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_log_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_log_read, PDE(inode)->data);
@@ -1266,7 +1270,9 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 
 static int woal_debug_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_debug_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_debug_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_debug_read, PDE(inode)->data);

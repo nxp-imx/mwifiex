@@ -358,7 +358,9 @@ exit:
 
 static int woal_info_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_info_proc_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_info_proc_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_info_proc_read, PDE(inode)->data);
@@ -776,7 +778,9 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 
 static int woal_config_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_config_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_config_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_config_read, PDE(inode)->data);
@@ -851,7 +855,9 @@ done:
 
 static int woal_drv_dump_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_drv_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_drv_dump_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_drv_dump_read, PDE(inode)->data);
@@ -928,7 +934,9 @@ done:
 
 static int woal_fw_dump_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_fw_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_fw_dump_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_fw_dump_read, PDE(inode)->data);
@@ -978,7 +986,9 @@ static int woal_wifi_status_read(struct seq_file *sfp, void *data)
 
 static int woal_wifi_status_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_wifi_status_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_wifi_status_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_wifi_status_read, PDE(inode)->data);
