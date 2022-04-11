@@ -1464,7 +1464,11 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 					netif_receive_skb(frame);
 					local_bh_enable();
 				} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+					netif_rx(frame);
+#else
 					netif_rx_ni(frame);
+#endif
 				}
 			}
 		}
@@ -1724,7 +1728,11 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 						netif_receive_skb(skb);
 						local_bh_enable();
 					} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+						netif_rx(skb);
+#else
 						netif_rx_ni(skb);
+#endif
 					}
 				}
 			}
