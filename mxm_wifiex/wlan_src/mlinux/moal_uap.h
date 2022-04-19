@@ -3,7 +3,7 @@
  * @brief This file contains uap driver specific defines etc.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -201,10 +201,12 @@ typedef struct _cac_timer_status {
 typedef struct _skip_cac_para {
 	/** subcmd */
 	t_u32 subcmd;
-	/** Set/Get */
+	/** Set */
 	t_u32 action;
-	/** enable/disable deepsleep*/
+	/** enable/disable skip cac*/
 	t_u16 skip_cac;
+	/** channel */
+	t_u8 channel;
 } skip_cac_para;
 
 /** radio control command */
@@ -481,6 +483,8 @@ typedef struct _snmp_mib_para {
 /** Oid for 802.11H enable/disable */
 #define OID_80211H_ENABLE 0x000a
 
+int woal_uap_11h_ctrl(moal_private *priv, t_u32 enable);
+
 /** dfs_testing parameters */
 typedef struct _dfs_testing_param {
 	/** subcmd */
@@ -527,6 +531,10 @@ typedef struct _domain_info_param {
 /** MAX domain TLV length */
 #define MAX_DOMAIN_TLV_LEN                                                     \
 	(TLV_HEADER_LEN + COUNTRY_CODE_LEN + (SUB_BAND_LEN * MAX_SUB_BANDS))
+
+/** Get/Set channel DFS state */
+int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
+			    mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 
 int woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
 				mlan_ds_ps_mgmt *ps_mgmt);

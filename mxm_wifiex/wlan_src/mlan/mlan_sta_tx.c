@@ -4,7 +4,7 @@
  *  transmission in MLAN module.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -167,6 +167,37 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 						    << 8;
 			plocal_tx_pd->tx_control |= TXPD_RETRY_ENABLE;
 		}
+	}
+	if (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT) {
+		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
+		mc_tx_ctrl *mc_ctrl =
+			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
+			ctrl->mc_cycle_start = MTRUE;
+		else
+			ctrl->mc_cycle_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_CYCLE)
+			ctrl->mc_cycle_end = MTRUE;
+		else
+			ctrl->mc_cycle_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_AMPDU)
+			ctrl->mc_ampdu_start = MTRUE;
+		else
+			ctrl->mc_ampdu_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_AMPDU)
+			ctrl->mc_ampdu_end = MTRUE;
+		else
+			ctrl->mc_ampdu_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_RETRY)
+			ctrl->mc_pkt_retry = MTRUE;
+		else
+			ctrl->mc_pkt_retry = MFALSE;
+		ctrl->bw = pmbuf->u.mc_tx_info.bandwidth & 0x7;
+		ctrl->tx_rate = pmbuf->u.mc_tx_info.mcs_index & 0x1f;
+		mc_ctrl->abs_tsf_expirytime =
+			wlan_cpu_to_le32(pmbuf->u.mc_tx_info.pkt_expiry);
+		mc_ctrl->mc_seq = wlan_cpu_to_le16(pmbuf->u.mc_tx_info.seq_num);
 	}
 	endian_convert_TxPD(plocal_tx_pd);
 

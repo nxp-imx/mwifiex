@@ -182,7 +182,7 @@ Change log:
 /** PF start bit */
 #define ADMA_MSIX_PF_BIT 24
 
-#if defined(PCIE9098) || defined(PCIE9097)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 /** PCIE9098 dev_id/vendor id reg */
 #define PCIE9098_DEV_ID_REG 0x0000
 /** PCIE revision ID register */

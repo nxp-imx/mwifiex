@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2021 NXP
+ * Copyright 2015-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -56,6 +56,14 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_rssi_monitor,
 	}, /*event_id 0x1501*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_set_key_mgmt_offload,
+	}, /*event_id 0x10001*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_fw_roam_success,
+	}, /*event_id 0x10002*/
 	{
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_cloud_keep_alive,
@@ -748,9 +756,11 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 						     int data_len)
 {
 	struct sk_buff *skb = NULL;
+
 	struct net_device *dev = wdev->netdev;
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	mlan_fw_info fw_info;
+
 	t_u32 reply_len = 0;
 	int ret = 0;
 	t_u32 supp_feature_set = 0;
@@ -3234,6 +3244,170 @@ done:
 #endif
 
 /**
+ * @brief vendor command to key_mgmt_set_key
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  fail otherwise
+ */
+static int
+woal_cfg80211_subcmd_set_roaming_offload_key(struct wiphy *wiphy,
+					     struct wireless_dev *wdev,
+					     const void *data, int data_len)
+{
+	moal_private *priv;
+	struct net_device *dev;
+	struct sk_buff *skb = NULL;
+	t_u8 *pos = (t_u8 *)data;
+	int ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (data)
+		DBG_HEXDUMP(MCMD_D, "Vendor pmk", (t_u8 *)data, data_len);
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (!priv || !pos) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	if (data_len > MLAN_MAX_KEY_LENGTH) {
+		moal_memcpy_ext(priv->phandle, &priv->pmk.pmk_r0, pos,
+				MLAN_MAX_KEY_LENGTH, MLAN_MAX_KEY_LENGTH);
+		pos += MLAN_MAX_KEY_LENGTH;
+		moal_memcpy_ext(priv->phandle, &priv->pmk.pmk_r0_name, pos,
+				data_len - MLAN_MAX_KEY_LENGTH,
+				MLAN_MAX_PMKR0_NAME_LENGTH);
+	} else {
+		moal_memcpy_ext(priv->phandle, &priv->pmk.pmk, data, data_len,
+				MLAN_MAX_KEY_LENGTH);
+	}
+	priv->pmk_saved = MTRUE;
+
+	/** Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, data_len);
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor cmd\n");
+		LEAVE();
+		return -EFAULT;
+	}
+	pos = skb_put(skb, data_len);
+	moal_memcpy_ext(priv->phandle, pos, data, data_len, data_len);
+	ret = cfg80211_vendor_cmd_reply(skb);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to supplicant to update AP info
+ *
+ * @param priv     A pointer to moal_private
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct sk_buff *skb = NULL;
+	int ret = MLAN_STATUS_SUCCESS;
+	key_info *pkey = NULL;
+	apinfo *pinfo = NULL;
+	apinfo *req_tlv = NULL;
+	MrvlIEtypesHeader_t *tlv = NULL;
+	t_u16 tlv_type = 0, tlv_len = 0, tlv_buf_left = 0;
+	int event_id = 0;
+	t_u8 authorized = 1;
+
+	ENTER();
+
+	event_id = woal_get_event_id(event_fw_roam_success);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find this event %d\n", event_id);
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	/**allocate skb*/
+#if KERNEL_VERSION(4, 1, 0) <= CFG80211_VERSION_CODE
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len + 50,
+#else
+	skb = cfg80211_vendor_event_alloc(wiphy, len + 50,
+#endif
+					  event_id, GFP_ATOMIC);
+
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor event\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+
+	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_BSSID,
+		MLAN_MAC_ADDR_LENGTH, (t_u8 *)data);
+	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AUTHORIZED,
+		sizeof(authorized), &authorized);
+	tlv = (MrvlIEtypesHeader_t *)(data + MLAN_MAC_ADDR_LENGTH);
+	tlv_buf_left = len - MLAN_MAC_ADDR_LENGTH;
+	while (tlv_buf_left >= sizeof(MrvlIEtypesHeader_t)) {
+		tlv_type = woal_le16_to_cpu(tlv->type);
+		tlv_len = woal_le16_to_cpu(tlv->len);
+
+		if (tlv_buf_left < (tlv_len + sizeof(MrvlIEtypesHeader_t))) {
+			PRINTM(MERROR,
+			       "Error processing firmware roam success TLVs, bytes left < TLV length\n");
+			break;
+		}
+
+		switch (tlv_type) {
+		case TLV_TYPE_APINFO:
+			pinfo = (apinfo *)tlv;
+			nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_RESP_IE,
+				pinfo->header.len, pinfo->rsp_ie);
+			break;
+		case TLV_TYPE_ASSOC_REQ_IE:
+			req_tlv = (apinfo *)tlv;
+			nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_REQ_IE,
+				req_tlv->header.len, req_tlv->rsp_ie);
+			break;
+		case TLV_TYPE_KEYINFO:
+			pkey = (key_info *)tlv;
+			nla_put(skb,
+				MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_KEY_REPLAY_CTR,
+				MLAN_REPLAY_CTR_LEN, pkey->key.replay_ctr);
+			nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KCK,
+				MLAN_KCK_LEN, pkey->key.kck);
+			nla_put(skb, MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KEK,
+				MLAN_KEK_LEN, pkey->key.kek);
+			break;
+		default:
+			break;
+		}
+		tlv_buf_left -= tlv_len + sizeof(MrvlIEtypesHeader_t);
+		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
+					      sizeof(MrvlIEtypesHeader_t));
+	}
+
+	/**send event*/
+	cfg80211_vendor_event(skb, GFP_ATOMIC);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief vendor command to get fw roaming capability
  *
  * @param wiphy    A pointer to wiphy struct
@@ -3305,6 +3479,11 @@ static int woal_cfg80211_subcmd_fw_roaming_enable(struct wiphy *wiphy,
 	const struct nlattr *iter;
 	int type, rem, err;
 	t_u32 fw_roaming_enable = 0;
+#ifdef STA_CFG80211
+#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
+	t_u8 enable = 0;
+#endif
+#endif
 
 	ENTER();
 
@@ -3335,12 +3514,7 @@ static int woal_cfg80211_subcmd_fw_roaming_enable(struct wiphy *wiphy,
 
 	PRINTM(MMSG, "FW roaming set enable=%d from wifi hal.\n",
 	       fw_roaming_enable);
-#if defined(STA_CFG80211)
-	if (fw_roaming_enable)
-		priv->roaming_enabled = MTRUE;
-	else
-		priv->roaming_enabled = MFALSE;
-#endif
+	ret = woal_enable_fw_roaming(priv, fw_roaming_enable);
 	/* Alloc the SKB for vendor_event */
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(t_u32) + 50);
 	if (unlikely(!skb)) {
@@ -3353,6 +3527,14 @@ static int woal_cfg80211_subcmd_fw_roaming_enable(struct wiphy *wiphy,
 	err = cfg80211_vendor_cmd_reply(skb);
 	if (unlikely(err))
 		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
+
+#ifdef STA_CFG80211
+#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
+	if (!fw_roaming_enable)
+		woal_cfg80211_vendor_event(priv, event_set_key_mgmt_offload,
+					   &enable, sizeof(enable));
+#endif
+#endif
 
 done:
 	LEAVE();
@@ -3378,6 +3560,7 @@ static int woal_cfg80211_subcmd_fw_roaming_config(struct wiphy *wiphy,
 	int ret = MLAN_STATUS_SUCCESS;
 	const struct nlattr *iter;
 	int type, rem;
+	woal_roam_offload_cfg *roam_offload_cfg = NULL;
 	wifi_bssid_params blacklist;
 	wifi_ssid_params whitelist;
 
@@ -3417,7 +3600,60 @@ static int woal_cfg80211_subcmd_fw_roaming_config(struct wiphy *wiphy,
 		}
 	}
 
+	if (moal_extflg_isset(priv->phandle, EXT_ROAMOFFLOAD_IN_HS)) {
+		/*save blacklist and whitelist in driver*/
+		priv->phandle->fw_roam_params.black_list.ap_num =
+			blacklist.num_bssid;
+		moal_memcpy_ext(
+			priv->phandle,
+			(t_u8 *)priv->phandle->fw_roam_params.black_list.ap_mac,
+			(t_u8 *)blacklist.mac_addr,
+			sizeof(wifi_bssid_params) - sizeof(blacklist.num_bssid),
+			sizeof(mlan_ds_misc_roam_offload_aplist) -
+				sizeof(priv->phandle->fw_roam_params.black_list
+					       .ap_num));
+		priv->phandle->fw_roam_params.ssid_list.ssid_num =
+			whitelist.num_ssid;
+		moal_memcpy_ext(
+			priv->phandle,
+			(t_u8 *)priv->phandle->fw_roam_params.ssid_list.ssids,
+			(t_u8 *)whitelist.whitelist_ssid,
+			sizeof(wifi_ssid_params) - sizeof(whitelist.num_ssid),
+			MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
+	} else {
+		roam_offload_cfg = (woal_roam_offload_cfg *)kmalloc(
+			sizeof(woal_roam_offload_cfg), GFP_KERNEL);
+		if (!roam_offload_cfg) {
+			PRINTM(MERROR, "kmalloc failed!\n");
+			ret = -ENOMEM;
+			goto done;
+		}
+		/*download parameters directly to fw*/
+		memset((char *)roam_offload_cfg, 0,
+		       sizeof(woal_roam_offload_cfg));
+		roam_offload_cfg->black_list.ap_num = blacklist.num_bssid;
+		moal_memcpy_ext(priv->phandle,
+				(t_u8 *)&roam_offload_cfg->black_list.ap_mac,
+				(t_u8 *)blacklist.mac_addr,
+				sizeof(wifi_bssid_params) -
+					sizeof(blacklist.num_bssid),
+				sizeof(mlan_ds_misc_roam_offload_aplist) -
+					sizeof(priv->phandle->fw_roam_params
+						       .black_list.ap_num));
+		roam_offload_cfg->ssid_list.ssid_num = whitelist.num_ssid;
+		moal_memcpy_ext(priv->phandle,
+				(t_u8 *)&roam_offload_cfg->ssid_list.ssids,
+				(t_u8 *)whitelist.whitelist_ssid,
+				sizeof(wifi_ssid_params) -
+					sizeof(whitelist.num_ssid),
+				MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
+		woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
+				       roam_offload_cfg);
+	}
+
 done:
+	if (roam_offload_cfg)
+		kfree(roam_offload_cfg);
 	LEAVE();
 	return ret;
 }
@@ -3789,6 +4025,348 @@ static int woal_cfg80211_subcmd_set_dfs_offload(struct wiphy *wiphy,
 	return ret;
 }
 
+#define CSI_DUMP_FILE_MAX 1200000
+
+/**
+ * @brief vendor command to set CSI params
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ * @param csi_enable    enable/disable CSI
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_set_csi(struct wiphy *wiphy,
+					struct wireless_dev *wdev,
+					const void *data, int len,
+					int csi_enable)
+{
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	struct nlattr *tb_vendor[ATTR_CSI_MAX + 1];
+	int ret = 0;
+	int status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		PRINTM(MERROR, "Could not allocate mlan ioctl request!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_CSI;
+
+	priv->csi_enable = csi_enable;
+	if (csi_enable == 1) {
+		nla_parse(tb_vendor, ATTR_CSI_MAX, (struct nlattr *)data, len,
+			  NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			  ,
+			  NULL
+#endif
+		);
+		if (!tb_vendor[ATTR_CSI_CONFIG]) {
+			ret = -EFAULT;
+			goto done;
+		}
+		moal_memcpy_ext(priv->phandle, &cfg->param.csi_params,
+				(mlan_ds_csi_params *)nla_data(
+					tb_vendor[ATTR_CSI_CONFIG]),
+				sizeof(mlan_ds_csi_params),
+				sizeof(mlan_ds_csi_params));
+		moal_memcpy_ext(priv->phandle, &priv->csi_config,
+				&cfg->param.csi_params,
+				sizeof(mlan_ds_csi_params),
+				sizeof(mlan_ds_csi_params));
+		if (tb_vendor[ATTR_CSI_DUMP_FORMAT])
+			priv->csi_dump_format =
+				nla_get_u8(tb_vendor[ATTR_CSI_DUMP_FORMAT]);
+	} else if (csi_enable == 0) {
+		nla_parse(tb_vendor, ATTR_CSI_MAX, (struct nlattr *)data, len,
+			  NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			  ,
+			  NULL
+#endif
+		);
+		if (!tb_vendor[ATTR_PEER_MAC_ADDR]) {
+			ret = -EFAULT;
+			goto done;
+		}
+		memset(&cfg->param.csi_params, 0, sizeof(mlan_ds_csi_params));
+		moal_memcpy_ext(priv->phandle,
+				cfg->param.csi_params.csi_filter[0].mac_addr,
+				(t_u8 *)nla_data(tb_vendor[ATTR_PEER_MAC_ADDR]),
+				MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to enable CSI
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_csi_enable(struct wiphy *wiphy,
+					   struct wireless_dev *wdev,
+					   const void *data, int len)
+{
+	int ret = 0;
+
+	ENTER();
+
+	ret = woal_cfg80211_subcmd_set_csi(wiphy, wdev, data, len, 1);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to disable CSI
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_csi_disable(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int len)
+{
+	int ret = 0;
+
+	ENTER();
+
+	ret = woal_cfg80211_subcmd_set_csi(wiphy, wdev, data, len, 0);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to get CSI dump path
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_get_csi_dump_path(struct wiphy *wiphy,
+						  struct wireless_dev *wdev,
+						  const void *data, int len)
+{
+	int ret = 0;
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	struct sk_buff *skb = NULL;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
+						  sizeof(priv->csi_dump_path));
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Push the data to the skb */
+	nla_put(skb, ATTR_CSI_DUMP_PATH, sizeof(priv->csi_dump_path),
+		(t_u8 *)priv->csi_dump_path);
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret)) {
+		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", ret);
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to get CSI config
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_get_csi_config(struct wiphy *wiphy,
+					       struct wireless_dev *wdev,
+					       const void *data, int len)
+{
+	int ret = 0;
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	struct sk_buff *skb = NULL;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
+						  sizeof(priv->csi_config));
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	/* Push the data to the skb */
+	nla_put(skb, ATTR_CSI_CONFIG, sizeof(mlan_ds_csi_params),
+		(t_u8 *)&priv->csi_config);
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret)) {
+		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", ret);
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to get CSI capability
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_get_csi_capa(struct wiphy *wiphy,
+					     struct wireless_dev *wdev,
+					     const void *data, int len)
+{
+	ENTER();
+	LEAVE();
+	return 0;
+}
+
+/**
+ * @brief Save CSI dump to file
+ *
+ * @param dir_name    Directory name
+ * @param file_name    File name
+ * @param buf    Pointer to dump buffer
+ * @param buf_len    Length of buf
+ * @param name    Full path name of CSI dump
+ *
+ * @return      0: success  -1: fail
+ */
+static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
+					      t_u8 *buf, int buf_len,
+					      t_u8 format, char *name)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	ENTER();
+
+	if (!dir_name || !file_name || !buf) {
+		PRINTM(MERROR, "Can't save dump info to file\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor event to upload csi dump
+ *
+ * @param priv     A pointer to moal_private
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      mlan_status
+ */
+mlan_status woal_cfg80211_event_csi_dump(moal_private *priv, t_u8 *data,
+					 int len)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	char path_name[20];
+	char file_name[20];
+
+	ENTER();
+
+	DBG_HEXDUMP(MCMD_D, "CSI dump data", data, len);
+	sprintf(path_name, "/data");
+	if (priv->csi_dump_format == 1)
+		sprintf(file_name, "csi_dump.bin");
+	else
+		sprintf(file_name, "csi_dump.txt");
+	priv->csi_dump_len += len;
+	if (priv->csi_dump_len > CSI_DUMP_FILE_MAX) {
+		PRINTM(MERROR,
+		       "Reached file maximum size. Not saving CSI records.\n");
+		goto done;
+	}
+	/* Save CSI dump to file */
+	ret = woal_save_csi_dump_to_file(path_name, file_name, data, len,
+					 priv->csi_dump_format,
+					 priv->csi_dump_path);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to save CSI dump to file\n");
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
 // clang-format off
 static const struct wiphy_vendor_command vendor_commands[] = {
 	{
@@ -3882,6 +4460,18 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 #endif
 	},
 #endif
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_set_roaming_offload_key,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_set_roaming_offload_key,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,
@@ -4138,6 +4728,66 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV |
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_get_packet_filter_capability,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_cfr_request,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_csi_enable,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_cfr_cancel,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_csi_disable,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_get_csi_dump_path,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_get_csi_dump_path,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_get_csi_config,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_get_csi_config,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_get_csi_capa,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_get_csi_capa,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = VENDOR_CMD_RAW_DATA,
 #endif

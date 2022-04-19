@@ -3,7 +3,7 @@
  * @brief This file contains definitions for application
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -59,16 +59,6 @@ typedef enum { FALSE, TRUE } boolean;
 		 (((t_u32)(x)&0xff000000UL) >> 24)))
 
 /** Convert to correct endian format */
-#ifdef BIG_ENDIAN_SUPPORT
-/** CPU to little-endian convert for 16-bit */
-#define cpu_to_le16(x) swap_byte_16(x)
-/** CPU to little-endian convert for 32-bit */
-#define cpu_to_le32(x) swap_byte_32(x)
-/** Little-endian to CPU convert for 16-bit */
-#define le16_to_cpu(x) swap_byte_16(x)
-/** Little-endian to CPU convert for 32-bit */
-#define le32_to_cpu(x) swap_byte_32(x)
-#else
 /** Do nothing */
 #define cpu_to_le16(x) (x)
 /** Do nothing */
@@ -77,7 +67,6 @@ typedef enum { FALSE, TRUE } boolean;
 #define le16_to_cpu(x) (x)
 /** Do nothing */
 #define le32_to_cpu(x) (x)
-#endif
 
 /** TLV header */
 #define TLVHEADER /** Tag */                                                   \
@@ -456,28 +445,11 @@ typedef enum _IEEEtypes_ElementId_e {
 
 typedef enum _IEEEtypes_Ext_ElementId_e {
 	HE_CAPABILITY = 35,
-	HE_OPERATION = 36
+	HE_OPERATION = 36,
+	HE_6G_CAPABILITY = 59
 } IEEEtypes_Ext_ElementId_e;
 
 /** Capability Bit Map*/
-#ifdef BIG_ENDIAN_SUPPORT
-typedef struct _IEEEtypes_CapInfo_t {
-	t_u8 rsrvd1 : 2;
-	t_u8 dsss_ofdm : 1;
-	t_u8 rsvrd2 : 2;
-	t_u8 short_slot_time : 1;
-	t_u8 rsrvd3 : 1;
-	t_u8 spectrum_mgmt : 1;
-	t_u8 chan_agility : 1;
-	t_u8 pbcc : 1;
-	t_u8 short_preamble : 1;
-	t_u8 privacy : 1;
-	t_u8 cf_poll_rqst : 1;
-	t_u8 cf_pollable : 1;
-	t_u8 ibss : 1;
-	t_u8 ess : 1;
-} __ATTRIB_PACK__ IEEEtypes_CapInfo_t, *pIEEEtypes_CapInfo_t;
-#else
 typedef struct _IEEEtypes_CapInfo_t {
 	/** Capability Bit Map : ESS */
 	t_u8 ess : 1;
@@ -510,7 +482,6 @@ typedef struct _IEEEtypes_CapInfo_t {
 	/** Capability Bit Map : Reserved */
 	t_u8 rsrvd1 : 2;
 } __ATTRIB_PACK__ IEEEtypes_CapInfo_t, *pIEEEtypes_CapInfo_t;
-#endif /* BIG_ENDIAN_SUPPORT */
 
 /** IEEE IE header */
 typedef struct _IEEEtypes_Header_t {
@@ -595,6 +566,7 @@ typedef struct MrvlIEtypes_Data_t {
 enum { BAND_2GHZ = 0,
        BAND_5GHZ = 1,
        BAND_4GHZ = 2,
+       BAND_6GHZ = 3,
 };
 
 /** channel offset */
@@ -612,16 +584,6 @@ enum { CHAN_BW_20MHZ = 0,
 
 /** Band_Config_t */
 typedef struct _Band_Config_t {
-#ifdef BIG_ENDIAN_SUPPORT
-	/** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
-	t_u8 scanMode : 2;
-	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
-	t_u8 chan2Offset : 2;
-	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
-	t_u8 chanWidth : 2;
-	/** Band Info - (00)=2.4GHz, (01)=5GHz */
-	t_u8 chanBand : 2;
-#else
 	/** Band Info - (00)=2.4GHz, (01)=5GHz */
 	t_u8 chanBand : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
@@ -630,7 +592,6 @@ typedef struct _Band_Config_t {
 	t_u8 chan2Offset : 2;
 	/** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
 	t_u8 scanMode : 2;
-#endif
 } __ATTRIB_PACK__ Band_Config_t;
 
 /** Maximum length of lines in configuration file */
@@ -879,16 +840,6 @@ typedef struct _mlan_ds_11ax_cmd_cfg {
 
 /** Data structure of WMM Aci/Aifsn */
 typedef struct _IEEEtypes_WmmAciAifsn_t {
-#ifdef BIG_ENDIAN_SUPPORT
-	/** Reserved */
-	t_u8 reserved : 1;
-	/** Aci */
-	t_u8 aci : 2;
-	/** Acm */
-	t_u8 acm : 1;
-	/** Aifsn */
-	t_u8 aifsn : 4;
-#else
 	/** Aifsn */
 	t_u8 aifsn : 4;
 	/** Acm */
@@ -897,22 +848,14 @@ typedef struct _IEEEtypes_WmmAciAifsn_t {
 	t_u8 aci : 2;
 	/** Reserved */
 	t_u8 reserved : 1;
-#endif
 } __ATTRIB_PACK__ IEEEtypes_WmmAciAifsn_t, *pIEEEtypes_WmmAciAifsn_t;
 
 /** Data structure of WMM ECW */
 typedef struct _IEEEtypes_WmmEcw_t {
-#ifdef BIG_ENDIAN_SUPPORT
-	/** Maximum Ecw */
-	t_u8 ecw_max : 4;
-	/** Minimum Ecw */
-	t_u8 ecw_min : 4;
-#else
 	/** Minimum Ecw */
 	t_u8 ecw_min : 4;
 	/** Maximum Ecw */
 	t_u8 ecw_max : 4;
-#endif
 } __ATTRIB_PACK__ IEEEtypes_WmmEcw_t, *pIEEEtypes_WmmEcw_t;
 
 /** Data structure of WMM AC parameters  */
@@ -1243,5 +1186,17 @@ typedef struct _cloud_keep_alive {
 	/** packet content */
 	t_u8 pkt[255];
 } __ATTRIB_PACK__ cloud_keep_alive;
+
+#define EXT_LTE_RESP_GETSTAT 0xA5
+#define EXT_LTE_RESP_RSTSTAT 0x5A
+/** Host Command ID:  ROBUST_COEX */
+#define HostCmd_ROBUST_COEX 0x00e0
+typedef struct _host_RobustCoexLteStats_t {
+	unsigned int Count_LTE_TX_NOTIFY;
+	unsigned int Count_LTE_RX_PROTECT;
+	unsigned int Count_LTE_TX_SUSPEND;
+	unsigned int Count_LTE_RX_NOTIFY;
+	unsigned char ResponseType;
+} __ATTRIB_PACK__ host_RobustCoexLteStats_t;
 
 #endif /* _MLANUTL_H_ */

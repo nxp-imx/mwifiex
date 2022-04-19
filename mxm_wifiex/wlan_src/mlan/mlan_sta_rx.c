@@ -4,7 +4,7 @@
  *  module.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -176,6 +176,7 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 	int ie_len = 0;
 	t_u8 i;
 	int rate_len;
+	IEEEtypes_Extension_t *ext_ie;
 
 #define TDLS_PAYLOAD_TYPE 2
 #define TDLS_CATEGORY 0x0c
@@ -329,7 +330,7 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 				   pos, sizeof(IEEEtypes_VHTCap_t),
 				   sizeof(IEEEtypes_VHTCap_t));
 			sta_ptr->is_11ac_enabled = 1;
-			DBG_HEXDUMP(MDAT_D, "TDLS VHT capability",
+			DBG_HEXDUMP(MCMD_D, "Rx TDLS VHT capability",
 				    (t_u8 *)(&sta_ptr->vht_cap),
 				    MIN(sizeof(IEEEtypes_VHTCap_t),
 					MAX_DATA_DUMP_LEN));
@@ -338,7 +339,7 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 			memcpy_ext(priv->adapter, (t_u8 *)&sta_ptr->vht_oprat,
 				   pos, sizeof(IEEEtypes_VHTOprat_t),
 				   sizeof(IEEEtypes_VHTOprat_t));
-			DBG_HEXDUMP(MDAT_D, "TDLS VHT Operation",
+			DBG_HEXDUMP(MCMD_D, "Rx TDLS VHT Operation",
 				    (t_u8 *)(&sta_ptr->vht_oprat),
 				    MIN(sizeof(IEEEtypes_VHTOprat_t),
 					MAX_DATA_DUMP_LEN));
@@ -347,15 +348,126 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 			memcpy_ext(priv->adapter, (t_u8 *)&sta_ptr->aid_info,
 				   pos, sizeof(IEEEtypes_AID_t),
 				   sizeof(IEEEtypes_AID_t));
-			DBG_HEXDUMP(MDAT_D, "TDLS AID Info",
+			DBG_HEXDUMP(MCMD_D, "Rx TDLS AID Info",
 				    (t_u8 *)(&sta_ptr->aid_info),
 				    MIN(sizeof(IEEEtypes_AID_t),
 					MAX_DATA_DUMP_LEN));
+			break;
+		case EXTENSION:
+			ext_ie = (IEEEtypes_Extension_t *)pos;
+			if (ext_ie->ext_id == HE_CAPABILITY) {
+				memcpy_ext(priv->adapter,
+					   (t_u8 *)&sta_ptr->tdls_he_cap, pos,
+					   ext_ie->ieee_hdr.len +
+						   sizeof(IEEEtypes_Header_t),
+					   sizeof(IEEEtypes_HECap_t));
+				sta_ptr->tdls_he_cap.ieee_hdr.len =
+					MIN(ext_ie->ieee_hdr.len,
+					    sizeof(IEEEtypes_HECap_t) -
+						    sizeof(IEEEtypes_Header_t));
+				sta_ptr->is_11ax_enabled = 1;
+				DBG_HEXDUMP(MCMD_D, "Rx TDLS HE Capability",
+					    (t_u8 *)(&sta_ptr->tdls_he_cap),
+					    MIN(sizeof(IEEEtypes_Header_t) +
+							sta_ptr->tdls_he_cap
+								.ieee_hdr.len,
+						sizeof(IEEEtypes_HECap_t)));
+			} else if (ext_ie->ext_id == HE_OPERATION) {
+				memcpy_ext(priv->adapter,
+					   (t_u8 *)&sta_ptr->he_op, pos,
+					   ext_ie->ieee_hdr.len +
+						   sizeof(IEEEtypes_Header_t),
+					   sizeof(IEEEtypes_HeOp_t));
+				ext_ie->ieee_hdr.len =
+					MIN(ext_ie->ieee_hdr.len,
+					    sizeof(IEEEtypes_HeOp_t) -
+						    sizeof(IEEEtypes_Header_t));
+				DBG_HEXDUMP(MCMD_D, "Rx TDLS HE Operation",
+					    (t_u8 *)(&sta_ptr->he_op),
+					    MIN(sizeof(IEEEtypes_Header_t) +
+							ext_ie->ieee_hdr.len,
+						MAX_DATA_DUMP_LEN));
+			}
 			break;
 		default:
 			break;
 		}
 	}
+	return;
+}
+
+/**
+ *  @brief This function get pxpd info for radiotap info
+ *
+ *  @param priv A pointer to pmlan_private
+ *  @param prx_pd   A pointer to RxPD
+ *  @param prt_info   A pointer to radiotap_info
+ *
+ *  @return        N/A
+ */
+void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
+				   radiotap_info *prt_info)
+{
+	radiotap_info rt_info_tmp;
+	t_u8 rx_rate_info = 0;
+	t_u8 mcs_index = 0;
+	t_u8 format = 0;
+	t_u8 bw = 0;
+	t_u8 gi = 0;
+	t_u8 ldpc = 0;
+	t_u8 ext_rate_info = 0;
+
+	memset(priv->adapter, &rt_info_tmp, 0x00, sizeof(rt_info_tmp));
+	rt_info_tmp.snr = prx_pd->snr;
+	rt_info_tmp.nf = prx_pd->nf;
+	rt_info_tmp.band_config = (prx_pd->rx_info & 0xf);
+	rt_info_tmp.chan_num = (prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
+	ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
+
+	rt_info_tmp.antenna = prx_pd->antenna;
+	rx_rate_info = prx_pd->rate_info;
+	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
+		/* VHT rate */
+		format = MLAN_RATE_FORMAT_VHT;
+		mcs_index = MIN(prx_pd->rx_rate & 0xF, 9);
+		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
+		bw = (rx_rate_info & 0xC) >> 2;
+		/* LGI: gi =0, SGI: gi = 1 */
+		gi = (rx_rate_info & 0x10) >> 4;
+	} else if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_HT) {
+		/* HT rate */
+		format = MLAN_RATE_FORMAT_HT;
+		mcs_index = prx_pd->rx_rate;
+		/* 20M: bw=0, 40M: bw=1 */
+		bw = (rx_rate_info & 0xC) >> 2;
+		/* LGI: gi =0, SGI: gi = 1 */
+		gi = (rx_rate_info & 0x10) >> 4;
+	} else {
+		/* LG rate */
+		format = MLAN_RATE_FORMAT_LG;
+		mcs_index = (prx_pd->rx_rate > MLAN_RATE_INDEX_OFDM0) ?
+				    prx_pd->rx_rate - 1 :
+				    prx_pd->rx_rate;
+	}
+	ldpc = rx_rate_info & 0x40;
+
+	rt_info_tmp.rate_info.mcs_index = mcs_index;
+	rt_info_tmp.rate_info.rate_info =
+		(ldpc << 5) | (format << 3) | (bw << 1) | gi;
+	rt_info_tmp.rate_info.bitrate =
+		wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
+					prx_pd->rate_info, ext_rate_info);
+
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
+		memcpy_ext(priv->adapter, &rt_info_tmp.extra_info,
+			   (t_u8 *)prx_pd + sizeof(*prx_pd),
+			   sizeof(rt_info_tmp.extra_info),
+			   sizeof(rt_info_tmp.extra_info));
+
+	memset(priv->adapter, prt_info, 0x00, sizeof(radiotap_info));
+	memcpy_ext(priv->adapter, prt_info, &rt_info_tmp, sizeof(rt_info_tmp),
+		   sizeof(radiotap_info));
+
 	return;
 }
 
@@ -498,6 +610,10 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	PRINTM(MDATA, "%lu.%06lu : Data => kernel seq_num=%d tid=%d\n",
 	       pmbuf->out_ts_sec, pmbuf->out_ts_usec, prx_pd->seq_num,
 	       prx_pd->priority);
+	if (pmadapter->enable_net_mon) {
+		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
+		goto mon_process;
+	}
 
 #ifdef DRV_EMBEDDED_SUPPLICANT
 	if (supplicantIsEnabled(priv->psapriv) &&
@@ -515,6 +631,16 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		}
 	}
 #endif
+
+mon_process:
+	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
+		// Use some rxpd space to save rxpd info for radiotap header
+		// We should insure radiotap_info is not bigger than RxPD
+		wlan_rxpdinfo_to_radiotapinfo(
+			priv, prx_pd,
+			(radiotap_info *)(pmbuf->pbuf + pmbuf->data_offset -
+					  sizeof(radiotap_info)));
+	}
 
 	if (MFALSE || priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
@@ -576,6 +702,10 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
+		endian_convert_RxPD_extra_header(
+			(rxpd_extra_info *)((t_u8 *)prx_pd + sizeof(*prx_pd)));
+	}
 	if (priv->adapter->pcard_info->v14_fw_api) {
 		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;
 		prx_pd->rate_info = wlan_convert_v14_rx_rate_info(

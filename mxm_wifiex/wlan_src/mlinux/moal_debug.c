@@ -3,7 +3,7 @@
  * @brief This file contains functions for debug proc file.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991

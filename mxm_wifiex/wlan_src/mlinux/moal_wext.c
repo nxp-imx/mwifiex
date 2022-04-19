@@ -153,6 +153,8 @@ static const struct iw_priv_args woal_private_args[] = {
 #endif
 	{WOAL_SLEEP_PARAMS, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "sleepparams"},
+	{WOAL_NET_MONITOR, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "netmon"},
 	{WOAL_DFS_TESTING, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "dfstesting"},
 	{WOAL_MGMT_FRAME_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
@@ -2465,31 +2467,42 @@ done:
 static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
 					  mlan_802_11_ssid *req_ssid)
 {
-	wlan_user_scan_cfg scan_req;
+	wlan_user_scan_cfg *scan_req;
 	mlan_scan_cfg scan_cfg;
+	mlan_status status;
 	ENTER();
 	if (!woal_is_any_interface_active(priv->phandle)) {
 		LEAVE();
 		return woal_request_scan(priv, wait_option, req_ssid);
 	}
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	memset(&scan_cfg, 0, sizeof(scan_cfg));
-	memset(&scan_req, 0, sizeof(scan_req));
+	memset(scan_req, 0, sizeof(wlan_user_scan_cfg));
 	if (req_ssid && req_ssid->ssid_len != 0) {
-		moal_memcpy_ext(priv->phandle, scan_req.ssid_list[0].ssid,
+		moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
 				req_ssid->ssid, req_ssid->ssid_len,
 				MLAN_MAX_SSID_LENGTH);
-		scan_req.ssid_list[0].max_len = 0;
+		scan_req->ssid_list[0].max_len = 0;
 	}
 	woal_get_scan_config(priv, &scan_cfg);
 	if (scan_cfg.scan_chan_gap)
-		scan_req.scan_chan_gap = scan_cfg.scan_chan_gap;
+		scan_req->scan_chan_gap = scan_cfg.scan_chan_gap;
 	else
-		scan_req.scan_chan_gap = priv->phandle->scan_chan_gap;
+		scan_req->scan_chan_gap = priv->phandle->scan_chan_gap;
 	/** indicate FW, gap is optional */
-	if (scan_req.scan_chan_gap && priv->phandle->pref_mac)
-		scan_req.scan_chan_gap |= GAP_FLAG_OPTIONAL;
+	if (scan_req->scan_chan_gap && priv->phandle->pref_mac)
+		scan_req->scan_chan_gap |= GAP_FLAG_OPTIONAL;
+	status = woal_request_userscan(priv, wait_option, scan_req);
+	kfree(scan_req);
 	LEAVE();
-	return woal_request_userscan(priv, wait_option, &scan_req);
+	return status;
 }
 
 /**

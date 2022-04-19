@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -324,9 +324,7 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
-#if defined(WIFI_DIRECT_SUPPORT)
 void woal_remove_virtual_interface(moal_handle *handle);
-#endif
 
 #ifdef WIFI_DIRECT_SUPPORT
 /* Group Owner Negotiation Req */
@@ -490,8 +488,10 @@ mlan_status woal_chandef_create(moal_private *priv,
 #if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 void woal_cfg80211_setup_he_cap(moal_private *priv,
 				struct ieee80211_supported_band *band);
-void woal_cfg80211_free_iftype_data(struct wiphy *wiphy);
 #endif
+
+void woal_cfg80211_free_bands(struct wiphy *wiphy);
+struct ieee80211_supported_band *woal_setup_wiphy_bands(t_u8 ieee_band);
 
 void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(
@@ -512,4 +512,8 @@ void woal_cfg80211_setup_vht_cap(moal_private *priv,
 int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 			pmlan_ds_misc_assoc_rsp assoc_rsp);
 
+void woal_clear_wiphy_dfs_state(struct wiphy *wiphy);
+void woal_update_channel_dfs_state(t_u8 channel, t_u8 dfs_state);
+int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
+				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #endif /* _MOAL_CFG80211_H_ */

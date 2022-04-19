@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright 2008-2021 NXP
+ Copyright 2008-2022 NXP
 
 
 1) FOR DRIVER BUILD
@@ -63,6 +63,7 @@
 	  fw_name = <FW file name>
 		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin
 	  hw_name = <hardware name>
+	  reg_work=0|1 <Disable register work queue| Enable register work queue>
 	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
 	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
 	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
@@ -120,11 +121,14 @@
 	GoAgeoutTime=0|x <use default ageout time (default) | set Go age out time xTU(TU 100ms)>
 	multi_dtim=0|x <use default DTIM interval(default) | set x*beacon_period as DTIM interval>
 	inact_tmo=0|x <use default IEEE ps inactivity timout value (default) | use IEEE ps inactivity timeout value x ms>
+	roamoffload_in_hs=0|1 <always enable fw roaming (default) | enable fw roaming only when host suspend>
 	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 64)
 	host_mlme=0|1 <Operate in non-host_mlme mode (default)| Operate in host_mlme mode>
 	for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
 	country_ie_ignore=0|1 <Follow countryIE from AP and beacon hint enable (default) | Ignore countryIE from AP and beacon hint disable>
 	beacon_hints=0|1 <enable beacon hints(default) | disable beacon hints>
+
+	chan_track=0|1 <restore channel tracking parameters(default) | set channel tracking new parameters> for 9098 only
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -1315,7 +1319,7 @@ hssetpara
 	This command is used to set host sleep parameters.
 
 	Usage:
-		mlanutl mlanX hssetpara condition [GPIO# [gap]] (optional)[type ind_GPIO# [level]] (optional)[type event_force_ignore event_use_ext_gap ext_gap [gpio_wave]] (optional)[type hs_wakeup_interval]
+		mlanutl mlanX hssetpara condition [GPIO# [gap]] (optional)[type ind_GPIO# [level]] (optional)[type event_force_ignore event_use_ext_gap ext_gap [gpio_wave]] (optional)[type hs_wakeup_interval] (optional)[type min_wake_holdoff]
 
 	This command takes one (condition), two (condition and GPIO#) or three
 	(condition, GPIO# and gap).If more than three parameters, it can set different or multiple features indicating by type.
@@ -1382,6 +1386,9 @@ hssetpara
 	where hs_wakeup_interval is used to set host sleep wakeup interval and the type must set to 3 to indicate
 	this feature. And the value will round to the nearest multiple dtim*beacon_interval in fw. The unit is milliseconds.
 
+	where min_wake_holdoff is minimum delay between HsActive and HostWake and the type must set to 4 to indicate
+	this feature. The unit is milliseconds.
+
 	Examples:
 		mlanutl mlan0 hssetpara -1           : Cancel host sleep mode
 		mlanutl mlan0 hssetpara 3            : Broadcast and unicast data
@@ -1433,6 +1440,12 @@ hssetpara
                                                        Gap 160 ms
                                                        type=3 to set hs_wakeup_interval feature
                                                        hs_wakeup_interval set to 400ms
+
+		mlanutl mlan0 hssetpara 2 1 0xa0 4 800:  Unicase data
+						                       Use GPIO 1
+						                               Gap 160ms
+						                               type=4 to set min_wake_holdoff feature
+						                               min_wake_holdoff set to 800ms
 
 	Note: The parameters will be saved in the driver and be used when host suspends.
               The ind_GPIO# and level parameters only work with specific board and firmware.

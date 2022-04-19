@@ -3,7 +3,7 @@
  * @brief Program to control parameters in the mlandriver
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -52,6 +52,9 @@ Change log:
 /** Termination flag */
 int terminate_flag = 0;
 
+/** Termination flag */
+boolean mcast_debug_flag = 0;
+
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -71,6 +74,25 @@ const char *rateIdStr[] = {"1",	 "2",  "5.5", "11", "--", "6",	"9",  "12",
 			   "18", "24", "36",  "48", "54", "--", "M0", "M1",
 			   "M2", "M3", "M4",  "M5", "M6", "M7", "H0", "H1",
 			   "H2", "H3", "H4",  "H5", "H6", "H7"};
+
+char mod_conv_bg_1x1[10][35] = {
+	"CCK            (1,2,5.5,11 Mbps)", "OFDM_PSK       (6,9,12,18 Mbps)",
+	"OFDM_QAM16     (24,36 Mbps)",	    "OFDM_QAM64     (48,54 Mbps)",
+	"HT_20_PSK      (MCS 0,1,2)",	    "HT_20_QAM16    (MCS 3,4)",
+	"HT_20_QAM64    (MCS 5,6,7)",	    "HT_40_PSK      (MCS 0,1,2)",
+	"HT_40_QAM16    (MCS 3,4)",	    "HT_40_QAM64    (MCS 5,6,7)"};
+char mod_conv_a_1x1[6][35] = {
+	"VHT_20_QAM256  (MCS 8)",     "VHT_40_QAM256  (MCS 8,9)",
+	"VHT_80_PSK     (MCS 0,1,2)", "VHT_80_QAM16   (MCS 3,4)",
+	"VHT_80_QAM64   (MCS 5,6,7)", "VHT_80_QAM256  (MCS 8,9)"};
+char mod_conv_bg_2x2[6][35] = {
+	"HT2_20_PSK     (MCS 8,9,10)",	 "HT2_20_QAM16   (MCS 11,12)",
+	"HT2_20_QAM64   (MCS 13,14,15)", "HT2_40_PSK     (MCS 8,9,10)",
+	"HT2_40_QAM16   (MCS 11,12)",	 "HT2_40_QAM64   (MCS 13,14,15)"};
+char mod_conv_a_2x2[6][35] = {
+	"VHT2_20_QAM256 (MCS 8)",     "VHT2_40_QAM256 (MCS 8,9)",
+	"VHT2_80_PSK    (MCS 0,1,2)", "VHT2_80_QAM16  (MCS 3,4)",
+	"VHT2_80_QAM64  (MCS 5,6,7)", "VHT2_80_QAM256 (MCS 8,9)"};
 
 #ifdef DEBUG_LEVEL1
 #define MMSG MBIT(0)
@@ -203,8 +225,7 @@ t_s32 sockfd;
 char dev_name[IFNAMSIZ + 1];
 #define HOSTCMD "hostcmd"
 
-static char *config_get_line(char *s, int size, FILE *stream, int *line,
-			     char **_pos);
+char *config_get_line(char *s, int size, FILE *stream, int *line, char **_pos);
 #define BSSID_FILTER 1
 #define SSID_FILTER 2
 /********************************************************
@@ -268,7 +289,7 @@ t_void hexdump(char *prompt, t_void *p, t_s32 len, char delim)
  *  @param chr      Char
  *  @return         Hex integer
  */
-static t_u8 hexc2bin(char chr)
+t_u8 hexc2bin(char chr)
 {
 	if (chr >= '0' && chr <= '9')
 		chr -= '0';
@@ -286,7 +307,7 @@ static t_u8 hexc2bin(char chr)
  *  @param s        A pointer string buffer
  *  @return         Hex integer
  */
-static t_u32 a2hex(char *s)
+t_u32 a2hex(char *s)
 {
 	t_u32 val = 0;
 
@@ -307,7 +328,7 @@ static t_u32 a2hex(char *s)
  *  @param value    A pointer to string
  *  @return         Integer
  */
-static t_u32 a2hex_or_atoi(char *value)
+t_u32 a2hex_or_atoi(char *value)
 {
 	if (value[0] == '0' && (value[1] == 'X' || value[1] == 'x')) {
 		return a2hex(value + 2);
@@ -667,7 +688,7 @@ int process_host_cmd_resp(char *cmd_name, t_u8 *buf);
  *  @param lineno   A pointer to return current line number
  *  @return         returns string or NULL
  */
-static char *mlan_config_get_line(FILE *fp, char *str, t_s32 size, int *lineno)
+char *mlan_config_get_line(FILE *fp, char *str, t_s32 size, int *lineno)
 {
 	char *start, *end;
 	int out, next_line;
@@ -763,8 +784,7 @@ static char *mlan_config_get_line(FILE *fp, char *str, t_s32 size, int *lineno)
  *  @param _pos     Output string or NULL
  *  @return         String or NULL
  */
-static char *config_get_line(char *s, int size, FILE *stream, int *line,
-			     char **_pos)
+char *config_get_line(char *s, int size, FILE *stream, int *line, char **_pos)
 {
 	*_pos = mlan_config_get_line(stream, s, size, line);
 	return *_pos;
@@ -945,7 +965,7 @@ static int prepare_host_cmd_buffer(FILE *fp, char *cmd_name, t_u8 *buf)
 #define SUBID_OFFSET (S_DS_GEN + 2)
 
 static const t_u16 debug_cmd = 0x008b;
-static t_u16 supported_cmd[] = {0x0130};
+static t_u16 supported_cmd[] = {0x0130, 0x0016, 0x00e0};
 /* If the hostcmd CmdCode is 0x008b (debug cmd), then below SUBIDs will be
  * allowed */
 static t_u16 supported_8b_subcmd[] = {0x104, 0x111, 0x11b, 0x11e, 0x27, 0x101};
@@ -2867,8 +2887,11 @@ static int process_11axcfg(int argc, char *argv[])
 						(t_u8 *)config_id);
 
 		snprintf(config_id, sizeof(config_id), "HECap");
-		fparse_for_cmd_and_hex(fp, buffer + cmd_header_len + id_len,
-				       (t_u8 *)config_id);
+		id_len +=
+			fparse_for_cmd_and_hex(fp,
+					       buffer + cmd_header_len + id_len,
+					       (t_u8 *)config_id);
+
 		hexdump("Set 11axcfg", buffer + cmd_header_len,
 			sizeof(mlan_ds_11ax_he_cfg), ' ');
 		cmd->used_len = cmd_header_len + sizeof(mlan_ds_11ax_he_cfg);
@@ -3659,6 +3682,35 @@ int process_host_cmd_resp(char *cmd_name, t_u8 *buf)
 				       wmm_param->ac_params[AC_VO].tx_op_limit));
 			break;
 		}
+		case HostCmd_ROBUST_COEX: {
+			host_RobustCoexLteStats_t *RobustCoexLteStat =
+				(host_RobustCoexLteStats_t *)(buf + S_DS_GEN);
+			if (RobustCoexLteStat->ResponseType ==
+			    EXT_LTE_RESP_GETSTAT) {
+				printf("==============LTE COEX STATS================\n");
+				printf("Responsetype: %d \n",
+				       RobustCoexLteStat->ResponseType);
+				printf("Count_LTE_TX_NOTIFY: %d \n",
+				       (unsigned int)le32_to_cpu(
+					       RobustCoexLteStat
+						       ->Count_LTE_TX_NOTIFY));
+				printf("Count_LTE_RX_PROTECT: %d \n",
+				       (unsigned int)le32_to_cpu(
+					       RobustCoexLteStat
+						       ->Count_LTE_RX_PROTECT));
+				printf("Count_LTE_TX_SUSPEND: %d \n",
+				       (unsigned int)le32_to_cpu(
+					       RobustCoexLteStat
+						       ->Count_LTE_TX_SUSPEND));
+				printf("Count_LTE_RX_NOTIFY: %d \n",
+				       (unsigned int)le32_to_cpu(
+					       RobustCoexLteStat
+						       ->Count_LTE_RX_NOTIFY));
+			} else if (RobustCoexLteStat->ResponseType ==
+				   EXT_LTE_RESP_RSTSTAT) {
+				printf("LTE STAT Counters cleared \n");
+			}
+		} break;
 		default:
 			printf("HOSTCMD_RESP: CmdCode=%#04x, Size=%#04x,"
 			       " SeqNum=%#04x, Result=%#04x\n",
@@ -4585,7 +4637,7 @@ static int ishexstring(char *s)
  *                  MAC_BROADCAST   - if broadcast mac
  *                  MAC_MULTICAST   - if multicast mac
  */
-static int mac2raw(char *mac, t_u8 *raw)
+int mac2raw(char *mac, t_u8 *raw)
 {
 	unsigned int temp_raw[ETH_ALEN];
 	int num_tokens = 0;
@@ -4635,7 +4687,7 @@ static int atoval(char *buf)
  * 'args'
  *  @return         Number of arguments in the line or EOF
  */
-static int parse_line(char *line, char *args[], t_u16 args_count)
+int parse_line(char *line, char *args[], t_u16 args_count)
 {
 	int arg_num = 0;
 	int is_start = 0;

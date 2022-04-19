@@ -4,7 +4,7 @@
  * @brief This file contains definition for extended private IOCTL call.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -130,6 +130,8 @@ Change log:
 #define WOAL_ADDBA_REJECT 27
 /** Private command ID to set/get sleep parameters */
 #define WOAL_SLEEP_PARAMS 28
+/** Private command ID to set/get network monitor */
+#define WOAL_NET_MONITOR 30
 /** Private command ID to set/get TX BF capabilities */
 #define WOAL_TX_BF_CAP 31
 /** Private command ID to set/get dfs testing settings */

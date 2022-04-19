@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for 11ax related features.
  *
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -142,6 +142,140 @@ static void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
 	return;
 }
 #endif
+
+/**
+ *  @brief This function fills the HE CAP IE w/ output format LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param hecap_ie     A pointer to IEEEtypes_HECap_t structure
+ *  @param band         BAND_A (5G), otherwise, 2.4G
+ *
+ *  @return bytes added to the phe_cap
+ */
+t_u8 wlan_fill_he_cap_ie(mlan_private *pmpriv, IEEEtypes_HECap_t *hecap_ie,
+			 t_u16 band)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	MrvlIEtypes_He_cap_t *user_hecap_tlv = MNULL;
+	MrvlIEtypes_He_cap_t *hw_hecap_tlv = MNULL;
+	IEEEtypes_HeMcsNss_t *he_mcsnss = MNULL;
+	t_u8 nss = 0;
+	t_u16 cfg_value = 0;
+	t_u16 hw_value = 0;
+
+	if (band & BAND_A) {
+		user_hecap_tlv = (MrvlIEtypes_He_cap_t *)(pmpriv->user_he_cap);
+		hw_hecap_tlv = (MrvlIEtypes_He_cap_t *)pmadapter->hw_he_cap;
+	} else {
+		user_hecap_tlv =
+			(MrvlIEtypes_He_cap_t *)(pmpriv->user_2g_he_cap);
+		hw_hecap_tlv = (MrvlIEtypes_He_cap_t *)pmadapter->hw_2g_he_cap;
+	}
+
+	// include PPE threshold
+	memcpy_ext(pmadapter, (t_u8 *)hecap_ie + sizeof(IEEEtypes_Header_t),
+		   (t_u8 *)user_hecap_tlv + sizeof(MrvlIEtypesHeader_t),
+		   user_hecap_tlv->len,
+		   sizeof(IEEEtypes_HECap_t) - sizeof(IEEEtypes_Header_t));
+
+	hecap_ie->ieee_hdr.element_id = EXTENSION;
+	hecap_ie->ieee_hdr.len =
+		MIN(user_hecap_tlv->len,
+		    sizeof(IEEEtypes_HECap_t) - sizeof(IEEEtypes_Header_t));
+	hecap_ie->ext_id = HE_CAPABILITY;
+
+	he_mcsnss = (IEEEtypes_HeMcsNss_t *)hecap_ie->he_txrx_mcs_support;
+
+	cfg_value = GET_HE_NSSMCS(user_hecap_tlv->rx_mcs_80, nss);
+	hw_value = GET_HE_NSSMCS(hw_hecap_tlv->rx_mcs_80, nss);
+	for (nss = 1; nss <= 8; nss++) {
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT)) {
+			SET_HE_NSSMCS(he_mcsnss->rx_mcs, nss, NO_NSS_SUPPORT);
+		} else {
+			SET_HE_NSSMCS(he_mcsnss->rx_mcs, nss,
+				      MIN(cfg_value, hw_value));
+		}
+	}
+
+	cfg_value = GET_HE_NSSMCS(user_hecap_tlv->tx_mcs_80, nss);
+	hw_value = GET_HE_NSSMCS(hw_hecap_tlv->tx_mcs_80, nss);
+	for (nss = 1; nss <= 8; nss++) {
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT)) {
+			SET_HE_NSSMCS(he_mcsnss->tx_mcs, nss, NO_NSS_SUPPORT);
+		} else {
+			SET_HE_NSSMCS(he_mcsnss->tx_mcs, nss,
+				      MIN(cfg_value, hw_value));
+		}
+	}
+	PRINTM(MCMND,
+	       "fill_11ax_ie: HE rx mcs_80 = 0x%08x tx mcs 80 = 0x%08x\n",
+	       he_mcsnss->rx_mcs, he_mcsnss->tx_mcs);
+
+	DBG_HEXDUMP(MCMD_D, "fill_11ax_ie", (t_u8 *)hecap_ie,
+		    hecap_ie->ieee_hdr.len + sizeof(IEEEtypes_Header_t));
+	return hecap_ie->ieee_hdr.len;
+}
+
+/**
+ *  @brief This function fills the HE cap tlv out put format is LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param phe_cap      A pointer to IEEEtypes_HECap_t structure
+ *  @param band         BAND_A (5G), otherwise, 2.4G
+ *
+ *  @return bytes added to the phe_cap
+ */
+t_u8 wlan_fill_he_op_ie(mlan_private *pmpriv, IEEEtypes_HeOp_t *heop_ie)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	BSSDescriptor_t *pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
+	IEEEtypes_HeOp_t *bss_heop_ie = MNULL;
+
+	memset(pmadapter, (void *)heop_ie, 0, sizeof(IEEEtypes_HeOp_t));
+
+	heop_ie->ieee_hdr.element_id = EXTENSION;
+	heop_ie->ieee_hdr.len = sizeof(IEEEtypes_HeOp_t) -
+				sizeof(IEEEtypes_Header_t) -
+				sizeof(heop_ie->option);
+	heop_ie->ext_id = HE_OPERATION;
+
+	// HE Operation Parameters
+	heop_ie->he_op_param.default_pe_dur = 7;
+	heop_ie->he_op_param.twt_req = 0;
+	heop_ie->he_op_param.txop_dur_rts_threshold = 12;
+	heop_ie->he_op_param.vht_op_info_present = 0;
+	heop_ie->he_op_param.co_located_bss = 0;
+	heop_ie->he_op_param.er_su_disable = 0;
+	// HE BSS Color Information (following the AP)
+	if (pbss_desc->phe_oprat) {
+		bss_heop_ie = (IEEEtypes_HeOp_t *)(pbss_desc->phe_oprat);
+		heop_ie->bss_color_info.bss_color =
+			bss_heop_ie->bss_color_info.bss_color;
+	} else {
+		// default color
+		heop_ie->bss_color_info.bss_color = 1;
+	}
+	heop_ie->bss_color_info.partial_bss_color = 0;
+	heop_ie->bss_color_info.bss_color_disabled = 0;
+	// Rx HE MCS MAP
+	heop_ie->basic_he_mcs_nss.max_mcs_1ss = 0;
+#if defined(SD9177)
+	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 3;
+#else
+	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 0;
+#endif
+	heop_ie->basic_he_mcs_nss.max_mcs_3ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_4ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_5ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_6ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_7ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_8ss = 3;
+
+	return heop_ie->ieee_hdr.len;
+}
+
 /**
  *  @brief This function fills the HE cap tlv out put format is LE, not CPU
  *
@@ -153,13 +287,14 @@ static void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
  *
  *  @return bytes added to the phe_cap
  */
-t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
+t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 			   MrvlIEtypes_Extension_t *phe_cap, t_u8 flag)
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	t_u16 len = 0;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
@@ -172,7 +307,7 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 		LEAVE();
 		return 0;
 	}
-	if (band & BAND_A) {
+	if (band & BAND_AAX) {
 		memcpy_ext(pmadapter, (t_u8 *)phe_cap, pmpriv->user_he_cap,
 			   pmpriv->user_hecap_len,
 			   sizeof(MrvlIEtypes_He_cap_t));
@@ -188,10 +323,11 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 	phe_cap->type = wlan_cpu_to_le16(phe_cap->type);
 	phe_cap->len = wlan_cpu_to_le16(phe_cap->len);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
 	    IS_CARD9097(pmpriv->adapter->card_type)) {
-		if (band & BAND_A) {
+		if (band & BAND_AAX) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
 					       8);
 			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
@@ -209,7 +345,8 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -224,7 +361,8 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
 		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -260,7 +398,8 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	int len = 0;
 	t_u8 bw_80p80 = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	t_u8 nss = 0;
@@ -303,8 +442,10 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	phecap->type = wlan_cpu_to_le16(phecap->type);
 	phecap->len = wlan_cpu_to_le16(phecap->len);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARDNW62X(pmpriv->adapter->card_type) ||
 	    IS_CARD9097(pmpriv->adapter->card_type)) {
 		if (pbss_desc->bss_band & BAND_A) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
@@ -326,7 +467,8 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -341,7 +483,8 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
 		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -447,13 +590,15 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
  *  @brief This function check if 11AX is allowed in bandcfg
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param bss_band     bss band
+ *  @param pbss_desc    A pointer to BSSDescriptor_t
  *
  *  @return 0--not allowed, other value allowed
  */
-t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
+t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,
+				   BSSDescriptor_t *pbss_desc)
 {
-	if (!IS_FW_SUPPORT_11AX(pmpriv->adapter))
+	t_u16 bss_band = pbss_desc->bss_band;
+	if (pbss_desc->disable_11n)
 		return MFALSE;
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
 		if (bss_band & BAND_G)
@@ -597,7 +742,6 @@ mlan_status wlan_cmd_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		cmd->size += hecfg->he_cap.len + sizeof(MrvlIEtypesHeader_t);
 		pos += hecfg->he_cap.len + sizeof(MrvlIEtypesHeader_t);
 	}
-
 	cmd->size = wlan_cpu_to_le16(cmd->size);
 
 	LEAVE();

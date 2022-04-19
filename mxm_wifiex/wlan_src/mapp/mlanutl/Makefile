@@ -1,6 +1,6 @@
 # File : mlanutl/Makefile
 #
-# Copyright 2011-2020 NXP
+# Copyright 2011-2022 NXP
 
 # Path to the top directory of the wlan distribution
 PATH_TO_TOP = ../..
@@ -21,6 +21,7 @@ CFLAGS := $(filter-out -I$(KERNELDIR)%, $(CFLAGS))
 
 #CFLAGS += -DAP22 -fshort-enums
 CFLAGS += -Wall
+CFLAGS += -Wno-stringop-truncation
 #ECHO = @
 ifeq (,$(findstring ANDROID_KERNEL, $(CFLAGS)))
 LIBS=-lrt
@@ -33,10 +34,12 @@ HEADERS = mlanutl.h
 
 
 
+
+
 exectarget=mlanutl
 TARGET := $(exectarget)
 
-build default: $(TARGET)
+build appsbuild default: $(TARGET)
 	@cp -f $(TARGET) $(INSTALLPATH)
 
 all : tags default
