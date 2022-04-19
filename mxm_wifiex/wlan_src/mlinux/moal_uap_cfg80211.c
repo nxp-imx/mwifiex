@@ -1482,8 +1482,12 @@ static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 
 	moal_memcpy_ext(priv->phandle, ndev->perm_addr, wiphy->perm_addr,
 			ETH_ALEN, sizeof(ndev->perm_addr));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	eth_hw_addr_set(ndev, ndev->perm_addr);
+#else
 	moal_memcpy_ext(priv->phandle, ndev->dev_addr, ndev->perm_addr,
 			ETH_ALEN, MAX_ADDR_LEN);
+#endif
 	SET_NETDEV_DEV(ndev, wiphy_dev(wiphy));
 	ndev->ieee80211_ptr = &mon_if->wdev;
 	mon_if->wdev.iftype = NL80211_IFTYPE_MONITOR;
