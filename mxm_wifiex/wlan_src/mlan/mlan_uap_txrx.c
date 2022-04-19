@@ -271,6 +271,37 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 			plocal_tx_pd->tx_control |= TXPD_RETRY_ENABLE;
 		}
 	}
+	if (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT) {
+		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
+		mc_tx_ctrl *mc_ctrl =
+			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
+			ctrl->mc_cycle_start = MTRUE;
+		else
+			ctrl->mc_cycle_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_CYCLE)
+			ctrl->mc_cycle_end = MTRUE;
+		else
+			ctrl->mc_cycle_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_AMPDU)
+			ctrl->mc_ampdu_start = MTRUE;
+		else
+			ctrl->mc_ampdu_start = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_AMPDU)
+			ctrl->mc_ampdu_end = MTRUE;
+		else
+			ctrl->mc_ampdu_end = MFALSE;
+		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_RETRY)
+			ctrl->mc_pkt_retry = MTRUE;
+		else
+			ctrl->mc_pkt_retry = MFALSE;
+		ctrl->bw = pmbuf->u.mc_tx_info.bandwidth & 0x7;
+		ctrl->tx_rate = pmbuf->u.mc_tx_info.mcs_index & 0x1f;
+		mc_ctrl->abs_tsf_expirytime =
+			wlan_cpu_to_le32(pmbuf->u.mc_tx_info.pkt_expiry);
+		mc_ctrl->mc_seq = wlan_cpu_to_le16(pmbuf->u.mc_tx_info.seq_num);
+	}
 
 	endian_convert_TxPD(plocal_tx_pd);
 
@@ -320,6 +351,11 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
+
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
+		endian_convert_RxPD_extra_header(
+			(rxpd_extra_info *)((t_u8 *)prx_pd + sizeof(*prx_pd)));
+	}
 
 	if (priv->adapter->pcard_info->v14_fw_api) {
 		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;
@@ -634,6 +670,11 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 	PRINTM(MDATA, "Rx dest " MACSTR "\n",
 	       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
 
+	if (pmadapter->enable_net_mon) {
+		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
+		goto upload;
+	}
+
 	/* don't do packet forwarding in disconnected state */
 	/* don't do packet forwarding when packet > 1514 */
 	if (priv->media_connected == MFALSE)
@@ -805,6 +846,14 @@ upload:
 	PRINTM(MDATA, "%lu.%06lu : Data => kernel seq_num=%d tid=%d\n",
 	       pmbuf->out_ts_sec, pmbuf->out_ts_usec, prx_pd->seq_num,
 	       prx_pd->priority);
+	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
+		// Use some rxpd space to save rxpd info for radiotap header
+		// We should insure radiotap_info is not bigger than RxPD
+		wlan_rxpdinfo_to_radiotapinfo(
+			priv, (RxPD *)prx_pd,
+			(radiotap_info *)(pmbuf->pbuf + pmbuf->data_offset -
+					  sizeof(radiotap_info)));
+	}
 
 	ret = pmadapter->callbacks.moal_recv_packet(pmadapter->pmoal_handle,
 						    pmbuf);

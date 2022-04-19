@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -737,6 +737,40 @@ done:
 	return ret;
 }
 #endif
+
+/**
+ *  @brief enable/disable 11h
+ *
+ *  @param enable      MTRUE/MFALSE
+ *  @return            0 --success, otherwise fail
+ */
+int woal_uap_11h_ctrl(moal_private *priv, t_u32 enable)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_snmp_mib *snmp = NULL;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	ENTER();
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_snmp_mib));
+	if (ioctl_req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+	snmp = (mlan_ds_snmp_mib *)ioctl_req->pbuf;
+	ioctl_req->req_id = MLAN_IOCTL_SNMP_MIB;
+	snmp->sub_command = MLAN_OID_SNMP_MIB_DOT11H;
+	snmp->param.oid_value = enable;
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief configure snmp mib
@@ -2053,7 +2087,75 @@ done:
 }
 
 /**
- * @brief Set/Get skip CAC mode
+ *  @brief Issue MLAN_OID_11H_CHAN_REPORT_REQUEST ioctl to cancel dozer
+ *
+ *  @param priv     Pointer to the moal_private driver data struct
+ *  @param action   MLAN_ACT_SET/MLAN_ACT_GET
+ *  @param
+ *
+ *  @return         0 --success, otherwise fail
+ */
+int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
+			    mlan_ds_11h_chan_dfs_state *ch_dfs_state)
+{
+	int ret = 0;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_cfg *ds_11hcfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
+#endif
+#endif
+
+	ENTER();
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	if (action == MLAN_ACT_GET) {
+		if (IS_UAP_CFG80211(cfg80211_wext)) {
+			ret = woal_get_wiphy_chan_dfs_state(priv->wdev->wiphy,
+							    ch_dfs_state);
+			if (!ret) {
+				LEAVE();
+				return ret;
+			}
+		}
+	}
+#endif
+#endif
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	ds_11hcfg = (mlan_ds_11h_cfg *)req->pbuf;
+
+	ds_11hcfg->sub_command = MLAN_OID_11H_CHAN_DFS_STATE;
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = action;
+	moal_memcpy_ext(priv->phandle, &ds_11hcfg->param.ch_dfs_state,
+			ch_dfs_state, sizeof(mlan_ds_11h_chan_dfs_state),
+			sizeof(ds_11hcfg->param.ch_dfs_state));
+	/* Send Channel Check command and wait until the report is ready */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	moal_memcpy_ext(priv->phandle, ch_dfs_state,
+			&ds_11hcfg->param.ch_dfs_state,
+			sizeof(mlan_ds_11h_chan_dfs_state),
+			sizeof(mlan_ds_11h_chan_dfs_state));
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief skip cac on specific channel
+ * @and Wext
  *
  *  @param dev      A pointer to net_device structure
  *  @param req      A pointer to ifreq structure
@@ -2062,41 +2164,61 @@ done:
  */
 static int woal_uap_skip_cac(struct net_device *dev, struct ifreq *req)
 {
-	moal_private *priv = (moal_private *)netdev_priv(dev);
 	int ret = 0;
 	skip_cac_para param;
-
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
+#endif
+#endif
+	dfs_state_t dfs_state;
+	mlan_ds_11h_chan_dfs_state ch_dfs_state;
 	ENTER();
 
 	/* Sanity check */
 	if (req->ifr_data == NULL) {
-		PRINTM(MERROR, "skip_cac() corrupt data\n");
+		PRINTM(MERROR, "skip_dfs_cac() corrupt data\n");
 		ret = -EFAULT;
 		goto done;
 	}
-
 	memset(&param, 0, sizeof(skip_cac_para));
-
 	/* Get user data */
 	if (copy_from_user(&param, req->ifr_data, sizeof(skip_cac_para))) {
 		PRINTM(MERROR, "Copy from user failed\n");
 		ret = -EFAULT;
 		goto done;
 	}
-
-	/* Currently default action is get */
-	if (param.action == 0) {
-		param.skip_cac = (t_u16)priv->skip_cac;
-	} else {
-		priv->skip_cac = param.skip_cac;
+	if (param.skip_cac)
+		dfs_state = DFS_AVAILABLE;
+	else
+		dfs_state = DFS_USABLE;
+	memset(&ch_dfs_state, 0, sizeof(ch_dfs_state));
+	ch_dfs_state.channel = param.channel;
+	woal_11h_chan_dfs_state(priv, MLAN_ACT_GET, &ch_dfs_state);
+	if (ch_dfs_state.dfs_state == dfs_state)
+		goto done;
+	if (param.skip_cac && ch_dfs_state.dfs_state == DFS_USABLE)
+		PRINTM(MMSG,
+		       "ZeroDFS: Requst skip cac on the channel %d which hasn't do CAC before!\n",
+		       param.channel);
+	ch_dfs_state.dfs_state = dfs_state;
+	woal_11h_chan_dfs_state(priv, MLAN_ACT_SET, &ch_dfs_state);
+	PRINTM(MCMND, "ZeroDFS: Skip CAC on chan %d %d\n", param.channel,
+	       param.skip_cac);
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	if (IS_UAP_CFG80211(cfg80211_wext)) {
+		if (param.skip_cac)
+			woal_update_channel_dfs_state(param.channel,
+						      DFS_AVAILABLE);
+		else
+			woal_update_channel_dfs_state(param.channel,
+						      DFS_USABLE);
 	}
-
-	if (copy_to_user(req->ifr_data, &param, sizeof(skip_cac_para))) {
-		PRINTM(MERROR, "Copy to user failed\n");
-		ret = -EFAULT;
-	}
+#endif
+#endif
 done:
-
 	LEAVE();
 	return ret;
 }

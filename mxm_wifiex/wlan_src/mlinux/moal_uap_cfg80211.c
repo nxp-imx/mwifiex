@@ -3,7 +3,7 @@
  * @brief This file contains the functions for uAP CFG80211.
  *
  *
- * Copyright 2011-2021 NXP
+ * Copyright 2011-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -1402,6 +1402,134 @@ done:
 	return ret;
 }
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+/**
+ * @brief Request the driver to add a monitor interface
+ *
+ * @param wiphy             A pointer to wiphy structure
+ * @param name              Virtual interface name
+ * @param name_assign_type  Interface name assignment type
+ * @param flags             Flags for the virtual interface
+ * @param params            A pointer to vif_params structure
+ * @param new_dev           Netdevice to be passed out
+ *
+ * @return                  0 -- success, otherwise fail
+ */
+static int woal_cfg80211_add_mon_if(struct wiphy *wiphy, const char *name,
+				    unsigned char name_assign_type, u32 *flags,
+				    struct vif_params *params,
+				    struct net_device **new_dev)
+#else
+/**
+ * @brief Request the driver to add a monitor interface
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param name            Virtual interface name
+ * @param flags           Flags for the virtual interface
+ * @param params          A pointer to vif_params structure
+ * @param new_dev         Netdevice to be passed out
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+				    const
+#endif
+				    char *name,
+				    u32 *flags, struct vif_params *params,
+				    struct net_device **new_dev)
+#endif
+{
+	int ret = 0;
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+	moal_private *priv =
+		(moal_private *)woal_get_priv(handle, MLAN_BSS_ROLE_STA);
+	monitor_iface *mon_if = NULL;
+	struct net_device *ndev = NULL;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	chan_band_info chan_info;
+#endif
+	unsigned char name_assign_type_tmp = 0;
+
+	ENTER();
+
+	ASSERT_RTNL();
+
+	if (handle->mon_if) {
+		PRINTM(MERROR, "%s: monitor interface exist: %s basedev %s\n",
+		       __func__, handle->mon_if->mon_ndev->name,
+		       handle->mon_if->base_ndev->name);
+		ret = -EFAULT;
+		goto fail;
+	}
+	if (!priv) {
+		PRINTM(MERROR, "add_mon_if: priv is NULL\n");
+		ret = -EFAULT;
+		goto fail;
+	}
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+	name_assign_type_tmp = name_assign_type;
+#endif
+	mon_if = woal_prepare_mon_if(priv, name, name_assign_type_tmp,
+				     CHANNEL_SPEC_SNIFFER_MODE);
+	if (!mon_if) {
+		PRINTM(MFATAL, "Prepare mon_if fail.\n");
+		goto fail;
+	}
+	ndev = mon_if->mon_ndev;
+	dev_net_set(ndev, wiphy_net(wiphy));
+
+	moal_memcpy_ext(priv->phandle, ndev->perm_addr, wiphy->perm_addr,
+			ETH_ALEN, sizeof(ndev->perm_addr));
+	moal_memcpy_ext(priv->phandle, ndev->dev_addr, ndev->perm_addr,
+			ETH_ALEN, MAX_ADDR_LEN);
+	SET_NETDEV_DEV(ndev, wiphy_dev(wiphy));
+	ndev->ieee80211_ptr = &mon_if->wdev;
+	mon_if->wdev.iftype = NL80211_IFTYPE_MONITOR;
+	mon_if->wdev.wiphy = wiphy;
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	/* Set default band channel config */
+	mon_if->band_chan_cfg.band = BAND_B | BAND_G;
+	mon_if->band_chan_cfg.band |= BAND_GN;
+	mon_if->band_chan_cfg.channel = 1;
+	mon_if->band_chan_cfg.chan_bandwidth = CHANNEL_BW_20MHZ;
+	memset(&chan_info, 0x00, sizeof(chan_info));
+	chan_info.channel = 1;
+	chan_info.is_11n_enabled = MTRUE;
+	if (MLAN_STATUS_FAILURE ==
+	    woal_chandef_create(priv, &mon_if->chandef, &chan_info)) {
+		ret = -EFAULT;
+		goto fail;
+	}
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_net_monitor(priv, MOAL_IOCTL_WAIT,
+				 CHANNEL_SPEC_SNIFFER_MODE, 0x7,
+				 &mon_if->band_chan_cfg)) {
+		PRINTM(MERROR, "%s: woal_set_net_monitor fail\n", __func__);
+		ret = -EFAULT;
+		goto fail;
+	}
+#endif
+
+	ret = register_netdevice(ndev);
+	if (ret) {
+		PRINTM(MFATAL, "register net_device failed, ret=%d\n", ret);
+		free_netdev(ndev);
+		goto fail;
+	}
+
+	handle->mon_if = mon_if;
+
+	if (new_dev)
+		*new_dev = ndev;
+
+fail:
+	LEAVE();
+	return ret;
+}
+
 #ifdef WIFI_DIRECT_SUPPORT
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 /**
@@ -1509,6 +1637,8 @@ moal_private *woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
+	INIT_LIST_HEAD(&priv->mcast_list);
+	spin_lock_init(&priv->mcast_lock);
 
 	spin_lock_init(&priv->connect_lock);
 
@@ -1668,7 +1798,7 @@ int woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 		woal_cfg80211_init_p2p_client(new_priv);
 	else if (type == NL80211_IFTYPE_P2P_GO)
 		woal_cfg80211_init_p2p_go(new_priv);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
 	ret = cfg80211_register_netdevice(ndev);
 #else
 	ret = register_netdevice(ndev);
@@ -1677,7 +1807,7 @@ int woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 		handle->priv[new_priv->bss_index] = NULL;
 		handle->priv_num--;
 		if (ndev->reg_state == NETREG_REGISTERED) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
 			cfg80211_unregister_netdevice(ndev);
 #else
 			unregister_netdevice(ndev);
@@ -1804,6 +1934,7 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 		woal_cancel_scan(vir_priv, MOAL_IOCTL_WAIT);
 
 		woal_flush_tx_stat_queue(vir_priv);
+		woal_flush_mcast_list(vir_priv);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		/* cancel previous remain on channel to avoid firmware hang */
@@ -1862,7 +1993,7 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 		vir_priv->phandle->priv[vir_priv->bss_index] = NULL;
 		priv->phandle->priv_num--;
 		if (dev->reg_state == NETREG_REGISTERED)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
 			cfg80211_unregister_netdevice(dev);
 #else
 			unregister_netdevice(dev);
@@ -1873,7 +2004,6 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 #endif
 #endif
 
-#if defined(WIFI_DIRECT_SUPPORT)
 /**
  *  @brief This function removes an virtual interface.
  *
@@ -1905,7 +2035,7 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				netif_device_detach(priv->netdev);
 				if (priv->netdev->reg_state ==
 				    NETREG_REGISTERED)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
 					cfg80211_unregister_netdevice(
 						priv->netdev);
 #else
@@ -1917,13 +2047,18 @@ void woal_remove_virtual_interface(moal_handle *handle)
 		}
 	}
 #endif
+	if (handle->mon_if) {
+		netif_device_detach(handle->mon_if->mon_ndev);
+		if (handle->mon_if->mon_ndev->reg_state == NETREG_REGISTERED)
+			unregister_netdevice(handle->mon_if->mon_ndev);
+		handle->mon_if = NULL;
+	}
 	rtnl_unlock();
 #ifdef WIFI_DIRECT_SUPPORT
 	handle->priv_num -= vir_intf;
 #endif
 	LEAVE();
 }
-#endif
 
 /**
  *  @brief This function check if uap interface is ready
@@ -2036,15 +2171,22 @@ woal_cfg80211_add_virtual_intf(struct wiphy *wiphy, const char *name,
 {
 	struct net_device *ndev = NULL;
 	int ret = 0;
-#if defined(WIFI_DIRECT_SUPPORT)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 	u32 *flags = &params->flags;
-#endif
 #endif
 
 	ENTER();
 	PRINTM(MIOCTL, "add virtual intf: %d name: %s\n", type, name);
 	switch (type) {
+	case NL80211_IFTYPE_MONITOR:
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+		ret = woal_cfg80211_add_mon_if(wiphy, name, name_assign_type,
+					       flags, params, &ndev);
+#else
+		ret = woal_cfg80211_add_mon_if(wiphy, name, flags, params,
+					       &ndev);
+#endif
+		break;
 #ifdef WIFI_DIRECT_SUPPORT
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 	case NL80211_IFTYPE_P2P_CLIENT:
@@ -2127,6 +2269,25 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 
 	PRINTM(MIOCTL, "del virtual intf %s\n", dev->name);
 	ASSERT_RTNL();
+	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
+		if ((handle->mon_if) && (handle->mon_if->mon_ndev == dev)) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_net_monitor(handle->mon_if->priv,
+						 MOAL_IOCTL_WAIT, MFALSE, 0,
+						 NULL)) {
+				PRINTM(MERROR,
+				       "%s: woal_set_net_monitor fail\n",
+				       __func__);
+				ret = -EFAULT;
+			}
+#endif
+			handle->mon_if = NULL;
+		}
+		unregister_netdevice(dev);
+		LEAVE();
+		return ret;
+	}
 
 	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP) {
 		for (i = 0; i < handle->priv_num; i++) {

@@ -34,7 +34,8 @@ extern struct semaphore AddRemoveCardSem;
 		Local Variables
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBNW62X)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -94,6 +95,12 @@ static struct usb_device_id woal_usb_table[] = {
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
+#ifdef USBNW62X
+	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_1,
+			"NXP WLAN USB Adapter")},
+	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_2,
+			"NXP WLAN USB Adapter")},
+#endif
 	/* Terminating entry */
 	{},
 };
@@ -120,6 +127,10 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 #endif
 #ifdef USB9097
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
+#endif
+#ifdef USBNW62X
+	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_2,
+			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
 	{},
@@ -483,7 +494,8 @@ rx_ret:
 		Global Functions
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBNW62X)
 /**
  *  @brief  Check chip revision
  *
@@ -775,8 +787,24 @@ static t_u16 woal_update_card_type(t_void *card)
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
 		    (__force __le16)USB9097_PID_2) {
 		card_type = CARD_TYPE_USB9097;
-		moal_memcpy_ext(NULL, driver_version, CARD_USBIW620,
-				strlen(CARD_USBIW620), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, CARD_USB9097,
+				strlen(CARD_USB9097), strlen(driver_version));
+		moal_memcpy_ext(NULL,
+				driver_version + strlen(INTF_CARDTYPE) +
+					strlen(KERN_VERSION),
+				V17, strlen(V17),
+				strlen(driver_version) - strlen(INTF_CARDTYPE) -
+					strlen(KERN_VERSION));
+	}
+#endif
+#ifdef USBNW62X
+	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBNW62X_PID_1 ||
+	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBNW62X_PID_2) {
+		card_type = CARD_TYPE_USBNW62X;
+		moal_memcpy_ext(NULL, driver_version, CARD_USBNW62X,
+				strlen(CARD_USBNW62X), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -852,6 +880,10 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_1:
 #endif /* USB9097 */
+#ifdef USBNW62X
+			case (__force __le16)USBNW62X_PID_1:
+#endif /* USBNW62X */
+
 				/* If skip FW is set, we must return error so
 				 * the next driver can download the FW */
 				if (skip_fwdnld)
@@ -878,6 +910,10 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_2:
 #endif /* USB9097 */
+#ifdef USBNW62X
+			case (__force __le16)USBNW62X_PID_2:
+#endif /* USBNW62X */
+
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
 			}
@@ -1930,7 +1966,8 @@ done:
 static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBNW62X)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
 #endif
@@ -1949,7 +1986,8 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 #endif
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBNW62X)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap);
 	if (ret != MLAN_STATUS_SUCCESS) {
 		PRINTM(MFATAL, "Chip revision check failure!\n");
@@ -2042,6 +2080,17 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		}
 	}
 #endif
+#ifdef USBNW62X
+	if (IS_USBNW62X(handle->card_type)) {
+		if (strap == CARD_TYPE_USB_UART)
+			strcpy(handle->card_info->fw_name,
+			       USBUARTNW62X_COMBO_FW_NAME);
+		else
+			strcpy(handle->card_info->fw_name,
+			       USBUSBNW62X_COMBO_FW_NAME);
+	}
+#endif
+
 done:
 	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);

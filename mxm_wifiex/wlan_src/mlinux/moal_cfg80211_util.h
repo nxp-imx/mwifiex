@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2015-2020 NXP
+ * Copyright 2015-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -24,6 +24,26 @@
 #define _MOAL_CFGVENDOR_H_
 
 #include "moal_main.h"
+
+#define TLV_TYPE_APINFO (PROPRIETARY_TLV_BASE_ID + 249)
+#define TLV_TYPE_KEYINFO (PROPRIETARY_TLV_BASE_ID + 250)
+#define TLV_TYPE_ASSOC_REQ_IE (PROPRIETARY_TLV_BASE_ID + 292)
+
+/** Key Info structure */
+typedef struct _key_info_tlv {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** kck, kek, key_replay*/
+	mlan_ds_misc_gtk_rekey_data key;
+} key_info;
+
+/** APinfo TLV structure */
+typedef struct _apinfo_tlv {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Assoc response buffer */
+	t_u8 rsp_ie[1];
+} apinfo;
 
 #if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 #define RING_NAME_MAX 32
@@ -605,6 +625,8 @@ enum vendor_event {
 	event_hang = 0,
 	event_fw_dump_done = 1,
 	event_rssi_monitor = 0x1501,
+	event_set_key_mgmt_offload = 0x10001,
+	event_fw_roam_success = 0x10002,
 	event_cloud_keep_alive = 0x10003,
 	event_dfs_radar_detected = 0x10004,
 	event_dfs_cac_started = 0x10005,
@@ -667,6 +689,7 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi);
 /**vendor sub command*/
 enum vendor_sub_command {
 	sub_cmd_set_drvdbg = 0,
+	sub_cmd_set_roaming_offload_key = 0x0002,
 	sub_cmd_start_keep_alive = 0x0003,
 	sub_cmd_stop_keep_alive = 0x0004,
 	sub_cmd_dfs_capability = 0x0005,
@@ -694,6 +717,11 @@ enum vendor_sub_command {
 	sub_cmd_get_roaming_capability = 0x1700,
 	sub_cmd_fw_roaming_enable = 0x1701,
 	sub_cmd_fw_roaming_config = 0x1702,
+	subcmd_cfr_request = 0x1900,
+	subcmd_cfr_cancel,
+	subcmd_get_csi_dump_path,
+	subcmd_get_csi_config,
+	subcmd_get_csi_capa,
 	sub_cmd_max,
 };
 
@@ -731,6 +759,25 @@ enum mkeep_alive_attributes {
 	MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT,
 	MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST,
 	MKEEP_ALIVE_ATTRIBUTE_MAX = MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST - 1
+};
+
+int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len);
+
+/*Attribute for wpa_supplicant*/
+enum mrvl_wlan_vendor_attr_roam_auth {
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_BSSID,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_REQ_IE,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_RESP_IE,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AUTHORIZED,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_KEY_REPLAY_CTR,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KCK,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KEK,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_SUBNET_STATUS,
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_MAX =
+		MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AFTER_LAST - 1
 };
 
 /** WiFi roaming capabilities structure */
@@ -778,5 +825,28 @@ enum mrvl_wlan_vendor_attr_fw_roaming {
 		MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_AFTER_LAST - 1
 };
 
+enum attr_csi {
+	ATTR_CSI_INVALID = 0,
+	ATTR_CSI_CONFIG,
+	ATTR_PEER_MAC_ADDR,
+	ATTR_CSI_DUMP_PATH,
+	ATTR_CSI_CAPA,
+	ATTR_CSI_DUMP_FORMAT,
+	ATTR_CSI_AFTER_LAST,
+	ATTR_CSI_MAX = ATTR_CSI_AFTER_LAST - 1,
+};
+
+/** CSI capability structure */
+typedef struct {
+	/**Bit mask indicates what BW is supported */
+	t_u8 bw_support;
+	/** Bit mask indicates what capturing method is supported */
+	t_u8 method_support;
+	/** Max number of capture peers supported */
+	t_u8 max_peer;
+} wifi_csi_capabilities;
+
+mlan_status woal_cfg80211_event_csi_dump(moal_private *priv, t_u8 *data,
+					 int len);
 #endif
 #endif /* _MOAL_CFGVENDOR_H_ */

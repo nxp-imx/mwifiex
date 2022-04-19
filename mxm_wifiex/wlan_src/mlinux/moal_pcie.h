@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- * Copyright 2014-2020 NXP
+ * Copyright 2014-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -29,27 +29,34 @@ Change log:
 #ifndef _MOAL_PCIE_H_
 #define _MOAL_PCIE_H_
 
-#define PCIE_VENDOR_ID_NXP (0x11ab)
-#define PCIE_VENDOR_ID_V2_NXP (0x1b4b)
+#define PCIE_VENDOR_ID_MRVL (0x11ab)
+#define PCIE_VENDOR_ID_V2_MRVL (0x1b4b)
+#define PCIE_VENDOR_ID_NXP (0x1131)
+
 #ifdef PCIE8997
 /** PCIE device ID for 8997 card */
-#define PCIE_DEVICE_ID_NXP_88W8997P (0x2b42)
+#define PCIE_DEVICE_ID_88W8997P (0x2b42)
 #endif
 #ifdef PCIE8897
 /** PCIE device ID for 8897 card */
-#define PCIE_DEVICE_ID_NXP_88W8897P (0x2b38)
+#define PCIE_DEVICE_ID_88W8897P (0x2b38)
 #endif
 
 #ifdef PCIE9097
 /** PCIE device ID for 9097 card */
-#define PCIE_DEVICE_ID_NXP_88W9097 (0x2b56)
+#define PCIE_DEVICE_ID_88W9097 (0x2b56)
 #endif
 
 #ifdef PCIE9098
 /** PCIE device ID for 9098 card FN0 */
-#define PCIE_DEVICE_ID_NXP_88W9098P_FN0 (0x2b43)
+#define PCIE_DEVICE_ID_88W9098P_FN0 (0x2b43)
 /** PCIE device ID for 9098 card FN1 */
-#define PCIE_DEVICE_ID_NXP_88W9098P_FN1 (0x2b44)
+#define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
+#endif
+
+#ifdef PCIENW62X
+/** PCIE device ID for NW62X card FN0 */
+#define PCIE_DEVICE_ID_88WNW62X (0x3000)
 #endif
 
 #include <linux/version.h>
@@ -106,7 +113,14 @@ Change log:
 #define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
-#if defined(PCIE9098) || defined(PCIE9097)
+#ifdef PCIENW62X
+#define PCIENW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
+#define PCIEUARTNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartnw62x_combo.bin"
+#define PCIEUSBNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
+#define PCIENW62X_DEFAULT_WLAN_FW_NAME "nxp/pcienw62x_wlan.bin"
+#endif /* PCIE8997 */
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 #define PCIE_NUM_MSIX_VECTORS 32
 #else
 #define PCIE_NUM_MSIX_VECTORS 4

@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -139,15 +139,26 @@ Change log:
 #define SD9097_WLAN_V1_FW_NAME "nxp/sdiw620_wlan_v1.bin"
 #endif /* SD9097 */
 
+#ifdef SDNW62X
+#define SDNW62X_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw62x.bin"
+#define SDUARTNW62X_COMBO_FW_NAME "nxp/sduart_nw62x.bin"
+#define SDSDNW62X_COMBO_FW_NAME "sdsd_nw62x.bin"
+#define SDNW62X_DEFAULT_WLAN_FW_NAME "nxp/sd_nw62x.bin"
+#endif /* SDNW62X */
+
 #ifdef SD9177
-#define SD9177_A0 0x01
+#define SD9177_A0 0x00
+#define SD9177_A1 0x01
 #define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
+#define SD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
 #define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin"
 #define SDSD9177_DEFAULT_COMBO_FW_NAME "sdsd_nw61x.bin"
 #define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin"
-/** Device ID for SD9177 */
-#define SD_DEVICE_ID_9177 (0x0205)
+#define SDUART9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
+#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "sdsd_nw61x_v1.bin"
+#define SD9177_DEFAULT_WLAN_V1_FW_NAME "nxp/sd_w61x_v1.bin"
 #endif /* SD9177 */
+
 /********************************************************
 		Global Functions
 ********************************************************/

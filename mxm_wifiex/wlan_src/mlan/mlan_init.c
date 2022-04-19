@@ -240,9 +240,10 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 	t_u32 buf_size;
 	BSSDescriptor_t *ptemp_scan_table = MNULL;
 	t_u8 chan_2g[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
-	t_u8 chan_5g[] = {12,  16,  34,	 38,  42,  46,	36,  40,  44,  48,  52,
-			  56,  60,  64,	 100, 104, 108, 112, 116, 120, 124, 128,
-			  132, 136, 140, 144, 149, 153, 157, 161, 165};
+	t_u8 chan_5g[] = {12,  16,  34,	 38,  42,  46,	36,  40,  44,
+			  48,  52,  56,	 60,  64,  100, 104, 108, 112,
+			  116, 120, 124, 128, 132, 136, 140, 144, 149,
+			  153, 157, 161, 165, 169, 173, 177};
 #endif
 #ifdef SDIO
 	t_u32 max_mp_regs = 0;
@@ -603,6 +604,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	priv->hotspot_cfg = 0;
 
 	priv->intf_hr_len = pmadapter->ops.intf_header_len;
+	memset(pmadapter, &priv->chan_rep_req, 0, sizeof(priv->chan_rep_req));
 #ifdef USB
 	if (IS_USB(pmadapter->card_type)) {
 		pusb_tx_aggr =
@@ -722,6 +724,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->last_init_cmd = 0;
 	pmadapter->pending_ioctl = MFALSE;
 	pmadapter->scan_processing = MFALSE;
+	pmadapter->fw_roaming = MFALSE;
+	pmadapter->userset_passphrase = MFALSE;
 	pmadapter->cmd_timer_is_set = MFALSE;
 	pmadapter->dnld_cmd_in_secs = 0;
 
@@ -957,7 +961,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 				EVT_RW_PTR_ROLLOVER_IND;
 		}
 #endif
-#if defined(PCIE9098) || defined(PCIE9097)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			pmadapter->pcard_pcie->rxbd_wrptr =
 				pmadapter->pcard_pcie->txrx_bd_size;
@@ -1154,7 +1158,10 @@ mlan_status wlan_init_lock_list(pmlan_adapter pmadapter)
 	util_init_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->scan_pending_q, MTRUE,
 			    pmadapter->callbacks.moal_init_lock);
-
+	/* Initialize ext_cmd_pending_q */
+	util_init_list_head((t_void *)pmadapter->pmoal_handle,
+			    &pmadapter->ext_cmd_pending_q, MTRUE,
+			    pmadapter->callbacks.moal_init_lock);
 	/* Initialize ioctl_pending_q */
 	util_init_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->ioctl_pending_q, MTRUE,
@@ -1244,6 +1251,10 @@ t_void wlan_free_lock_list(pmlan_adapter pmadapter)
 
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->scan_pending_q,
+			    pmadapter->callbacks.moal_free_lock);
+
+	util_free_list_head((t_void *)pmadapter->pmoal_handle,
+			    &pmadapter->ext_cmd_pending_q,
 			    pmadapter->callbacks.moal_free_lock);
 
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
@@ -1896,7 +1907,9 @@ static mlan_status wlan_init_interface(pmlan_adapter pmadapter)
 				pmadapter->priv[i]->bss_role =
 					MLAN_BSS_ROLE_STA;
 			else if (pmadapter->bss_attr[i].bss_type ==
-				 MLAN_BSS_TYPE_UAP)
+					 MLAN_BSS_TYPE_UAP ||
+				 pmadapter->bss_attr[i].bss_type ==
+					 MLAN_BSS_TYPE_DFS)
 				pmadapter->priv[i]->bss_role =
 					MLAN_BSS_ROLE_UAP;
 #ifdef WIFI_DIRECT_SUPPORT

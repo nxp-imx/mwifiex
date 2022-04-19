@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -213,9 +213,16 @@ typedef struct _chan_stats {
 #define PRIV_CMD_MPA_CTRL "mpactrl"
 #endif
 #define PRIV_CMD_SLEEP_PARAMS "sleepparams"
+#define PRIV_CMD_NET_MON "netmon"
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+#define PRIV_CMD_MONITOR_MODE "monitormode"
+#endif
 #define PRIV_CMD_DFS_TESTING "dfstesting"
 #define PRIV_CMD_CLEAR_NOP "clear_nop"
+#define PRIV_CMD_FAKE_RADAR "fake_radar"
 #define PRIV_CMD_DFS53_CFG "dfs53cfg"
+#define PRIV_CMD_DFS_CAC "dfs_cac"
+#define PRIV_CMD_AUTODFS "autodfs"
 #define PRIV_CMD_CFP_CODE "cfpcode"
 #define PRIV_CMD_CWMODE "cwmode"
 #define PRIV_CMD_ANT_CFG "antcfg"
@@ -239,7 +246,8 @@ typedef struct _chan_stats {
 #endif
 #define PRIV_CMD_CFG_CLOCK_SYNC "clocksync"
 #define PRIV_CMD_CFG_GET_TSF_INFO "gettsfinfo"
-#define PRIV_CMD_TRANSITION_CHANNEL "transchan"
+#define PRIV_CMD_TARGET_CHANNEL "targetchan"
+#define PRIV_CMD_BACKUP_CHANNEL "backupchan"
 
 #define PRIV_CMD_DFS_REPEATER_CFG "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
@@ -283,6 +291,10 @@ typedef struct _chan_stats {
 
 /**Private command ID to set/get independent reset*/
 #define PRIV_CMD_IND_RST_CFG "indrstcfg"
+
+#define PRIV_CMD_MCAST_AGGR_GROUP "mcast_aggr_group"
+#define PRIV_CMD_MC_AGGR_CFG "mc_aggr_cfg"
+#define PRIV_CMD_CH_LOAD "getchload"
 
 #define PRIV_CMD_ARB_CFG "arb"
 
@@ -355,6 +367,8 @@ typedef struct _ssu_params_cfg {
 	t_u32 n_pkt_avg;
 } __attribute__((packed)) ssu_params_cfg;
 #endif
+
+#define PRIV_CMD_CSI "csi"
 
 #define PRIV_CMD_BOOTSLEEP "bootsleep"
 
@@ -509,6 +523,27 @@ typedef struct woal_priv_addba {
 	t_u32 tx_amsdu;
 	t_u32 rx_amsdu;
 } woal_addba;
+
+/** Action field value : get */
+#define ACTION_GET 0
+/** Action field value : set */
+#define ACTION_SET 1
+/** Action field value:  add */
+#define ACTION_ADD 2
+/** Action field value:  remove */
+#define ACTION_REMOVE 3
+#define MC_AGGR_CTRL MBIT(0)
+/* mcast_aggr_group */
+typedef struct _mcast_aggr_group {
+	/** action */
+	t_u32 action;
+	/** mcast addr */
+	t_u8 mcast_addr[ETH_ALEN];
+	/** Number of multicast addresses in the list */
+	t_u32 num_mcast_addr;
+	/** Multicast address list */
+	mlan_802_11_mac_addr mac_list[MLAN_MAX_MULTICAST_LIST_SIZE];
+} mcast_aggr_group, *pmcast_aggr_group;
 
 typedef struct _txrate_setting {
 	t_u16 preamble : 2; /*BIT1-BIT0:

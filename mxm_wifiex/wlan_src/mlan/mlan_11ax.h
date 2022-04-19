@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2018-2020 NXP
+ *  Copyright 2018-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -44,13 +44,18 @@ mlan_status wlan_11ax_ioctl_twtcfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
 mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 			     t_u16 cmd_action, t_void *pdata_buf);
-t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
+t_u8 wlan_fill_he_cap_ie(mlan_private *pmpriv, IEEEtypes_HECap_t *hecap_ie,
+			 t_u16 band);
+t_u8 wlan_fill_he_op_ie(mlan_private *pmpriv, IEEEtypes_HeOp_t *heop_ie);
+t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 			   MrvlIEtypes_Extension_t *phe_cap, t_u8 flag);
 void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 			  MrvlIEtypes_Extension_t *hw_he_cap);
+
 int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
-t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band);
+t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,
+				   BSSDescriptor_t *pbss_desc);
 mlan_status wlan_11ax_cfg_ioctl(pmlan_adapter pmadapter,
 				pmlan_ioctl_req pioctl_req);
 mlan_status wlan_11ax_ioctl_cmd(pmlan_adapter pmadapter,

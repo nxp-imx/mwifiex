@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2021 NXP
+#  Copyright 2008-2022 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -21,7 +21,7 @@ ifeq ($(CONFIG_COMPATDIR), y)
 COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
 CC ?=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
 else
-CC ?=		$(CROSS_COMPILE)gcc
+CC ?=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
 endif
 
 LD ?=		$(CROSS_COMPILE)ld
@@ -52,6 +52,9 @@ CONFIG_PCIE9097=n
 CONFIG_SD9098=y
 CONFIG_USB9098=n
 CONFIG_PCIE9098=y
+CONFIG_SDNW62X=n
+CONFIG_PCIENW62X=n
+CONFIG_USBNW62X=n
 
 
 # Debug Option
@@ -80,9 +83,6 @@ CONFIG_MFG_CMD_SUPPORT=y
 
 # OpenWrt support
 CONFIG_OPENWRT_SUPPORT=n
-
-# Big-endian platform
-CONFIG_BIG_ENDIAN=n
 
 
 
@@ -120,6 +120,7 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 MODEXT = ko
 ccflags-y += -I$(PWD)/mlan
 ccflags-y += -DLINUX
+
 
 
 
@@ -187,10 +188,6 @@ ifeq ($(CONFIG_MFG_CMD_SUPPORT),y)
 	ccflags-y += -DMFG_CMD_SUPPORT
 endif
 
-ifeq ($(CONFIG_BIG_ENDIAN),y)
-	ccflags-y += -DBIG_ENDIAN_SUPPORT
-endif
-
 ifeq ($(CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT),y)
 	ccflags-y += -DUSERSPACE_32BIT_OVER_KERNEL_64BIT
 endif
@@ -249,6 +246,10 @@ ifeq ($(CONFIG_SD9097),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9097
 endif
+ifeq ($(CONFIG_SDNW62X),y)
+	CONFIG_SDIO=y
+	ccflags-y += -DSDNW62X
+endif
 ifeq ($(CONFIG_SD9177),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9177
@@ -281,6 +282,10 @@ ifeq ($(CONFIG_USB9097),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSB9097
 endif
+ifeq ($(CONFIG_USBNW62X),y)
+	CONFIG_MUSB=y
+	ccflags-y += -DUSBNW62X
+endif
 ifeq ($(CONFIG_USB9098),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSB9098
@@ -300,6 +305,10 @@ endif
 ifeq ($(CONFIG_PCIE9098),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIE9098
+endif
+ifeq ($(CONFIG_PCIENW62X),y)
+	CONFIG_PCIE=y
+	ccflags-y += -DPCIENW62X
 endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
@@ -344,7 +353,6 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
-ccflags-y += -Wno-stringop-truncation
 ccflags-y += -Wno-array-bounds
 #############################################################################
 # Make Targets
@@ -582,6 +590,18 @@ mapp/mlanutl:
 	$(MAKE) -C $@
 
 echo:
+
+appsbuild:
+
+	@if [ ! -d $(BINDIR) ]; then \
+		mkdir $(BINDIR); \
+	fi
+
+	cp -f README_MLAN $(BINDIR)
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/mlanconfig $@ INSTALLDIR=$(BINDIR)
+	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
+endif
 
 build:		echo default
 

@@ -1027,7 +1027,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		       pchan_tlv->chan_scan_param[0].chan_number);
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
-			wlan_band_to_radio_type((t_u8)pbss_desc->bss_band);
+			wlan_band_to_radio_type(pbss_desc->bss_band);
 
 		PRINTM(MINFO, "Assoc: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
@@ -1205,8 +1205,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	    wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);
 
-	if ((IS_FW_SUPPORT_11AX(pmadapter)) && (!pbss_desc->disable_11n) &&
-	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
+	if ((IS_FW_SUPPORT_11AX(pmadapter)) &&
+	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc))
 		wlan_cmd_append_11ax_tlv(pmpriv, pbss_desc, &pos);
 
 	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie,
@@ -1248,8 +1248,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		pos += sizeof(prev_bssid_tlv->header) + MLAN_MAC_ADDR_LENGTH;
 	}
 
-	if (wlan_11d_create_dnld_countryinfo(pmpriv,
-					     (t_u8)pbss_desc->bss_band)) {
+	if (wlan_11d_create_dnld_countryinfo(pmpriv, pbss_desc->bss_band)) {
 		PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -2111,7 +2110,7 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 		       pchan_tlv->chan_scan_param[0].chan_number);
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
-			wlan_band_to_radio_type((t_u8)pbss_desc->bss_band);
+			wlan_band_to_radio_type(pbss_desc->bss_band);
 
 		PRINTM(MINFO, "ADHOC_J_CMD: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
@@ -2120,8 +2119,7 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 			sizeof(pchan_tlv->header) + sizeof(ChanScanParamSet_t);
 	}
 
-	if (wlan_11d_create_dnld_countryinfo(pmpriv,
-					     (t_u8)pbss_desc->bss_band)) {
+	if (wlan_11d_create_dnld_countryinfo(pmpriv, pbss_desc->bss_band)) {
 		PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -2639,7 +2637,7 @@ mlan_status wlan_disconnect(mlan_private *pmpriv, mlan_ioctl_req *pioctl_req,
  *
  *  @return         Radio type designator for use in a channel TLV
  */
-t_u8 wlan_band_to_radio_type(t_u8 band)
+t_u8 wlan_band_to_radio_type(t_u16 band)
 {
 	t_u8 ret_radio_type;
 

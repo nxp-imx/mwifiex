@@ -481,24 +481,40 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	memset(pmadapter, pmadapter->priv[0], 0, sizeof(mlan_private));
 
 	pmadapter->priv[0]->adapter = pmadapter;
-	pmadapter->priv[0]->bss_type = (t_u8)pmdevice->bss_attr[0].bss_type;
-	pmadapter->priv[0]->frame_type = (t_u8)pmdevice->bss_attr[0].frame_type;
-	pmadapter->priv[0]->bss_priority =
-		(t_u8)pmdevice->bss_attr[0].bss_priority;
-	if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_STA)
+	if (pmdevice->drv_mode & DRV_MODE_MASK) {
+		/* Save bss_type, frame_type & bss_priority */
+		pmadapter->priv[0]->bss_type = 0xff;
+		pmadapter->priv[0]->frame_type = MLAN_DATA_FRAME_TYPE_ETH_II;
+		pmadapter->priv[0]->bss_priority = 0;
 		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
-	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_UAP)
-		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_UAP;
+
+		/* Save bss_index and bss_num */
+		pmadapter->priv[0]->bss_index = 0;
+		pmadapter->priv[0]->bss_num = 0xff;
+	} else {
+		pmadapter->priv[0]->bss_type =
+			(t_u8)pmdevice->bss_attr[0].bss_type;
+		pmadapter->priv[0]->frame_type =
+			(t_u8)pmdevice->bss_attr[0].frame_type;
+		pmadapter->priv[0]->bss_priority =
+			(t_u8)pmdevice->bss_attr[0].bss_priority;
+		if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_STA)
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+		else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_UAP)
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_UAP;
 #ifdef WIFI_DIRECT_SUPPORT
-	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
-		if (pmdevice->bss_attr[0].bss_virtual)
-			pmadapter->priv[0]->bss_virtual = MTRUE;
-	}
+		else if (pmdevice->bss_attr[0].bss_type ==
+			 MLAN_BSS_TYPE_WIFIDIRECT) {
+			pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+			if (pmdevice->bss_attr[0].bss_virtual)
+				pmadapter->priv[0]->bss_virtual = MTRUE;
+		}
 #endif
-	/* Save bss_index and bss_num */
-	pmadapter->priv[0]->bss_index = 0;
-	pmadapter->priv[0]->bss_num = (t_u8)pmdevice->bss_attr[0].bss_num;
+		/* Save bss_index and bss_num */
+		pmadapter->priv[0]->bss_index = 0;
+		pmadapter->priv[0]->bss_num =
+			(t_u8)pmdevice->bss_attr[0].bss_num;
+	}
 
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {

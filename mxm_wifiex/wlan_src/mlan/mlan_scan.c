@@ -6,7 +6,7 @@
  *  for sending scan commands to the firmware.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -150,9 +150,9 @@ static t_u8 rsn_oui[CIPHER_SUITE_MAX][4] = {
  *  @return          Band type conversion of scanBand used in join/assoc cmds
  *
  */
-t_u8 radio_type_to_band(t_u8 radio_type)
+t_u16 radio_type_to_band(t_u8 radio_type)
 {
-	t_u8 ret_band;
+	t_u16 ret_band;
 
 	switch (radio_type) {
 	case BAND_5GHZ:
@@ -375,7 +375,7 @@ static t_u8 is_wpa_oui_present(mlan_adapter *pmadapter,
  */
 static t_u8 wlan_is_band_compatible(t_u8 cfg_band, t_u8 scan_band)
 {
-	t_u8 band;
+	t_u16 band;
 	switch (scan_band) {
 	case BAND_A:
 		band = BAND_A | BAND_AN | BAND_AAC;
@@ -466,7 +466,7 @@ static t_u8 wlan_scan_create_channel_list(
 	t_u32 next_chan;
 	t_u8 scan_type;
 	t_u8 radio_type;
-	t_u8 band;
+	t_u16 band;
 	t_u16 scan_dur = 0;
 
 	ENTER();
@@ -573,6 +573,7 @@ static t_u8 wlan_scan_create_channel_list(
 					.chan_scan_mode.passive_to_active_scan =
 					MTRUE;
 			}
+
 			pscan_chan_list[chan_idx].max_scan_time =
 				wlan_cpu_to_le16(scan_dur);
 
@@ -680,6 +681,14 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 	t_u32 done_early;
 	t_u32 cmd_no;
 	t_u32 first_chan = 1;
+	t_u8 *ptlv_pos;
+	MrvlIETypes_HTCap_t *pht_cap;
+
+	MrvlIETypes_VHTCap_t *pvht_cap;
+	MrvlIEtypes_Extension_t *phe_cap;
+	t_u16 len = 0;
+	t_u8 radio_type = 0;
+
 	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
 
 	ENTER();
@@ -753,7 +762,7 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 					MTRUE;
 				first_chan = 0;
 			}
-
+			radio_type = ptmp_chan_list->bandcfg.chanBand;
 			PRINTM(MCMD_D,
 			       "Scan: Chan(%3d), bandcfg(%x), Mode(%d,%d), Dur(%d)\n",
 			       ptmp_chan_list->chan_number,
@@ -966,9 +975,10 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 
 		/* The total scan time should be less than scan command timeout
 		 * value */
-		if (total_scan_time > MRVDRV_MAX_TOTAL_SCAN_TIME) {
+		if (!total_scan_time ||
+		    total_scan_time > MRVDRV_MAX_TOTAL_SCAN_TIME) {
 			PRINTM(MMSG,
-			       "Total scan time %d ms is over limit (%d ms), scan skipped\n",
+			       "Total scan time %d ms is invalid, limit (%d ms), scan skipped\n",
 			       total_scan_time, MRVDRV_MAX_TOTAL_SCAN_TIME);
 			if (pioctl_req)
 				pioctl_req->status_code =
@@ -976,9 +986,58 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 			ret = MLAN_STATUS_FAILURE;
 			break;
 		}
+		ptlv_pos = (t_u8 *)pchan_tlv_out + pchan_tlv_out->header.len +
+			   sizeof(MrvlIEtypesHeader_t);
 
 		pchan_tlv_out->header.len =
 			wlan_cpu_to_le16(pchan_tlv_out->header.len);
+
+		if (ISSUPP_11NENABLED(pmpriv->adapter->fw_cap_info) &&
+		    (pmpriv->config_bands & BAND_GN ||
+		     pmpriv->config_bands & BAND_AN)) {
+			pht_cap = (MrvlIETypes_HTCap_t *)ptlv_pos;
+			memset(pmadapter, pht_cap, 0,
+			       sizeof(MrvlIETypes_HTCap_t));
+			pht_cap->header.type = wlan_cpu_to_le16(HT_CAPABILITY);
+			pht_cap->header.len = sizeof(HTCap_t);
+			wlan_fill_ht_cap_tlv(pmpriv, pht_cap,
+					     pmpriv->config_bands, MTRUE);
+			HEXDUMP("SCAN: HT_CAPABILITIES IE", (t_u8 *)pht_cap,
+				sizeof(MrvlIETypes_HTCap_t));
+			ptlv_pos += sizeof(MrvlIETypes_HTCap_t);
+			pht_cap->header.len =
+				wlan_cpu_to_le16(pht_cap->header.len);
+		}
+
+		if (ISSUPP_11ACENABLED(pmpriv->adapter->fw_cap_info) &&
+		    (pmpriv->config_bands & BAND_AAC)) {
+			pvht_cap = (MrvlIETypes_VHTCap_t *)ptlv_pos;
+			memset(pmadapter, pvht_cap, 0,
+			       sizeof(MrvlIETypes_VHTCap_t));
+			pvht_cap->header.type =
+				wlan_cpu_to_le16(VHT_CAPABILITY);
+			pvht_cap->header.len = sizeof(VHT_capa_t);
+			wlan_fill_vht_cap_tlv(pmpriv, pvht_cap,
+					      pmpriv->config_bands, MFALSE,
+					      MFALSE);
+			HEXDUMP("SCAN: VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
+				sizeof(MrvlIETypes_VHTCap_t));
+			ptlv_pos += sizeof(MrvlIETypes_VHTCap_t);
+			pvht_cap->header.len =
+				wlan_cpu_to_le16(pvht_cap->header.len);
+		}
+
+		if (IS_FW_SUPPORT_11AX(pmadapter)) {
+			phe_cap = (MrvlIEtypes_Extension_t *)ptlv_pos;
+			len = wlan_fill_he_cap_tlv(pmpriv, pmpriv->config_bands,
+						   phe_cap, MFALSE);
+			HEXDUMP("SCAN: HE_CAPABILITIES IE", (t_u8 *)phe_cap,
+				len);
+			ptlv_pos += len;
+		}
+
+		pscan_cfg_out->tlv_buf_len =
+			(t_u32)((t_u8 *)ptlv_pos - pscan_cfg_out->tlv_buf);
 
 		pmadapter->pscan_channels = pstart_chan;
 
@@ -1076,13 +1135,8 @@ static mlan_status wlan_scan_setup_scan_config(
 	t_u8 ssid_filter;
 	WLAN_802_11_RATES rates;
 	t_u32 rates_size;
-	MrvlIETypes_HTCap_t *pht_cap;
-
-	MrvlIETypes_VHTCap_t *pvht_cap;
 	MrvlIEtypes_ScanChanGap_t *pscan_gap_tlv;
 	MrvlIEtypes_BssMode_t *pbss_mode;
-	MrvlIEtypes_Extension_t *phe_cap;
-	t_u16 len = 0;
 	t_u8 num_of_channel = 0;
 
 	ENTER();
@@ -1337,43 +1391,6 @@ static mlan_status wlan_scan_setup_scan_config(
 
 	PRINTM(MINFO, "SCAN_CMD: Rates size = %d\n", rates_size);
 
-	if (ISSUPP_11NENABLED(pmpriv->adapter->fw_cap_info) &&
-	    (pmpriv->config_bands & BAND_GN ||
-	     pmpriv->config_bands & BAND_AN)) {
-		pht_cap = (MrvlIETypes_HTCap_t *)ptlv_pos;
-		memset(pmadapter, pht_cap, 0, sizeof(MrvlIETypes_HTCap_t));
-		pht_cap->header.type = wlan_cpu_to_le16(HT_CAPABILITY);
-		pht_cap->header.len = sizeof(HTCap_t);
-		wlan_fill_ht_cap_tlv(pmpriv, pht_cap, pmpriv->config_bands,
-				     MTRUE);
-		HEXDUMP("SCAN: HT_CAPABILITIES IE", (t_u8 *)pht_cap,
-			sizeof(MrvlIETypes_HTCap_t));
-		ptlv_pos += sizeof(MrvlIETypes_HTCap_t);
-		pht_cap->header.len = wlan_cpu_to_le16(pht_cap->header.len);
-	}
-
-	if (ISSUPP_11ACENABLED(pmpriv->adapter->fw_cap_info) &&
-	    (pmpriv->config_bands & BAND_AAC)) {
-		pvht_cap = (MrvlIETypes_VHTCap_t *)ptlv_pos;
-		memset(pmadapter, pvht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
-		pvht_cap->header.type = wlan_cpu_to_le16(VHT_CAPABILITY);
-		pvht_cap->header.len = sizeof(VHT_capa_t);
-		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pmpriv->config_bands,
-				      MFALSE, MFALSE);
-		HEXDUMP("SCAN: VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
-			sizeof(MrvlIETypes_VHTCap_t));
-		ptlv_pos += sizeof(MrvlIETypes_VHTCap_t);
-		pvht_cap->header.len = wlan_cpu_to_le16(pvht_cap->header.len);
-	}
-
-	if (IS_FW_SUPPORT_11AX(pmadapter) &&
-	    (pmpriv->config_bands & BAND_AAX)) {
-		phe_cap = (MrvlIEtypes_Extension_t *)ptlv_pos;
-		len = wlan_fill_he_cap_tlv(pmpriv, BAND_A, phe_cap, MFALSE);
-		HEXDUMP("SCAN: HE_CAPABILITIES IE", (t_u8 *)phe_cap, len);
-		ptlv_pos += len;
-	}
-
 	if (wlan_is_ext_capa_support(pmpriv))
 		wlan_add_ext_capa_info_ie(pmpriv, MNULL, &ptlv_pos);
 	if (pmpriv->adapter->ecsa_enable) {
@@ -1480,7 +1497,9 @@ static mlan_status wlan_scan_setup_scan_config(
 				}
 			}
 
-			if (wlan_is_chan_passive(pmpriv, radio_type, channel)) {
+			if (wlan_is_chan_passive(pmpriv,
+						 radio_type_to_band(radio_type),
+						 channel)) {
 				/* do not send probe requests on this channel */
 				scan_type = MLAN_SCAN_TYPE_PASSIVE;
 			}
@@ -1576,8 +1595,6 @@ static mlan_status wlan_scan_setup_scan_config(
 						      *pfiltered_scan);
 		PRINTM(MCMND, "Scan: Creating full region channel list %d\n",
 		       num_of_channel);
-		if (num_of_channel > MRVDRV_MAX_CHANNELS_PER_SCAN)
-			pmadapter->ext_scan_type = EXT_SCAN_DEFAULT;
 	}
 
 	LEAVE();
@@ -4193,28 +4210,18 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 
 	/* Get scan command from scan_pending_q and put to cmd_pending_q */
 	if (ret == MLAN_STATUS_SUCCESS) {
-		if (pmadapter->ext_scan && pmadapter->ext_scan_enh &&
-		    pmadapter->ext_scan_type == EXT_SCAN_ENHANCE) {
-			wlan_request_cmd_lock(pmadapter);
+		wlan_request_cmd_lock(pmadapter);
+		if (util_peek_list(pmadapter->pmoal_handle,
+				   &pmadapter->scan_pending_q, MNULL, MNULL)) {
+			pcmd_node = (cmd_ctrl_node *)util_dequeue_list(
+				pmadapter->pmoal_handle,
+				&pmadapter->scan_pending_q, MNULL, MNULL);
 			pmadapter->pscan_ioctl_req = pioctl_req;
 			pmadapter->scan_processing = MTRUE;
-			wlan_release_cmd_lock(pmadapter);
-		} else {
-			wlan_request_cmd_lock(pmadapter);
-			if (util_peek_list(pmadapter->pmoal_handle,
-					   &pmadapter->scan_pending_q, MNULL,
-					   MNULL)) {
-				pcmd_node = (cmd_ctrl_node *)util_dequeue_list(
-					pmadapter->pmoal_handle,
-					&pmadapter->scan_pending_q, MNULL,
-					MNULL);
-				pmadapter->pscan_ioctl_req = pioctl_req;
-				pmadapter->scan_processing = MTRUE;
-				wlan_insert_cmd_to_pending_q(pmadapter,
-							     pcmd_node, MTRUE);
-			}
-			wlan_release_cmd_lock(pmadapter);
+			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
+						     MTRUE);
 		}
+		wlan_release_cmd_lock(pmadapter);
 	}
 	if (pscan_cfg_out)
 		pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *)pscan_cfg_out);
@@ -4476,7 +4483,7 @@ mlan_status wlan_ret_802_11_scan(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	chan_freq_power_t *cfp;
 	MrvlIEtypes_ChanBandListParamSet_t *pchan_band_tlv = MNULL;
 	ChanBandParamSet_t *pchan_band;
-	t_u8 band;
+	t_u16 band;
 	t_u8 is_bgscan_resp;
 	t_u32 age_ts_usec;
 	t_u8 null_ssid[MLAN_MAX_SSID_LENGTH] = {0};
@@ -4598,7 +4605,7 @@ mlan_status wlan_ret_802_11_scan(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 			bss_new_entry->bss_band = band;
 			bss_new_entry->age_in_secs = pmadapter->age_in_secs;
 			cfp = wlan_find_cfp_by_band_and_channel(
-				pmadapter, (t_u8)bss_new_entry->bss_band,
+				pmadapter, bss_new_entry->bss_band,
 				(t_u16)bss_new_entry->channel);
 			if (cfp)
 				bss_new_entry->freq = cfp->freq;
@@ -5509,7 +5516,7 @@ static mlan_status wlan_parse_ext_scan_result(mlan_private *pmpriv,
 	MrvlIEtypes_Data_t *ptlv = MNULL;
 	MrvlIEtypes_Bss_Scan_Rsp_t *pscan_rsp_tlv = MNULL;
 	MrvlIEtypes_Bss_Scan_Info_t *pscan_info_tlv = MNULL;
-	t_u8 band;
+	t_u16 band;
 	t_u32 age_ts_usec;
 
 	ENTER();
@@ -5666,7 +5673,7 @@ static mlan_status wlan_parse_ext_scan_result(mlan_private *pmpriv,
 			bss_new_entry->age_in_secs = pmadapter->age_in_secs;
 
 			cfp = wlan_find_cfp_by_band_and_channel(
-				pmadapter, (t_u8)bss_new_entry->bss_band,
+				pmadapter, bss_new_entry->bss_band,
 				(t_u16)bss_new_entry->channel);
 			if (cfp)
 				bss_new_entry->freq = cfp->freq;
@@ -5849,6 +5856,7 @@ mlan_status wlan_handle_event_ext_scan_status(mlan_private *pmpriv,
 	MrvlIEtypesHeader_t *tlv;
 	MrvlIEtypes_ChannelStats_t *tlv_chan_stats;
 	t_u8 status;
+	cmd_ctrl_node *pcmd_node = MNULL;
 
 	ENTER();
 
@@ -5892,6 +5900,46 @@ mlan_status wlan_handle_event_ext_scan_status(mlan_private *pmpriv,
 	}
 
 done:
+	wlan_request_cmd_lock(pmadapter);
+	if (util_peek_list(pmadapter->pmoal_handle, &pmadapter->scan_pending_q,
+			   MNULL, MNULL)) {
+		/* If firmware not ready, do not issue any more scan
+		 * commands */
+		if (pmadapter->hw_status != WlanHardwareStatusReady) {
+			wlan_release_cmd_lock(pmadapter);
+			/* Flush all pending scan commands */
+			wlan_flush_scan_queue(pmadapter);
+			wlan_request_cmd_lock(pmadapter);
+			pmadapter->scan_processing = MFALSE;
+			pioctl_req = pmadapter->pscan_ioctl_req;
+			pmadapter->pscan_ioctl_req = MNULL;
+			/* Indicate IOCTL complete */
+			if (pioctl_req != MNULL) {
+				pioctl_req->status_code =
+					MLAN_ERROR_FW_NOT_READY;
+
+				/* Indicate ioctl complete */
+				pcb->moal_ioctl_complete(
+					pmadapter->pmoal_handle,
+					(pmlan_ioctl_req)pioctl_req,
+					MLAN_STATUS_FAILURE);
+			}
+			wlan_release_cmd_lock(pmadapter);
+		} else {
+			/* Get scan command from scan_pending_q and put
+			 * to cmd_pending_q */
+			pcmd_node = (cmd_ctrl_node *)util_dequeue_list(
+				pmadapter->pmoal_handle,
+				&pmadapter->scan_pending_q, MNULL, MNULL);
+			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
+						     MTRUE);
+			wlan_release_cmd_lock(pmadapter);
+		}
+		LEAVE();
+		return ret;
+	}
+	wlan_release_cmd_lock(pmadapter);
+
 	/* Now we got response from FW, cancel the command timer */
 	if (!pmadapter->curr_cmd && pmadapter->cmd_timer_is_set) {
 		/* Cancel command timeout timer */
@@ -5995,7 +6043,7 @@ wlan_bgscan_create_channel_list(mlan_private *pmpriv,
 	t_u32 next_chan;
 	t_u8 scan_type;
 	t_u8 radio_type;
-	t_u8 band;
+	t_u16 band;
 
 	ENTER();
 
@@ -6154,7 +6202,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 	t_u8 radio_type;
 	t_u16 scan_dur;
 	t_u8 scan_type;
-	t_u8 band;
+	t_u16 band;
 	const t_u8 zero_mac[6] = {0, 0, 0, 0, 0, 0};
 
 	ENTER();
@@ -6378,10 +6426,10 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		pvht_cap->header.len = wlan_cpu_to_le16(pvht_cap->header.len);
 	}
 
-	if (IS_FW_SUPPORT_11AX(pmadapter) &&
-	    (pmpriv->config_bands & BAND_AAX)) {
+	if (IS_FW_SUPPORT_11AX(pmadapter)) {
 		phe_cap = (MrvlIEtypes_Extension_t *)tlv;
-		len = wlan_fill_he_cap_tlv(pmpriv, BAND_A, phe_cap, MFALSE);
+		len = wlan_fill_he_cap_tlv(pmpriv, pmpriv->config_bands,
+					   phe_cap, MFALSE);
 		DBG_HEXDUMP(MCMD_D, "BGSCAN: HE_CAPABILITIES IE",
 			    (t_u8 *)phe_cap, len);
 		tlv += len;

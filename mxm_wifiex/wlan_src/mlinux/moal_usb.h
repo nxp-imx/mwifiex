@@ -89,6 +89,15 @@ Change Log:
 #define USB9097_PID_2 0x2061
 #endif /* USB9097 */
 
+#ifdef USBNW62X
+/** USB VID 1 */
+#define USBNW62X_VID_1 0x0471
+/** USB PID 1 */
+#define USBNW62X_PID_1 0x020E
+/** USB PID 2 */
+#define USBNW62X_PID_2 0x020F
+#endif /* USBNW62X */
+
 /** Boot state: FW download */
 #define USB_FW_DNLD 1
 /** Boot state: FW ready */
@@ -101,7 +110,7 @@ Change Log:
 #define MVUSB_RX_DATA_URB 6
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USB8801)
+	defined(USB8978) || defined(USB8801) || defined(USBNW62X)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -161,6 +170,13 @@ Change Log:
 #define USBUART9097_COMBO_V1_FW_NAME "nxp/usbuartiw620_combo_v1.bin"
 #define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
 #endif /* USB9097 */
+
+#ifdef USBNW62X
+#define USBNW62X_DEFAULT_COMBO_FW_NAME "nxp/usbusbnw62x_combo.bin"
+#define USBUARTNW62X_COMBO_FW_NAME "nxp/usbuartnw62x_combo.bin"
+#define USBUSBNW62X_COMBO_FW_NAME "nxp/usbusbnw62x_combo.bin"
+#define USBNW62X_DEFAULT_WLAN_FW_NAME "nxp/usbnw62x_wlan.bin"
+#endif /* USBNW62X */
 
 /** urb context */
 typedef struct _urb_context {

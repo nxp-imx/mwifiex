@@ -192,7 +192,7 @@ static t_u8 wlan_get_nss_num_vht_mcs(t_u16 mcs_map_set)
  *  @return             N/A
  */
 static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
-			       t_u8 bands)
+			       t_u16 bands)
 {
 	t_u32 usr_dot_11ac_dev_cap;
 	ENTER();
@@ -228,7 +228,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 	t_u32 hw_value = 0;
 	t_u8 nss = 0;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDNW62X) ||           \
+	defined(PCIENW62X) || defined(USBNW62X) || defined(SD9097)
 	t_u16 rx_nss = 0;
 	t_u16 tx_nss = 0;
 #endif
@@ -311,8 +312,10 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 		/** update the RX MCS map */
 		if (cfg->param.vht_cfg.txrx & MLAN_RADIO_RX) {
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 			if (IS_CARD9098(pmadapter->card_type) ||
+			    IS_CARDNW62X(pmadapter->card_type) ||
 			    IS_CARD9097(pmadapter->card_type)) {
 				if (cfg->param.vht_cfg.band == BAND_SELECT_A) {
 					rx_nss = GET_RXMCSSUPP(
@@ -343,7 +346,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 					pmadapter->hw_dot_11ac_mcs_support,
 					nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 				if ((rx_nss != 0) && (nss > rx_nss))
 					cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -370,7 +374,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 					pmadapter->hw_dot_11ac_mcs_support,
 					nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 				if ((tx_nss != 0) && (nss > tx_nss))
 					cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -795,7 +800,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 	t_u16 mcs_resp = 0;
 	t_u16 nss;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) | defined(USBNW62X)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	ENTER();
@@ -816,8 +822,10 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_map_resp =
 			wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (IS_CARD9098(priv->adapter->card_type) ||
+	    IS_CARDNW62X(priv->adapter->card_type) ||
 	    IS_CARD9097(priv->adapter->card_type)) {
 		if (bands & BAND_A) {
 			rx_nss = GET_RXMCSSUPP(priv->adapter->user_htstream >>
@@ -840,7 +848,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
 		mcs_resp = GET_VHTNSSMCS(mcs_map_resp, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			mcs_user = NO_NSS_SUPPORT;
 #endif
@@ -872,7 +881,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
 		mcs_resp = GET_VHTNSSMCS(mcs_map_resp, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			mcs_user = NO_NSS_SUPPORT;
 #endif
@@ -1088,7 +1098,8 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 {
 	t_u8 ret = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	t_u16 rx_nss = 0, tx_nss = 0;
 	IEEEtypes_VHTCap_t *pvht_cap = pbss_desc->pvht_cap;
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
@@ -1098,8 +1109,10 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 	ENTER();
 
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	if (!IS_CARD9098(pmpriv->adapter->card_type) &&
+	    !IS_CARDNW62X(pmpriv->adapter->card_type) &&
 	    !IS_CARD9097(pmpriv->adapter->card_type))
 		return ret;
 	/** check band A */
@@ -1151,7 +1164,8 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	int ret_len = 0;
 	t_u8 bw_80p80 = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDNW62X) ||           \
+	defined(PCIENW62X) || defined(USBNW62X) || defined(SD9097)
 	t_u16 rx_nss = 0;
 #endif
 
@@ -1222,8 +1236,10 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		/** set default bandwidth:80M*/
 		SET_OPER_MODE_80M(pmrvl_oper_mode->oper_mode);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if (IS_CARD9098(pmadapter->card_type) ||
+		    IS_CARDNW62X(pmadapter->card_type) ||
 		    IS_CARD9097(pmadapter->card_type)) {
 			if (pbss_desc->bss_band & BAND_A)
 				rx_nss = GET_RXMCSSUPP(
@@ -1238,8 +1254,10 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		nss = wlan_get_nss_num_vht_mcs(mcs_map_user);
 
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 		if (IS_CARD9098(pmadapter->card_type) ||
+		    IS_CARDNW62X(pmadapter->card_type) ||
 		    IS_CARD9097(pmadapter->card_type)) {
 			PRINTM(MCMND, "rx_nss=%d nss=%d\n", rx_nss, nss);
 			nss = MIN(rx_nss, nss);

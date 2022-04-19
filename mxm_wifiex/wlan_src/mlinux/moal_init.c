@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2018-2021 NXP
+ * Copyright 2018-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -64,6 +64,8 @@ static int beacon_hints;
 static int host_mlme;
 #endif
 #endif
+
+static int roamoffload_in_hs;
 
 /** Auto deep sleep */
 static int auto_ds;
@@ -134,6 +136,8 @@ static int pmqos = 1;
 #else
 static int pmqos = 0;
 #endif
+
+static int chan_track = 0;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -209,7 +213,9 @@ int dts_enable = 1;
 static int dfs_offload;
 #endif
 
+#ifdef ANDROID_KERNEL
 int wakelock_timeout = WAKE_LOCK_TIMEOUT;
+#endif
 
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #ifdef WIFI_DIRECT_SUPPORT
@@ -299,6 +305,9 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef SD9177
 	{CARD_TYPE_SD9177, 0, CARD_SD9177},
 #endif
+#ifdef SDNW62X
+	{CARD_TYPE_SDNW62X, 0, CARD_SDNW62X},
+#endif
 #ifdef PCIE8897
 	{CARD_TYPE_PCIE8897, 0, CARD_PCIE8897},
 #endif
@@ -310,6 +319,9 @@ static card_type_entry card_type_map_tbl[] = {
 #endif
 #ifdef PCIE9098
 	{CARD_TYPE_PCIE9098, 0, CARD_PCIE9098},
+#endif
+#ifdef PCIENW62X
+	{CARD_TYPE_PCIENW62X, 0, CARD_PCIENW62X},
 #endif
 #ifdef USB8801
 	{CARD_TYPE_USB8801, 0, CARD_USB8801},
@@ -330,6 +342,10 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef USB9097
 	{CARD_TYPE_USB9097, 0, CARD_USB9097},
 #endif
+#ifdef USBNW62X
+	{CARD_TYPE_USBNW62X, 0, CARD_USBNW62X},
+#endif
+
 };
 
 static int dfs53cfg = DFS_W53_DEFAULT_FW;
@@ -970,16 +986,20 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_LOW_PW_MODE) ?
 				       "on" :
 				       "off");
-		} else if (strncmp(line, "wakelock_timeout",
-				   strlen("wakelock_timeout")) == 0) {
+		}
+#ifdef ANDROID_KERNEL
+		else if (strncmp(line, "wakelock_timeout",
+				 strlen("wakelock_timeout")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
 			params->wakelock_timeout = out_data;
 			PRINTM(MMSG, "wakelock_timeout=%d\n",
 			       params->wakelock_timeout);
-		} else if (strncmp(line, "dev_cap_mask",
-				   strlen("dev_cap_mask")) == 0) {
+		}
+#endif
+		else if (strncmp(line, "dev_cap_mask",
+				 strlen("dev_cap_mask")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1002,11 +1022,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				       "off");
 		}
 #endif
-#if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
-	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
-	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
-	defined(SD9177)
 		else if (strncmp(line, "pmic", strlen("pmic")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
@@ -1018,9 +1033,7 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "pmic %s\n",
 			       moal_extflg_isset(handle, EXT_PMIC) ? "on" :
 								     "off");
-		}
-#endif
-		else if (strncmp(line, "antcfg", strlen("antcfg")) == 0) {
+		} else if (strncmp(line, "antcfg", strlen("antcfg")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1206,6 +1219,22 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				       "off");
 		}
 #endif
+		else if (strncmp(line, "roamoffload_in_hs",
+				 strlen("roamoffload_in_hs")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_ROAMOFFLOAD_IN_HS);
+			else
+				moal_extflg_clear(handle,
+						  EXT_ROAMOFFLOAD_IN_HS);
+			PRINTM(MMSG, "roamoffload_in_hs %s\n",
+			       moal_extflg_isset(handle,
+						 EXT_ROAMOFFLOAD_IN_HS) ?
+				       "on" :
+				       "off");
+		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		else if (strncmp(line, "disable_regd_by_driver",
 				 strlen("disable_regd_by_driver")) == 0) {
@@ -1303,6 +1332,17 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->dfs53cfg = out_data;
 			PRINTM(MMSG, "dfs53cfg= %d\n", params->dfs53cfg);
+		} else if (strncmp(line, "chan_track", strlen("chan_track")) ==
+			   0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_CHAN_TRACK);
+
+			PRINTM(MMSG, "chan_track= %s\n",
+			       moal_extflg_isset(handle, EXT_PMQOS) ? "on" :
+								      "off");
 		}
 	}
 	if (end)
@@ -1509,9 +1549,11 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (low_power_mode_enable)
 		moal_extflg_set(handle, EXT_LOW_PW_MODE);
 
+#ifdef ANDROID_KERNEL
 	handle->params.wakelock_timeout = wakelock_timeout;
 	if (params)
 		handle->params.wakelock_timeout = params->wakelock_timeout;
+#endif
 	handle->params.dev_cap_mask = dev_cap_mask;
 	if (params)
 		handle->params.dev_cap_mask = params->dev_cap_mask;
@@ -1519,14 +1561,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (sdio_rx_aggr)
 		moal_extflg_set(handle, EXT_SDIO_RX_AGGR);
 #endif
-#if defined(SD8997) || defined(PCIE8997) || defined(USB8997) ||                \
-	defined(SD8977) || defined(SD8987) || defined(SD9098) ||               \
-	defined(USB9098) || defined(PCIE9098) || defined(SD9097) ||            \
-	defined(USB9097) || defined(PCIE9097) || defined(SD8978) ||            \
-	defined(SD9177)
 	if (pmic)
 		moal_extflg_set(handle, EXT_PMIC);
-#endif
 	handle->params.antcfg = antcfg;
 	if (params)
 		handle->params.antcfg = params->antcfg;
@@ -1573,10 +1609,15 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (pmqos)
 		moal_extflg_set(handle, EXT_PMQOS);
 
+	if (chan_track)
+		moal_extflg_set(handle, EXT_CHAN_TRACK);
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
 		moal_extflg_set(handle, EXT_DFS_OFFLOAD);
 #endif
+	if (roamoffload_in_hs)
+		moal_extflg_set(handle, EXT_ROAMOFFLOAD_IN_HS);
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (host_mlme)
@@ -2035,8 +2076,15 @@ void woal_init_from_dev_tree(void)
 			}
 		}
 #endif
-		else if (!strncmp(prop->name, "gtk_rekey_offload",
-				  strlen("gtk_rekey_offload"))) {
+		else if (!strncmp(prop->name, "roamoffload_in_hs",
+				  strlen("roamoffload_in_hs"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				roamoffload_in_hs = data;
+				PRINTM(MIOCTL, "roamoffload_in_hs=%d\n",
+				       roamoffload_in_hs);
+			}
+		} else if (!strncmp(prop->name, "gtk_rekey_offload",
+				    strlen("gtk_rekey_offload"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				gtk_rekey_offload = data;
 				PRINTM(MIOCTL, "gtk_rekey_offload=%d\n",
@@ -2074,6 +2122,12 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "sched_scan=%d\n", data);
 				sched_scan = data;
+			}
+		} else if (!strncmp(prop->name, "chan_track",
+				    strlen("chan_track"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				chan_track = data;
+				PRINTM(MIOCTL, "chan_track=%d\n", chan_track);
 			}
 		}
 	}
@@ -2293,7 +2347,8 @@ MODULE_PARM_DESC(mfg_mode,
 		 "0: Download normal firmware; 1: Download MFG firmware");
 #endif /* MFG_CMD_SUPPORT */
 module_param(drv_mode, int, 0660);
-MODULE_PARM_DESC(drv_mode, "Bit 0: STA; Bit 1: uAP; Bit 2: WIFIDIRECT");
+MODULE_PARM_DESC(drv_mode,
+		 "Bit 0: STA; Bit 1: uAP; Bit 2: WIFIDIRECT; Bit 7: ZERO_DFS");
 
 #ifdef STA_SUPPORT
 module_param(max_sta_bss, int, 0);
@@ -2439,8 +2494,10 @@ MODULE_PARM_DESC(pcie_int_mode, "0: Legacy mode; 1: MSI mode; 2: MSI-X mode");
 module_param(low_power_mode_enable, int, 0);
 MODULE_PARM_DESC(low_power_mode_enable, "0/1: Disable/Enable Low Power Mode");
 
+#ifdef ANDROID_KERNEL
 module_param(wakelock_timeout, int, 0);
 MODULE_PARM_DESC(wakelock_timeout, "set wakelock_timeout value (ms)");
+#endif
 
 module_param(dev_cap_mask, uint, 0);
 MODULE_PARM_DESC(dev_cap_mask, "Device capability mask");
@@ -2522,6 +2579,11 @@ module_param(dfs_offload, int, 0);
 MODULE_PARM_DESC(dfs_offload, "1: enable dfs offload; 0: disable dfs offload.");
 #endif
 
+module_param(roamoffload_in_hs, int, 0);
+MODULE_PARM_DESC(
+	roamoffload_in_hs,
+	"1: enable fw roaming only when host suspend; 0: always enable fw roaming.");
+
 #ifdef UAP_SUPPORT
 module_param(uap_max_sta, int, 0);
 MODULE_PARM_DESC(uap_max_sta, "Maximum station number for UAP/GO.");
@@ -2558,3 +2620,8 @@ MODULE_PARM_DESC(beacon_hints,
 
 module_param(dfs53cfg, int, 0);
 MODULE_PARM_DESC(dfs53cfg, "0: fw default; 1: new w53 dfs; 2: old w53 dfs");
+
+module_param(chan_track, int, 0);
+MODULE_PARM_DESC(
+	chan_track,
+	"1: Set channel tracking; 0: Restore channel tracking for 9098 only");

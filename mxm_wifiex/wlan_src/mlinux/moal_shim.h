@@ -4,7 +4,7 @@
  * functions defined in moal module
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -122,6 +122,7 @@ void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
 void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
 			      t_s32 amsdu_copy_delay);
 
+void moal_connection_status_check_pmqos(t_void *pmoal);
 #if defined(PCIE) || defined(SDIO)
 /* pmqos busfreq add request handler*/
 void woal_request_busfreq_pmqos_add(t_void *pmhandle);

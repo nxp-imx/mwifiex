@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -460,6 +460,9 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
 		pget_info->param.fw_info.max_ap_assoc_sta =
 			pmadapter->max_sta_conn;
+		pget_info->param.fw_info.fw_roaming_support =
+			(pmadapter->fw_cap_info & FW_ROAMING_SUPPORT) ? 0x01 :
+									0x00;
 		pget_info->param.fw_info.fw_beacon_prot =
 			IS_FW_SUPPORT_BEACON_PROT(pmadapter) ? 0x01 : 0x00;
 		break;
@@ -541,6 +544,13 @@ static mlan_status wlan_snmp_mib_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_SNMP_MIB_SIGNALEXT_ENABLE:
 		value = mib->param.signalext_enable;
 		cmd_oid = SignalextEnable_i;
+		break;
+	case MLAN_OID_SNMP_MIB_CHAN_TRACK:
+		if (!IS_FW_SUPPORT_CHAN_TRACK(pmadapter)) {
+			goto exit;
+		}
+		value = mib->param.chan_track;
+		cmd_oid = ChanTrackParam_i;
 		break;
 	}
 
@@ -764,7 +774,7 @@ static mlan_status wlan_bss_ioctl_get_channel_list(pmlan_adapter pmadapter,
 	     (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS &&
 	      pmpriv->adhoc_state != ADHOC_STARTED))) {
 		t_u8 chan_no;
-		t_u8 band;
+		t_u16 band;
 
 		parsed_region_chan_11d_t *parsed_region_chan = MNULL;
 		parsed_region_chan_11d_t region_chan;
@@ -781,7 +791,7 @@ static mlan_status wlan_bss_ioctl_get_channel_list(pmlan_adapter pmadapter,
 
 		if (wlan_11d_parse_domain_info(
 			    pmadapter, &pbss_desc->country_info,
-			    (t_u8)pbss_desc->bss_band,
+			    pbss_desc->bss_band,
 			    &region_chan) == MLAN_STATUS_SUCCESS) {
 			parsed_region_chan = &region_chan;
 		} else {
@@ -1004,6 +1014,12 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 
 	ENTER();
 
+	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
+		PRINTM(MINFO,
+		       "Association is blocked in Channel Specified Network Monitor mode...\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	/* Before ASSOC REQ, If "port ctrl" mode is enabled,
 	 * move the port to CLOSED state */
 	if (pmpriv->port_ctrl_mode == MTRUE) {
@@ -1480,8 +1496,7 @@ wlan_bss_ioctl_bss_11d_check_channel(pmlan_adapter pmadapter,
 	       (t_u32)ssid_bssid->channel);
 
 	/* check if this channel is supported in the region */
-	if (!wlan_find_cfp_by_band_and_channel(pmadapter,
-					       (t_u8)ssid_bssid->bss_band,
+	if (!wlan_find_cfp_by_band_and_channel(pmadapter, ssid_bssid->bss_band,
 					       (t_u32)ssid_bssid->channel)) {
 		PRINTM(MERROR, "Unsupported Channel for region 0x%x\n",
 		       pmadapter->region_code);
@@ -4888,34 +4903,6 @@ static mlan_status wlan_misc_ioctl_ips_cfg(pmlan_adapter pmadapter,
 	return ret;
 }
 
-static mlan_status wlan_misc_ioctl_get_sensor_temp(pmlan_adapter pmadapter,
-						   pmlan_ioctl_req pioctl_req)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	t_u16 cmd_action = 0;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-
-	ENTER();
-
-	if (pioctl_req->action == MLAN_ACT_GET)
-		cmd_action = HostCmd_ACT_GEN_GET;
-	else {
-		PRINTM(MERROR, " sensor temp only support get operation \n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Send request to firmware */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_DS_GET_SENSOR_TEMP, cmd_action,
-			       0, (t_void *)pioctl_req, MNULL);
-
-	if (ret == MLAN_STATUS_SUCCESS)
-		ret = MLAN_STATUS_PENDING;
-
-	LEAVE();
-	return ret;
-}
-
 /**
  *  @brief IPv6 Router Advertisement offload configuration
  *
@@ -4988,6 +4975,106 @@ static mlan_status wlan_misc_ioctl_gtk_rekey_offload(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG,
 			       cmd_action, 0, (t_void *)pioctl_req,
 			       &misc_cfg->param.gtk_rekey);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief enable/disable roam offload in firmware
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status wlan_misc_roam_offload(pmlan_adapter pmadapter,
+					  mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	if (!(pmadapter->fw_cap_info & FW_ROAMING_SUPPORT)) {
+		PRINTM(MERROR, "Firmware roaming not support\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if (!IS_FW_SUPPORT_SUPPLICANT(pmadapter)) {
+		PRINTM(MERROR, "Embedded supplicant do not enable\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	if ((misc->param.roam_offload.config_mode == ROAM_OFFLOAD_ENABLE) &&
+	    misc->param.roam_offload.userset_passphrase) {
+		pmpriv->adapter->userset_passphrase =
+			misc->param.roam_offload.userset_passphrase;
+		if (!misc->param.roam_offload.enable) {
+			LEAVE();
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else {
+		PRINTM(MERROR, "Unsupported cmd_action\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_ROAM_OFFLOAD, cmd_action, 0,
+			       (t_void *)pioctl_req, &misc->param.roam_offload);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief set roam offload aplist to firmware
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status wlan_misc_roam_offload_aplist(pmlan_adapter pmadapter,
+						 mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else {
+		PRINTM(MERROR, "Unsupported cmd_action\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_ROAM_OFFLOAD, cmd_action, 0,
+			       (t_void *)pioctl_req, &misc->param.roam_offload);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -5132,6 +5219,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_tdls_idle_time(pmadapter, pioctl_req);
 		break;
 
+	case MLAN_OID_MISC_NET_MONITOR:
+		status = wlan_misc_ioctl_net_monitor(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_MAC_CONTROL:
 		status = wlan_misc_ioctl_mac_control(pmadapter, pioctl_req);
 		break;
@@ -5231,8 +5321,20 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_IND_RST_CFG:
 		status = wlan_misc_ioctl_ind_rst_cfg(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_MC_AGGR_CFG:
+		status = wlan_misc_ioctl_mc_aggr_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_CH_LOAD:
+		status = wlan_misc_ioctl_ch_load(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_GET_TSF:
 		status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_ROAM_OFFLOAD:
+		status = wlan_misc_roam_offload(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_ROAM_OFFLOAD_APLIST:
+		status = wlan_misc_roam_offload_aplist(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_GET_CHAN_REGION_CFG:
 		status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
@@ -5272,6 +5374,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 			status = wlan_misc_ssu(pmadapter, pioctl_req);
 		break;
 #endif
+	case MLAN_OID_MISC_CSI:
+		status = wlan_misc_csi(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_HAL_PHY_CFG:
 		status = wlan_misc_hal_phy_cfg(pmadapter, pioctl_req);
 		break;
@@ -5427,6 +5532,13 @@ static mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter,
 		PRINTM(MINFO, "Scan already in process...\n");
 		LEAVE();
 		return status;
+	}
+
+	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
+		PRINTM(MINFO,
+		       "Scan is blocked in Channel Specified Network Monitor mode...\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
 	}
 
 	if (pmadapter->scan_block && pioctl_req->action == MLAN_ACT_SET) {
