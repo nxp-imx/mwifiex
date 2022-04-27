@@ -5101,7 +5101,7 @@ int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 			if (sband->channels[i].hw_value == channel) {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
 				ch_dfs_state->dfs_state =
-					sband->channels[i].dfs_state;
+					(dfs_state_t)sband->channels[i].dfs_state;
 				ch_dfs_state->dfs_required = MTRUE;
 				ret = 0;
 #endif
