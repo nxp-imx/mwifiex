@@ -200,8 +200,13 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 	if (!card)
 		return MLAN_STATUS_FAILURE;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	*ppbuf = (t_u8 *)dma_alloc_coherent(&card->dev->dev, size,
+					      (dma_addr_t *)&dma, GFP_KERNEL);
+#else
 	*ppbuf = (t_u8 *)pci_alloc_consistent(card->dev, size,
 					      (dma_addr_t *)&dma);
+#endif
 	if (*ppbuf == NULL) {
 		PRINTM(MERROR,
 		       "%s: allocate consistent memory (%d bytes) failed!\n",
@@ -233,7 +238,11 @@ mlan_status moal_mfree_consistent(t_void *pmoal, t_u32 size, t_u8 *pbuf,
 	if (!pbuf || !card)
 		return MLAN_STATUS_FAILURE;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	dma_free_coherent(&card->dev->dev, size, pbuf, buf_pa);
+#else
 	pci_free_consistent(card->dev, size, pbuf, buf_pa);
+#endif
 	atomic_dec(&handle->malloc_cons_count);
 	return MLAN_STATUS_SUCCESS;
 }
@@ -261,13 +270,17 @@ mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
 		return MLAN_STATUS_FAILURE;
 
 	/* Init memory to device */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	dma = dma_map_single(&card->dev->dev, pbuf, size, flag);
+	if (dma_mapping_error(&card->dev->dev, dma)) {
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 	dma = pci_map_single(card->dev, pbuf, size, flag);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 	if (pci_dma_mapping_error(card->dev, dma)) {
 #else
+	dma = pci_map_single(card->dev, pbuf, size, flag);
 	if (pci_dma_mapping_error(dma)) {
 #endif
-		PRINTM(MERROR, "Tx ring: failed to pci_map_single\n");
+		PRINTM(MERROR, "Tx ring: failed to dma_map_single\n");
 		return MLAN_STATUS_FAILURE;
 	}
 
@@ -295,7 +308,11 @@ mlan_status moal_unmap_memory(t_void *pmoal, t_u8 *pbuf, t_u64 buf_pa,
 	if (!card)
 		return MLAN_STATUS_FAILURE;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	dma_unmap_single(&card->dev->dev, buf_pa, size, flag);
+#else
 	pci_unmap_single(card->dev, buf_pa, size, flag);
+#endif
 
 	return MLAN_STATUS_SUCCESS;
 }
