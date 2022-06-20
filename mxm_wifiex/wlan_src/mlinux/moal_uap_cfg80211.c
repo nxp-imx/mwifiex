@@ -2314,15 +2314,15 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 			}
 		}
 		if (vir_priv && vir_priv->bss_type == MLAN_BSS_TYPE_UAP) {
-			woal_cfg80211_del_beacon(wiphy, dev);
+			woal_cfg80211_del_beacon(wiphy, dev, 0);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
-			vir_priv->wdev->beacon_interval = 0;
+			vir_priv->wdev->links[0].ap.beacon_interval = 0;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
-			memset(&vir_priv->wdev->chandef, 0,
-			       sizeof(vir_priv->wdev->chandef));
+			memset(&vir_priv->wdev->links[0].ap.chandef, 0,
+			       sizeof(vir_priv->wdev->links[0].ap.chandef));
 #endif
 #endif
-			vir_priv->wdev->ssid_len = 0;
+			vir_priv->wdev->u.ap.ssid_len = 0;
 			PRINTM(MMSG, "Skip del UAP virtual interface %s",
 			       dev->name);
 		}
@@ -2597,7 +2597,7 @@ done:
  *
  * @return                0 -- success, otherwise fail
  */
-int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
+int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id)
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
@@ -3297,7 +3297,7 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	priv->channel = uap_channel.channel;
 	moal_memcpy_ext(priv->phandle, &priv->chan, &priv->csa_chan,
 			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
-	cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
+	cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 	if (priv->uap_tx_blocked) {
 		if (!netif_carrier_ok(priv->netdev))
 			netif_carrier_on(priv->netdev);

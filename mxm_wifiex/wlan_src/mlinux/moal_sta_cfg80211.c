@@ -111,6 +111,7 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
+				     unsigned int link_id,
 				     struct cfg80211_chan_def *chandef);
 #endif
 static int woal_cfg80211_set_power_mgmt(struct wiphy *wiphy,
@@ -5381,7 +5382,7 @@ static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MMSG, " Already disconnected\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-		if (priv->wdev->current_bss &&
+		if (priv->wdev->connected &&
 		    (priv->wdev->iftype == NL80211_IFTYPE_STATION ||
 		     priv->wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)) {
 			priv->cfg_disconnect = MTRUE;
@@ -5701,6 +5702,7 @@ done:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
+				     unsigned int link_id,
 				     struct cfg80211_chan_def *chandef)
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(wdev->netdev);
@@ -8574,7 +8576,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
 					     assoc_rsp->assoc_resp_buf;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-			roam_info.bssid = priv->cfg_bssid;
+			roam_info.links[0].bssid = priv->cfg_bssid;
 			roam_info.req_ie = priv->sme_current.ie;
 			roam_info.req_ie_len = priv->sme_current.ie_len;
 			roam_info.resp_ie = passoc_rsp->ie_buffer;
@@ -9040,7 +9042,7 @@ void woal_start_roaming(moal_private *priv)
 		}
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-		roam_info.bssid = priv->cfg_bssid;
+		roam_info.links[0].bssid = priv->cfg_bssid;
 		roam_info.req_ie = ie;
 		roam_info.req_ie_len = ie_len;
 		roam_info.resp_ie = passoc_rsp->ie_buffer;
