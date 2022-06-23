@@ -7055,18 +7055,19 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	index = skb_get_queue_mapping(skb);
 #endif
 
+	if (is_zero_timeval(priv->phandle->tx_time_start)) {
+		priv->phandle->tx_time_start.time_sec =
+			pmbuf->in_ts_sec;
+		priv->phandle->tx_time_start.time_usec =
+			pmbuf->in_ts_usec;
+		PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
+		       priv->phandle->tx_time_start.time_sec,
+		       priv->phandle->tx_time_start.time_usec);
+	}
+
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
-		if (is_zero_timeval(priv->phandle->tx_time_start)) {
-			priv->phandle->tx_time_start.time_sec =
-				pmbuf->in_ts_sec;
-			priv->phandle->tx_time_start.time_usec =
-				pmbuf->in_ts_usec;
-			PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
-			       priv->phandle->tx_time_start.time_sec,
-			       priv->phandle->tx_time_start.time_usec);
-		}
 		atomic_inc(&priv->phandle->tx_pending);
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
