@@ -4279,6 +4279,7 @@ static int woal_find_wps_ie_in_probereq(const t_u8 *ie, int len)
 	return MFALSE;
 }
 
+#ifdef UAP_CFG80211
 /** scan result expired value */
 #define SCAN_RESULT_EXPIRTED 1
 /**
@@ -4311,60 +4312,7 @@ static t_u8 woal_is_uap_scan_result_expired(moal_private *priv)
 	LEAVE();
 	return MFALSE;
 }
-
-/**
- *  @brief check if the scan result expired
- *
- *  @param priv         A pointer to moal_private
- *
- *
- *  @return             MTRUE/MFALSE;
- */
-static t_u8 woal_is_scan_result_expired(moal_private *priv)
-{
-	mlan_scan_resp scan_resp;
-	wifi_timeval t;
-	ENTER();
-	// Don't block ACS scan
-	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
-		LEAVE();
-		return MTRUE;
-	}
-	// Don't block scan when non any interface active
-	if (!woal_is_any_interface_active(priv->phandle)) {
-		LEAVE();
-		return MTRUE;
-	}
-#if defined(WIFI_DIRECT_SUPPORT)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	// Do not skip p2p interface connect scan
-	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		LEAVE();
-		return MTRUE;
-	}
 #endif
-#endif
-	if (!priv->media_connected) {
-		LEAVE();
-		return MTRUE;
-	}
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_scan_table(priv, MOAL_IOCTL_WAIT, &scan_resp)) {
-		LEAVE();
-		return MTRUE;
-	}
-	if (!scan_resp.num_in_scan_table) {
-		LEAVE();
-		return MTRUE;
-	}
-	woal_get_monotonic_time(&t);
-	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_EXPIRTED)) {
-		LEAVE();
-		return MTRUE;
-	}
-	LEAVE();
-	return MFALSE;
-}
 
 /**
  *  @brief check if the scan result ageout
@@ -4469,14 +4417,14 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 #endif
 #endif
 #endif
-	if (priv->fake_scan_complete || !woal_is_scan_result_expired(priv)) {
+	if (priv->fake_scan_complete) {
 		PRINTM(MEVENT,
 		       "scan result not expired or fake scan complete flag is on\n");
 		priv->phandle->scan_request = request;
 		queue_delayed_work(priv->phandle->evt_workqueue,
 				   &priv->scan_deferred_work,
 				   msecs_to_jiffies(1000));
-		return MLAN_STATUS_SUCCESS;
+		return ret;
 	}
 	memset(&bss_info, 0, sizeof(bss_info));
 	if (MLAN_STATUS_SUCCESS ==
