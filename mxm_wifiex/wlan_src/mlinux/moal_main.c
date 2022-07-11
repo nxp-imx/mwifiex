@@ -6952,7 +6952,13 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 			LEAVE();
 			return ret;
 		}
-	} else if ((*((t_u8 *)tcph + 13) & 0x11) == 0x11) {
+	}
+#if 0
+/* Might have race conditions with woal_tcp_ack_timer_func
+ * Causing kernel panic, ageout handler will free tcp_sess
+ * for now.
+ */
+	else if ((*((t_u8 *)tcph + 13) & 0x11) == 0x11) {
 		/* TCP ACK + Fin */
 		spin_lock_irqsave(&priv->tcp_sess_lock, flags);
 		tcp_session = woal_get_tcp_sess(priv, (__force t_u32)iph->saddr,
@@ -6972,7 +6978,7 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 		}
 		spin_unlock_irqrestore(&priv->tcp_sess_lock, flags);
 	}
-
+#endif
 done:
 	LEAVE();
 	return ret;

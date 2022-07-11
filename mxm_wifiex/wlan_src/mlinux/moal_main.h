@@ -390,9 +390,10 @@ static inline void woal_timer_handler(unsigned long fcontext)
 	pmoal_drv_timer timer = (pmoal_drv_timer)fcontext;
 #endif
 
-	timer->timer_function(timer->function_context);
+	if (!timer->timer_is_canceled)
+		timer->timer_function(timer->function_context);
 
-	if (timer->timer_is_periodic == MTRUE) {
+	if (timer->timer_is_periodic == MTRUE && !timer->timer_is_canceled) {
 		mod_timer(&timer->tl,
 			  jiffies + ((timer->time_period * HZ) / 1000));
 	} else {
