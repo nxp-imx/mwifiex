@@ -1139,19 +1139,25 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 				index = skb_get_queue_mapping(skb);
-				atomic_dec(&handle->tx_pending);
-				if (atomic_dec_return(
-					    &priv->wmm_tx_pending[index]) ==
-				    LOW_TX_PENDING) {
-					struct netdev_queue *txq =
-						netdev_get_tx_queue(
-							priv->netdev, index);
-					if (netif_tx_queue_stopped(txq)) {
-						netif_tx_wake_queue(txq);
-						PRINTM(MINFO,
-						       "Wakeup Kernel Queue:%d\n",
-						       index);
+				if(index < 4)
+				{
+					atomic_dec(&handle->tx_pending);
+					if (atomic_dec_return(
+						&priv->wmm_tx_pending[index]) ==
+						LOW_TX_PENDING) {
+						struct netdev_queue *txq =
+							netdev_get_tx_queue(
+								priv->netdev, index);
+						if (netif_tx_queue_stopped(txq)) {
+							netif_tx_wake_queue(txq);
+							PRINTM(MINFO,
+							"Wakeup Kernel Queue:%d\n",
+							index);
+						}
 					}
+                                }
+				else {
+					PRINTM(MERROR,"Wakeup invalid Kernel Queue\n");
 				}
 #else /*#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29)*/
 				if (atomic_dec_return(&handle->tx_pending) <
