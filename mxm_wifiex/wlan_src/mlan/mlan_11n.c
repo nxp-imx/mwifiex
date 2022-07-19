@@ -1059,7 +1059,7 @@ static void wlan_update_all_stations_ampdu(mlan_private *priv)
 	}
 	while (sta_ptr != (sta_node *)&priv->sta_list) {
 		for (i = 0; i < MAX_NUM_TID; i++) {
-			if (sta_ptr->is_11n_enabled)
+			if (sta_ptr->is_11n_enabled || sta_ptr->is_11ax_enabled)
 				sta_ptr->ampdu_sta[i] =
 					priv->aggr_prio_tbl[i].ampdu_user;
 		}
@@ -1242,7 +1242,8 @@ static mlan_status wlan_11n_ioctl_supported_mcs_set(pmlan_adapter pmadapter,
 	if ((ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg) ||
 	     ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_a)) &&
 	    !(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(mcs_set);
 
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
@@ -1550,7 +1551,8 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 	 * supprot*/
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */
@@ -1626,7 +1628,8 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	 * supprot*/
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
+	    pmadapter->init_para.mcs32 == 1)
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */

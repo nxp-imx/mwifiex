@@ -42,6 +42,7 @@ Change log:
 #include "mlan_main.h"
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
+#include "mlan_11ax.h"
 #ifdef DRV_EMBEDDED_SUPPLICANT
 #include "authenticator_api.h"
 #endif
@@ -314,12 +315,14 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 			break;
 		case QOS_INFO:
 			sta_ptr->qos_info = pos[2];
+			sta_ptr->is_wmm_enabled = MTRUE;
 			PRINTM(MDAT_D, "TDLS qos info %x\n", sta_ptr->qos_info);
 			break;
 		case VENDOR_SPECIFIC_221:
 			pvendor_ie = (IEEEtypes_VendorHeader_t *)pos;
 			if (!memcmp(priv->adapter, pvendor_ie->oui, wmm_oui,
 				    sizeof(wmm_oui))) {
+				sta_ptr->is_wmm_enabled = MTRUE;
 				sta_ptr->qos_info = pos[8]; /** qos info in wmm
 							       parameters in
 							       response and
@@ -812,7 +815,8 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 							prx_pd->nf);
 				}
 			}
-			if (!sta_ptr || !sta_ptr->is_11n_enabled) {
+			if (!sta_ptr || (!sta_ptr->is_11n_enabled &&
+					 !sta_ptr->is_11ax_enabled)) {
 				wlan_process_rx_packet(pmadapter, pmbuf);
 				goto done;
 			}

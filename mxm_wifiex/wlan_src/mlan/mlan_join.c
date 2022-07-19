@@ -1037,7 +1037,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
 			wlan_band_to_radio_type(pbss_desc->bss_band);
-
 		PRINTM(MINFO, "Assoc: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
 		pos += sizeof(pchan_tlv->header) + sizeof(ChanScanParamSet_t);
@@ -1218,8 +1217,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc))
 		wlan_cmd_append_11ax_tlv(pmpriv, pbss_desc, &pos);
 
-	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie,
-					 pbss_desc->pht_cap);
+	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie);
 	if (pmpriv->sec_info.wapi_enabled && pmpriv->wapi_ie_len)
 		wlan_cmd_append_wapi_ie(pmpriv, &pos);
 
@@ -1489,7 +1487,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	pmpriv->curr_bss_params.bss_descriptor.channel =
 		pbss_desc->phy_param_set.ds_param_set.current_chan;
 
-	pmpriv->curr_bss_params.band = (t_u8)pbss_desc->bss_band;
+	pmpriv->curr_bss_params.band = pbss_desc->bss_band;
 
 	/* Store current channel for further reference.
 	 * This would save one extra call to get current
@@ -1498,7 +1496,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	pmpriv->adapter->dfsr_channel =
 		pmpriv->curr_bss_params.bss_descriptor.channel;
 
-	/*
+	/*`
 	 * Adjust the timestamps in the scan table to be relative to the newly
 	 * associated AP's TSF
 	 */
@@ -1509,10 +1507,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	else
 		pmpriv->curr_bss_params.wmm_enabled = MFALSE;
 
-	if ((pmpriv->wmm_required ||
-	     (pbss_desc->pht_cap &&
-	      (pbss_desc->pht_cap->ieee_hdr.element_id == HT_CAPABILITY))) &&
-	    pmpriv->curr_bss_params.wmm_enabled)
+	if (pmpriv->wmm_required && pmpriv->curr_bss_params.wmm_enabled)
 		pmpriv->wmm_enabled = MTRUE;
 	else
 		pmpriv->wmm_enabled = MFALSE;
@@ -1605,8 +1600,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_CONNECTED, pevent);
 
-	/* Send OBSS scan param to the application if available */
-	wlan_2040_coex_event(pmpriv);
 	wlan_coex_ampdu_rxwinsize(pmpriv->adapter);
 
 	if (!pmpriv->sec_info.wpa_enabled && !pmpriv->sec_info.wpa2_enabled &&
@@ -2006,6 +1999,7 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 	t_u32 i, rates_size = 0;
 	t_u32 curr_pkt_filter;
 	t_u8 *pos = (t_u8 *)padhoc_join + sizeof(HostCmd_DS_802_11_AD_HOC_JOIN);
+	t_s32 append_size_11h = 0;
 
 	ENTER();
 
@@ -2098,7 +2092,7 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 
 	/* Copy the channel information */
 	pmpriv->curr_bss_params.bss_descriptor.channel = pbss_desc->channel;
-	pmpriv->curr_bss_params.band = (t_u8)pbss_desc->bss_band;
+	pmpriv->curr_bss_params.band = pbss_desc->bss_band;
 
 	if (pmpriv->sec_info.wep_status == Wlan802_11WEPEnabled ||
 	    pmpriv->sec_info.wpa_enabled || pmpriv->sec_info.ewpa_enabled)
@@ -2144,10 +2138,17 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 	 *   adhoc/infra 11h behavior can be properly triggered.
 	 *   pos modified if data is appended
 	 */
-	cmd_append_size += wlan_11h_process_join(
-		pmpriv, &pos, &padhoc_join->bss_descriptor.cap,
-		(t_u8)pbss_desc->bss_band, pbss_desc->channel,
-		&pbss_desc->wlan_11h_bss_info);
+	append_size_11h +=
+		wlan_11h_process_join(pmpriv, &pos,
+				      &padhoc_join->bss_descriptor.cap,
+				      pbss_desc->bss_band, pbss_desc->channel,
+				      &pbss_desc->wlan_11h_bss_info);
+	if (append_size_11h >= 0)
+		cmd_append_size += append_size_11h;
+	else {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 
 	if (pmpriv->sec_info.wpa_enabled) {
 		prsn_ie_tlv = (MrvlIEtypes_RsnParamSet_t *)pos;

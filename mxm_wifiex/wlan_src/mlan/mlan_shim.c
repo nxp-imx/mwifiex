@@ -369,6 +369,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->card_type = pmdevice->card_type;
 	pmadapter->card_rev = pmdevice->card_rev;
 	pmadapter->init_para.uap_max_sta = pmdevice->uap_max_sta;
+	pmadapter->init_para.mcs32 = pmdevice->mcs32;
 
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
@@ -500,6 +501,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	}
 #endif
 	pmadapter->init_para.dfs53cfg = pmdevice->dfs53cfg;
+	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 

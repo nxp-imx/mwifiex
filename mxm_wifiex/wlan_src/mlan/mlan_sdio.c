@@ -2168,7 +2168,7 @@ static mlan_status wlan_sdio_check_fw_status(mlan_adapter *pmadapter,
 			ret = MLAN_STATUS_SUCCESS;
 			break;
 		} else {
-			wlan_mdelay(pmadapter, 100);
+			wlan_mdelay(pmadapter, 10);
 			ret = MLAN_STATUS_FAILURE;
 		}
 	}

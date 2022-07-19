@@ -77,8 +77,10 @@ Change log:
 #include <linux/of.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 #include <net/addrconf.h>
+#endif
 #endif
 
 /********************************************************
@@ -908,8 +910,10 @@ void woal_send_fw_dump_complete_event(moal_private *priv)
 		woal_send_iwevcustom_event(priv, CUS_EVT_FW_DUMP_DONE);
 #endif
 #ifdef STA_CFG80211
+#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 	if (IS_STA_CFG80211(cfg80211_wext))
 		woal_cfg80211_vendor_event_fw_dump(priv);
+#endif
 #endif
 	woal_broadcast_event(priv, CUS_EVT_FW_DUMP_DONE,
 			     strlen(CUS_EVT_FW_DUMP_DONE));
@@ -964,7 +968,7 @@ static void woal_hang_work_queue(struct work_struct *work)
 			// disconnect
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-			if (IS_STA_CFG80211(cfg80211_wext) &&
+			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
 			    priv->wdev->connected) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				if (priv->host_mlme)
@@ -1247,6 +1251,7 @@ done:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 /**
  *  @brief This function handle the net interface ipv6 address change event
@@ -1319,6 +1324,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 #endif
 
 /**
@@ -2068,11 +2074,15 @@ mlan_status woal_init_sw(moal_handle *handle)
 #ifdef UAP_SUPPORT
 	device.uap_max_sta = handle->params.uap_max_sta;
 #endif
+	device.mcs32 = handle->params.mcs32;
 	device.hs_wake_interval = handle->params.hs_wake_interval;
 	device.indication_gpio = handle->params.indication_gpio;
 	device.hs_mimo_switch = moal_extflg_isset(handle, EXT_HS_MIMO_SWITCH);
 
 	device.dfs53cfg = handle->params.dfs53cfg;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	device.dfs_offload = moal_extflg_isset(handle, EXT_DFS_OFFLOAD);
+#endif
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device.bss_attr[i].bss_type =
@@ -3346,6 +3356,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int i;
 	char str_buf[MLAN_MAX_VER_STR_LEN];
+
 	ENTER();
 
 #if defined(USB)
@@ -3452,6 +3463,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		woal_set_uap_operation_ctrl(handle);
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 	handle->woal_inet6_notifier.notifier_call = woal_inet6_netdeive_event;
 	if (register_inet6addr_notifier(&handle->woal_inet6_notifier)) {
@@ -3459,6 +3471,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		       "Error registering register_inet6addr_notifier\n");
 		goto err;
 	}
+#endif
 #endif
 
 #ifdef MFG_CMD_SUPPORT
@@ -3472,8 +3485,10 @@ err:
 	if (ret != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Failed to add interface\n");
 		unregister_inetaddr_notifier(&handle->woal_notifier);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 		unregister_inet6addr_notifier(&handle->woal_inet6_notifier);
+#endif
 #endif
 
 		for (i = 0; i < MIN(MLAN_MAX_BSS_NUM, handle->priv_num); i++)
@@ -4709,9 +4724,6 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 	moal_private *priv = NULL;
 	char name[256];
 	int i = 0;
-#ifdef STA_CFG80211
-	char sched_scan_str[256];
-#endif
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	char csa_str[256];
@@ -4924,15 +4936,6 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 				goto error;
 			}
 	}
-	strcpy(sched_scan_str, "SCHED_SCAN");
-	strcat(sched_scan_str, name);
-	priv->sched_scan_workqueue = alloc_workqueue(
-		sched_scan_str, WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
-	if (!priv->sched_scan_workqueue) {
-		PRINTM(MERROR, "cannot alloc sched_scan workqueue \n");
-		goto error;
-	}
-	INIT_DELAYED_WORK(&priv->sched_scan_work, woal_sched_scan_work_queue);
 
 #endif /* STA_SUPPORT */
 #endif /* STA_CFG80211 */
@@ -5050,12 +5053,6 @@ error:
 			destroy_workqueue(priv->mclist_workqueue);
 			priv->mclist_workqueue = NULL;
 		}
-#ifdef STA_CFG80211
-		if (priv->sched_scan_workqueue) {
-			destroy_workqueue(priv->sched_scan_workqueue);
-			priv->sched_scan_workqueue = NULL;
-		}
-#endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (priv->wdev &&
 		    IS_STA_OR_UAP_CFG80211(handle->params.cfg80211_wext))
@@ -5165,13 +5162,6 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 		destroy_workqueue(priv->mclist_workqueue);
 		priv->mclist_workqueue = NULL;
 	}
-
-#ifdef STA_CFG80211
-	if (priv->sched_scan_workqueue) {
-		destroy_workqueue(priv->sched_scan_workqueue);
-		priv->sched_scan_workqueue = NULL;
-	}
-#endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	/* Unregister wiphy device and free */
@@ -6105,6 +6095,7 @@ void woal_mlan_debug_info(moal_private *priv)
 	PRINTM(MERROR, "tx_lock_flag = %d\n", info->tx_lock_flag);
 	PRINTM(MERROR, "port_open = %d\n", info->port_open);
 	PRINTM(MERROR, "scan_processing = %d\n", info->scan_processing);
+	PRINTM(MERROR, "scan_state = 0x%x\n", info->scan_state);
 	for (i = 0; i < (int)info->ralist_num; i++) {
 		PRINTM(MERROR,
 		       "ralist ra: %02x:%02x:%02x:%02x:%02x:%02x tid=%d pkts=%d pause=%d\n",
@@ -6176,7 +6167,8 @@ void woal_tx_timeout(struct net_device *dev
 	       dev->name, priv->bss_index, priv->num_tx_timeout);
 	woal_set_trans_start(dev);
 
-	if (priv->num_tx_timeout == NUM_TX_TIMEOUT_THRESHOLD) {
+	if (priv->num_tx_timeout == NUM_TX_TIMEOUT_THRESHOLD &&
+	    priv->txwatchdog_disable == MFALSE) {
 		if (drvdbg & MFW_D)
 			auto_fw_dump = MTRUE;
 		woal_mlan_debug_info(priv);
@@ -6204,6 +6196,7 @@ struct net_device_stats *woal_get_stats(struct net_device *dev)
 	return &priv->stats;
 }
 
+#if !defined(STA_CFG80211) && !defined(UAP_CFG80211)
 /**
  *  @brief This function determine the 802.1p/1d tag to use
  *
@@ -6270,6 +6263,7 @@ unsigned int woal_classify8021d(struct sk_buff *skb)
 out:
 	return tid;
 }
+#endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 /**
@@ -6307,7 +6301,11 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb
 		return index;
 	}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	tid = skb->priority = cfg80211_classify8021d(skb, NULL);
+#else
+	tid = skb->priority = cfg80211_classify8021d(skb);
+#endif
 #else
 	tid = skb->priority = woal_classify8021d(skb);
 #endif
@@ -7062,10 +7060,8 @@ static int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 #endif
 
 	if (is_zero_timeval(priv->phandle->tx_time_start)) {
-		priv->phandle->tx_time_start.time_sec =
-			pmbuf->in_ts_sec;
-		priv->phandle->tx_time_start.time_usec =
-			pmbuf->in_ts_usec;
+		priv->phandle->tx_time_start.time_sec = pmbuf->in_ts_sec;
+		priv->phandle->tx_time_start.time_usec = pmbuf->in_ts_usec;
 		PRINTM(MINFO, "%s : start_timeval=%d:%d \n", __func__,
 		       priv->phandle->tx_time_start.time_sec,
 		       priv->phandle->tx_time_start.time_usec);
@@ -7521,7 +7517,10 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 	if (priv->bss_type != MLAN_BSS_TYPE_WIFIDIRECT)
 #endif
 	{
-		priv->current_addr[4] += priv->bss_index;
+		if (priv->bss_index) {
+			priv->current_addr[0] |= 0x02;
+			priv->current_addr[4] += priv->bss_index;
+		}
 		PRINTM(MCMND, "Set %s interface addr: " MACSTR "\n",
 		       priv->netdev->name, MAC2STR(priv->current_addr));
 	}
@@ -8722,7 +8721,7 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 
 	if (seqnum == 1) {
 		if (drvdbg & MFW_D)
-			drvdbg &= ~MFW_D;
+			phandle->fw_dump_status = MTRUE;
 		if (phandle->fw_dump == MFALSE) {
 			PRINTM(MMSG, "=====FW trigger dump====\n");
 			phandle->fw_dump = MTRUE;
@@ -9138,6 +9137,7 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 	ptr += sprintf(ptr, "tx_lock_flag = %d\n", info->tx_lock_flag);
 	ptr += sprintf(ptr, "port_open = %d\n", info->port_open);
 	ptr += sprintf(ptr, "scan_processing = %d\n", info->scan_processing);
+	ptr += sprintf(ptr, "scan_state = %d\n", info->scan_state);
 
 #ifdef PCIE
 	if (IS_PCIE(priv->phandle->card_type)) {
@@ -9533,8 +9533,8 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 	}
 #endif
 #ifdef DEBUG_LEVEL1
-	if (drvdbg & MFW_D) {
-		drvdbg &= ~MFW_D;
+	if ((drvdbg & MFW_D) && !phandle->fw_dump_status) {
+		phandle->fw_dump_status = MTRUE;
 		phandle->fw_dbg = MTRUE;
 		queue_work(phandle->workqueue, &phandle->main_work);
 	}
@@ -9814,6 +9814,7 @@ t_void woal_evt_work_queue(struct work_struct *work)
 			break;
 #endif
 #endif
+#ifdef UAP_SUPPORT
 		case WOAL_EVENT_CHAN_RPT:
 			woal_process_chan_event((moal_private *)evt->priv,
 						WOAL_EVENT_CHAN_RPT,
@@ -9826,6 +9827,7 @@ t_void woal_evt_work_queue(struct work_struct *work)
 						evt->radar_info.channel,
 						evt->radar_info.radar);
 			break;
+#endif
 #ifdef UAP_CFG80211
 #if KERNEL_VERSION(3, 12, 0) <= CFG80211_VERSION_CODE
 		case WOAL_EVENT_CANCEL_CHANRPT:
@@ -9834,6 +9836,8 @@ t_void woal_evt_work_queue(struct work_struct *work)
 			break;
 #endif
 #endif
+		default:
+			break;
 		}
 		kfree(evt);
 		spin_lock_irqsave(&handle->evt_lock, flags);
@@ -9867,10 +9871,12 @@ t_void woal_rx_work_queue(struct work_struct *work)
 		return;
 	}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	if (handle->cfg80211_suspend == MTRUE) {
 		LEAVE();
 		return;
 	}
+#endif
 #endif
 	woal_get_monotonic_time(&start_timeval);
 	mlan_rx_process(handle->pmlan_adapter, NULL);
@@ -9966,7 +9972,8 @@ t_void woal_main_work_queue(struct work_struct *work)
 	}
 	if (handle->fw_dbg == MTRUE) {
 		handle->fw_dbg = MFALSE;
-		handle->ops.dump_fw_info(handle);
+		if (handle->ops.dump_fw_info)
+			handle->ops.dump_fw_info(handle);
 		LEAVE();
 		return;
 	}
@@ -10581,8 +10588,10 @@ mlan_status woal_remove_card(void *card)
 		       atomic_read(&handle->ioctl_pending));
 	}
 	unregister_inetaddr_notifier(&handle->woal_notifier);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&handle->woal_inet6_notifier);
+#endif
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -10753,8 +10762,10 @@ mlan_status woal_switch_drv_mode(moal_handle *handle, t_u32 mode)
 	}
 
 	unregister_inetaddr_notifier(&handle->woal_notifier);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&handle->woal_inet6_notifier);
+#endif
 #endif
 
 	/* Remove interface */

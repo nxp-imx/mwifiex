@@ -477,7 +477,6 @@ endif
 
 
 
-
 MOALOBJS =	mlinux/moal_main.o \
 		mlinux/moal_ioctl.o \
 		mlinux/moal_shim.o \

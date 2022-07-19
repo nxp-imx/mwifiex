@@ -686,11 +686,11 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 		ptlv_zero_dfs->Header.len = wlan_cpu_to_le16(sizeof(t_u8));
 		if (!is_cancel_req) {
 			ptlv_zero_dfs->zero_dfs_enbl = MTRUE;
-			PRINTM(MCMND, "ZeroDFS: START: chan=%d\n",
+			PRINTM(MCMND, "DFS: START: chan=%d\n",
 			       pchan_rpt_req->chan_desc.chanNum);
 		} else {
 			ptlv_zero_dfs->zero_dfs_enbl = MFALSE;
-			PRINTM(MCMND, "ZeroDFS: STOP\n");
+			PRINTM(MCMND, "DFS: STOP\n");
 		}
 		pcmd_ptr->size += sizeof(MrvlIEtypes_ZeroDfsOperation_t);
 		pcmd_ptr->size = wlan_cpu_to_le16(pcmd_ptr->size);
@@ -2426,7 +2426,11 @@ t_s32 wlan_11h_process_start(mlan_private *priv, t_u8 **ppbuffer,
 	    ((adapter->adhoc_start_band & BAND_A))) {
 		if (!wlan_fw_11d_is_enabled(priv)) {
 			/* No use having 11h enabled without 11d enabled */
-			wlan_11d_enable(priv, MNULL, ENABLE_11D);
+			if (wlan_11d_enable(priv, MNULL, ENABLE_11D)) {
+				ret = MLAN_STATUS_FAILURE;
+				LEAVE();
+				return ret;
+			}
 #ifdef STA_SUPPORT
 			wlan_11d_create_dnld_countryinfo(
 				priv, adapter->adhoc_start_band);
@@ -2530,7 +2534,11 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 	if (p11h_bss_info->sensed_11h) {
 		if (!wlan_fw_11d_is_enabled(priv)) {
 			/* No use having 11h enabled without 11d enabled */
-			wlan_11d_enable(priv, MNULL, ENABLE_11D);
+			if (wlan_11d_enable(priv, MNULL, ENABLE_11D)) {
+				ret = MLAN_STATUS_FAILURE;
+				LEAVE();
+				return ret;
+			}
 #ifdef STA_SUPPORT
 			wlan_11d_parse_dnld_countryinfo(
 				priv, priv->pattempted_bss_desc);
@@ -3326,7 +3334,7 @@ mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 	wlan_11h_add_dfs_timestamp(priv->adapter, DFS_TS_REPR_NOP_START,
 				   *radar_chan);
 	wlan_set_chan_dfs_state(priv, BAND_A, *radar_chan, DFS_UNAVAILABLE);
-	PRINTM(MEVENT, "ZeroDFS: Radar detected on %d\n", *radar_chan);
+	PRINTM(MEVENT, "DFS: Radar detected on %d\n", *radar_chan);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -3484,6 +3492,7 @@ void wlan_11h_update_bandcfg(mlan_private *pmpriv, Band_Config_t *uap_band_cfg,
 	LEAVE();
 }
 
+#ifdef UAP_SUPPORT
 /**
  * @brief Get priv current index -- this is used to enter correct rdh_state
  * during radar handling
@@ -3512,6 +3521,7 @@ wlan_11h_get_priv_curr_idx(mlan_private *pmpriv,
 	}
 	return (found == MTRUE) ? MLAN_STATUS_SUCCESS : MLAN_STATUS_FAILURE;
 }
+#endif
 
 /**
  *  @brief Driver handling for remove customeie

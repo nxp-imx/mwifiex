@@ -418,8 +418,7 @@ static mlan_status wlan_11d_update_chan_pwr_table(mlan_private *pmpriv,
 		/* Channel not found. Update the channel in the channel-power
 		   table */
 		parsed_region_chan->chan_pwr[i].chan = chan;
-		parsed_region_chan->chan_pwr[i].band =
-			(t_u8)pbss_desc->bss_band;
+		parsed_region_chan->chan_pwr[i].band = pbss_desc->bss_band;
 		parsed_region_chan->chan_pwr[i].pwr = tx_power;
 		parsed_region_chan->chan_pwr[i].ap_seen = MTRUE;
 		parsed_region_chan->no_of_chan++;

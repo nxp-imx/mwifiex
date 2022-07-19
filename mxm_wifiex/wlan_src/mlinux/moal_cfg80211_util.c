@@ -262,6 +262,7 @@ int woal_cfg80211_vendor_event(moal_private *priv, int event, t_u8 *data,
 	return ret;
 }
 
+#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 /**
  * @brief send fw dump complete event to vendorhal
  *
@@ -275,6 +276,7 @@ void woal_cfg80211_vendor_event_fw_dump(moal_private *priv)
 	woal_cfg80211_vendor_event(priv, event_fw_dump_done, CUS_EVT_FW_DUMP,
 				   strlen(CUS_EVT_FW_DUMP));
 }
+#endif
 
 /**
  * @brief send dfs vendor event to kernel

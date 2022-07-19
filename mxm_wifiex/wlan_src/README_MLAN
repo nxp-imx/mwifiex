@@ -434,6 +434,8 @@ SYNOPSIS
 	mlanutl mlanX 11axcmd <subcmd> <value>
 	mlanutl mlanX txratecfg [l] [m] [n] [o]
 	mlanutl uapX txratecfg [l] [m] [n] [o]
+	mlanutl mlanX txwatchdog [l]
+	mlanutl uapX txwatchdog [l]
 	mlanutl mlanX hssetpara condition [GPIO# [gap]] [ind_GPIO# [level]]
 	mlanutl mlanX mefcfg <mef.conf>
         mlanutl mlanX cloud_keep_alive <keep_alive.conf> <start/stop/reset>

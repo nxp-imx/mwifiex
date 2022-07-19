@@ -304,7 +304,7 @@ static mlan_status wlan_get_info_bss_info(pmlan_adapter pmadapter,
 	info->param.bss_info.beacon_interval = pbss_desc->beacon_period;
 
 	/* Band */
-	info->param.bss_info.bss_band = (t_u8)pbss_desc->bss_band;
+	info->param.bss_info.bss_band = pbss_desc->bss_band;
 
 	/* Region code */
 	info->param.bss_info.region_code = pmadapter->region_code;
@@ -455,6 +455,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 			pmpriv->usr_dot_11ac_mcs_support;
 		pget_info->param.fw_info.usr_dot_11ac_dev_cap_a =
 			pmpriv->usr_dot_11ac_dev_cap_a;
+		pget_info->param.fw_info.uuid_lo = pmadapter->uuid_lo;
+		pget_info->param.fw_info.uuid_hi = pmadapter->uuid_hi;
 		pget_info->param.fw_info.hw_hecap_len = pmadapter->hw_hecap_len;
 		pget_info->param.fw_info.hw_2g_hecap_len =
 			pmadapter->hw_2g_hecap_len;
@@ -5335,6 +5337,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_CH_LOAD:
 		status = wlan_misc_ioctl_ch_load(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_CH_LOAD_RESULTS:
+		status = wlan_misc_ioctl_ch_load_results(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_GET_TSF:
 		status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);

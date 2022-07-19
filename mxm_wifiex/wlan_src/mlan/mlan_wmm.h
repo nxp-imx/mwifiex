@@ -175,8 +175,7 @@ mlan_status wlan_ret_wmm_param_config(pmlan_private pmpriv,
 /** Process WMM association request */
 extern t_u32 wlan_wmm_process_association_req(pmlan_private priv,
 					      t_u8 **ppAssocBuf,
-					      IEEEtypes_WmmParameter_t *pWmmIE,
-					      IEEEtypes_HTCap_t *pHTCap);
+					      IEEEtypes_WmmParameter_t *pWmmIE);
 #endif /* STA_SUPPORT */
 
 /** setup wmm queue priorities */

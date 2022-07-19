@@ -148,13 +148,13 @@ enum _mlan_act_ioctl {
 #define ETH_ALEN 6
 #endif
 
-/** Action field value : get */
+/** Action field value: get */
 #define ACTION_GET 0
-/** Action field value : set */
+/** Action field value: set */
 #define ACTION_SET 1
-/** Action field value:  add */
+/** Action field value: add */
 #define ACTION_ADD 2
-/** Action field value:  remove */
+/** Action field value: remove */
 #define ACTION_REMOVE 3
 
 /** Maximum number of TID */
@@ -570,8 +570,8 @@ typedef struct MrvlIEtypes_Data_t {
 /** channel band */
 enum { BAND_2GHZ = 0,
        BAND_5GHZ = 1,
-       BAND_4GHZ = 2,
-       BAND_6GHZ = 3,
+       BAND_6GHZ = 2,
+       BAND_4GHZ = 3,
 };
 
 /** channel offset */

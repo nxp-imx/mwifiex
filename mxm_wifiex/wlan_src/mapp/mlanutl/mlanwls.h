@@ -76,6 +76,7 @@ Change log:
 #define PROPRIETARY_TLV_BASE_ID 0x0100
 #define FTM_SESSION_CFG_INITATOR_TLV_ID (PROPRIETARY_TLV_BASE_ID + 273)
 #define FTM_NTB_RANGING_CFG_TLV_ID (PROPRIETARY_TLV_BASE_ID + 343)
+#define FTM_TB_RANGING_CFG_TLV_ID (PROPRIETARY_TLV_BASE_ID + 344)
 #define FTM_RANGE_REPORT_TLV_ID                                                \
 	(PROPRIETARY_TLV_BASE_ID + 0x10C) /* 0x0100 + 0x10C = 0x20C */
 #define FTM_SESSION_CFG_LCI_TLV_ID (PROPRIETARY_TLV_BASE_ID + 270)
@@ -93,8 +94,9 @@ typedef struct {
 	char **help;
 } wls_app_command_table;
 
-/** Structure of FTM_SESSION_CFG_NTB_RANGING TLV data*/
-typedef struct _ntb_ranging_cfg {
+/** Structure of FTM_SESSION_CFG_NTB_RANGING / FTM_SESSION_CFG_TB_RANGING TLV
+ * data*/
+typedef struct _ranging_cfg {
 	/** Indicates the channel BW for session*/
 	/*0: HE20, 1: HE40, 2: HE80, 3: HE80+80, 4: HE160, 5:HE160_SRF*/
 	t_u8 format_bw;
@@ -110,12 +112,14 @@ typedef struct _ntb_ranging_cfg {
 	t_u8 az_measurement_freq;
 	/**Indicates the number of measurements to be done for session*/
 	t_u8 az_number_of_measurements;
+	/** Initator lmr feedback */
+	t_u8 i2r_lmr_feedback;
 	/**Include location civic request (Expect location civic from
 	 * responder)*/
 	t_u8 civic_req;
 	/**Include LCI request (Expect LCI info from responder)*/
 	t_u8 lci_req;
-} __ATTRIB_PACK__ ntb_ranging_cfg_t;
+} __ATTRIB_PACK__ ranging_cfg_t;
 
 /** Structure of FTM_SESSION_CFG TLV data*/
 typedef struct _ftm_session_cfg {
@@ -147,7 +151,7 @@ typedef struct _civic_loc_cfg {
 	/**Civic address length*/
 	t_u8 civic_address_length;
 	/**Civic Address*/
-	t_u8 civic_address[];
+	t_u8 civic_address[256];
 } __ATTRIB_PACK__ civic_loc_cfg_t;
 
 /** Structure for FTM_SESSION_CFG_LCI TLV data*/
@@ -169,14 +173,14 @@ typedef struct _lci_cfg {
 } __ATTRIB_PACK__ lci_cfg_t;
 
 /** Structure for FTM_SESSION_CFG_NTB_RANGING TLV*/
-typedef struct _ntb_ranging_cfg_tlv {
+typedef struct _ranging_cfg_tlv {
 	/** Type*/
 	t_u16 type;
 	/** Length*/
 	t_u16 len;
 	/** Value*/
-	ntb_ranging_cfg_t val;
-} __ATTRIB_PACK__ ntb_ranging_cfg_tlv_t;
+	ranging_cfg_t val;
+} __ATTRIB_PACK__ ranging_cfg_tlv_t;
 
 /** Structure for FTM_SESSION_CFG  TLV*/
 typedef struct _ftm_session_cfg_tlv {
@@ -224,7 +228,7 @@ typedef struct _dot11mc_ftm_cfg {
 /** Structure for DOT11AZ FTM_SESSION_CFG */
 typedef struct _dot11az_ftmcfg_ntb_t {
 	/** NTB session cfg */
-	ntb_ranging_cfg_tlv_t ntb_tlv;
+	ranging_cfg_tlv_t range_tlv;
 } __ATTRIB_PACK__ dot11az_ftm_cfg_t;
 
 /** Type definition for hostcmd_ftm_session_cfg */
@@ -367,7 +371,7 @@ typedef struct _wls_app_data {
 	/** Is civic data available in cfg*/
 	t_u8 civic_request;
 	/**ntb cfg param*/
-	ntb_ranging_cfg_t ntb_cfg;
+	ranging_cfg_t range_cfg;
 	/** 11mc session cfg param*/
 	ftm_session_cfg_t session_cfg;
 	/** lci cfg data*/

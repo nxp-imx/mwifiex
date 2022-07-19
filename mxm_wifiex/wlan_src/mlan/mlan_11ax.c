@@ -110,12 +110,14 @@ t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
 		(MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
 	MrvlIEtypes_He_cap_t *hw_he_cap =
 		(MrvlIEtypes_He_cap_t *)&pmpriv->adapter->hw_he_cap;
+	t_u16 band_selected = BAND_A;
+
 	if (pbss_desc && !wlan_check_ap_11ax_twt_supported(pbss_desc)) {
 		PRINTM(MINFO, "AP don't support twt feature\n");
 		return MFALSE;
 	}
 	if (pbss_desc) {
-		if (pbss_desc->bss_band & BAND_A) {
+		if (pbss_desc->bss_band & band_selected) {
 			hw_he_cap = (MrvlIEtypes_He_cap_t *)&pmpriv->adapter
 					    ->hw_he_cap;
 			phecap = (MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
@@ -417,6 +419,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	t_u16 cfg_value = 0;
 	t_u16 hw_value = 0;
 	MrvlIEtypes_He_cap_t *phw_hecap = MNULL;
+	t_u16 band_selected = BAND_A;
 
 	ENTER();
 
@@ -436,7 +439,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	}
 	bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
 	phecap = (MrvlIEtypes_He_cap_t *)*ppbuffer;
-	if (pbss_desc->bss_band & BAND_A) {
+	if (pbss_desc->bss_band & band_selected) {
 		memcpy_ext(pmadapter, *ppbuffer, pmpriv->user_he_cap,
 			   pmpriv->user_hecap_len, pmpriv->user_hecap_len);
 		*ppbuffer += pmpriv->user_hecap_len;
@@ -458,7 +461,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
 	    IS_CARDNW62X(pmpriv->adapter->card_type) ||
 	    IS_CARD9097(pmpriv->adapter->card_type)) {
-		if (pbss_desc->bss_band & BAND_A) {
+		if (pbss_desc->bss_band & band_selected) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
 					       8);
 			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
@@ -642,15 +645,6 @@ static mlan_status wlan_11ax_ioctl_hecfg(pmlan_adapter pmadapter,
 	t_u16 cmd_action = 0;
 
 	ENTER();
-
-	if (pioctl_req->buf_len < sizeof(mlan_ds_11ax_cfg)) {
-		PRINTM(MINFO, "MLAN bss IOCTL length is too short.\n");
-		pioctl_req->data_read_written = 0;
-		pioctl_req->buf_len_needed = sizeof(mlan_ds_11ax_cfg);
-		pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-		LEAVE();
-		return MLAN_STATUS_RESOURCE;
-	}
 
 	cfg = (mlan_ds_11ax_cfg *)pioctl_req->pbuf;
 
