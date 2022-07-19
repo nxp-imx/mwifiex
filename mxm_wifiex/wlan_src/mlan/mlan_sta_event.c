@@ -148,7 +148,8 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 				}
 			}
 			for (i = 0; i < MAX_NUM_TID; i++) {
-				if (sta_ptr->is_11n_enabled)
+				if (sta_ptr->is_11n_enabled ||
+				    sta_ptr->is_11ax_enabled)
 					sta_ptr->ampdu_sta[i] =
 						priv->aggr_prio_tbl[i]
 							.ampdu_user;
@@ -221,7 +222,8 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 			wlan_restore_tdls_packets(priv,
 						  tdls_event->peer_mac_addr,
 						  TDLS_TEAR_DOWN);
-			if (sta_ptr->is_11n_enabled) {
+			if (sta_ptr->is_11n_enabled ||
+			    sta_ptr->is_11ax_enabled) {
 				wlan_cleanup_reorder_tbl(
 					priv, tdls_event->peer_mac_addr);
 				wlan_11n_cleanup_txbastream_tbl(
@@ -807,8 +809,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 						    MRVDRV_TxPD_POWER_MGMT_NULL_PACKET |
 							    MRVDRV_TxPD_POWER_MGMT_LAST_PACKET) ==
 					    MLAN_STATUS_SUCCESS) {
-						LEAVE();
-						return MLAN_STATUS_SUCCESS;
+						ret = MLAN_STATUS_SUCCESS;
+						goto done;
 					}
 				}
 			}
@@ -885,6 +887,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		}
 		pmadapter->scan_block = MFALSE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_PORT_RELEASE, MNULL);
+		/* Send OBSS scan param to the application */
+		wlan_2040_coex_event(pmpriv);
 		break;
 
 	case EVENT_STOP_TX:

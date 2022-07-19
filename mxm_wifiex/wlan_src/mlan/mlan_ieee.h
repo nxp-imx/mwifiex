@@ -1225,8 +1225,10 @@ typedef MLAN_PACK_START struct _IEEEtypes_HeOpParam_t {
 	t_u16 co_located_bss : 1; /* bit 15 */
 	/** ER SU Disable */
 	t_u8 er_su_disable : 1; /* bit 16 */
-	/** Reserved, including 6G Operation Info Pressent (bit17) */
-	t_u8 reserved : 7; /* bit 17-23 */
+	/* 6g operation info present */
+	t_u8 he_6g_op_info_present : 1; /* bit 17 */
+	/** Reserved bit 18-23 */
+	t_u8 reserved : 6; /* bit 18-23 */
 } MLAN_PACK_END IEEEtypes_HeOpParam_t;
 
 typedef MLAN_PACK_START struct _IEEEtypes_HeBssColorInfo_t {
@@ -1666,7 +1668,10 @@ typedef MLAN_PACK_START struct {
 /**wait for all channel scan to complete to report scan result*/
 #define BG_SCAN_WAIT_ALL_CHAN_DONE 0x80000000
 /** Maximum number of channels that can be sent in bg scan config */
-#define WLAN_BG_SCAN_CHAN_MAX 38
+#define CHAN_MAX_24G 14
+#define CHAN_MAX_5G 24
+#define CHAN_MAX_UNII4 3
+#define WLAN_BG_SCAN_CHAN_MAX (CHAN_MAX_24G + CHAN_MAX_5G + CHAN_MAX_UNII4)
 
 /** Enumeration definition */
 /** EES MODE */

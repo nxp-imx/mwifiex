@@ -55,7 +55,8 @@ Change log:
 /*Command arguments index*/
 #define NXP_ADDR "530 Holgerway SanJose"
 
-#define PROTO_DOT11AZ 1
+#define PROTO_DOT11AZ_NTB 1
+#define PROTO_DOT11AZ_TB 2
 #define PROTO_DOT11MC 0
 
 #define FTM_SUBCMD_INDEX 3
@@ -99,7 +100,7 @@ static int process_subcommand(int argc, char *argv[]);
 static int process_ftm_session_cfg(int argc, char *argv[], void *param);
 static int process_ftm_session_ctrl(int argc, char *argv[], void *param);
 
-static int process_dot11az_ntb_cfg(int argc, char *argv[], void *param);
+static int process_dot11az_ranging_cfg(int argc, char *argv[], void *param);
 static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param);
 static int process_ftm_start(int argc, char *argv[], void *param);
 static int process_ftm_stop(int argc, char *argv[], void *param);
@@ -131,13 +132,14 @@ static char *mlanwls_help[] = {
 
 static char *ftm_session_cfg_help[] = {
 	"Usage: ",
-	"	mlanutl mlan0 ftm session_cfg [<config_file>] ",
+	"	mlanutl mlan0 ftm session_cfg [<ftm_protocol> <config_file>] ",
 	" 	where,",
-	"	<ftm_protocol> : 0:Dot11mc, 1:Dot11az_ntb",
+	"	<ftm_protocol> : 0:Dot11mc, 1:Dot11az_ntb, 2:Dot11az_tb",
 	"	<config_file> : Config file with Dot11mc / dot11az parameters",
 	"",
 	"	eg:	mlanutl mlan0 ftm session_cfg 0 config/ftm.conf - Sets dot11mc FTM session params from config file",
-	"		mlanutl mlan0 ftm session_cfg 1 config/ftm.conf - Sets dot11az ntb session params from donfig file",
+	"		mlanutl mlan0 ftm session_cfg 1 config/ftm.conf - Sets dot11az ntb session params from config file",
+	"		mlanutl mlan0 ftm session_cfg 2 config/ftm.conf - Sets dot11az tb ranging session params from config file",
 	" "};
 
 static char *ftm_session_ctrl_help[] = {
@@ -308,32 +310,38 @@ static int process_ftm_hostcmd_resp(char *cmd_name, t_u8 *buf)
 	case HostCmd_CMD_FTM_SESSION_CFG:
 		phostcmd = (hostcmd_ds_ftm_session_cmd *)buf;
 		if ((le16_to_cpu(phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-					 .ntb_tlv.type) ==
-		     FTM_NTB_RANGING_CFG_TLV_ID)) {
+					 .range_tlv.type) ==
+		     FTM_NTB_RANGING_CFG_TLV_ID) ||
+		    (le16_to_cpu(phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
+					 .range_tlv.type) ==
+		     FTM_TB_RANGING_CFG_TLV_ID)) {
 			if (le16_to_cpu(phostcmd->cmd.ftm_session_cfg.action) ==
 			    MLAN_ACT_GET) {
 				/* Get */
-				printf("\n\nGet NTB Ranging Parameters: \n");
+				printf("\n\nGet Ranging Parameters: \n");
 			} else {
 				/* Set */
-				printf("\n\nSet NTB Ranging Parameters: \n");
+				printf("\n\nSet Ranging Parameters: \n");
 			}
 			printf("---------------------------------\n");
 			printf("format_bw:%d \n",
 			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-				       .ntb_tlv.val.format_bw);
+				       .range_tlv.val.format_bw);
 			printf("az_measurement_freq:%d \n",
 			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-				       .ntb_tlv.val.az_measurement_freq);
+				       .range_tlv.val.az_measurement_freq);
 			printf("az_number_of_measurements:%d \n",
 			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-				       .ntb_tlv.val.az_number_of_measurements);
+				       .range_tlv.val.az_number_of_measurements);
 			printf("max_i2r_sts_upto80:%d \n",
 			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-				       .ntb_tlv.val.max_i2r_sts_upto80);
-			printf("max_r2i_sts_upto80:%d \n\n",
+				       .range_tlv.val.max_i2r_sts_upto80);
+			printf("max_r2i_sts_upto80:%d \n",
 			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
-				       .ntb_tlv.val.max_r2i_sts_upto80);
+				       .range_tlv.val.max_r2i_sts_upto80);
+			printf("i2r_lmr_feedback:%d \n\n",
+			       phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az
+				       .range_tlv.val.i2r_lmr_feedback);
 		} else if ((le16_to_cpu(phostcmd->cmd.ftm_session_cfg.tlv
 						.cfg_11mc.sess_tlv.type) ==
 			    FTM_SESSION_CFG_INITATOR_TLV_ID)) {
@@ -819,7 +827,7 @@ done:
  *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
  */
 
-static int process_dot11az_ntb_cfg(int argc, char *argv[], void *param)
+static int process_dot11az_ranging_cfg(int argc, char *argv[], void *param)
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u8 *buffer = NULL;
@@ -850,26 +858,35 @@ static int process_dot11az_ntb_cfg(int argc, char *argv[], void *param)
 	phostcmd->cmd_hdr.size = cpu_to_le16(phostcmd->cmd_hdr.size);
 	phostcmd->cmd.ftm_session_cfg.action =
 		cpu_to_le16(app_data->hostcmd_action);
-	phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.type =
-		cpu_to_le16(FTM_NTB_RANGING_CFG_TLV_ID);
-	phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.len =
-		cpu_to_le16(sizeof(ntb_ranging_cfg_t));
+	phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.len =
+		cpu_to_le16(sizeof(ranging_cfg_t));
+
+	if (app_data->protocol_type == PROTO_DOT11AZ_TB) {
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.type =
+			cpu_to_le16(FTM_TB_RANGING_CFG_TLV_ID);
+	} else {
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.type =
+			cpu_to_le16(FTM_NTB_RANGING_CFG_TLV_ID);
+	}
 
 	if (app_data->hostcmd_action == MLAN_ACT_SET) {
-		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.val
-			.format_bw = app_data->ntb_cfg.format_bw;
-		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.val
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
+			.format_bw = app_data->range_cfg.format_bw;
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
 			.max_i2r_sts_upto80 =
-			app_data->ntb_cfg.max_i2r_sts_upto80;
-		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.val
+			app_data->range_cfg.max_i2r_sts_upto80;
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
 			.max_r2i_sts_upto80 =
-			app_data->ntb_cfg.max_r2i_sts_upto80;
-		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.val
+			app_data->range_cfg.max_r2i_sts_upto80;
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
 			.az_measurement_freq =
-			app_data->ntb_cfg.az_measurement_freq;
-		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.ntb_tlv.val
+			app_data->range_cfg.az_measurement_freq;
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
 			.az_number_of_measurements =
-			app_data->ntb_cfg.az_number_of_measurements;
+			app_data->range_cfg.az_number_of_measurements;
+		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11az.range_tlv.val
+			.i2r_lmr_feedback =
+			app_data->range_cfg.i2r_lmr_feedback;
 	}
 	/*Perform ioctl and process response*/
 	ret = mlanwls_send_ioctl(buffer);
@@ -914,8 +931,7 @@ static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param)
 
 	/*Parse the arguments*/
 	phostcmd->cmd_hdr.command = cpu_to_le16(HostCmd_CMD_FTM_SESSION_CFG);
-	phostcmd->cmd_hdr.size =
-		S_DS_GEN + sizeof(t_u16) + sizeof(dot11mc_ftm_cfg_t);
+	phostcmd->cmd_hdr.size = S_DS_GEN + sizeof(t_u16);
 	phostcmd->cmd.ftm_session_cfg.action =
 		cpu_to_le16(app_data->hostcmd_action);
 
@@ -944,6 +960,7 @@ static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param)
 			app_data->civic_request;
 		phostcmd->cmd.ftm_session_cfg.tlv.cfg_11mc.sess_tlv.lci_req =
 			app_data->lci_request;
+		phostcmd->cmd_hdr.size += sizeof(ftm_session_cfg_tlv_t);
 
 		if (app_data->lci_request) {
 			phostcmd->cmd.ftm_session_cfg.tlv.cfg_11mc.lci_tlv.type =
@@ -962,6 +979,7 @@ static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param)
 				.longitude = app_data->lci_cfg.longitude;
 			phostcmd->cmd.ftm_session_cfg.tlv.cfg_11mc.lci_tlv.val
 				.long_unc = app_data->lci_cfg.long_unc;
+			phostcmd->cmd_hdr.size += sizeof(lci_tlv_t);
 		}
 
 		if (app_data->civic_request) {
@@ -970,8 +988,9 @@ static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param)
 				FTM_SESSION_CFG_LOCATION_CIVIC_TLV_ID);
 			phostcmd->cmd.ftm_session_cfg.tlv.cfg_11mc.civic_tlv
 				.len = cpu_to_le16(
-				sizeof(civic_loc_cfg_t) +
-				app_data->civic_cfg.civic_address_length - 1);
+				(sizeof(civic_loc_cfg_t) -
+				 sizeof(app_data->civic_cfg.civic_address)) +
+				app_data->civic_cfg.civic_address_length);
 			phostcmd->cmd.ftm_session_cfg.tlv.cfg_11mc.civic_tlv.val
 				.civic_address_type =
 				app_data->civic_cfg.civic_address_type;
@@ -989,6 +1008,8 @@ static int process_dot11mc_ftm_cfg(int argc, char *argv[], void *param)
 			       &app_data->civic_cfg.civic_address[0],
 			       app_data->civic_cfg.civic_address_length);
 			phostcmd->cmd_hdr.size +=
+				sizeof(civic_loc_tlv_t) -
+				sizeof(app_data->civic_cfg.civic_address) +
 				app_data->civic_cfg
 					.civic_address_length; /*copy the
 								  variable len
@@ -1304,9 +1325,10 @@ static int process_ftm_session_cfg(int argc, char *argv[], void *param)
 	}
 	app_data = (wls_app_data_t *)param;
 
-	if (app_data->protocol_type == PROTO_DOT11AZ) {
-		printf("[INFO] Set/Get DOT11AZ Config \n");
-		ret = process_dot11az_ntb_cfg(argc, argv, param);
+	if ((app_data->protocol_type == PROTO_DOT11AZ_NTB) ||
+	    (app_data->protocol_type == PROTO_DOT11AZ_TB)) {
+		printf("[INFO] Set/Get DOT11AZ Ranging Config \n");
+		ret = process_dot11az_ranging_cfg(argc, argv, param);
 	} else {
 		printf("[INFO] Set/Get DOT11MC (Legacy) Config \n");
 		ret = process_dot11mc_ftm_cfg(argc, argv, param);
@@ -1349,7 +1371,8 @@ done:
 
 static int process_subcommand(int argc, char *argv[])
 {
-	int i, ret;
+	int i = 0;
+	int ret = MLAN_STATUS_SUCCESS;
 
 	/*Parse the user command to update the priv data and call subcommand
 	 * handlers*/
@@ -1461,7 +1484,7 @@ static int mlanwls_read_ftm_config(char *file_name)
 	char *data = NULL;
 	int arg_num, li;
 	char *args[30];
-	t_u8 param;
+	t_u8 param = 0;
 
 	// read config
 	config_file = fopen(file_name, "r");
@@ -1582,43 +1605,62 @@ static int mlanwls_read_ftm_config(char *file_name)
 				PRINT_CFG("\t CIVIC_ADDRESS_TYPE=%d\n", param);
 
 			} else if (strcmp(args[0], "ADDRESS") == 0) {
-				memcpy(&(gwls_data.civic_cfg.civic_address[0]),
-				       &args[1], strlen(args[1]));
-				gwls_data.civic_cfg.civic_address_length =
-					strlen(args[1]);
-				PRINT_CFG("\t ADDRESS=%s\n", args[1]);
+				if (strlen(args[1]) <= 255) {
+					gwls_data.civic_cfg
+						.civic_address_length =
+						strlen(args[1]);
+					strncpy((char *)&gwls_data.civic_cfg
+							.civic_address[0],
+						args[1],
+						gwls_data.civic_cfg
+							.civic_address_length);
+					PRINT_CFG("\t ADDRESS=%s\n", args[1]);
+				} else {
+					DBG_ERROR(
+						"\t [ERROR] Invalid Civic Address Len\n");
+				}
 
 			} else {
 				// printf("Invalid line entry\n %s",args[1]);
 			}
 		}
 
-		if (gwls_data.protocol_type == PROTO_DOT11AZ) {
-			if (strcmp(args[0], "DOT11AZ_CFG") == 0) {
-				printf("DOT11AZ_CFG\n\n");
+		if ((gwls_data.protocol_type == PROTO_DOT11AZ_NTB) ||
+		    (gwls_data.protocol_type == PROTO_DOT11AZ_TB)) {
+			if (strcmp(args[0], "DOT11AZ_RANGING_CFG") == 0) {
+				if (gwls_data.protocol_type ==
+				    PROTO_DOT11AZ_NTB) {
+					printf("DOT11AZ_NTB_RANGING_CFG\n\n");
+				} else {
+					printf("DOT11AZ_TB_RANGING_CFG\n\n");
+				}
 			} else if (strcmp(args[0], "FORMAT_BW") == 0) {
-				gwls_data.ntb_cfg.format_bw =
+				gwls_data.range_cfg.format_bw =
 					(t_u8)(atoi(args[1]));
 				PRINT_CFG("\t FORMAT_BW=%d\n", param);
 			} else if (strcmp(args[0], "MAX_I2R_STS_UPTO80") == 0) {
-				gwls_data.ntb_cfg.max_i2r_sts_upto80 =
+				gwls_data.range_cfg.max_i2r_sts_upto80 =
 					(t_u8)(atoi(args[1]));
 				PRINT_CFG("\t MAX_I2R_STS_UPTO80=%d\n", param);
 			} else if (strcmp(args[0], "MAX_R2I_STS_UPTO80") == 0) {
-				gwls_data.ntb_cfg.max_r2i_sts_upto80 =
+				gwls_data.range_cfg.max_r2i_sts_upto80 =
 					(t_u8)(atoi(args[1]));
 				PRINT_CFG("\t MAX_R2I_STS_UPTO80=%d\n", param);
 			} else if (strcmp(args[0], "AZ_MEASUREMENT_FREQ") ==
 				   0) {
-				gwls_data.ntb_cfg.az_measurement_freq =
+				gwls_data.range_cfg.az_measurement_freq =
 					(t_u8)(atoi(args[1]));
 				PRINT_CFG("\t AZ_MEASUREMENT_FREQ=%d\n", param);
 			} else if (strcmp(args[0],
 					  "AZ_NUMBER_OF_MEASUREMENTS") == 0) {
-				gwls_data.ntb_cfg.az_number_of_measurements =
+				gwls_data.range_cfg.az_number_of_measurements =
 					(t_u8)(atoi(args[1]));
 				PRINT_CFG("\t AZ_NUMBER_OF_MEASUREMENTS=%d\n",
 					  param);
+			} else if (strcmp(args[0], "I2R_LMR_FEEDBACK") == 0) {
+				gwls_data.range_cfg.i2r_lmr_feedback =
+					(t_u8)(atoi(args[1]));
+				PRINT_CFG("\t I2R_LMR_FEEDBACK=%d\n\n", param);
 			} else {
 				// printf("Invalid line entry%s\n",args[1]);
 			}
@@ -1654,12 +1696,13 @@ static int mlanwls_init(void)
 	gwls_data.terminate_app = 0;
 	gwls_data.protocol_type = 0;
 
-	/*DOT11AZ NTB Ranging default config*/
-	gwls_data.ntb_cfg.az_measurement_freq = 1;
-	gwls_data.ntb_cfg.az_number_of_measurements = 6;
-	gwls_data.ntb_cfg.format_bw = 2;
-	gwls_data.ntb_cfg.max_i2r_sts_upto80 = 0;
-	gwls_data.ntb_cfg.max_r2i_sts_upto80 = 1;
+	/*DOT11AZ NTB/TB Ranging default config*/
+	gwls_data.range_cfg.az_measurement_freq = 1;
+	gwls_data.range_cfg.az_number_of_measurements = 6;
+	gwls_data.range_cfg.format_bw = 2;
+	gwls_data.range_cfg.max_i2r_sts_upto80 = 0;
+	gwls_data.range_cfg.max_r2i_sts_upto80 = 1;
+	gwls_data.range_cfg.i2r_lmr_feedback = 0;
 
 	/*DOT11MC  FTM session default config*/
 	gwls_data.session_cfg.burst_exponent = 0;

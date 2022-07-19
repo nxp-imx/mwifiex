@@ -110,7 +110,8 @@ wlan_process_cmdreps_error_tdls_operation(mlan_private *pmpriv,
 			if (ISSUPP_EXTCAP_TDLS_CHAN_SWITCH(
 				    sta_ptr->ExtCap.ext_cap))
 				wlan_tdls_config(pmpriv, MFALSE);
-			if (sta_ptr->is_11n_enabled) {
+			if (sta_ptr->is_11n_enabled ||
+			    sta_ptr->is_11ax_enabled) {
 				wlan_cleanup_reorder_tbl(
 					pmpriv, ptdls_oper_data->peer_mac);
 				wlan_11n_cleanup_txbastream_tbl(
@@ -1847,7 +1848,8 @@ static mlan_status wlan_ret_tdls_config(pmlan_private pmpriv,
 		sta_ptr = wlan_get_station_entry(
 			pmpriv, tdls_all_cfg->u.tdls_tear_down.peer_mac_addr);
 		if (sta_ptr) {
-			if (sta_ptr->is_11n_enabled) {
+			if (sta_ptr->is_11n_enabled ||
+			    sta_ptr->is_11ax_enabled) {
 				wlan_cleanup_reorder_tbl(
 					pmpriv, tdls_all_cfg->u.tdls_tear_down
 							.peer_mac_addr);
@@ -2019,7 +2021,8 @@ static mlan_status wlan_ret_tdls_oper(pmlan_private pmpriv,
 			if (ISSUPP_EXTCAP_TDLS_CHAN_SWITCH(
 				    sta_ptr->ExtCap.ext_cap))
 				wlan_tdls_config(pmpriv, MFALSE);
-			if (sta_ptr->is_11n_enabled) {
+			if (sta_ptr->is_11n_enabled ||
+			    sta_ptr->is_11ax_enabled) {
 				wlan_cleanup_reorder_tbl(pmpriv,
 							 ptdls_oper->peer_mac);
 				wlan_11n_cleanup_txbastream_tbl(

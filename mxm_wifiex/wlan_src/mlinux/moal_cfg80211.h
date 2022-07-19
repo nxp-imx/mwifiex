@@ -123,6 +123,7 @@ void woal_regulatory_work_queue(struct work_struct *work);
 #endif
 
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
+t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band);
 
 int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 				      struct net_device *dev,
@@ -474,7 +475,6 @@ void woal_channel_switch_event(moal_private *priv, chan_band_info *pchan_info);
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 void woal_bgscan_stop_event(moal_private *priv);
 void woal_cfg80211_notify_sched_scan_stop(moal_private *priv);
-void woal_sched_scan_work_queue(struct work_struct *work);
 void woal_report_sched_scan_result(moal_private *priv);
 #endif
 #endif
@@ -485,7 +485,9 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 				 mlan_ds_radio_cfg *radio);
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 void woal_deauth_event(moal_private *priv, int reason_code);
+#endif
 
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 mlan_status woal_chandef_create(moal_private *priv,

@@ -1036,7 +1036,9 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 				wlan_cpu_to_le16(pvht_cap->header.len);
 		}
 
-		if (IS_FW_SUPPORT_11AX(pmadapter)) {
+		if (IS_FW_SUPPORT_11AX(pmadapter) &&
+		    ((pmpriv->config_bands & BAND_GAX) ||
+		     (pmpriv->config_bands & BAND_AAX))) {
 			phe_cap = (MrvlIEtypes_Extension_t *)ptlv_pos;
 			len = wlan_fill_he_cap_tlv(pmpriv, pmpriv->config_bands,
 						   phe_cap, MFALSE);
@@ -4227,6 +4229,7 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 				&pmadapter->scan_pending_q, MNULL, MNULL);
 			pmadapter->pscan_ioctl_req = pioctl_req;
 			pmadapter->scan_processing = MTRUE;
+			pmadapter->scan_state = SCAN_STATE_SCAN_START;
 			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
 						     MTRUE);
 		}
@@ -4844,6 +4847,26 @@ done:
 }
 
 /**
+ *  @brief Get ext_scan state from ext_scan_type
+ *
+ *
+ *  @param pcmd       A pointer to HostCmd_DS_COMMAND structure to be sent to
+ *                    firmware with the HostCmd_DS_802_11_SCAN_EXT structure
+ *
+ *  @return
+ * SCAN_STATE_EXT_SCAN_ENH/SCAN_STATE_EXT_SCAN_CANCEL/SCAN_STATE_EXT_SCAN_ENH
+ */
+t_u8 wlan_get_ext_scan_state(HostCmd_DS_COMMAND *pcmd)
+{
+	HostCmd_DS_802_11_SCAN_EXT *pext_scan_cmd = &pcmd->params.ext_scan;
+	if (pext_scan_cmd->ext_scan_type == EXT_SCAN_ENHANCE)
+		return SCAN_STATE_EXT_SCAN_ENH;
+	if (pext_scan_cmd->ext_scan_type == EXT_SCAN_CANCEL)
+		return SCAN_STATE_EXT_SCAN_CANCEL;
+	return SCAN_STATE_EXT_SCAN;
+}
+
+/**
  *  @brief Prepare an extended scan command to be sent to the firmware
  *
  *  Use the wlan_scan_cmd_config sent to the command processing module in
@@ -4932,11 +4955,13 @@ mlan_status wlan_ret_802_11_scan_ext(mlan_private *pmpriv,
 	ENTER();
 
 	PRINTM(MINFO, "EXT scan returns successfully\n");
+	pmadapter->scan_state |= wlan_get_ext_scan_state(resp);
 	ext_scan_type = pext_scan_cmd->ext_scan_type;
 	if (ext_scan_type == EXT_SCAN_CANCEL) {
 		PRINTM(MCMND, "Cancel scan command completed!\n");
 		wlan_request_cmd_lock(pmadapter);
 		pmadapter->scan_processing = MFALSE;
+		pmadapter->scan_state |= SCAN_STATE_SCAN_COMPLETE;
 		pmadapter->ext_scan_type = EXT_SCAN_DEFAULT;
 		wlan_release_cmd_lock(pmadapter);
 		/* Need to indicate IOCTL complete */
@@ -5756,6 +5781,13 @@ mlan_status wlan_handle_event_ext_scan_report(mlan_private *pmpriv,
 
 	DBG_HEXDUMP(MCMD_D, "EVENT EXT_SCAN", pmbuf->pbuf + pmbuf->data_offset,
 		    pmbuf->data_len);
+
+	if (!pevent_scan->more_event)
+		pmadapter->scan_state |= SCAN_STATE_EXT_SCAN_RESULT |
+					 SCAN_STATE_LAST_EXT_SCAN_RESULT;
+	else
+		pmadapter->scan_state |= SCAN_STATE_EXT_SCAN_RESULT;
+
 	wlan_parse_ext_scan_result(pmpriv, pevent_scan->num_of_set, ptlv,
 				   tlv_buf_left);
 	if (!pevent_scan->more_event &&
@@ -5789,6 +5821,7 @@ mlan_status wlan_handle_event_ext_scan_report(mlan_private *pmpriv,
 			wlan_scan_process_results(pmpriv);
 			wlan_request_cmd_lock(pmadapter);
 			pmadapter->scan_processing = MFALSE;
+			pmadapter->scan_state |= SCAN_STATE_SCAN_COMPLETE;
 			pioctl_req = pmadapter->pscan_ioctl_req;
 			pmadapter->pscan_ioctl_req = MNULL;
 			/* Need to indicate IOCTL complete */
@@ -5814,6 +5847,9 @@ mlan_status wlan_handle_event_ext_scan_report(mlan_private *pmpriv,
 				wlan_flush_scan_queue(pmadapter);
 				wlan_request_cmd_lock(pmadapter);
 				pmadapter->scan_processing = MFALSE;
+				pmadapter->scan_state |=
+					SCAN_STATE_SCAN_COMPLETE;
+
 				pioctl_req = pmadapter->pscan_ioctl_req;
 				pmadapter->pscan_ioctl_req = MNULL;
 				/* Indicate IOCTL complete */
@@ -5874,6 +5910,7 @@ mlan_status wlan_handle_event_ext_scan_status(mlan_private *pmpriv,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+	pmadapter->scan_state |= SCAN_STATE_EXT_SCAN_STATUS;
 
 	scan_event =
 		(pmlan_event_scan_status)(pmbuf->pbuf + pmbuf->data_offset);
@@ -5920,6 +5957,7 @@ done:
 			wlan_flush_scan_queue(pmadapter);
 			wlan_request_cmd_lock(pmadapter);
 			pmadapter->scan_processing = MFALSE;
+			pmadapter->scan_state |= SCAN_STATE_SCAN_COMPLETE;
 			pioctl_req = pmadapter->pscan_ioctl_req;
 			pmadapter->pscan_ioctl_req = MNULL;
 			/* Indicate IOCTL complete */
@@ -5980,6 +6018,7 @@ done:
 	/** Complete scan ioctl */
 	wlan_request_cmd_lock(pmadapter);
 	pmadapter->scan_processing = MFALSE;
+	pmadapter->scan_state |= SCAN_STATE_SCAN_COMPLETE;
 	pioctl_req = pmadapter->pscan_ioctl_req;
 	pmadapter->pscan_ioctl_req = MNULL;
 	/* Need to indicate IOCTL complete */
@@ -6435,7 +6474,9 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		pvht_cap->header.len = wlan_cpu_to_le16(pvht_cap->header.len);
 	}
 
-	if (IS_FW_SUPPORT_11AX(pmadapter)) {
+	if (IS_FW_SUPPORT_11AX(pmadapter) &&
+	    ((pmpriv->config_bands & BAND_GAX) ||
+	     (pmpriv->config_bands & BAND_AAX))) {
 		phe_cap = (MrvlIEtypes_Extension_t *)tlv;
 		len = wlan_fill_he_cap_tlv(pmpriv, pmpriv->config_bands,
 					   phe_cap, MFALSE);

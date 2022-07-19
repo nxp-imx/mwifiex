@@ -2908,7 +2908,6 @@ static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 			sizeof(filter->byte_seq));
 	entry->rpn[2] = RPN_TYPE_AND;
 	filter++;
-
 	filter->fill_flag = (FILLING_TYPE | FILLING_PATTERN | FILLING_OFFSET |
 			     FILLING_NUM_BYTES);
 	filter->type = TYPE_BYTE_EQ + 1;
@@ -2917,7 +2916,6 @@ static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 	filter->num_bytes = 1;
 	entry->rpn[3] = RPN_TYPE_AND;
 	filter++;
-
 	filter->fill_flag = (FILLING_TYPE | FILLING_PATTERN | FILLING_OFFSET |
 			     FILLING_NUM_BYTES);
 	filter->type = TYPE_BYTE_EQ + 1;
@@ -2927,16 +2925,14 @@ static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 	filter++;
 	entry->filter_num = 4;
 	if (enable) {
-		ret = woal_request_ioctl(woal_get_priv(handle,
-						       MLAN_BSS_ROLE_ANY),
-					 req, MOAL_NO_WAIT);
-		if (ret != MLAN_STATUS_SUCCESS && ret != MLAN_STATUS_PENDING)
-			PRINTM(MIOCTL, "Set Mdns wake up failed! ret=%d\n",
-			       ret);
+		mef_cfg->op_code = MLAN_OP_ADD_MDNS;
 	} else {
-		PRINTM(MIOCTL, "Mdns wake up is disable\n");
+		mef_cfg->op_code = MLAN_IPADDR_OP_IP_REMOVE;
 	}
-
+	ret = woal_request_ioctl(woal_get_priv(handle, MLAN_BSS_ROLE_ANY), req,
+				 MOAL_NO_WAIT);
+	if (ret != MLAN_STATUS_SUCCESS && ret != MLAN_STATUS_PENDING)
+		PRINTM(MIOCTL, "Set Mdns wake up failed! ret=%d\n", ret);
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -2953,7 +2949,7 @@ done:
  *  @return        MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success, otherwise
  * fail
  */
-static mlan_status woal_set_ipv6_ns_offload(moal_handle *handle)
+static mlan_status woal_set_ipv6_ns_offload(moal_handle *handle, t_u8 enable)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_misc_cfg *misc = NULL;
@@ -3003,7 +2999,11 @@ static mlan_status woal_set_ipv6_ns_offload(moal_handle *handle)
 	moal_memcpy_ext(handle, filter->byte_seq, "\x87", 1,
 			sizeof(filter->byte_seq));
 	entry->filter_num = 2;
-
+	if (enable) {
+		mef_cfg->op_code = MLAN_OP_ADD_IPV6_NS;
+	} else {
+		mef_cfg->op_code = MLAN_IPADDR_OP_IP_REMOVE;
+	}
 	ret = woal_request_ioctl(woal_get_priv(handle, MLAN_BSS_ROLE_ANY), req,
 				 MOAL_NO_WAIT);
 	if (ret != MLAN_STATUS_SUCCESS && ret != MLAN_STATUS_PENDING)
@@ -3425,12 +3425,16 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 		woal_set_clear_pmk(priv, MLAN_ACT_CLEAR);
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 	if (priv->phandle->hs_auto_arp) {
 		PRINTM(MIOCTL, "Cancel Host Sleep... remove ipv6 offload\n");
 		/** Set ipv6 router advertisement message offload */
 		woal_set_ipv6_ra_offload(priv->phandle, MFALSE);
 	}
+	/** Set Neighbor Solitation message offload */
+	woal_set_ipv6_ns_offload(priv->phandle, MFALSE);
+#endif
 #endif
 
 	if (priv->phandle->hs_auto_arp) {
@@ -3720,14 +3724,16 @@ int woal_enable_hs(moal_private *priv)
 #endif
 	}
 	media_connected = woal_check_media_connected(handle);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
 	if (handle->hs_auto_arp && media_connected) {
 		PRINTM(MIOCTL, "Host Sleep enabled... set ipv6 offload\n");
 		/** Set ipv6 router advertisement message offload */
 		woal_set_ipv6_ra_offload(handle, MTRUE);
 		/** Set Neighbor Solitation message offload */
-		woal_set_ipv6_ns_offload(handle);
+		woal_set_ipv6_ns_offload(handle, MTRUE);
 	}
+#endif
 #endif
 
 	if (handle->hs_auto_arp) {

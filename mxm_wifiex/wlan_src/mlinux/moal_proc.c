@@ -89,6 +89,7 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	struct net_device *netdev = (struct net_device *)sfp->private;
 	char fmt[MLAN_MAX_VER_STR_LEN];
 	moal_private *priv = (moal_private *)netdev_priv(netdev);
+	mlan_fw_info fw_info;
 #ifdef STA_SUPPORT
 	int i = 0;
 	moal_handle *handle = NULL;
@@ -112,6 +113,8 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		t_u32 l;
 		t_u8 c[4];
 	} ver;
+
+	fw_info.uuid_lo = fw_info.uuid_hi = 0x0ULL;
 
 	ENTER();
 
@@ -162,6 +165,11 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	ver.l = handle->fw_release_number;
 	seq_printf(sfp, "firmware_major_version=%u.%u.%u\n", ver.c[2], ver.c[1],
 		   ver.c[0]);
+
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.uuid_lo || fw_info.uuid_hi)
+		seq_printf(sfp, "uuid = %llx%llx\n", fw_info.uuid_lo,
+			   fw_info.uuid_hi);
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
@@ -531,18 +539,14 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (ref_handle) {
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
-#ifdef DEBUG_LEVEL1
-				drvdbg &= ~MFW_D;
-#endif
+				handle->fw_dump_status = MTRUE;
 				woal_mlan_debug_info(priv);
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}
 		}
 		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 		if (priv) {
-#ifdef DEBUG_LEVEL1
-			drvdbg &= ~MFW_D;
-#endif
+			handle->fw_dump_status = MTRUE;
 			woal_mlan_debug_info(priv);
 			woal_moal_debug_info(priv, NULL, MFALSE);
 			handle->ops.dump_fw_info(handle);

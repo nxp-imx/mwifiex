@@ -125,6 +125,7 @@ static struct debug_data items[] = {
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"scan_processing", item_size(scan_processing),
 	 item_addr(scan_processing), INFO_ADDR},
+	{"scan_state", item_size(scan_state), item_addr(scan_state), INFO_ADDR},
 	{"num_cmd_timeout", item_size(num_cmd_timeout),
 	 item_addr(num_cmd_timeout), INFO_ADDR},
 	{"timeout_cmd_id", item_size(timeout_cmd_id), item_addr(timeout_cmd_id),

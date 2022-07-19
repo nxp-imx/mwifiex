@@ -95,7 +95,7 @@ static moal_if_ops sdiommc_ops;
 #endif
 #ifdef SDNW62X
 /** Device ID for SDNW62X */
-#define SD_DEVICE_ID_NW62X (0x020C)
+#define SD_DEVICE_ID_NW62X (0x020D)
 #endif
 
 /** WLAN IDs */
@@ -1184,17 +1184,20 @@ static void woal_sdiommc_unregister_dev(moal_handle *handle)
 	ENTER();
 	if (handle->card) {
 		struct sdio_mmc_card *card = handle->card;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		struct sdio_func *func = card->func;
-
+#endif
 		/* Release the SDIO IRQ */
 		sdio_claim_host(card->func);
 		sdio_release_irq(card->func);
 		sdio_disable_func(card->func);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		if (handle->driver_status)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 			mmc_hw_reset(func->card);
 #else
 			mmc_hw_reset(func->card->host);
+#endif
 #endif
 		sdio_release_host(card->func);
 
@@ -1557,7 +1560,7 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		switch (revision_id) {
 		case SD9177_A0:
 			if (magic == CHIP_MAGIC_VALUE) {
-				if (strap == CARD_TYPE_SD_UART)
+				if (strap == CARD_TYPE_SD9177_UART)
 					strcpy(handle->card_info->fw_name,
 					       SDUART9177_DEFAULT_COMBO_FW_NAME);
 				else
@@ -1569,7 +1572,7 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			break;
 		case SD9177_A1:
 			if (magic == CHIP_MAGIC_VALUE) {
-				if (strap == CARD_TYPE_SD_UART)
+				if (strap == CARD_TYPE_SD9177_UART)
 					strcpy(handle->card_info->fw_name,
 					       SDUART9177_DEFAULT_COMBO_V1_FW_NAME);
 				else

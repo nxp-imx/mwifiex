@@ -369,6 +369,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_IPS_CFG = 0x00200085,
 	MLAN_OID_MISC_MC_AGGR_CFG = 0x00200086,
 	MLAN_OID_MISC_CH_LOAD = 0x00200087,
+	MLAN_OID_MISC_STATS = 0x00200088,
+	MLAN_OID_MISC_CH_LOAD_RESULTS = 0x00200089,
 };
 
 /** Sub command size */
@@ -1887,10 +1889,19 @@ typedef struct _mlan_fw_info {
 	t_u8 prohibit_80mhz;
 	/** FW support beacon protection */
 	t_u8 fw_beacon_prot;
+
+	/* lower 8 bytes of uuid */
+	t_u64 uuid_lo;
+
+	/* higher 8 bytes of uuid */
+	t_u64 uuid_hi;
 } mlan_fw_info, *pmlan_fw_info;
 
 /** Version string buffer length */
 #define MLAN_MAX_VER_STR_LEN 128
+
+/** Maximum length of secure boot uuid */
+#define MLAN_MAX_UUID_LEN 32
 
 /** mlan_ver_ext data structure for MLAN_OID_GET_VER_EXT */
 typedef struct _mlan_ver_ext {
@@ -2009,7 +2020,7 @@ typedef struct _mlan_bss_info {
 	/** Channel */
 	t_u32 bss_chan;
 	/** Band */
-	t_u8 bss_band;
+	t_u16 bss_band;
 	/** Region code */
 	t_u32 region_code;
 	/** Connection status */
@@ -2201,6 +2212,8 @@ typedef struct _mlan_debug_info {
 	t_u32 bypass_pkt_count;
 	/** Corresponds to scan_processing member of mlan_adapter */
 	t_u32 scan_processing;
+	/** Corresponds to scan_state member of mlan_adapter */
+	t_u32 scan_state;
 	/** Corresponds to mlan_processing member of mlan_adapter */
 	t_u32 mlan_processing;
 	/** Corresponds to main_lock_flag member of mlan_adapter */
@@ -4434,6 +4447,9 @@ typedef struct _mlan_ds_misc_cck_desense_cfg {
 #define MLAN_IPADDR_OP_ARP_FILTER MBIT(0)
 /** IP operation ARP response */
 #define MLAN_IPADDR_OP_AUTO_ARP_RESP MBIT(1)
+/** Enable opcode bit for MDNS & NS when device enter into suspend **/
+#define MLAN_OP_ADD_MDNS MBIT(2)
+#define MLAN_OP_ADD_IPV6_NS MBIT(3)
 
 /** Type definition of mlan_ds_misc_ipaddr_cfg for MLAN_OID_MISC_IP_ADDR */
 typedef struct _mlan_ds_misc_ipaddr_cfg {
@@ -5501,10 +5517,23 @@ typedef struct _mlan_ds_mc_aggr_cfg {
 	/** CTS2Self duration offset */
 	t_u16 cts2self_offset;
 } mlan_ds_mc_aggr_cfg;
+
+/** mlan_ds_stats */
+typedef struct _mlan_ds_stats {
+	/** action */
+	t_u16 action;
+	/** tlv len */
+	t_u16 tlv_len;
+	/** TLV buffer */
+	t_u8 tlv_buf[1];
+} mlan_ds_stats;
+
 typedef struct _mlan_ds_ch_load {
 	/** action */
 	t_u8 action;
 	t_u16 ch_load_param;
+	t_s16 noise;
+	t_u16 duration;
 } mlan_ds_ch_load;
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
@@ -5649,6 +5678,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_tp_state tp_state;
 		mlan_ds_hal_phy_cfg_params hal_phy_cfg_params;
 		mlan_ds_mc_aggr_cfg mc_aggr_cfg;
+		mlan_ds_stats stats;
 #ifdef UAP_SUPPORT
 		t_u8 wacp_mode;
 #endif

@@ -159,10 +159,10 @@ Change log:
 #define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
 #define SD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
 #define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin"
-#define SDSD9177_DEFAULT_COMBO_FW_NAME "sdsd_nw61x.bin"
+#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
 #define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin"
 #define SDUART9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
-#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "sdsd_nw61x_v1.bin"
+#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_v1.bin"
 #define SD9177_DEFAULT_WLAN_V1_FW_NAME "nxp/sd_w61x_v1.bin"
 #endif /* SD9177 */
 

@@ -101,8 +101,9 @@ extern int wifi_status;
 mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf)
 {
 	moal_handle *handle = (moal_handle *)pmoal;
-	gfp_t mem_flag =
-		(in_interrupt() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t mem_flag = (in_interrupt() || in_atomic() || irqs_disabled()) ?
+				 GFP_ATOMIC :
+				 GFP_KERNEL;
 
 #ifdef USB
 	if (!IS_USB(handle->card_type))
@@ -210,7 +211,7 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	*ppbuf = (t_u8 *)dma_alloc_coherent(&card->dev->dev, size,
-					      (dma_addr_t *)&dma, GFP_KERNEL);
+					    (dma_addr_t *)&dma, GFP_KERNEL);
 #else
 	*ppbuf = (t_u8 *)pci_alloc_consistent(card->dev, size,
 					      (dma_addr_t *)&dma);
@@ -277,7 +278,7 @@ mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
 	if (!card)
 		return MLAN_STATUS_FAILURE;
 
-	/* Init memory to device */
+		/* Init memory to device */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	dma = dma_map_single(&card->dev->dev, pbuf, size, flag);
 	if (dma_mapping_error(&card->dev->dev, dma)) {
@@ -517,8 +518,9 @@ mlan_status moal_init_timer(t_void *pmoal, t_void **pptimer,
 			    t_void *pcontext)
 {
 	moal_drv_timer *timer = NULL;
-	gfp_t mem_flag =
-		(in_interrupt() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t mem_flag = (in_interrupt() || in_atomic() || irqs_disabled()) ?
+				 GFP_ATOMIC :
+				 GFP_KERNEL;
 
 	timer = kmalloc(sizeof(moal_drv_timer), mem_flag);
 	if (timer == NULL)
@@ -1156,19 +1158,27 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 				index = skb_get_queue_mapping(skb);
-				atomic_dec(&handle->tx_pending);
-				if (atomic_dec_return(
-					    &priv->wmm_tx_pending[index]) ==
-				    LOW_TX_PENDING) {
-					struct netdev_queue *txq =
-						netdev_get_tx_queue(
-							priv->netdev, index);
-					if (netif_tx_queue_stopped(txq)) {
-						netif_tx_wake_queue(txq);
-						PRINTM(MINFO,
-						       "Wakeup Kernel Queue:%d\n",
-						       index);
+				if (index < 4) {
+					atomic_dec(&handle->tx_pending);
+					if (atomic_dec_return(
+						    &priv->wmm_tx_pending[index]) ==
+					    LOW_TX_PENDING) {
+						struct netdev_queue *txq =
+							netdev_get_tx_queue(
+								priv->netdev,
+								index);
+						if (netif_tx_queue_stopped(
+							    txq)) {
+							netif_tx_wake_queue(
+								txq);
+							PRINTM(MINFO,
+							       "Wakeup Kernel Queue:%d\n",
+							       index);
+						}
 					}
+				} else {
+					PRINTM(MERROR,
+					       "Invalid queue index for skb\n");
 				}
 #else /*#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29)*/
 				if (atomic_dec_return(&handle->tx_pending) <
@@ -1524,7 +1534,8 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 			/** Antenna */
 			rth->body.antenna_signal = -(rt_info.nf - rt_info.snr);
 			rth->body.antenna_noise = -rt_info.nf;
-			rth->body.antenna = rt_info.antenna;
+			/* Convert FW antenna value to radiotap spec */
+			rth->body.antenna = (t_u16)rt_info.antenna >> 1;
 			/** MCS */
 			if (format == MLAN_RATE_FORMAT_HT) {
 				rth->hdr.it_present |= cpu_to_le32(
@@ -1605,10 +1616,10 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 				/** PARTIAL_AID */
 				/** TODO: Not support now */
 				/** mcs_nss */
-				rth->body.u.vht.mcs_nss[0] =
-					(vht_sig2 & (0xF0)) >> 4;
+				rth->body.u.vht.mcs_nss[0] = vht_sig2 & (0xF0);
+				/* Convert FW NSS value to radiotap spec */
 				rth->body.u.vht.mcs_nss[0] |=
-					(vht_sig1 & (0x1C00)) >> (10 - 4);
+					((vht_sig1 & (0x1C00)) >> 10) + 1;
 				/** coding */
 				if (vht_sig2 & MBIT(2))
 					rth->body.u.vht.coding |=
@@ -1752,7 +1763,12 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 		frame->dev = netdev;
 		frame->priority = skb->priority;
 		payload = frame->data;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 		if (ether_addr_equal(payload, rfc1042_eth_hdr)) {
+#else
+		if (!memcmp(payload, rfc1042_eth_hdr,
+			    sizeof(rfc1042_eth_hdr))) {
+#endif
 			/* Remove RFC1042 */
 			skb_pull(frame, 6);
 			memcpy(skb_push(frame, ETH_ALEN), src, ETH_ALEN);
@@ -2202,6 +2218,7 @@ void moal_connection_status_check_pmqos(t_void *pmoal)
 	}
 }
 
+#ifdef UAP_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 /**
@@ -2233,6 +2250,7 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 		queue_work(handle->evt_workqueue, &handle->evt_work);
 	}
 }
+#endif
 #endif
 #endif
 
@@ -2299,7 +2317,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	t_u8 event_buf[64];
 	t_u8 radar_chan;
 #ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	moal_private *cfg_priv = NULL;
+#endif
 #endif
 
 	t_u8 auto_fw_dump = MFALSE;
@@ -2771,13 +2791,25 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 		if (IS_STA_CFG80211(cfg80211_wext)) {
 			struct cfg80211_bss *bss = NULL;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+			bss = cfg80211_get_bss(priv->wdev->wiphy, NULL,
+					       priv->cfg_bssid, NULL, 0,
+					       IEEE80211_BSS_TYPE_ESS,
+					       IEEE80211_PRIVACY_ANY);
+
+#else
 			bss = cfg80211_get_bss(priv->wdev->wiphy, NULL,
 					       priv->cfg_bssid, NULL, 0,
 					       WLAN_CAPABILITY_ESS,
 					       WLAN_CAPABILITY_ESS);
+#endif
 			if (bss) {
 				cfg80211_unlink_bss(priv->wdev->wiphy, bss);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 				cfg80211_put_bss(priv->wdev->wiphy, bss);
+#else
+				cfg80211_put_bss(bss);
+#endif
 			}
 			if (!hw_test && priv->roaming_enabled)
 				woal_config_bgscan_and_rssi(priv, MFALSE);
@@ -3063,15 +3095,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			 CUS_EVT_RADAR_DETECTED, radar_chan);
 		woal_broadcast_event(priv, event_buf, strlen(event_buf));
 		PRINTM(MEVENT, "Radar detected on channel %d\n", radar_chan);
-		if ((priv->target_chan && priv->bss_started &&
-		     (priv->target_chan != radar_chan)) ||
-		    priv->backup_chan) {
-			PRINTM(MEVENT, "Move to target or backup chan %d %d\n",
-			       priv->target_chan, priv->backup_chan);
-			woal_move_to_next_channel(priv);
-			priv->target_chan = 0;
-			break;
-		}
 
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
@@ -3081,6 +3104,17 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		if (cfg_priv) {
 			woal_update_channel_dfs_state(radar_chan,
 						      DFS_UNAVAILABLE);
+#ifdef UAP_SUPPORT
+			if ((priv->target_chan && priv->bss_started &&
+			     (priv->target_chan != radar_chan)) ||
+			    priv->backup_chan) {
+				PRINTM(MEVENT,
+				       "Move to target or backup chan %d %d\n",
+				       priv->target_chan, priv->backup_chan);
+				woal_move_to_next_channel(priv);
+				priv->target_chan = 0;
+				break;
+			}
 			if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
 				woal_chan_event(priv, WOAL_EVENT_RADAR,
 						priv->chan_rpt_req.chanNum,
@@ -3088,6 +3122,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				break;
 			}
 		}
+#endif
 		if (priv->phandle->is_cac_timer_set) {
 			if (priv->bss_index == priv->phandle->cac_bss_index) {
 				PRINTM(MEVENT, "radar detected during CAC \n");
@@ -3104,9 +3139,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						   NL80211_RADAR_CAC_ABORTED,
 						   GFP_KERNEL);
 #else
-				cfg80211_cac_event(priv->netdev,
-						   NL80211_RADAR_CAC_ABORTED,
-						   GFP_KERNEL);
+					cfg80211_cac_event(
+						priv->netdev,
+						NL80211_RADAR_CAC_ABORTED,
+						GFP_KERNEL);
 #endif
 				cfg80211_radar_event(
 					priv->wdev->wiphy,
@@ -3389,12 +3425,14 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			PRINTM(MEVENT,
 			       "FW_REMAIN_ON_CHANNEL_EXPIRED cookie = %#llx\n",
 			       priv->phandle->cookie);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (priv->host_mlme &&
 			    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
 				priv->auth_flag = 0;
 				priv->host_mlme = MFALSE;
 				priv->auth_alg = 0xFFFF;
 			}
+#endif
 			priv->phandle->remain_on_channel = MFALSE;
 			if (priv->phandle->cookie &&
 			    !priv->phandle->is_remain_timer_set) {
@@ -3431,12 +3469,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				moal_memcpy_ext(priv->phandle, addr,
 						pmevent->event_buf, ETH_ALEN,
 						ETH_ALEN);
-				/** these field add in kernel 3.2, but some
-				 * kernel do have the pacth to support it,
-				 * like T3T and pxa978T 3.0.31 JB, these
-				 * patch are needed to support
-				 * wpa_supplicant 2.x */
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 31)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 				if (pmevent->event_len > ETH_ALEN) {
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 					/* set station info filled flag */

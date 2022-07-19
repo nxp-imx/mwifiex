@@ -301,7 +301,9 @@ typedef struct _chan_stats {
 
 #define PRIV_CMD_MCAST_AGGR_GROUP "mcast_aggr_group"
 #define PRIV_CMD_MC_AGGR_CFG "mc_aggr_cfg"
+#define PRIV_CMD_STATS "stats"
 #define PRIV_CMD_CH_LOAD "getchload"
+#define PRIV_CMD_CH_LOAD_RESULTS "getloadresults"
 
 #define PRIV_CMD_ARB_CFG "arb"
 
@@ -378,6 +380,12 @@ typedef struct _ssu_params_cfg {
 #define PRIV_CMD_CSI "csi"
 
 #define PRIV_CMD_BOOTSLEEP "bootsleep"
+
+/** Private command ID to config txwatchdog enable/disable */
+#define PRIV_CMD_TXWATCHDOG "txwatchdog"
+
+/** Private command to get secure boot uuid */
+#define PRIV_CMD_GET_SB_UUID "getuuid"
 
 /** Private command: 11AX Cfg */
 #define PRIV_CMD_11AXCFG "11axcfg"
@@ -539,6 +547,7 @@ typedef struct woal_priv_addba {
 #define ACTION_ADD 2
 /** Action field value:  remove */
 #define ACTION_REMOVE 3
+
 #define MC_AGGR_CTRL MBIT(0)
 /* mcast_aggr_group */
 typedef struct _mcast_aggr_group {

@@ -137,7 +137,7 @@ static int shutdown_hs;
 static int slew_rate = 3;
 #endif
 int tx_work = 0;
-static int rps = 0;
+
 static int tx_skb_clone = 0;
 #ifdef IMX_SUPPORT
 static int pmqos = 1;
@@ -146,6 +146,7 @@ static int pmqos = 0;
 #endif
 
 static int chan_track = 0;
+static int mcs32 = 1;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -1175,17 +1176,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "tx_work %s\n",
 			       moal_extflg_isset(handle, EXT_TX_WORK) ? "on" :
 									"off");
-		} else if (strncmp(line, "rps", strlen("rps")) == 0) {
-			if (parse_line_read_int(line, &out_data) !=
-			    MLAN_STATUS_SUCCESS)
-				goto err;
-			if (out_data)
-				moal_extflg_set(handle, EXT_RPS);
-			else
-				moal_extflg_clear(handle, EXT_RPS);
-			PRINTM(MMSG, "rps %s\n",
-			       moal_extflg_isset(handle, EXT_RPS) ? "on" :
-								    "off");
 		} else if (strncmp(line, "tx_skb_clone",
 				   strlen("tx_skb_clone")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1317,6 +1307,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "wacp_moe=%d\n", params->wacp_mode);
 		}
 #endif
+		else if (strncmp(line, "mcs32", strlen("mcs32")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->mcs32 = out_data;
+			PRINTM(MMSG, "mcs32=%d\n", params->mcs32);
+		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		else if (strncmp(line, "host_mlme", strlen("host_mlme")) == 0) {
@@ -1427,11 +1424,13 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	woal_dup_string(&handle->params.uap_name, uap_name);
 	handle->params.uap_max_sta = uap_max_sta;
 	handle->params.wacp_mode = wacp_mode;
+	handle->params.mcs32 = mcs32;
 	if (params) {
 		handle->params.max_uap_bss = params->max_uap_bss;
 		woal_dup_string(&handle->params.uap_name, params->uap_name);
 		handle->params.uap_max_sta = params->uap_max_sta;
 		handle->params.wacp_mode = params->wacp_mode;
+		handle->params.mcs32 = params->mcs32;
 	}
 #endif /* UAP_SUPPORT */
 #ifdef WIFI_DIRECT_SUPPORT
@@ -1610,8 +1609,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		moal_extflg_set(handle, EXT_NAPI);
 	if (tx_work)
 		moal_extflg_set(handle, EXT_TX_WORK);
-	if (rps)
-		moal_extflg_set(handle, EXT_RPS);
+
 	if (tx_skb_clone)
 		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
 	if (pmqos)
@@ -1839,11 +1837,6 @@ void woal_init_from_dev_tree(void)
 				PRINTM(MIOCTL, "tx_work=0x%x\n", data);
 				tx_work = data;
 			}
-		} else if (!strncmp(prop->name, "rps", strlen("rps"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "rps=0x%x\n", data);
-				rps = data;
-			}
 		} else if (!strncmp(prop->name, "tx_skb_clone",
 				    strlen("tx_skb_clone"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
@@ -1854,6 +1847,11 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "pmqos=0x%x\n", data);
 				pmqos = data;
+			}
+		} else if (!strncmp(prop->name, "mcs32", strlen("mcs32"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "mcs32=0x%x\n", data);
+				mcs32 = data;
 			}
 		}
 #ifdef MFG_CMD_SUPPORT
@@ -2125,8 +2123,13 @@ void woal_init_from_dev_tree(void)
 			}
 		}
 #endif
-		else if (!strncmp(prop->name, "sched_scan",
-				  strlen("sched_scan"))) {
+		else if (!strncmp(prop->name, "mcs32", strlen("mcs32"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MERROR, "mcs32=0x%x\n", data);
+				mcs32 = data;
+			}
+		} else if (!strncmp(prop->name, "sched_scan",
+				    strlen("sched_scan"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "sched_scan=%d\n", data);
 				sched_scan = data;
@@ -2437,13 +2440,13 @@ MODULE_PARM_DESC(
 #endif
 module_param(tx_work, uint, 0660);
 MODULE_PARM_DESC(tx_work, "1: Enable tx_work; 0: Disable tx_work");
-module_param(rps, uint, 0660);
-MODULE_PARM_DESC(rps, "1: Enable rps; 0: Disable rps");
 module_param(tx_skb_clone, uint, 0660);
 MODULE_PARM_DESC(tx_skb_clone,
 		 "1: Enable tx_skb_clone; 0: Disable tx_skb_clone");
 module_param(pmqos, uint, 0660);
 MODULE_PARM_DESC(pmqos, "1: Enable pmqos; 0: Disable pmqos");
+module_param(mcs32, uint, 0660);
+MODULE_PARM_DESC(mcs32, "1: Enable mcs32; 0: Disable mcs32");
 
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");

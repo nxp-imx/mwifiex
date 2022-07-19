@@ -481,7 +481,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		}
 	}
 	/* check if UAP enable 11n */
-	if (!priv->is_11n_enabled ||
+	if ((!priv->is_11n_enabled && !priv->is_11ax_enabled) ||
 	    (!wlan_11n_get_rxreorder_tbl((mlan_private *)priv, prx_pd->priority,
 					 ta) &&
 	     (prx_pd->rx_pkt_type != PKT_TYPE_AMSDU))) {

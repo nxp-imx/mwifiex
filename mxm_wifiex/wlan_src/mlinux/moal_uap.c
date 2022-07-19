@@ -2121,8 +2121,8 @@ int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (action == MLAN_ACT_GET) {
 		if (IS_UAP_CFG80211(cfg80211_wext)) {
-			ret = woal_get_wiphy_chan_dfs_state(priv->wdev->wiphy,
-							    ch_dfs_state);
+			ret = woal_get_wiphy_chan_dfs_state(
+				priv->phandle->wiphy, ch_dfs_state);
 			if (!ret) {
 				LEAVE();
 				return ret;
@@ -2208,11 +2208,11 @@ static int woal_uap_skip_cac(struct net_device *dev, struct ifreq *req)
 		goto done;
 	if (param.skip_cac && ch_dfs_state.dfs_state == DFS_USABLE)
 		PRINTM(MMSG,
-		       "ZeroDFS: Requst skip cac on the channel %d which hasn't do CAC before!\n",
+		       "DFS: Requst skip cac on the channel %d which hasn't do CAC before!\n",
 		       param.channel);
 	ch_dfs_state.dfs_state = dfs_state;
 	woal_11h_chan_dfs_state(priv, MLAN_ACT_SET, &ch_dfs_state);
-	PRINTM(MCMND, "ZeroDFS: Skip CAC on chan %d %d\n", param.channel,
+	PRINTM(MCMND, "DFS: Skip CAC on chan %d %d\n", param.channel,
 	       param.skip_cac);
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)

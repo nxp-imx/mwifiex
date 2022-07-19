@@ -126,7 +126,7 @@ Change log:
 #define PCIEUARTNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartnw62x_combo.bin"
 #define PCIEUSBNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
 #define PCIENW62X_DEFAULT_WLAN_FW_NAME "nxp/pcienw62x_wlan.bin"
-#endif /* PCIE8997 */
+#endif /* PCIENW62X */
 
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 #define PCIE_NUM_MSIX_VECTORS 32

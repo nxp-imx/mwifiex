@@ -67,6 +67,20 @@ Change Log:
 ********************************************************/
 #ifdef STA_SUPPORT
 /**
+ *  @brief This function check if the command was cancel scan command
+ *
+ *  @param pcmd    A pointer to HostCmd_DS_COMMAND structure
+ *  @return        N/A
+ */
+static t_u8 wlan_is_cancel_scan_cmd(HostCmd_DS_COMMAND *pcmd)
+{
+	HostCmd_DS_802_11_SCAN_EXT *pext_scan_cmd = &pcmd->params.ext_scan;
+	if (pext_scan_cmd->ext_scan_type == EXT_SCAN_CANCEL)
+		return MTRUE;
+	else
+		return MFALSE;
+}
+/**
  *  @brief This function inserts scan command node to scan_pending_q.
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -495,6 +509,7 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	       pmadapter->pps_uapsd_mode, pmadapter->sleep_period.period);
 	PRINTM(MERROR, "tx_lock_flag = %d\n", pmadapter->tx_lock_flag);
 	PRINTM(MERROR, "scan_processing = %d\n", pmadapter->scan_processing);
+	PRINTM(MERROR, "scan_state = 0x%x\n", pmadapter->scan_state);
 	PRINTM(MERROR, "bypass_pkt_count=%d\n", pmadapter->bypass_pkt_count);
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
@@ -1123,9 +1138,9 @@ static mlan_status wlan_cmd_host_cmd(pmlan_private pmpriv,
  *
  *  @return           timeout value for this command
  */
-static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
+static t_u32 wlan_get_cmd_timeout(t_u16 cmd_id)
 {
-	t_u16 timeout;
+	t_u32 timeout;
 	ENTER();
 	switch (cmd_id) {
 	case HostCmd_CMD_802_11_SCAN:
@@ -1206,7 +1221,7 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 #ifdef DEBUG_LEVEL1
 	t_u32 sec = 0, usec = 0;
 #endif
-	t_u16 timeout = 0;
+	t_u32 timeout = 0;
 
 	ENTER();
 
@@ -1292,6 +1307,9 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 		pcmd_node->cmdbuf->data_len += MLAN_TYPE_LEN;
 	}
 #endif
+
+	if (pcmd->command == HostCmd_CMD_802_11_SCAN_EXT)
+		pmadapter->scan_state |= wlan_get_ext_scan_state(pcmd);
 
 	PRINTM_GET_SYS_TIME(MCMND, &sec, &usec);
 	PRINTM_NETINTF(MCMND, pmpriv);
@@ -1928,7 +1946,15 @@ mlan_status wlan_prepare_cmd(mlan_private *pmpriv, t_u16 cmd_no,
 #ifdef STA_SUPPORT
 	if (cmd_no == HostCmd_CMD_802_11_SCAN ||
 	    cmd_no == HostCmd_CMD_802_11_SCAN_EXT) {
-		wlan_queue_scan_cmd(pmpriv, pcmd_node);
+		if (cmd_no == HostCmd_CMD_802_11_SCAN_EXT &&
+		    pmadapter->ext_scan && pmadapter->ext_scan_enh &&
+		    pmadapter->ext_scan_type == EXT_SCAN_ENHANCE &&
+		    wlan_is_cancel_scan_cmd(cmd_ptr)) {
+			wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node,
+						     MFALSE);
+		} else
+
+			wlan_queue_scan_cmd(pmpriv, pcmd_node);
 	} else {
 #endif
 		if ((cmd_no == HostCmd_CMD_802_11_HS_CFG_ENH) &&
@@ -5062,6 +5088,8 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	MrvlIEtypes_Extension_t *ext_tlv = MNULL;
 	MrvlIEtypes_fw_cap_info_t *fw_cap_tlv = MNULL;
 
+	MrvlIEtypes_Secure_Boot_Uuid_t *sb_uuid_tlv = MNULL;
+
 	ENTER();
 
 	pmadapter->fw_cap_info = wlan_le32_to_cpu(hw_spec->fw_cap_info);
@@ -5357,6 +5385,13 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				wlan_le32_to_cpu(fw_cap_tlv->fw_cap_ext);
 			PRINTM(MCMND, "fw_cap_info=0x%x fw_cap_ext=0x%x\n",
 			       pmadapter->fw_cap_info, pmadapter->fw_cap_ext);
+			break;
+		case TLV_TYPE_SECURE_BOOT_UUID:
+			sb_uuid_tlv = (MrvlIEtypes_Secure_Boot_Uuid_t *)tlv;
+			pmadapter->uuid_lo = sb_uuid_tlv->uuid_lo;
+			pmadapter->uuid_hi = sb_uuid_tlv->uuid_hi;
+			PRINTM(MMSG, "uuid: %llx%llx\n", pmadapter->uuid_lo,
+			       pmadapter->uuid_hi);
 			break;
 		default:
 			break;
@@ -9146,6 +9181,7 @@ mlan_status wlan_ret_mc_aggr_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
 /**
  *  @brief This function prepares command of ch_load
  *
@@ -9168,9 +9204,12 @@ mlan_status wlan_cmd_get_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_GET_CH_LOAD) + S_DS_GEN);
 	cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
 	cfg_cmd->ch_load = wlan_cpu_to_le16(cfg->ch_load_param);
+	cfg_cmd->noise = wlan_cpu_to_le16(cfg->noise);
+	cfg_cmd->duration = wlan_cpu_to_le16(cfg->duration);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
 /**
  *  @brief This function handles the command response of ch_load
  *
@@ -9185,13 +9224,10 @@ mlan_status wlan_ret_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 {
 	HostCmd_DS_GET_CH_LOAD *cfg_cmd =
 		(HostCmd_DS_GET_CH_LOAD *)&resp->params.ch_load;
-	mlan_ds_misc_cfg *misc_cfg = MNULL;
 	ENTER();
-	if (pioctl_buf) {
-		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
-		misc_cfg->param.ch_load.ch_load_param =
-			wlan_le16_to_cpu(cfg_cmd->ch_load);
-	}
+
+	pmpriv->ch_load_param = wlan_le16_to_cpu(cfg_cmd->ch_load);
+	pmpriv->noise = wlan_le16_to_cpu(cfg_cmd->noise);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

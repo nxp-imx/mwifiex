@@ -127,6 +127,8 @@ char mod_conv_a_2x2[6][35] = {
 #endif
 #endif
 
+#define MAX_CH_LOAD_DURATION 10
+
 static int process_version(int argc, char *argv[]);
 static int process_verext(int argc, char *argv[]);
 static int process_hostcmd(int argc, char *argv[]);
@@ -155,6 +157,8 @@ static int process_hssetpara(int argc, char *argv[]);
 static int process_mefcfg(int argc, char *argv[]);
 static int process_cloud_keep_alive(int argc, char *argv[]);
 static int process_min_ba_threshold_cfg(int argc, char *argv[]);
+static int process_txwatchdog(int argc, char *argv[]);
+static int process_getuuid(int argc, char *argv[]);
 
 struct command_node command_list[] = {
 	{"version", process_version},
@@ -186,6 +190,8 @@ struct command_node command_list[] = {
 	{"mefcfg", process_mefcfg},
 	{"cloud_keep_alive", process_cloud_keep_alive},
 	{"min_ba_threshold", process_min_ba_threshold_cfg},
+	{"txwatchdog", process_txwatchdog},
+	{"getuuid", process_getuuid},
 };
 
 static char *usage[] = {
@@ -5178,6 +5184,130 @@ done:
 		free(cmd);
 
 	return ret;
+}
+
+/**
+ * *  @brief Process txwatchdog check command
+ * *  @param argc     number of arguments
+ * *  @param argv     A pointer to arguments array
+ * *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
+ * */
+static int process_txwatchdog(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: txwatchdog fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process Get result */
+	if (argc == 3) {
+		printf("txwatchdog check: %s\n",
+		       ((*(t_u32 *)buffer == 0) ? "Disabled" : "Enabled"));
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+static int process_getuuid(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd = NULL;
+	struct ifreq ifr;
+
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], 0, NULL);
+
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: version fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	printf("uuid: %s\n", buffer);
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
 }
 
 /********************************************************
