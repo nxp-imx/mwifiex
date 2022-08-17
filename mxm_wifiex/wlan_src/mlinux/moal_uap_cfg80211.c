@@ -2344,15 +2344,30 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 			}
 		}
 		if (vir_priv && vir_priv->bss_type == MLAN_BSS_TYPE_UAP) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			woal_cfg80211_del_beacon(wiphy, dev, 0);
+#else
 			woal_cfg80211_del_beacon(wiphy, dev);
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			vir_priv->wdev->links[0].ap.beacon_interval = 0;
+#else
 			vir_priv->wdev->beacon_interval = 0;
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			memset(&vir_priv->wdev->links[0].ap.chandef, 0,
+			       sizeof(vir_priv->wdev->links[0].ap.chandef));
+#elif CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 			memset(&vir_priv->wdev->chandef, 0,
 			       sizeof(vir_priv->wdev->chandef));
 #endif
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			vir_priv->wdev->u.ap.ssid_len = 0;
+#else
 			vir_priv->wdev->ssid_len = 0;
+#endif
 			PRINTM(MMSG, "Skip del UAP virtual interface %s",
 			       dev->name);
 		}
@@ -2627,7 +2642,11 @@ done:
  *
  * @return                0 -- success, otherwise fail
  */
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id)
+#else
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
+#endif
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
@@ -3317,7 +3336,11 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	priv->channel = uap_channel.channel;
 	moal_memcpy_ext(priv->phandle, &priv->chan, &priv->csa_chan,
 			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
+#else
 	cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
+#endif
 	if (priv->uap_tx_blocked) {
 		if (!netif_carrier_ok(priv->netdev))
 			netif_carrier_on(priv->netdev);

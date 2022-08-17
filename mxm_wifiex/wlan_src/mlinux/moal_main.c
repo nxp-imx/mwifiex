@@ -969,7 +969,11 @@ static void woal_hang_work_queue(struct work_struct *work)
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			    priv->wdev->connected) {
+#else
 			    priv->wdev->current_bss) {
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				if (priv->host_mlme)
 					woal_host_mlme_disconnect(
@@ -5688,7 +5692,11 @@ int woal_close(struct net_device *dev)
 	woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev->connected) {
+#else
 	if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev->current_bss) {
+#endif
 		priv->cfg_disconnect = MTRUE;
 		cfg80211_disconnected(priv->netdev, 0, NULL, 0,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
@@ -8642,7 +8650,11 @@ t_void woal_send_disconnect_to_system(moal_private *priv,
 	if (IS_STA_CFG80211(cfg80211_wext)) {
 		spin_lock_irqsave(&priv->connect_lock, flags);
 		if (!priv->cfg_disconnect && !priv->cfg_connect && priv->wdev &&
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+		    priv->wdev->connected) {
+#else
 		    priv->wdev->current_bss) {
+#endif
 			PRINTM(MMSG,
 			       "wlan: Disconnected from " MACSTR
 			       ": Reason code %d\n",
