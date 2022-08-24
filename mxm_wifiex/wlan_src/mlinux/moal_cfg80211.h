@@ -275,10 +275,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #endif
 			  u64 *cookie);
 
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-void woal_update_radar_chans_dfs_state(struct wiphy *wiphy);
-#endif
-
 mlan_status woal_register_cfg80211(moal_private *priv);
 
 extern struct ieee80211_supported_band cfg80211_band_2ghz;

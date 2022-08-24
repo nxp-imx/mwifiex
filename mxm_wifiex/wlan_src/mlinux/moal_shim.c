@@ -2125,15 +2125,22 @@ void woal_request_busfreq_pmqos_add(t_void *handle)
 #endif
 	if (moal_extflg_isset(pmhandle, EXT_PMQOS)) {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 #ifdef IMX_SUPPORT
-		pm_qos_add_request(&pmhandle->woal_pm_qos_req,
-				   PM_QOS_CPU_DMA_LATENCY, 0);
+		if (!pm_qos_request_active(&pmhandle->woal_pm_qos_req))
+			pm_qos_add_request(&pmhandle->woal_pm_qos_req,
+					   PM_QOS_CPU_DMA_LATENCY, 0);
+		else
+			PRINTM(MERROR, "PM-QOS request already active\n");
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-		cpu_latency_qos_add_request(&pmhandle->woal_pm_qos_req, 0);
+		if (!cpu_latency_qos_request_active(&pmhandle->woal_pm_qos_req))
+			cpu_latency_qos_add_request(&pmhandle->woal_pm_qos_req,
+						    0);
+		else
+			PRINTM(MERROR, "PM-QOS request already active\n");
 #endif
 #endif
 	}
@@ -2153,14 +2160,21 @@ void woal_release_busfreq_pmqos_remove(t_void *handle)
 
 	if (moal_extflg_isset(pmhandle, EXT_PMQOS)) {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 #ifdef IMX_SUPPORT
-		pm_qos_remove_request(&pmhandle->woal_pm_qos_req);
+		if (pm_qos_request_active(&pmhandle->woal_pm_qos_req))
+			pm_qos_remove_request(&pmhandle->woal_pm_qos_req);
+		else
+			PRINTM(MERROR, "PM-QOS request already removed\n");
 #endif
 #endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
 #ifdef IMX_SUPPORT
-		cpu_latency_qos_remove_request(&pmhandle->woal_pm_qos_req);
+		if (cpu_latency_qos_request_active(&pmhandle->woal_pm_qos_req))
+			cpu_latency_qos_remove_request(
+				&pmhandle->woal_pm_qos_req);
+		else
+			PRINTM(MERROR, "PM-QOS request already removed\n");
 #endif
 #endif
 	}

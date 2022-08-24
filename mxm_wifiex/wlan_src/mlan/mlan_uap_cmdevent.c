@@ -2241,6 +2241,7 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 			tlv_chan_band = (MrvlIEtypes_channel_band_t *)tlv;
 			bss->param.bss_config.bandcfg = tlv_chan_band->bandcfg;
 			bss->param.bss_config.channel = tlv_chan_band->channel;
+			pmpriv->uap_channel = tlv_chan_band->channel;
 			pmpriv->uap_state_chan_cb.bandcfg =
 				tlv_chan_band->bandcfg;
 			pmpriv->uap_state_chan_cb.channel =
@@ -2678,6 +2679,12 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 						chan_band_tlv->channel;
 					bss->param.ap_channel.is_11n_enabled =
 						pmpriv->is_11n_enabled;
+					pmpriv->uap_channel =
+						chan_band_tlv->channel;
+					pmpriv->uap_state_chan_cb.bandcfg =
+						chan_band_tlv->bandcfg;
+					pmpriv->uap_state_chan_cb.channel =
+						chan_band_tlv->channel;
 					bss->param.ap_channel.is_dfs_chan =
 						wlan_11h_radar_detect_required(
 							pmpriv,
@@ -3880,6 +3887,8 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 				    tlv_len + sizeof(MrvlIEtypesHeader_t));
 			pchan_info = (MrvlIEtypes_channel_band_t *)tlv;
 			priv->uap_channel = pchan_info->channel;
+			priv->uap_state_chan_cb.channel = pchan_info->channel;
+			priv->uap_state_chan_cb.bandcfg = pchan_info->bandcfg;
 			PRINTM(MCMND, "uap_channel FW: 0x%x\n",
 			       priv->uap_channel);
 			event->bss_index = priv->bss_index;
@@ -5647,9 +5656,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 				    .no_channel_change_on_radar ||
 			    pmpriv->adapter->dfs_test_params
 				    .fixed_new_channel_on_radar) {
-				if (pmadapter->state_rdh.stage == RDH_OFF ||
-				    pmadapter->state_rdh.stage ==
-					    RDH_SET_CUSTOM_IE) {
+				if (pmadapter->state_rdh.stage == RDH_OFF) {
 					pmadapter->state_rdh.stage =
 						RDH_CHK_INTFS;
 					wlan_11h_radar_detected_handling(
@@ -5752,6 +5759,8 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		} else {
 			/* Handle Host-based DFS and non-DFS(normal uap) case */
 			pmpriv->intf_state_11h.tx_disabled = MFALSE;
+		}
+		if (pmpriv->uap_host_based) {
 			memset(pmadapter, event_buf, 0x00, MAX_EVENT_SIZE);
 			/* Setup event buffer */
 			pevent->bss_index = pmpriv->bss_index;

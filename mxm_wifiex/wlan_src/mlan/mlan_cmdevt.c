@@ -7788,8 +7788,10 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 			.get_link_statistic;
 
 	/* TLV parse */
-	left_len = resp->size - sizeof(HostCmd_DS_802_11_LINK_STATISTIC) -
-		   S_DS_GEN;
+	if (resp->size > (sizeof(HostCmd_DS_802_11_LINK_STATISTIC) - S_DS_GEN))
+		left_len = resp->size -
+			   sizeof(HostCmd_DS_802_11_LINK_STATISTIC) - S_DS_GEN;
+
 	tlv = (MrvlIEtypesHeader_t *)(plink_stat->value);
 	DBG_HEXDUMP(MDAT_D, "tlv:", (void *)tlv, 1024);
 	while (left_len > sizeof(MrvlIEtypesHeader_t)) {

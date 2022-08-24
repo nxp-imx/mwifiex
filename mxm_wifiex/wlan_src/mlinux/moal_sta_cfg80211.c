@@ -3569,40 +3569,6 @@ done:
 /********************************************************
 				Global Functions
 ********************************************************/
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-/**
- * @brief Set all radar channel's dfs_state
- *
- * @param wiphy           A pointer to wiphy structure
- *
- * @return                N/A
- */
-void woal_update_radar_chans_dfs_state(struct wiphy *wiphy)
-{
-	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
-	enum ieee80211_band band;
-	struct ieee80211_supported_band *sband;
-	int i;
-	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
-		sband = wiphy->bands[band];
-		if (!sband)
-			continue;
-		for (i = 0; i < sband->n_channels; i++) {
-			if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
-				if (moal_extflg_isset(handle, EXT_DFS_OFFLOAD))
-					sband->channels[i].dfs_state =
-						NL80211_DFS_AVAILABLE;
-				else
-					sband->channels[i].dfs_state =
-						NL80211_DFS_USABLE;
-			}
-		}
-	}
-	PRINTM(MCMND, "Set radar dfs_state: dfs_offload=%d\n",
-	       moal_extflg_isset(handle, EXT_DFS_OFFLOAD));
-}
-#endif
-
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 
 /**
@@ -4033,10 +3999,6 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 #endif
 	}
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	if (moal_extflg_isset(handle, EXT_DFS_OFFLOAD))
-		woal_update_radar_chans_dfs_state(wiphy);
-#endif
 	memset(region, 0, sizeof(region));
 	moal_memcpy_ext(priv->phandle, region, request->alpha2,
 			sizeof(request->alpha2), sizeof(region));
@@ -4314,9 +4276,8 @@ static int woal_find_wps_ie_in_probereq(const t_u8 *ie, int len)
 }
 
 #ifdef UAP_CFG80211
-
-#define SCAN_RESULT_EXPIRTED 1
 /** scan result expired value */
+#define SCAN_RESULT_EXPIRTED 1
 /**
  *  @brief check if the scan result expired
  *
@@ -9942,6 +9903,9 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		wiphy->max_sched_scan_plan_iterations = 100;
 #endif
 	}
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+	wiphy->features |= NL80211_FEATURE_TX_POWER_INSERTION;
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;

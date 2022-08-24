@@ -69,7 +69,12 @@ static int beacon_hints;
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-static int host_mlme;
+#ifdef IMX_SUPPORT
+static int host_mlme = 1;
+#else
+static int host_mlme = 0;
+#endif
+
 #endif
 #endif
 
@@ -2606,8 +2611,15 @@ MODULE_PARM_DESC(
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 module_param(host_mlme, int, 0);
-MODULE_PARM_DESC(host_mlme,
-		 "1: Enable Host MLME Support; 0: Disable Host MLME support");
+#ifdef IMX_SUPPORT
+MODULE_PARM_DESC(
+	host_mlme,
+	"1: Enable Host MLME Support (Default); 0: Disable Host MLME support");
+#else
+MODULE_PARM_DESC(
+	host_mlme,
+	"1: Enable Host MLME Support; 0: Disable Host MLME support (Default)");
+#endif
 #endif
 #endif
 

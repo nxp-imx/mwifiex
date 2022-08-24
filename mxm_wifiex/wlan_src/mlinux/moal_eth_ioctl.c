@@ -4468,6 +4468,43 @@ done:
 }
 
 /**
+ *  @brief Process Set Host Sleep parameters from proc buffer
+ *
+ *  @param handle       A pointer to moal_handle structure
+ *  @param pbuf         A pointer to buffer for host sleep parameters
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             0 --success, otherwise fail
+ */
+int woal_process_proc_hssetpara(moal_handle *handle, t_u8 *buf)
+{
+	int data[15] = {0};
+	int user_data_len = 0;
+	int ret = 0;
+	t_u8 respbuf[500];
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+
+	ENTER();
+	if (!priv) {
+		LEAVE();
+		return ret;
+	}
+	memset((char *)data, 0, sizeof(data));
+	parse_arguments(buf, data, ARRAY_SIZE(data), &user_data_len);
+	if (sizeof(int) * user_data_len > sizeof(data)) {
+		PRINTM(MERROR, "Too many arguments\n");
+		LEAVE();
+		return -EINVAL;
+	}
+	if (user_data_len >= 1 && user_data_len <= 15) {
+		sprintf(respbuf, "%s%s%s", CMD_NXP, PRIV_CMD_HSCFG, buf);
+		ret = woal_priv_hscfg(priv, respbuf, sizeof(respbuf), MFALSE);
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set Host Sleep parameters
  *
  *  @param priv         A pointer to moal_private structure
@@ -15312,19 +15349,17 @@ done:
 static int woal_priv_dfs_offload_enable(moal_private *priv, t_u8 *respbuf,
 					t_u32 respbuflen)
 {
-	struct wiphy *wiphy = NULL;
 	int ret = 0, dfs_offload_en = 0, user_data_len = 0, header_len = 0,
 	    dfs_offload;
 
 	ENTER();
 
-	if (priv && priv->wdev)
-		wiphy = priv->wdev->wiphy;
-	if (!wiphy) {
-		PRINTM(MERROR, "wiphy is NULL\n");
+	if (!priv) {
+		PRINTM(MERROR, "priv is NULL\n");
 		ret = -EFAULT;
 		goto done;
 	}
+
 	dfs_offload = moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD);
 	if (woal_is_any_interface_active(priv->phandle)) {
 		PRINTM(MERROR,
@@ -15352,7 +15387,6 @@ static int woal_priv_dfs_offload_enable(moal_private *priv, t_u8 *respbuf,
 			moal_extflg_set(priv->phandle, EXT_DFS_OFFLOAD);
 		else
 			moal_extflg_clear(priv->phandle, EXT_DFS_OFFLOAD);
-		woal_update_radar_chans_dfs_state(wiphy);
 	}
 done:
 	LEAVE();

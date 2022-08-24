@@ -607,6 +607,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		PRINTM(MMSG, "on=%d drop_point=%d\n", handle->tp_acnt.on,
 		       handle->tp_acnt.drop_point);
 	}
+	if (!strncmp(databuf, "hssetpara=", strlen("hssetpara="))) {
+		line += strlen("hssetpara") + 1;
+		PRINTM(MCMND, "hssetpara=%s\n", line);
+		woal_process_proc_hssetpara(handle, line);
+	}
 	if (!strncmp(databuf, "rf_test_mode", strlen("rf_test_mode"))) {
 		line += strlen("rf_test_mode") + 1;
 		config_data = (t_u32)woal_string_to_number(line);
@@ -686,6 +691,8 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 {
 	moal_handle *handle = (moal_handle *)sfp->private;
 	int i;
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	mlan_ds_hs_cfg hscfg;
 
 	ENTER();
 
@@ -697,6 +704,13 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp, "hardware_status=%d\n", (int)handle->hardware_status);
 	seq_printf(sfp, "netlink_num=%d\n", (int)handle->netlink_num);
 	seq_printf(sfp, "drv_mode=%d\n", (int)handle->params.drv_mode);
+	if (priv) {
+		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
+		woal_set_get_hs_params(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				       &hscfg);
+		seq_printf(sfp, "hssetpara=%d,0x%x,%d,%d\n", hscfg.conditions,
+			   hscfg.gpio, hscfg.gap, hscfg.hs_wake_interval);
+	}
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		seq_printf(sfp, "sdcmd52rw=%d 0x%0x 0x%02X\n",
