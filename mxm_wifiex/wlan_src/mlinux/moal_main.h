@@ -3377,6 +3377,7 @@ int woal_enable_hs(moal_private *priv);
 /** Get wakeup reason */
 mlan_status woal_get_wakeup_reason(moal_private *priv,
 				   mlan_ds_hs_wakeup_reason *wakeup_reason);
+int woal_process_proc_hssetpara(moal_handle *handle, t_u8 *buf);
 #define FW_DUMP_INFO_LEN 0x280000
 /** mem dump header */
 typedef struct {
