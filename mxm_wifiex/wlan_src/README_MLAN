@@ -1321,6 +1321,9 @@ hssetpara
 	This command is used to set host sleep parameters.
 
 	Usage:
+        echo "hssetpara=2 0xff 0xc8 3 400" > /proc/mwlan/adapter0/config
+        echo "hssetpara=2 1 0xc8 3 400 " > /proc/mwlan/adapter0/config
+
 		mlanutl mlanX hssetpara condition [GPIO# [gap]] (optional)[type ind_GPIO# [level]] (optional)[type event_force_ignore event_use_ext_gap ext_gap [gpio_wave]] (optional)[type hs_wakeup_interval] (optional)[type min_wake_holdoff]
 
 	This command takes one (condition), two (condition and GPIO#) or three

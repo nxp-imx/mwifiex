@@ -1762,14 +1762,16 @@ static int woal_deinit_ring_buffer(moal_private *priv)
 
 	ENTER();
 
-	for (i = 0; i < RING_ID_MAX - 1; i++) {
+	for (i = 0; i < RING_ID_MAX; i++) {
 		ring_buff = (wifi_ring_buffer *)priv->rings[i];
 		if (!ring_buff)
 			continue;
 		spin_lock_irqsave(&ring_buff->lock, lock_flags);
 		ring_state = ring_buff->state;
-		if (ring_state == RING_ACTIVE)
+		if (ring_state == RING_ACTIVE) {
 			ring_buff->state = RING_STOP;
+			ring_buff->interval = 0;
+		}
 		spin_unlock_irqrestore(&ring_buff->lock, lock_flags);
 		if (ring_state == RING_ACTIVE)
 			cancel_delayed_work_sync(&ring_buff->work);

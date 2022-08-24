@@ -880,6 +880,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	MrvlIEtypes_RatesParamSet_t *prates_tlv;
 	MrvlIEtypes_AuthType_t *pauth_tlv = MNULL;
 	MrvlIEtypes_RsnParamSet_t *prsn_ie_tlv = MNULL;
+	MrvlIEtypes_SAE_PWE_Mode_t *prsnx_ie_tlv = MNULL;
 	MrvlIEtypes_SecurityCfg_t *psecurity_cfg_ie = MNULL;
 	MrvlIEtypes_ChanListParamSet_t *pchan_tlv;
 	WLAN_802_11_RATES rates;
@@ -1182,6 +1183,37 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				       prsn_ie_tlv->header.len;
 				prsn_ie_tlv->header.len = wlan_cpu_to_le16(
 					prsn_ie_tlv->header.len);
+			}
+			if (pbss_desc->prsnx_ie) {
+				prsnx_ie_tlv =
+					(MrvlIEtypes_SAE_PWE_Mode_t *)pos;
+				prsnx_ie_tlv->header.type =
+					(t_u16)(*(pbss_desc->prsnx_ie))
+						.ieee_hdr.element_id;
+				prsnx_ie_tlv->header.type =
+					prsnx_ie_tlv->header.type & 0x00FF;
+				prsnx_ie_tlv->header.type = wlan_cpu_to_le16(
+					prsnx_ie_tlv->header.type);
+				prsnx_ie_tlv->header.len =
+					(t_u16)(*(pbss_desc->prsnx_ie))
+						.ieee_hdr.len;
+				prsnx_ie_tlv->header.len =
+					prsnx_ie_tlv->header.len & 0x00FF;
+
+				memcpy_ext(pmadapter, prsnx_ie_tlv->pwe,
+					   &((*(pbss_desc->prsnx_ie)).data[0]),
+					   prsnx_ie_tlv->header.len,
+					   prsnx_ie_tlv->header.len);
+
+				HEXDUMP("ASSOC_CMD: RSNX IE",
+					(t_u8 *)prsnx_ie_tlv,
+					sizeof(prsnx_ie_tlv->header) +
+						prsnx_ie_tlv->header.len);
+
+				pos += sizeof(prsnx_ie_tlv->header) +
+				       prsnx_ie_tlv->header.len;
+				prsnx_ie_tlv->header.len = wlan_cpu_to_le16(
+					prsnx_ie_tlv->header.len);
 			}
 		}
 	}

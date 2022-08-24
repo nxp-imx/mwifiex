@@ -966,6 +966,7 @@ static void woal_hang_work_queue(struct work_struct *work)
 				netif_carrier_off(priv->netdev);
 			priv->media_connected = MFALSE;
 			// disconnect
+			moal_connection_status_check_pmqos(priv->phandle);
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
@@ -6952,20 +6953,17 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 		}
 	}
 #if 0
-/* Might have race conditions with woal_tcp_ack_timer_func
- * Causing kernel panic, ageout handler will free tcp_sess
- * for now.
- */
-	else if ((*((t_u8 *)tcph + 13) & 0x11) == 0x11) {
+	/* Might have race conditions with woal_tcp_ack_timer_func
+	 * Causing kernel panic, ageout handler will free tcp_sess
+	 * for now.
+	 */
+	else if((*((t_u8 *)tcph + 13) & 0x11) == 0x11){
 		/* TCP ACK + Fin */
 		spin_lock_irqsave(&priv->tcp_sess_lock, flags);
-		tcp_session = woal_get_tcp_sess(priv, (__force t_u32)iph->saddr,
-						(__force t_u16)tcph->source,
-						(__force t_u32)iph->daddr,
-						(__force t_u16)tcph->dest);
+		tcp_session = woal_get_tcp_sess(priv, (__force t_u32)iph->saddr, (__force t_u16)tcph->source,
+			(__force t_u32)iph->daddr, (__force t_u16)tcph->dest);
 		if (tcp_session) {
-			PRINTM(MDATA, "wlan: delete TCP seesion %p\n",
-			       tcp_session);
+			PRINTM(MDATA,"wlan: delete TCP seesion %p\n",tcp_session);
 			list_del(&tcp_session->link);
 			if (tcp_session->is_timer_set)
 				woal_cancel_timer(&tcp_session->ack_timer);
@@ -6975,8 +6973,9 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 			kfree(tcp_session);
 		}
 		spin_unlock_irqrestore(&priv->tcp_sess_lock, flags);
-	}
+ 	}
 #endif
+
 done:
 	LEAVE();
 	return ret;
@@ -7218,6 +7217,9 @@ mlan_status woal_atoi(int *data, char *a)
 		} else {
 			if ((i == 0) && (a[i] == '-')) {
 				mul = -1;
+			} else if (a[i] == 0xa) {
+				// line feed
+				break;
 			} else {
 				PRINTM(MERROR, "Invalid char %c in string %s\n",
 				       a[i], a);
