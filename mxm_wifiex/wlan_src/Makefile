@@ -28,6 +28,7 @@ LD ?=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
 YMD=		`date +%Y%m%d%H%M`
 PWD := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+M ?= $(shell pwd)
 
 #############################################################################
 # Configuration Options
@@ -639,12 +640,10 @@ moal-objs := $(MOALOBJS)
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
 
 modules_install:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
-
-
+	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
 endif
 
 ###############################################################
