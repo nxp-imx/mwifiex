@@ -207,6 +207,8 @@ typedef struct _skip_cac_para {
 	t_u16 skip_cac;
 	/** channel */
 	t_u8 channel;
+	/** bandwidth */
+	t_u8 bw;
 } skip_cac_para;
 
 /** radio control command */
@@ -532,12 +534,23 @@ typedef struct _domain_info_param {
 #define MAX_DOMAIN_TLV_LEN                                                     \
 	(TLV_HEADER_LEN + COUNTRY_CODE_LEN + (SUB_BAND_LEN * MAX_SUB_BANDS))
 
+/** DOMAIN_INFO param size of dfs_region */
+#define DFS_REGION_LEN 1
+/** MAX reg domain TLV length*/
+#define MAX_REG_DOMAIN_TLV_LEN (TLV_HEADER_LEN + DFS_REGION_LEN)
+
 /** Get/Set channel DFS state */
 int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
 			    mlan_ds_11h_chan_dfs_state *ch_dfs_state);
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
+				    t_u8 bandwidth, t_u8 dfs_state);
+#endif
+#endif
 
-int woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
-				mlan_ds_ps_mgmt *ps_mgmt);
+mlan_status woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
+					mlan_ds_ps_mgmt *ps_mgmt);
 void woal_uap_set_multicast_list(struct net_device *dev);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
@@ -548,12 +561,10 @@ int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 #endif
 
 int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
-#ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+
 int woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
 				  pmlan_ds_11h_chan_nop_info ch_info);
-#endif
-#endif
+
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
 				    chan_band_info *uap_channel);

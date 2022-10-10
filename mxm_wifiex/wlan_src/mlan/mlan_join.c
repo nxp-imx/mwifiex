@@ -282,7 +282,7 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 	ENTER();
 
 	ret = pcb->moal_malloc(pmpriv->adapter->pmoal_handle, rate1_size,
-			       MLAN_MEM_DEF, &tmp);
+			       MLAN_MEM_DEF | MLAN_MEM_FLAG_ATOMIC, &tmp);
 	if (ret != MLAN_STATUS_SUCCESS || !tmp) {
 		PRINTM(MERROR, "Failed to allocate buffer\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -1622,6 +1622,10 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 			pmpriv->curr_bss_params.bss_descriptor.mac_address);
 
 	wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_CONNECTED, pevent);
+#ifdef UAP_SUPPORT
+	if (pmpriv->adapter->dfs_mode)
+		wlan_11h_update_dfs_master_state_by_sta(pmpriv);
+#endif
 
 	wlan_coex_ampdu_rxwinsize(pmpriv->adapter);
 

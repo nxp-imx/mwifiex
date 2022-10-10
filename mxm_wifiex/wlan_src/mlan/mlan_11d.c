@@ -1523,8 +1523,11 @@ mlan_status wlan_11d_cfg_domain_info(pmlan_adapter pmadapter,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	if (!wlan_fw_11d_is_enabled(pmpriv))
-		wlan_11d_enable(pmpriv, MNULL, ENABLE_11D);
+	if (!wlan_fw_11d_is_enabled(pmpriv)) {
+		ret = wlan_11d_enable(pmpriv, MNULL, ENABLE_11D);
+		if (ret)
+			PRINTM(MERROR, "Enabling 11D in FW failed\n");
+	}
 
 	cfg_11d = (mlan_ds_11d_cfg *)pioctl_req->pbuf;
 	domain_info = &cfg_11d->param.domain_info;
@@ -1587,7 +1590,8 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = pmpriv->adapter;
-	MrvlIEtypes_DomainParamSet_t *pdomain_tlv;
+	MrvlIEtypes_DomainParamSet_t *pdomain_tlv = MNULL;
+	MrvlIEtypes_Rgn_dom_code_t *pregdomain_tlv = MNULL;
 	t_u8 num_sub_band = 0;
 	t_u8 cfp_bg = 0, cfp_a = 0;
 
@@ -1595,6 +1599,12 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 
 	pdomain_tlv = (MrvlIEtypes_DomainParamSet_t *)domain_tlv;
 
+	if (pdomain_tlv->header.type == TLV_TYPE_DOMAIN) {
+		pregdomain_tlv =
+			(MrvlIEtypes_Rgn_dom_code_t
+				 *)(domain_tlv + sizeof(MrvlIEtypesHeader_t) +
+				    pdomain_tlv->header.len);
+	}
 	/* update region code & table based on country string */
 	if (wlan_misc_country_2_cfp_table_code(
 		    pmadapter, pdomain_tlv->country_code, &cfp_bg, &cfp_a) ==
@@ -1624,9 +1634,18 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 	/* TODO: don't just clobber pmadapter->domain_reg.
 	 *       Add some checking or merging between STA & UAP domain_info
 	 */
-	wlan_11d_set_domain_info(pmpriv, band, pdomain_tlv->country_code,
-				 num_sub_band, pdomain_tlv->sub_band,
-				 NXP_DFS_UNKNOWN);
+	if (pregdomain_tlv &&
+	    (pregdomain_tlv->header.type == TLV_TYPE_REGION_DOMAIN_CODE)) {
+		wlan_11d_set_domain_info(pmpriv, band,
+					 pdomain_tlv->country_code,
+					 num_sub_band, pdomain_tlv->sub_band,
+					 pregdomain_tlv->domain_code);
+	} else
+		wlan_11d_set_domain_info(pmpriv, band,
+					 pdomain_tlv->country_code,
+					 num_sub_band, pdomain_tlv->sub_band,
+					 NXP_DFS_UNKNOWN);
+
 	ret = wlan_11d_send_domain_info(pmpriv, pioctl_buf);
 
 done:

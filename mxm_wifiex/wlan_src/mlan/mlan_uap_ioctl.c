@@ -124,10 +124,6 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 	    !wlan_can_radar_det_skip(pmpriv) &&
 	    wlan_11h_radar_detect_required(pmpriv,
 					   puap_state_chan_cb->channel)) {
-		dfs_state = wlan_get_chan_dfs_state(
-			pmpriv, BAND_A, puap_state_chan_cb->channel);
-		if (dfs_state == DFS_AVAILABLE)
-			goto prep_bss_start;
 		/* If DFS repeater mode is on then before starting the uAP
 		 * make sure that mlan0 is connected to some external AP
 		 * for DFS channel operations.
@@ -154,7 +150,10 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 				goto prep_bss_start;
 			}
 		}
-
+		dfs_state = wlan_get_chan_dfs_state(
+			pmpriv, BAND_A, puap_state_chan_cb->channel);
+		if (dfs_state == DFS_AVAILABLE)
+			goto prep_bss_start;
 		/* first check if channel is under NOP */
 		if (wlan_11h_is_channel_under_nop(
 			    pmpriv->adapter, puap_state_chan_cb->channel)) {
@@ -1451,8 +1450,9 @@ static mlan_status wlan_uap_callback_11h_channel_check_req(t_void *priv)
 		dfs_state = wlan_get_chan_dfs_state(
 			pmpriv, BAND_A, puap_state_chan_cb->channel);
 		if (dfs_state == DFS_AVAILABLE) {
-			wlan_11h_set_dfs_check_chan(
-				pmpriv, puap_state_chan_cb->channel);
+			wlan_11h_set_dfs_check_chan(pmpriv,
+						    puap_state_chan_cb->channel,
+						    pband_cfg->chanWidth);
 			PRINTM(MCMND, "DFS: Channel %d is Avaliable\n",
 			       puap_state_chan_cb->channel);
 			pcb->moal_ioctl_complete(pmpriv->adapter->pmoal_handle,
@@ -1538,6 +1538,28 @@ static mlan_status wlan_uap_11h_channel_check_req(pmlan_adapter pmadapter,
 					pmpriv->adapter->dfs_test_params
 						.user_cac_period_msec;
 			}
+			if (pmpriv->adapter->dfs_test_params.cac_restart &&
+			    p11h_cfg->param.chan_rpt_req.millisec_dwell_time) {
+				pmpriv->adapter->dfs_test_params.chan =
+					p11h_cfg->param.chan_rpt_req.chanNum;
+				pmpriv->adapter->dfs_test_params
+					.millisec_dwell_time =
+					p11h_cfg->param.chan_rpt_req
+						.millisec_dwell_time;
+				memcpy_ext(
+					pmpriv->adapter,
+					&pmpriv->adapter->dfs_test_params
+						 .bandcfg,
+					&p11h_cfg->param.chan_rpt_req.bandcfg,
+					sizeof(Band_Config_t),
+					sizeof(Band_Config_t));
+			}
+			if (p11h_cfg->param.chan_rpt_req.millisec_dwell_time)
+				PRINTM(MMSG,
+				       "11h: issuing DFS Radar check for channel=%d."
+				       "  Please wait for response...\n",
+				       p11h_cfg->param.chan_rpt_req.chanNum);
+
 			ret = wlan_prepare_cmd(
 				pmpriv, HostCmd_CMD_CHAN_REPORT_REQUEST,
 				HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
@@ -2355,6 +2377,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_NOP_INFO)
 			status = wlan_11h_ioctl_channel_nop_info(pmadapter,
 								 pioctl_req);
+		if (cfg11h->sub_command == MLAN_OID_11H_NOP_CHAN_LIST)
+			status = wlan_11h_ioctl_nop_channel_list(pmadapter,
+								 pioctl_req);
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_REPORT_REQUEST)
 			status = wlan_11h_ioctl_dfs_chan_report(pmpriv,
 								pioctl_req);
@@ -2367,6 +2392,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (cfg11h->sub_command == MLAN_OID_11H_DFS_W53_CFG)
 			status = wlan_11h_ioctl_dfs_w53_cfg(pmadapter,
 							    pioctl_req);
+		if (cfg11h->sub_command == MLAN_OID_11H_DFS_MODE)
+			status = wlan_11h_ioctl_dfs_mode(pmadapter, pioctl_req);
 		break;
 	case MLAN_IOCTL_RADIO_CFG:
 		radiocfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;

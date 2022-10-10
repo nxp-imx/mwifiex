@@ -2233,6 +2233,8 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 			bss->param.bss_config.bandcfg = tlv_chan_band->bandcfg;
 			bss->param.bss_config.channel = tlv_chan_band->channel;
 			pmpriv->uap_channel = tlv_chan_band->channel;
+			pmpriv->uap_bandwidth =
+				tlv_chan_band->bandcfg.chanWidth;
 			pmpriv->uap_state_chan_cb.bandcfg =
 				tlv_chan_band->bandcfg;
 			pmpriv->uap_state_chan_cb.channel =
@@ -2672,6 +2674,8 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 						pmpriv->is_11n_enabled;
 					pmpriv->uap_channel =
 						chan_band_tlv->channel;
+					pmpriv->uap_bandwidth =
+						chan_band_tlv->bandcfg.chanWidth;
 					pmpriv->uap_state_chan_cb.bandcfg =
 						chan_band_tlv->bandcfg;
 					pmpriv->uap_state_chan_cb.channel =
@@ -3166,6 +3170,7 @@ static mlan_status wlan_uap_ret_snmp_mib(pmlan_private pmpriv,
 			break;
 		case Dot11H_i:
 			data = wlan_le16_to_cpu(*((t_u16 *)(psnmp_mib->value)));
+			PRINTM(MCMND, "wlan: uap Dot11H_i=%d\n", data);
 			/* Set 11h state to priv */
 			pmpriv->intf_state_11h.is_11h_active =
 				(data & ENABLE_11H_MASK);
@@ -3878,10 +3883,11 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 				    tlv_len + sizeof(MrvlIEtypesHeader_t));
 			pchan_info = (MrvlIEtypes_channel_band_t *)tlv;
 			priv->uap_channel = pchan_info->channel;
+			priv->uap_bandwidth = pchan_info->bandcfg.chanWidth;
 			priv->uap_state_chan_cb.channel = pchan_info->channel;
 			priv->uap_state_chan_cb.bandcfg = pchan_info->bandcfg;
-			PRINTM(MCMND, "uap_channel FW: 0x%x\n",
-			       priv->uap_channel);
+			PRINTM(MCMND, "uap_channel FW: 0x%x bw=%d\n",
+			       priv->uap_channel, priv->uap_bandwidth);
 			event->bss_index = priv->bss_index;
 			event->event_id = MLAN_EVENT_ID_DRV_UAP_CHAN_INFO;
 			event->event_len = sizeof(chan_band_info);
@@ -4980,6 +4986,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 				pmpriv->adapter->pmoal_handle, &sec, &usec);
 			pstate_dfs->dfs_report_time_sec = sec;
 		}
+		wlan_reset_all_chan_dfs_state(priv, BAND_A, DFS_USABLE);
 		if (pmpriv->intf_state_11h.is_11h_host)
 			pmpriv->intf_state_11h.tx_disabled = MFALSE;
 		else {
@@ -5349,6 +5356,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 	sta_node *sta_ptr = MNULL;
 	t_u8 i = 0;
 	t_u8 channel = 0;
+	t_u8 bandwidth = 0;
 	MrvlIEtypes_channel_band_t *pchan_info = MNULL;
 	chan_band_info *pchan_band_info = MNULL;
 	event_exceed_max_p2p_conn *event_excd_p2p = MNULL;
@@ -5403,22 +5411,8 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 					MNULL);
 		}
 #endif
-		if (wlan_11h_radar_detect_required(pmpriv,
-						   pmpriv->uap_channel)) {
-			if (!wlan_11h_is_active(pmpriv)) {
-				/* active 11h extention in Fw */
-				ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
-				ret = wlan_11h_config_master_radar_det(pmpriv,
-								       MTRUE);
-				ret = wlan_11h_check_update_radar_det_state(
-					pmpriv);
-			}
-			if (pmpriv->uap_host_based &&
-			    !pmpriv->adapter->init_para.dfs_offload)
-				pmpriv->intf_state_11h.is_11h_host = MTRUE;
-			wlan_11h_set_dfs_check_chan(pmpriv,
-						    pmpriv->uap_channel);
-		}
+		if (wlan_11h_radar_detect_required(pmpriv, pmpriv->uap_channel))
+			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
 		break;
 	case EVENT_MICRO_AP_BSS_ACTIVE:
 		PRINTM(MEVENT, "EVENT: MICRO_AP_BSS_ACTIVE\n");
@@ -5473,12 +5467,12 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		       MAC2STR(sta_addr));
 		if (!sta_ptr)
 			break;
+		wlan_check_sta_capability(pmpriv, pmbuf, sta_ptr);
 		if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled
 #ifdef DRV_EMBEDDED_AUTHENTICATOR
 		    || IsAuthenticatorEnabled(pmpriv->psapriv)
 #endif
 		) {
-			wlan_check_sta_capability(pmpriv, pmbuf, sta_ptr);
 			for (i = 0; i < MAX_NUM_TID; i++) {
 				if (sta_ptr->is_11n_enabled ||
 				    sta_ptr->is_11ax_enabled)
@@ -5619,8 +5613,10 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 			   pmbuf->pbuf + pmbuf->data_offset +
 				   sizeof(eventcause),
 			   pevent->event_len, pevent->event_len);
-		wlan_11h_print_event_radar_detected(pmpriv, pevent, &channel);
+		wlan_11h_print_event_radar_detected(pmpriv, pevent, &channel,
+						    &bandwidth);
 		*((t_u8 *)pevent->event_buf) = channel;
+		*((t_u8 *)pevent->event_buf + 1) = bandwidth;
 		if (pmpriv->bss_type == MLAN_BSS_TYPE_DFS) {
 			wlan_recv_event(priv, MLAN_EVENT_ID_FW_RADAR_DETECTED,
 					pevent);
@@ -5682,11 +5678,12 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 			   pevent->event_len, pevent->event_len);
 		/* Handle / pass event data, and free buffer */
 		ret = wlan_11h_handle_event_chanrpt_ready(pmpriv, pevent,
-							  &channel);
+							  &channel, &bandwidth);
 		if (pmpriv->bss_type == MLAN_BSS_TYPE_DFS) {
 			*((t_u8 *)pevent->event_buf) =
 				pmpriv->adapter->state_dfs.dfs_radar_found;
 			*((t_u8 *)pevent->event_buf + 1) = channel;
+			*((t_u8 *)pevent->event_buf + 2) = bandwidth;
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHANNEL_REPORT_RDY,
 					pevent);
@@ -5698,6 +5695,8 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 			*((t_u8 *)pevent->event_buf) =
 				pmpriv->adapter->state_dfs.dfs_radar_found;
 			*((t_u8 *)pevent->event_buf + 1) = channel;
+			*((t_u8 *)pevent->event_buf + 2) = bandwidth;
+
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHANNEL_REPORT_RDY,
 					pevent);
@@ -5716,24 +5715,11 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: CHANNEL_SWITCH new channel %d\n",
 		       channel);
 		pmpriv->uap_channel = channel;
+		pmpriv->uap_bandwidth = pchan_info->bandcfg.chanWidth;
 		pmpriv->uap_state_chan_cb.channel = pchan_info->channel;
 		pmpriv->uap_state_chan_cb.bandcfg = pchan_info->bandcfg;
-		if (wlan_11h_radar_detect_required(pmpriv,
-						   pchan_info->channel)) {
-			if (!wlan_11h_is_active(pmpriv)) {
-				/* active 11h extention in Fw */
-				ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
-				ret = wlan_11h_config_master_radar_det(pmpriv,
-								       MTRUE);
-				ret = wlan_11h_check_update_radar_det_state(
-					pmpriv);
-			}
-			if (pmpriv->uap_host_based &&
-			    !pmpriv->adapter->init_para.dfs_offload)
-				pmpriv->intf_state_11h.is_11h_host = MTRUE;
-			wlan_11h_set_dfs_check_chan(pmpriv,
-						    pchan_info->channel);
-		}
+		if (wlan_11h_radar_detect_required(pmpriv, pchan_info->channel))
+			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
 		if ((pmpriv->adapter->state_rdh.stage != RDH_OFF &&
 		     !pmpriv->intf_state_11h.is_11h_host) ||
 		    pmpriv->adapter->dfs_test_params.no_channel_change_on_radar ||
@@ -5852,6 +5838,21 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 			   pmbuf->pbuf + pmbuf->data_offset +
 				   sizeof(eventcause),
 			   sizeof(t_u16), sizeof(t_u16));
+		break;
+	case CHAN_LOAD_EVENT: {
+		t_u8 *ptr = MNULL;
+		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
+		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
+		ptr += 4; /* actual data buffer start */
+		cfg_cmd = (HostCmd_DS_GET_CH_LOAD *)ptr;
+		pmpriv->ch_load_param = wlan_le16_to_cpu(cfg_cmd->ch_load);
+		pmpriv->noise = wlan_le16_to_cpu(cfg_cmd->noise);
+		pmpriv->rx_quality = wlan_le16_to_cpu(cfg_cmd->rx_quality);
+		break;
+	}
+	case EVENT_FW_DUMP_INFO:
+		PRINTM(MINFO, "EVENT: Dump FW info\n");
+		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
 		break;
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;

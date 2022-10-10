@@ -775,14 +775,21 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 			   | WLAN_FEATURE_LINK_LAYER_STATS |
 			   WLAN_FEATURE_LOGGER | WLAN_FEATURE_RSSI_MONITOR |
 			   WLAN_FEATURE_CONFIG_NDO | WLAN_FEATURE_SCAN_RAND |
-			   WLAN_FEATURE_MKEEP_ALIVE;
+			   WLAN_FEATURE_MKEEP_ALIVE | WLAN_FEATURE_PNO;
 
 	memset(&fw_info, 0, sizeof(mlan_fw_info));
-	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
+		PRINTM(MERROR, "Fail to get fw info\n");
+		ret = -EFAULT;
+		goto done;
+	}
 	if (fw_info.fw_bands & BAND_A)
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
 	if (fw_info.fw_roaming_support)
 		supp_feature_set |= WLAN_FEATURE_CONTROL_ROAMING;
+
+	priv->phandle->wifi_hal_flag = MTRUE;
 
 	reply_len = sizeof(supp_feature_set);
 	/** Allocate skb for cmd reply*/
@@ -925,8 +932,8 @@ static void woal_get_ring_status(moal_private *priv, int ring_id,
 		ring = (wifi_ring_buffer *)priv->rings[id];
 		if (ring && VALID_RING(ring->ring_id) &&
 		    ring_id == ring->ring_id) {
-			strncpy(status->name, ring->name,
-				sizeof(status->name) - 1);
+			moal_memcpy(priv->phandle, status->name, ring->name,
+				    sizeof(status->name) - 1);
 			status->ring_id = ring->ring_id;
 			status->ring_buffer_byte_size = ring->ring_size;
 			status->written_bytes = ring->ctrl.written_bytes;
@@ -3177,7 +3184,12 @@ static int woal_cfg80211_subcmd_rssi_monitor(struct wiphy *wiphy,
 		priv->cqm_rssi_high_thold = rssi_max;
 		priv->cqm_rssi_thold = rssi_min;
 		priv->cqm_rssi_hyst = 4;
-		woal_set_rssi_threshold(priv, 0, MOAL_IOCTL_WAIT);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_rssi_threshold(priv, 0, MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "set rssi threhold fail\n");
+			ret = -EFAULT;
+			goto done;
+		}
 	} else if (rssi_monitor_control == RSSI_MONOTOR_STOP) {
 		/* stop rssi monitor */
 		PRINTM(MEVENT, "stop rssi monitor\n");
@@ -3187,7 +3199,12 @@ static int woal_cfg80211_subcmd_rssi_monitor(struct wiphy *wiphy,
 		priv->cqm_rssi_high_thold = 0;
 		priv->cqm_rssi_thold = 0;
 		priv->cqm_rssi_hyst = 0;
-		woal_set_rssi_threshold(priv, 0, MOAL_IOCTL_WAIT);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_rssi_threshold(priv, 0, MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "set rssi threhold fail\n");
+			ret = -EFAULT;
+			goto done;
+		}
 	} else {
 		PRINTM(MERROR, "invalid rssi_monitor control request\n");
 		ret = -EINVAL;
@@ -3652,8 +3669,12 @@ static int woal_cfg80211_subcmd_fw_roaming_config(struct wiphy *wiphy,
 				sizeof(wifi_ssid_params) -
 					sizeof(whitelist.num_ssid),
 				MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
-		woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
-				       roam_offload_cfg);
+		if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
+					   roam_offload_cfg)) {
+			PRINTM(MERROR, "%s: config fw roaming failed \n",
+			       __func__);
+			ret = -EFAULT;
+		}
 	}
 
 done:
@@ -3829,6 +3850,10 @@ static int woal_cfg80211_subcmd_start_keep_alive(struct wiphy *wiphy,
 			break;
 		case MKEEP_ALIVE_ATTRIBUTE_IP_PKT:
 			if (ip_pkt_len) {
+				if (ip_pkt) {
+					kfree(ip_pkt);
+					ip_pkt = NULL;
+				}
 				ip_pkt = (u8 *)kzalloc(ip_pkt_len, GFP_ATOMIC);
 				if (ip_pkt == NULL) {
 					ret = -ENOMEM;

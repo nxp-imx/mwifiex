@@ -322,7 +322,8 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 		}
 	} break;
 	case HostCmd_CMD_ROAM_OFFLOAD:
-		wlan_clear_fw_roaming_pmk(pmpriv);
+		if (MLAN_STATUS_SUCCESS != wlan_clear_fw_roaming_pmk(pmpriv))
+			PRINTM(MERROR, "wlan_clear_fw_roaming_pmk fail\n");
 		pmpriv->adapter->fw_roaming = MFALSE;
 		PRINTM(MERROR, "FW do not support roaming!\n");
 		break;
@@ -628,6 +629,7 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 		/* Update state for 11h */
 		if (oid == Dot11H_i) {
 			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			PRINTM(MCMND, "wlan: Dot11H_i=%d\n", ul_temp);
 			/* Set 11h state to priv */
 			pmpriv->intf_state_11h.is_11h_active =
 				(ul_temp & ENABLE_11H_MASK);
@@ -2239,6 +2241,42 @@ static mlan_status wlan_ret_otp_user_data(pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function handles the command response of
+ *  fw auto re-connect
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_ret_fw_auto_reconnect(pmlan_private pmpriv,
+					      HostCmd_DS_COMMAND *resp,
+					      mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_FW_AUTO_RECONNECT *fw_auto_reconnect =
+		(HostCmd_DS_FW_AUTO_RECONNECT *)&resp->params
+			.fw_auto_reconnect_cmd;
+	mlan_ds_misc_cfg *misc = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_GET)) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc->param.fw_auto_reconnect.fw_reconn_counter =
+			fw_auto_reconnect->reconnect_counter;
+		misc->param.fw_auto_reconnect.fw_reconn_interval =
+			fw_auto_reconnect->reconnect_interval;
+		misc->param.fw_auto_reconnect.fw_reconn_flags =
+			wlan_le16_to_cpu(fw_auto_reconnect->flags);
+		pioctl_buf->data_read_written = sizeof(mlan_ds_misc_cfg);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 #ifdef USB
 /**
  *  @brief This function handles the command response of
@@ -2629,10 +2667,6 @@ mlan_status wlan_clear_fw_roaming_pmk(pmlan_private pmpriv)
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_SUPPLICANT_PMK,
 			       HostCmd_ACT_GEN_REMOVE, 0, MNULL, MNULL);
 
-	if (ret == MLAN_STATUS_SUCCESS) {
-		ret = MLAN_STATUS_FAILURE;
-	}
-
 	LEAVE();
 	return ret;
 }
@@ -2669,7 +2703,10 @@ static mlan_status wlan_ret_roam_offload(pmlan_private pmpriv,
 				pmpriv->adapter->fw_roaming = MTRUE;
 			else {
 				pmpriv->adapter->fw_roaming = MFALSE;
-				wlan_clear_fw_roaming_pmk(pmpriv);
+				if (MLAN_STATUS_SUCCESS !=
+				    wlan_clear_fw_roaming_pmk(pmpriv))
+					PRINTM(MERROR,
+					       "wlan_clear_fw_roaming_pmk failed\n");
 			}
 		}
 	}
@@ -3322,6 +3359,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_OTP_READ_USER_DATA:
 		ret = wlan_ret_otp_user_data(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_FW_AUTO_RECONNECT:
+		ret = wlan_ret_fw_auto_reconnect(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_HS_WAKEUP_REASON:
 		ret = wlan_ret_hs_wakeup_reason(pmpriv, resp, pioctl_buf);

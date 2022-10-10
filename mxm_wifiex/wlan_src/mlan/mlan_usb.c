@@ -366,6 +366,16 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 				break;
 			}
 
+			if (check_fw_status &&
+			    (SyncFWHeader.status & MBIT(9))) {
+				PRINTM(MERROR,
+				       "FW received Blk with SE_BOOT error 0x%x\n",
+				       SyncFWHeader.status);
+				retries = 0;
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+
 			/* Check the firmware block response for CRC errors */
 			if (SyncFWHeader.cmd) {
 				/* Check firmware block response for CRC and MIC

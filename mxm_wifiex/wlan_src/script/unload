@@ -3,6 +3,8 @@ ifconfig mlan0 down
 ifconfig uap0 down
 ifconfig mmlan0 down
 ifconfig muap0 down
+ifconfig uap1 down
+ifconfig muap1 down
 ifconfig wfd0 down
 ifconfig wfd1 down
 ifconfig mwfd0 down

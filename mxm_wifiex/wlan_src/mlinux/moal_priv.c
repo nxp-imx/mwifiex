@@ -4740,6 +4740,7 @@ static int woal_set_user_scan_ext_ioctl(moal_private *priv, struct iwreq *wrq)
 			   MIN(wrq->u.data.length,
 			       sizeof(wlan_user_scan_cfg)))) {
 		PRINTM(MINFO, "Copy from user failed\n");
+		kfree(scan_req);
 		LEAVE();
 		return -EFAULT;
 	}

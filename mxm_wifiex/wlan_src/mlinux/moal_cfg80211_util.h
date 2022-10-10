@@ -624,6 +624,8 @@ enum mrvl_wlan_vendor_attr_wifi_logger {
 enum vendor_event {
 	event_hang = 0,
 	event_fw_dump_done = 1,
+	event_fw_reset_success = 2,
+	event_fw_reset_failure = 3,
 	event_rssi_monitor = 0x1501,
 	event_set_key_mgmt_offload = 0x10001,
 	event_fw_roam_success = 0x10002,

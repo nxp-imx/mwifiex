@@ -736,7 +736,10 @@ static int woal_get_encode(struct net_device *dev, struct iw_request_info *info,
 		moal_memcpy_ext(priv->phandle, extra,
 				ap_cfg->wpa_cfg.passphrase,
 				ap_cfg->wpa_cfg.length, ap_cfg->wpa_cfg.length);
-		dwrq->length = ap_cfg->wpa_cfg.length;
+		if (ap_cfg->wpa_cfg.length)
+			dwrq->length = ap_cfg->wpa_cfg.length;
+		else
+			dwrq->length = 16;
 		dwrq->flags |= 1;
 		dwrq->flags &= ~IW_ENCODE_DISABLED;
 		break;

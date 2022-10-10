@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "344.p3"
+#define MLAN_RELEASE_VERSION "362"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -129,13 +129,8 @@ typedef t_s32 t_sval;
 /** Return aligned offset */
 #define OFFSET_ALIGN_ADDR(p, a) (t_u32)(ALIGN_ADDR(p, a) - (t_ptr)p)
 
-#if defined(WIFI_DIRECT_SUPPORT)
 /** Maximum BSS numbers */
 #define MLAN_MAX_BSS_NUM (16)
-#else
-/** Maximum BSS numbers */
-#define MLAN_MAX_BSS_NUM (2)
-#endif
 
 /** NET IP alignment */
 #define MLAN_NET_IP_ALIGN 2
@@ -634,6 +629,8 @@ typedef enum {
 
 /** Memory allocation type: DMA */
 #define MLAN_MEM_DMA MBIT(0)
+/** Memory allocation flag: ATOMIC */
+#define MLAN_MEM_FLAG_ATOMIC MBIT(1)
 
 /** Default memory allocation flag */
 #define MLAN_MEM_DEF 0
@@ -959,6 +956,14 @@ typedef enum _dfs_w53_cfg_t {
 	/** DFS W53 Old W53 Rules/Standard */
 	DFS_W53_OLD = 2
 } dfs_w53_cfg_t;
+
+typedef enum _dfs_moe_t {
+	/** driver default DFS behavior */
+	DFS_MODE_DEFAULT = 0,
+	/* disable DFS master when uap and station operate in same DFS channel
+	 */
+	DFS_MODE_ENH = 1,
+} dfs_mode_t;
 
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {
@@ -2005,7 +2010,16 @@ typedef struct {
 
 /** station stats */
 typedef struct _sta_stats {
+	/** last_rx_in_msec */
 	t_u64 last_rx_in_msec;
+	/** rx_packets */
+	t_u32 rx_packets;
+	/** tx packets */
+	t_u32 tx_packets;
+	/** rx bytes */
+	t_u32 rx_bytes;
+	/** tx bytes */
+	t_u32 tx_bytes;
 } sta_stats;
 
 #ifdef PRAGMA_PACK

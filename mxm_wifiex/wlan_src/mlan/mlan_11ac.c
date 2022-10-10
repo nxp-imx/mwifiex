@@ -801,7 +801,7 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 	t_u16 nss;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
-	defined(SDNW62X) || defined(PCIENW62X) | defined(USBNW62X)
+	defined(SDNW62X) || defined(PCIENW62X) || defined(USBNW62X)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	ENTER();

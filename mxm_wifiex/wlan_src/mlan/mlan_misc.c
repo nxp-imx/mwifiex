@@ -1018,6 +1018,7 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 	t_u32 buf_size = 0;
 	t_u8 *tmp_buf = MNULL;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 mem_flags = MLAN_MEM_DEF | MLAN_MEM_DMA;
 
 	ENTER();
 
@@ -1029,13 +1030,12 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 #endif
 
 	/* head_room is not implemented for malloc mlan buffer */
-
-	switch (malloc_flag) {
-	case MOAL_MALLOC_BUFFER:
+	if (malloc_flag & MOAL_MALLOC_BUFFER) {
 		buf_size = sizeof(mlan_buffer) + data_len + DMA_ALIGNMENT;
+		if (malloc_flag & MOAL_MEM_FLAG_ATOMIC)
+			mem_flags |= MLAN_MEM_FLAG_ATOMIC;
 		ret = pcb->moal_malloc(pmadapter->pmoal_handle, buf_size,
-				       MLAN_MEM_DEF | MLAN_MEM_DMA,
-				       (t_u8 **)&pmbuf);
+				       mem_flags, (t_u8 **)&pmbuf);
 		if ((ret != MLAN_STATUS_SUCCESS) || !pmbuf) {
 			pmbuf = MNULL;
 			goto exit;
@@ -1049,9 +1049,7 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 		pmbuf->data_offset = 0;
 		pmbuf->data_len = data_len;
 		pmbuf->flags |= MLAN_BUF_FLAG_MALLOC_BUF;
-		break;
-
-	case MOAL_ALLOC_MLAN_BUFFER:
+	} else if (malloc_flag & MOAL_ALLOC_MLAN_BUFFER) {
 		/* use moal_alloc_mlan_buffer, head_room supported */
 		ret = pcb->moal_alloc_mlan_buffer(
 			pmadapter->pmoal_handle,
@@ -1067,7 +1065,6 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 			(t_u32)(tmp_buf - (pmbuf->pbuf + pmbuf->data_offset));
 		pmbuf->data_len = data_len;
 		pmbuf->flags = 0;
-		break;
 	}
 
 exit:
@@ -1244,6 +1241,10 @@ mlan_status wlan_bss_ioctl_bss_role(pmlan_adapter pmadapter,
 			pmpriv->bss_type = MLAN_BSS_TYPE_UAP;
 		/* Initialize private structures */
 		wlan_init_priv(pmpriv);
+		/* restore mac address */
+		memcpy_ext(pmpriv->adapter, pmpriv->curr_addr,
+			   pmpriv->adapter->permanent_addr,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 		mlan_block_rx_process(pmadapter, MFALSE);
 		/* Initialize function table */
 		for (j = 0; mlan_ops[j]; j++) {
@@ -3493,6 +3494,33 @@ mlan_status wlan_misc_otp_user_data(pmlan_adapter pmadapter,
 	return ret;
 }
 
+#ifdef UAP_SUPPORT
+/**
+ *  @brief	Check 11B support Rates
+ *
+ *
+ *  @param pmadapter	Private mlan adapter structure
+ *
+ *  @return MTRUE/MFALSE
+ *
+ */
+static t_u8 wlan_check_ie_11b_support_rates(pIEEEtypes_Generic_t prates)
+{
+	int i;
+	t_u8 rate;
+	t_u8 ret = MTRUE;
+	for (i = 0; i < prates->ieee_hdr.len; i++) {
+		rate = prates->data[i] & 0x7f;
+		if ((rate != 0x02) && (rate != 0x04) && (rate != 0x0b) &&
+		    (rate != 0x16)) {
+			ret = MFALSE;
+			break;
+		}
+	}
+	return ret;
+}
+#endif
+
 /**
  *  @brief This function will search for the specific ie
  *
@@ -3513,7 +3541,8 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 	IEEEtypes_VHTCap_t *pvht_cap = MNULL;
 	IEEEtypes_Extension_t *phe_cap = MNULL;
 #ifdef UAP_SUPPORT
-	t_u8 *ext_rate = MNULL, *erp = MNULL;
+	t_u8 *rate = MNULL;
+	t_u8 b_only = MFALSE;
 #endif
 
 	int tlv_buf_left = pevent->data_len - ASSOC_EVENT_FIX_SIZE;
@@ -3649,17 +3678,12 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 				}
 #ifdef UAP_SUPPORT
 				/* Note: iphone6 does not have ERP_INFO */
-				ext_rate = wlan_get_specific_ie(
-					priv, assoc_req_ie, ie_len,
-					EXTENDED_SUPPORTED_RATES, 0);
-				erp = wlan_get_specific_ie(priv, assoc_req_ie,
-							   ie_len, ERP_INFO, 0);
-				if (!ext_rate)
-					PRINTM(MCMND,
-					       "STA doesn't support EXTENDED_SUPPORTED_RATES\n");
-				if (!erp)
-					PRINTM(MCMND,
-					       "STA doesn't support ERP_INFO\n");
+				rate = wlan_get_specific_ie(priv, assoc_req_ie,
+							    ie_len,
+							    SUPPORTED_RATES, 0);
+				if (rate)
+					b_only = wlan_check_ie_11b_support_rates(
+						(pIEEEtypes_Generic_t)rate);
 				if (sta_ptr->is_11ax_enabled) {
 					if (priv->uap_channel <= 14)
 						sta_ptr->bandmode = BAND_GAX;
@@ -3675,13 +3699,13 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 						sta_ptr->bandmode = BAND_GN;
 					else
 						sta_ptr->bandmode = BAND_AN;
-				} else if (ext_rate || erp) {
-					if (priv->uap_channel <= 14)
-						sta_ptr->bandmode = BAND_G;
+				} else if (priv->uap_channel <= 14) {
+					if (b_only)
+						sta_ptr->bandmode = BAND_B;
 					else
-						sta_ptr->bandmode = BAND_A;
+						sta_ptr->bandmode = BAND_G;
 				} else
-					sta_ptr->bandmode = BAND_B;
+					sta_ptr->bandmode = BAND_A;
 #endif
 #ifdef DRV_EMBEDDED_AUTHENTICATOR
 				if (IsAuthenticatorEnabled(priv->psapriv))
@@ -6111,6 +6135,7 @@ mlan_status wlan_misc_ioctl_ch_load_results(pmlan_adapter pmadapter,
 	} else {
 		misc->param.ch_load.ch_load_param = pmpriv->ch_load_param;
 		misc->param.ch_load.noise = pmpriv->noise;
+		misc->param.ch_load.rx_quality = pmpriv->rx_quality;
 	}
 
 	LEAVE();

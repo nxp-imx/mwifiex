@@ -971,6 +971,8 @@ done:
 #ifdef REASSOCIATION
 	priv->reassoc_required = MFALSE;
 #endif /* REASSOCIATION */
+	priv->auto_assoc_priv.drv_assoc.status = MFALSE;
+	priv->auto_assoc_priv.drv_reconnect.status = MFALSE;
 	LEAVE();
 	return status;
 }
@@ -1304,7 +1306,7 @@ int woal_pre_warmreset(moal_private *priv)
 #endif
 	woal_cancel_cac_block(priv);
 	/* Reset all interfaces */
-	ret = woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
+	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
 	/* Initialize private structures */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
 		woal_init_priv(handle->priv[intf_num], MOAL_IOCTL_WAIT);
@@ -2756,7 +2758,12 @@ int woal_set_get_bss_role(moal_private *priv, struct iwreq *wrq)
 		}
 		action = MLAN_ACT_SET;
 		/* Reset interface */
-		woal_reset_intf(priv, MOAL_IOCTL_WAIT, MFALSE);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_reset_intf(priv, MOAL_IOCTL_WAIT, MFALSE)) {
+			PRINTM(MERROR, "%s: reset_intf failed \n", __func__);
+			ret = -EFAULT;
+			goto done;
+		}
 	}
 
 	if (MLAN_STATUS_SUCCESS != woal_bss_role_cfg(priv, action,
@@ -2792,6 +2799,7 @@ done:
 #endif /* STA_WEXT || UAP_WEXT */
 #endif /* STA_SUPPORT && UAP_SUPPORT */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 /**
  *  @brief Enable IPv6 Router Advertisement offload
  *
@@ -2847,6 +2855,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 {
@@ -3243,7 +3252,7 @@ mlan_status woal_set_get_hs_params(moal_private *priv, t_u16 action,
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_pm_cfg));
 	if (req == NULL) {
-		ret = -ENOMEM;
+		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 
@@ -3403,7 +3412,12 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 	hscfg.conditions = HOST_SLEEP_CFG_CANCEL;
 	hscfg.is_invoke_hostcmd = MTRUE;
 	ret = woal_set_get_hs_params(priv, MLAN_ACT_SET, wait_option, &hscfg);
-
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_set_get_hs_params failed \n",
+		       __func__);
+		LEAVE();
+		return ret;
+	}
 	if (moal_extflg_isset(priv->phandle, EXT_ROAMOFFLOAD_IN_HS)) {
 		/*Disable firmware roaming*/
 		woal_enable_fw_roaming(priv, 0);
@@ -3453,9 +3467,13 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 			if (handle->priv[i] &&
 			    handle->priv[i]->gtk_data_ready) {
 				PRINTM(MCMND, "clear GTK in resume\n");
-				woal_set_rekey_data(handle->priv[i], NULL,
-						    MLAN_ACT_CLEAR,
-						    wait_option);
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_set_rekey_data(handle->priv[i], NULL,
+							MLAN_ACT_CLEAR,
+							wait_option))
+					PRINTM(MERROR,
+					       "%s: clear GTK in resume failed \n",
+					       __func__);
 			}
 		}
 	}
@@ -3751,10 +3769,14 @@ int woal_enable_hs(moal_private *priv)
 			if (handle->priv[i] &&
 			    handle->priv[i]->gtk_data_ready) {
 				PRINTM(MCMND, "set GTK before suspend\n");
-				woal_set_rekey_data(
-					handle->priv[i],
-					&handle->priv[i]->gtk_rekey_data,
-					MLAN_ACT_SET, MOAL_NO_WAIT);
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_set_rekey_data(
+					    handle->priv[i],
+					    &handle->priv[i]->gtk_rekey_data,
+					    MLAN_ACT_SET, MOAL_NO_WAIT))
+					PRINTM(MERROR,
+					       "%s: set GTR before suspend failed \n",
+					       __func__);
 			}
 		}
 	}
@@ -4483,7 +4505,10 @@ void woal_cancel_cac_block(moal_private *priv)
 	if (priv->phandle->cac_period == MTRUE) {
 		priv->phandle->cac_period = MFALSE;
 		/* Make sure Chan Report is cancelled */
-		woal_11h_cancel_chan_report_ioctl(priv, MOAL_IOCTL_WAIT);
+		if (woal_11h_cancel_chan_report_ioctl(priv, MOAL_IOCTL_WAIT))
+			PRINTM(MERROR,
+			       "%s: Cancelling CAC chan report in FW failed \n",
+			       __func__);
 		priv->phandle->meas_start_jiffies = 0;
 		if (priv->phandle->delay_bss_start == MTRUE)
 			priv->phandle->delay_bss_start = MFALSE;
@@ -5769,6 +5794,7 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	spin_lock_irqsave(&handle->scan_req_lock, flags);
 	if (IS_STA_CFG80211(handle->params.cfg80211_wext) &&
 	    handle->scan_request) {
+		cancel_delayed_work(&handle->scan_timeout_work);
 		/** some supplicant can not handle SCAN abort event */
 		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
 			woal_cfg80211_scan_done(handle->scan_request, MTRUE);
@@ -5837,10 +5863,10 @@ int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
  * @param cfg_mode           configure mode
  * @param roam_offload_cfg   Pointer to woal_roam_offload_cfg structure
  *
- *  @return                  Number of bytes written, negative for failure.
+ *  @return                  0-success, negative for failure.
  */
-mlan_status woal_config_fw_roaming(moal_private *priv, t_u8 cfg_mode,
-				   woal_roam_offload_cfg *roam_offload_cfg)
+int woal_config_fw_roaming(moal_private *priv, t_u8 cfg_mode,
+			   woal_roam_offload_cfg *roam_offload_cfg)
 {
 	mlan_ioctl_req *ioctl_req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
@@ -6159,7 +6185,11 @@ void woal_config_bgscan_and_rssi(moal_private *priv, t_u8 set_rssi)
 	priv->scan_cfg.rssi_threshold = priv->rssi_low - RSSI_HYSTERESIS;
 	priv->scan_cfg.repeat_count = DEF_REPEAT_COUNT;
 	priv->scan_cfg.scan_interval = MIN_BGSCAN_INTERVAL;
-	woal_get_band(priv, &band);
+	if (MLAN_STATUS_SUCCESS != woal_get_band(priv, &band)) {
+		PRINTM(MERROR, "woal get band fail\n");
+		LEAVE();
+		return;
+	}
 	switch (band) {
 	case WIFI_FREQUENCY_BAND_2GHZ:
 		priv->scan_cfg.chan_list[0].radio_type = 0 | BAND_SPECIFIED;
@@ -6176,12 +6206,19 @@ void woal_config_bgscan_and_rssi(moal_private *priv, t_u8 set_rssi)
 	moal_memcpy_ext(priv->phandle, priv->scan_cfg.random_mac,
 			priv->random_mac, ETH_ALEN,
 			sizeof(priv->scan_cfg.random_mac));
-	woal_request_bgscan(priv, MOAL_NO_WAIT, &priv->scan_cfg);
+	if (MLAN_STATUS_FAILURE ==
+	    woal_request_bgscan(priv, MOAL_NO_WAIT, &priv->scan_cfg)) {
+		PRINTM(MERROR, "request bgscan fail\n");
+		LEAVE();
+		return;
+	}
 	if (set_rssi &&
 	    ((priv->rssi_low + RSSI_HYSTERESIS) <= LOWEST_RSSI_THRESHOLD)) {
 		priv->rssi_low += RSSI_HYSTERESIS;
 		snprintf(rssi_low, sizeof(rssi_low), "%d", priv->rssi_low);
-		woal_set_rssi_low_threshold(priv, rssi_low, MOAL_NO_WAIT);
+		if (MLAN_STATUS_FAILURE ==
+		    woal_set_rssi_low_threshold(priv, rssi_low, MOAL_NO_WAIT))
+			PRINTM(MERROR, "set_rssi_low_threshold fail\n");
 	}
 	LEAVE();
 }
@@ -7496,7 +7533,7 @@ static int parse_radio_mode_string(const char *s, size_t len,
 	if (pos)
 		d->data2 = (t_u32)woal_string_to_number(pos);
 
-	if ((d->data1 > 14 || d->data1 < 0) || (d->data2 > 14 || d->data2 < 0))
+	if ((d->data1 > 14) || (d->data2 > 14))
 		ret = -EINVAL;
 
 	kfree(tmp);
@@ -7784,7 +7821,6 @@ static int parse_he_tb_tx_string(const char *s, size_t len,
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	char *string = NULL;
-	char *tmp = NULL;
 	char *pos = NULL;
 	gfp_t flag;
 
@@ -7827,7 +7863,7 @@ static int parse_he_tb_tx_string(const char *s, size_t len,
 		ret = -EINVAL;
 
 done:
-	kfree(tmp);
+	kfree(string);
 	LEAVE();
 	return ret;
 }

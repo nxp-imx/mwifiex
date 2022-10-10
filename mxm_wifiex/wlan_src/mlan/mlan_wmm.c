@@ -2149,6 +2149,8 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		else if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 			sta_ptr = wlan_get_station_entry(priv, ra);
 			if (sta_ptr) {
+				sta_ptr->stats.tx_bytes += pmbuf->data_len;
+				sta_ptr->stats.tx_packets++;
 				if (!sta_ptr->is_wmm_enabled &&
 				    !priv->is_11ac_enabled) {
 					tid_down = wlan_wmm_downgrade_tid(priv,
@@ -2271,6 +2273,11 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 			       ptlv_wmm_q_status->queue_index,
 			       ptlv_wmm_q_status->flow_required,
 			       ptlv_wmm_q_status->disabled);
+
+			/* Pick the minimum among these to avoid array out of
+			 * bounds */
+			ptlv_wmm_q_status->queue_index = MIN(
+				ptlv_wmm_q_status->queue_index, MAX_AC_QUEUES);
 
 			pac_status =
 				&priv->wmm.ac_status[ptlv_wmm_q_status

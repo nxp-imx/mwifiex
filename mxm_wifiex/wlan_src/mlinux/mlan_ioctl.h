@@ -236,6 +236,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_11H_CHAN_NOP_INFO = 0x00110006,
 	MLAN_OID_11H_CHAN_DFS_STATE = 0x00110007,
 	MLAN_OID_11H_DFS_W53_CFG = 0x00110008,
+	MLAN_OID_11H_DFS_MODE = 0x00110009,
+	MLAN_OID_11H_NOP_CHAN_LIST = 0x0011000A,
 
 	/* 802.11n Configuration Group RANDYTODO for value assign */
 	MLAN_IOCTL_11AC_CFG = 0x00120000,
@@ -280,6 +282,7 @@ enum _mlan_ioctl_req_id {
 #endif
 	MLAN_OID_MISC_HOTSPOT_CFG = 0x0020001C,
 	MLAN_OID_MISC_OTP_USER_DATA = 0x0020001D,
+	MLAN_OID_MISC_AUTO_ASSOC = 0x0020001E,
 #ifdef USB
 	MLAN_OID_MISC_USB_AGGR_CTRL = 0x0020001F,
 #endif
@@ -401,6 +404,14 @@ enum _mlan_pass_to_act_scan {
 	MLAN_PASS_TO_ACT_SCAN_UNCHANGED = 0,
 	MLAN_PASS_TO_ACT_SCAN_EN,
 	MLAN_PASS_TO_ACT_SCAN_DIS
+};
+
+/** Enumeration for passive to active scan */
+enum _mlan_ext_scan {
+	MLAN_EXTENDED_SCAN_UNCHANGED = 0,
+	MLAN_LEGACY_SCAN,
+	MLAN_EXT_SCAN,
+	MLAN_EXT_SCAN_ENH
 };
 
 /** Max number of supported rates */
@@ -4188,11 +4199,22 @@ typedef struct _mlan_ds_11h_chan_nop_info {
 	t_u8 curr_chan;
 	/** channel_width */
 	t_u8 chan_width;
+	/** check new channel flag */
+	t_u8 check_new_chan;
 	/** flag for chan under nop */
 	t_bool chan_under_nop;
 	/** chan_ban_info for new channel */
 	chan_band_info new_chan;
 } mlan_ds_11h_chan_nop_info, *pmlan_ds_11h_chan_nop_info;
+
+/** Type definition of mlan_ds_11h_nop_chan_list for MLAN_OID_11H_NOP_CHAN_LIST
+ */
+typedef struct _mlan_ds_11h_nop_chan_list {
+	/** number of nop channel */
+	t_u8 num_chan;
+	/** chan list array */
+	t_u8 chan_list[20];
+} mlan_ds_11h_nop_chan_list, *pmlan_ds_11h_nop_chan_list;
 
 typedef struct _mlan_ds_11h_chan_rep_req {
 	t_u16 startFreq;
@@ -4229,6 +4251,8 @@ typedef struct _mlan_ds_11h_cfg {
 		mlan_ds_11h_dfs_testing dfs_testing;
 		/** channel NOP information for MLAN_OID_11H_CHAN_NOP_INFO */
 		mlan_ds_11h_chan_nop_info ch_nop_info;
+		/** NOP channel list for MLAN_OID_11H_NOP_CHAN_LIST */
+		mlan_ds_11h_nop_chan_list nop_chan_list;
 		/** channel report req for MLAN_OID_11H_CHAN_REPORT_REQUEST */
 		mlan_ds_11h_chan_rep_req chan_rpt_req;
 		/** channel switch count for MLAN_OID_11H_CHAN_SWITCH_COUNT*/
@@ -4236,6 +4260,8 @@ typedef struct _mlan_ds_11h_cfg {
 		/** channel dfs state for MLAN_OID_11H_CHAN_DFS_STATE */
 		mlan_ds_11h_chan_dfs_state ch_dfs_state;
 		mlan_ds_11h_dfs_w53_cfg dfs_w53_cfg;
+		/** dfs_mode for MLAN_OID_11H_DFS_MODE */
+		t_u8 dfs_mode;
 	} param;
 } mlan_ds_11h_cfg, *pmlan_ds_11h_cfg;
 
@@ -4643,6 +4669,16 @@ typedef struct _mlan_ds_misc_otp_user_data {
 	/** User data buffer */
 	t_u8 user_data[MAX_OTP_USER_DATA_LEN];
 } mlan_ds_misc_otp_user_data;
+
+/** Type definition of mlan_ds_fw_reconnect for MLAN_OID_MISC_AUTO_ASSOC */
+typedef struct _mlan_ds_fw_reconnect {
+	/* fw auto re-connect counter */
+	t_u8 fw_reconn_counter;
+	/* fw auto re-connect interval */
+	t_u8 fw_reconn_interval;
+	/* fw auto re-connect flags */
+	t_u16 fw_reconn_flags;
+} mlan_ds_fw_reconnect;
 
 typedef struct _aggr_ctrl_cfg {
 	/** Enable */
@@ -5524,6 +5560,7 @@ typedef struct _mlan_ds_ch_load {
 	t_u8 action;
 	t_u16 ch_load_param;
 	t_s16 noise;
+	t_u16 rx_quality;
 	t_u16 duration;
 } mlan_ds_ch_load;
 
@@ -5598,6 +5635,8 @@ typedef struct _mlan_ds_misc_cfg {
 		ExtCap_t ext_cap;
 #endif
 		mlan_ds_misc_otp_user_data otp_user_data;
+		/** fw re-connect cfg param set */
+		mlan_ds_fw_reconnect fw_auto_reconnect;
 #ifdef USB
 		/** USB aggregation parameters for MLAN_OID_MISC_USB_AGGR_CTRL
 		 */

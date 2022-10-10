@@ -474,9 +474,9 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	pmbuf_src = (pmlan_buffer)util_peek_list(
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
 	if (pmbuf_src) {
-		pmbuf_aggr = wlan_alloc_mlan_buffer(pmadapter,
-						    pmadapter->tx_buf_size, 0,
-						    MOAL_MALLOC_BUFFER);
+		pmbuf_aggr = wlan_alloc_mlan_buffer(
+			pmadapter, pmadapter->tx_buf_size, 0,
+			MOAL_MALLOC_BUFFER | MOAL_MEM_FLAG_ATOMIC);
 		if (!pmbuf_aggr) {
 			PRINTM(MERROR, "Error allocating mlan_buffer\n");
 			pmadapter->callbacks.moal_spin_unlock(

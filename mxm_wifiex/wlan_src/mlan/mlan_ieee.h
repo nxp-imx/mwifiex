@@ -1637,6 +1637,8 @@ typedef MLAN_PACK_START struct {
 	t_u8 bssid_num;
 	/** BSSID filter list used in the to limit the scan results */
 	mlan_802_11_mac_addr bssid_list[MAX_BSSID_FILTER_LIST];
+	/** use scan setting from scan_cfg only  */
+	t_u8 scan_cfg_only;
 } MLAN_PACK_END wlan_user_scan_cfg;
 
 /** Default scan interval in millisecond*/

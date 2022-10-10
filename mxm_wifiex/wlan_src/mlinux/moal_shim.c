@@ -97,6 +97,9 @@ mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf)
 				 GFP_ATOMIC :
 				 GFP_KERNEL;
 
+	if (flag & MLAN_MEM_FLAG_ATOMIC)
+		mem_flag = GFP_ATOMIC;
+
 #ifdef USB
 	if (!IS_USB(handle->card_type))
 #endif
@@ -1679,6 +1682,11 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	t_u32 in_ts_usec = 0;
 
 	ENTER();
+	if (!pmbuf) {
+		PRINTM(MERROR, "%s: pmbuf is null\n", __func__);
+		goto done;
+	}
+
 	memset(&mbuf, 0, sizeof(mlan_buffer));
 	mbuf.bss_index = pmbuf->bss_index;
 
@@ -1706,7 +1714,7 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 		woal_get_monotonic_time(&t1);
 		in_ts_sec = t1.time_sec;
 		in_ts_usec = t1.time_usec;
-		if (pmbuf && pmbuf->in_ts_sec) {
+		if (pmbuf->in_ts_sec) {
 			pmbuf->out_ts_sec = t1.time_sec;
 			pmbuf->out_ts_usec = t1.time_usec;
 		}
@@ -1802,7 +1810,7 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 		}
 	}
 	if (handle->tp_acnt.on) {
-		if (pmbuf && pmbuf->in_ts_sec)
+		if (pmbuf->in_ts_sec)
 			moal_tp_accounting(handle, pmbuf, RX_TIME_PKT);
 
 		woal_get_monotonic_time(&t2);
@@ -2186,8 +2194,8 @@ int woal_check_media_connected(t_void *pmoal)
 	int i;
 	moal_handle *pmhandle = (moal_handle *)pmoal;
 	moal_private *pmpriv = NULL;
-	for (i = 0; i < pmhandle->priv_num && (pmpriv = pmhandle->priv[i]);
-	     i++) {
+	for (i = 0; i < pmhandle->priv_num; i++) {
+		pmpriv = pmhandle->priv[i];
 		if (!pmpriv)
 			continue;
 		if (pmpriv->media_connected == MTRUE) {
@@ -2320,11 +2328,17 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	chan_band_info *pchan_info = NULL;
 #endif
 	t_u8 radar_detected;
+	t_u8 bandwidth;
 	t_u8 event_buf[64];
 	t_u8 radar_chan;
 #ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	moal_private *cfg_priv = NULL;
+#endif
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+#ifdef UAP_CFG80211
+	unsigned long wait_time, wait_time_ms, timeout;
 #endif
 #endif
 
@@ -2338,6 +2352,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		}
 		woal_store_firmware_dump(pmoal, pmevent);
 		handle->driver_status = MTRUE;
+		wifi_status = WIFI_STATUS_FW_DUMP;
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle)
 			ref_handle->driver_status = MTRUE;
@@ -2473,6 +2488,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						&priv->phandle->scan_req_lock,
 						flags);
 					if (priv->phandle->scan_request) {
+						cancel_delayed_work(
+							&priv->phandle
+								 ->scan_timeout_work);
 						woal_cfg80211_scan_done(
 							priv->phandle
 								->scan_request,
@@ -2594,11 +2612,20 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 #ifdef REASSOCIATION
 		if (priv->reassoc_on == MTRUE) {
-			PRINTM(MINFO, "Reassoc: trigger the timer\n");
-			priv->reassoc_required = MTRUE;
-			priv->phandle->is_reassoc_timer_set = MTRUE;
-			woal_mod_timer(&priv->phandle->reassoc_timer,
-				       REASSOC_TIMER_DEFAULT);
+			if (priv->auto_assoc_priv.auto_assoc_type_on &
+			    (0x1 << (AUTO_ASSOC_TYPE_DRV_RECONN - 1))) {
+				PRINTM(MINFO,
+				       " auto assoc: trigger driver auto re-connect\n");
+				priv->auto_assoc_priv.auto_assoc_trigger_flag =
+					AUTO_ASSOC_TYPE_DRV_RECONN;
+				priv->auto_assoc_priv.drv_reconnect.status =
+					MTRUE;
+				PRINTM(MINFO, "Reassoc: trigger the timer\n");
+				priv->reassoc_required = MTRUE;
+				priv->phandle->is_reassoc_timer_set = MTRUE;
+				woal_mod_timer(&priv->phandle->reassoc_timer,
+					       REASSOC_TIMER_DEFAULT);
+			}
 		} else {
 			priv->rate_index = AUTO_RATE;
 		}
@@ -2906,13 +2933,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		ref_handle = (moal_handle *)priv->phandle->pref_mac;
 		if (ref_handle)
 			ref_handle->driver_status = MTRUE;
+#ifdef DEBUG_LEVEL1
 		if (drvdbg & MFW_D)
 			auto_fw_dump = MTRUE;
+#endif
 
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		if (!auto_fw_dump && !handle->fw_dump)
 			woal_process_hang(priv->phandle);
-		wifi_status = 2;
+		wifi_status = WIFI_STATUS_WIFI_HANG;
 		break;
 	case MLAN_EVENT_ID_DRV_WIFI_STATUS:
 		wifi_status = *(t_u16 *)(pmevent->event_buf + sizeof(t_u32));
@@ -3012,6 +3041,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 
 	case MLAN_EVENT_ID_FW_CHANNEL_REPORT_RDY:
 		radar_detected = pmevent->event_buf[0];
+		bandwidth = pmevent->event_buf[2];
 #ifdef UAP_SUPPORT
 		if (priv->chan_rpt_req.chanNum && priv->chan_rpt_pending) {
 			radar_chan = pmevent->event_buf[1];
@@ -3041,17 +3071,38 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			break;
 		if (priv->chan_rpt_req.chanNum && priv->chan_rpt_pending) {
 			priv->chan_rpt_pending = MFALSE;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+			if (priv->radar_background) {
+				PRINTM(MEVENT,
+				       "%s radar found when background CAC \n",
+				       radar_detected ? "" : "No");
+				if (radar_detected)
+					cfg80211_background_radar_event(
+						priv->phandle->wiphy,
+						&priv->radar_background_chan,
+						GFP_ATOMIC);
+				break;
+			}
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			cfg_priv = woal_get_priv_with_wdev(priv->phandle);
 			if (cfg_priv) {
 				if (radar_detected)
-					woal_update_channel_dfs_state(
+					woal_update_channels_dfs_state(
+						cfg_priv,
 						priv->chan_rpt_req.chanNum,
+						priv->chan_rpt_req.bandcfg
+							.chanWidth,
 						DFS_UNAVAILABLE);
 				else
-					woal_update_channel_dfs_state(
+					woal_update_channels_dfs_state(
+						cfg_priv,
 						priv->chan_rpt_req.chanNum,
+						priv->chan_rpt_req.bandcfg
+							.chanWidth,
 						DFS_AVAILABLE);
 			}
+#endif
 			break;
 		}
 
@@ -3077,6 +3128,34 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					&priv->phandle->dfs_channel,
 					GFP_KERNEL);
 			} else {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+				if (!priv->user_cac_period_msec) {
+					// host and device timer isn't sync,add
+					// delay to avoid kernel warning
+					// WARN_ON(!time_after_eq(jiffies,
+					// timeout)); mdelay(100); Using
+					// optimized delay
+					timeout =
+						(priv->wdev->cac_start_time +
+						 msecs_to_jiffies(
+							 priv->wdev
+								 ->cac_time_ms));
+					if (!time_after_eq(jiffies, timeout)) {
+						/* Exact time to make host and
+						 * device timer in sync */
+						wait_time = timeout - jiffies;
+						wait_time_ms =
+							jiffies_to_msecs(
+								wait_time) +
+							3;
+						PRINTM(MEVENT,
+						       "Waiting for %ld ms for syncing\n",
+						       wait_time_ms);
+						mdelay(wait_time_ms);
+					}
+				}
+#endif
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 				cfg80211_cac_event(priv->netdev,
 						   &priv->phandle->dfs_channel,
@@ -3097,6 +3176,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		break;
 	case MLAN_EVENT_ID_FW_RADAR_DETECTED:
 		radar_chan = pmevent->event_buf[0];
+		bandwidth = pmevent->event_buf[1];
 		snprintf(event_buf, sizeof(event_buf) - 1, "%s %d",
 			 CUS_EVT_RADAR_DETECTED, radar_chan);
 		woal_broadcast_event(priv, event_buf, strlen(event_buf));
@@ -3106,27 +3186,35 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 		if (!IS_STA_OR_UAP_CFG80211(cfg80211_wext))
 			break;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+		if (priv->radar_background) {
+			cfg80211_background_radar_event(
+				priv->phandle->wiphy,
+				&priv->radar_background_chan, GFP_ATOMIC);
+			break;
+		}
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		cfg_priv = woal_get_priv_with_wdev(priv->phandle);
-		if (cfg_priv) {
-			woal_update_channel_dfs_state(radar_chan,
-						      DFS_UNAVAILABLE);
+		if (cfg_priv)
+			woal_update_channels_dfs_state(cfg_priv, radar_chan,
+						       bandwidth,
+						       DFS_UNAVAILABLE);
+#endif
 #ifdef UAP_SUPPORT
-			if ((priv->target_chan && priv->bss_started &&
-			     (priv->target_chan != radar_chan)) ||
-			    priv->backup_chan) {
-				PRINTM(MEVENT,
-				       "Move to target or backup chan %d %d\n",
-				       priv->target_chan, priv->backup_chan);
-				woal_move_to_next_channel(priv);
-				priv->target_chan = 0;
-				break;
-			}
-			if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
-				woal_chan_event(priv, WOAL_EVENT_RADAR,
-						priv->chan_rpt_req.chanNum,
-						MTRUE);
-				break;
-			}
+		if ((priv->target_chan && priv->bss_started &&
+		     (priv->target_chan != radar_chan)) ||
+		    priv->backup_chan) {
+			PRINTM(MEVENT, "Move to target or backup chan %d %d\n",
+			       priv->target_chan, priv->backup_chan);
+			woal_move_to_next_channel(priv);
+			priv->target_chan = 0;
+			break;
+		}
+		if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
+			woal_chan_event(priv, WOAL_EVENT_RADAR,
+					priv->chan_rpt_req.chanNum, MTRUE);
+			break;
 		}
 #endif
 		if (priv->phandle->is_cac_timer_set) {
@@ -3145,10 +3233,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						   NL80211_RADAR_CAC_ABORTED,
 						   GFP_KERNEL);
 #else
-					cfg80211_cac_event(
-						priv->netdev,
-						NL80211_RADAR_CAC_ABORTED,
-						GFP_KERNEL);
+				cfg80211_cac_event(priv->netdev,
+						   NL80211_RADAR_CAC_ABORTED,
+						   GFP_KERNEL);
 #endif
 				cfg80211_radar_event(
 					priv->wdev->wiphy,
@@ -3229,7 +3316,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				       pchan_info->bandcfg.chanBand,
 				       pchan_info->bandcfg.chanWidth,
 				       pchan_info->bandcfg.chan2Offset);
-				woal_cfg80211_notify_channel(priv, pchan_info);
+				woal_channel_switch_event(priv, pchan_info);
 			}
 #endif
 		}
@@ -3367,7 +3454,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			PRINTM(MMSG,
 			       "Channel Under Nop: notify cfg80211 new channel=%d\n",
 			       priv->channel);
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
@@ -3438,6 +3525,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (priv->host_mlme &&
 			    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+				if (priv->assoc_bss) {
+					PRINTM(MEVENT,
+					       "wlan: HostMlme auth timeout\n");
+					cfg80211_auth_timeout(
+						priv->netdev,
+						priv->assoc_bss->bssid);
+				}
+#endif
 				priv->auth_flag = 0;
 				priv->host_mlme = MFALSE;
 				priv->auth_alg = 0xFFFF;
@@ -3692,7 +3788,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						PRINTM(MEVENT,
 						       "HostMlme %s: Receive deauth/disassociate\n",
 						       priv->netdev->name);
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
 						if (!priv->wdev->connected) {
 #else
 						if (!priv->wdev->current_bss) {
@@ -4066,7 +4162,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		roam_info =
 			kzalloc(sizeof(struct cfg80211_roam_info), GFP_ATOMIC);
 		if (roam_info) {
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 			roam_info->links[0].bssid = priv->cfg_bssid;
 #else
 			roam_info->bssid = priv->cfg_bssid;

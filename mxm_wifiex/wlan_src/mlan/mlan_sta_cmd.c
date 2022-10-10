@@ -2489,6 +2489,46 @@ static mlan_status wlan_cmd_otp_user_data(pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+/**
+ *  @brief This function prepares command of fw auto re-connect.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_cmd_fw_auto_reconnect(pmlan_private pmpriv,
+					      HostCmd_DS_COMMAND *cmd,
+					      t_u16 cmd_action,
+					      t_void *pdata_buf)
+{
+	HostCmd_DS_FW_AUTO_RECONNECT *fw_auto_reconnect =
+		&cmd->params.fw_auto_reconnect_cmd;
+	mlan_ds_fw_reconnect *fw_auto_reconn =
+		(mlan_ds_fw_reconnect *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_FW_AUTO_RECONNECT);
+	cmd->size = wlan_cpu_to_le16((sizeof(HostCmd_DS_FW_AUTO_RECONNECT)) +
+				     S_DS_GEN);
+
+	fw_auto_reconnect->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		fw_auto_reconnect->reconnect_counter =
+			fw_auto_reconn->fw_reconn_counter;
+		fw_auto_reconnect->reconnect_interval =
+			fw_auto_reconn->fw_reconn_interval;
+		fw_auto_reconnect->flags =
+			wlan_cpu_to_le16(fw_auto_reconn->fw_reconn_flags);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 #ifdef USB
 /**
  *  @brief This function prepares command of packet aggragation
@@ -3949,6 +3989,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_OTP_READ_USER_DATA:
 		ret = wlan_cmd_otp_user_data(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
+		break;
+	case HostCmd_CMD_FW_AUTO_RECONNECT:
+		ret = wlan_cmd_fw_auto_reconnect(pmpriv, cmd_ptr, cmd_action,
+						 pdata_buf);
 		break;
 	case HostCmd_CMD_HS_WAKEUP_REASON:
 		ret = wlan_cmd_hs_wakeup_reason(pmpriv, cmd_ptr, pdata_buf);

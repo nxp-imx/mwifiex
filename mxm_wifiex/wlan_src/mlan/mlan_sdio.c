@@ -1334,6 +1334,8 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 
 	case MLAN_TYPE_CMD:
 		PRINTM(MINFO, "--- Rx: Cmd Response ---\n");
+		if (pmadapter->cmd_sent)
+			pmadapter->cmd_sent = MFALSE;
 		/* take care of curr_cmd = NULL case */
 		if (!pmadapter->curr_cmd) {
 			cmd_buf = pmadapter->upld_buf;

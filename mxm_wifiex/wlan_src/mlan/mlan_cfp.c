@@ -159,8 +159,8 @@ static chan_freq_power_t channel_freq_power_EU_BG[] = {
 	{9, 2452, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /** Band: 'B/G', Region: Japan */
 static chan_freq_power_t channel_freq_power_JPN41_BG[] = {
@@ -175,8 +175,8 @@ static chan_freq_power_t channel_freq_power_JPN41_BG[] = {
 	{9, 2452, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /** Band: 'B/G', Region: Japan */
 static chan_freq_power_t channel_freq_power_JPN40_BG[] = {
@@ -211,8 +211,8 @@ static chan_freq_power_t channel_freq_power_BR_BG[] = {
 	{9, 2452, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_1000MW, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_1000MW, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}}};
 
 /** Band : 'B/G', Region: Special */
 static chan_freq_power_t channel_freq_power_SPECIAL_BG[] = {
@@ -227,9 +227,9 @@ static chan_freq_power_t channel_freq_power_SPECIAL_BG[] = {
 	{9, 2452, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{14, 2484, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{14, 2484, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /**
  * The 2.4GHz CFP tables
@@ -2579,7 +2579,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 		}
 	}
 
-	PRINTM(MCMND, "Operating class not find!\n");
+	PRINTM(MCMND, "Operating class not found!\n");
 	LEAVE();
 	return MLAN_STATUS_FAILURE;
 }
@@ -3099,6 +3099,41 @@ dfs_state_t wlan_get_chan_dfs_state(mlan_private *priv, t_u16 band, t_u8 chan)
 
 	LEAVE();
 	return dfs_state;
+}
+
+/**
+ *  @brief reset all channel's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param band         Band to check
+ *  @param dfs_state    dfs state
+ *
+ *  @return  N/A
+ */
+t_void wlan_reset_all_chan_dfs_state(mlan_private *priv, t_u16 band,
+				     dfs_state_t dfs_state)
+{
+	int i, j;
+	chan_freq_power_t *pcfp = MNULL;
+
+	ENTER();
+
+	/*get the cfp table first*/
+	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {
+		if (priv->adapter->region_channel[i].band & band) {
+			pcfp = priv->adapter->region_channel[i].pcfp;
+			break;
+		}
+	}
+
+	if (pcfp) {
+		/*check table according to chan num*/
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+			pcfp[j].dynamic.dfs_state = dfs_state;
+		}
+	}
+
+	LEAVE();
 }
 
 /**

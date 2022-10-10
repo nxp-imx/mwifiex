@@ -2888,7 +2888,7 @@ void wlan_11n_create_txbastream_tbl(mlan_private *priv, t_u8 *ra, int tid,
 
 	if (pmadapter->callbacks.moal_malloc(
 		    pmadapter->pmoal_handle, sizeof(TxBAStreamTbl),
-		    MLAN_MEM_DEF, (t_u8 **)&new_node)) {
+		    MLAN_MEM_DEF | MLAN_MEM_FLAG_ATOMIC, (t_u8 **)&new_node)) {
 		PRINTM(MERROR,
 		       "wlan_11n_create_txbastream_tbl Failed to allocate new_node\n");
 		LEAVE();

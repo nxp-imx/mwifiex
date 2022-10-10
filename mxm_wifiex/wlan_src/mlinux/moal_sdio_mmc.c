@@ -1826,7 +1826,7 @@ void woal_dump_firmware_info(moal_handle *phandle)
 		if (dbg_ptr < end_ptr)
 			dbg_ptr++;
 		else {
-			PRINTM(MERROR, "pre-allocced buf is not enough\n");
+			PRINTM(MINFO, "pre-allocced buf is not enough\n");
 			goto done;
 		}
 		for (reg = reg_start; reg <= reg_end; reg++) {
@@ -1838,7 +1838,7 @@ void woal_dump_firmware_info(moal_handle *phandle)
 			if (dbg_ptr < end_ptr)
 				dbg_ptr++;
 			else
-				PRINTM(MMSG,
+				PRINTM(MINFO,
 				       "pre-allocced buf is not enough\n");
 		}
 		switch (ctrl_data) {
@@ -2035,7 +2035,7 @@ void woal_dump_firmware_info_v2(moal_handle *phandle)
 				if (dbg_ptr < end_ptr)
 					dbg_ptr++;
 				else
-					PRINTM(MMSG,
+					PRINTM(MINFO,
 					       "pre-allocced buf is not enough\n");
 			}
 			if (RDWR_STATUS_DONE == stat) {
@@ -2181,27 +2181,30 @@ void woal_dump_firmware_info_v3(moal_handle *phandle)
 			}
 			dbg_ptr++;
 			if (dbg_ptr >= end_ptr) {
-				PRINTM(MMSG,
+				PRINTM(MINFO,
 				       "pre-allocced buf is not enough\n");
+
 				ret = moal_vmalloc(phandle,
-						   memory_size + 0x4000 + 1,
+						   memory_size + 0x2000 + 1,
 						   (t_u8 **)&temp_Ptr);
 				if ((ret != MLAN_STATUS_SUCCESS) || !temp_Ptr) {
 					PRINTM(MERROR,
 					       "Error: vmalloc  buffer failed!!!\n");
 					goto done;
 				}
+
 				moal_memcpy_ext(phandle, temp_Ptr,
 						pmem_type_mapping_tbl->mem_Ptr,
 						memory_size,
-						memory_size + 0x4000);
+						memory_size + 0x2000);
 				moal_vfree(phandle,
 					   pmem_type_mapping_tbl->mem_Ptr);
 				pmem_type_mapping_tbl->mem_Ptr = temp_Ptr;
 				temp_Ptr = NULL;
 				dbg_ptr = pmem_type_mapping_tbl->mem_Ptr +
 					  memory_size;
-				memory_size += 0x4000;
+
+				memory_size += 0x2000;
 				end_ptr = pmem_type_mapping_tbl->mem_Ptr +
 					  memory_size;
 			}
@@ -2331,6 +2334,9 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
 	}
+	/** cancel all pending commands */
+	mlan_ioctl(phandle->pmlan_adapter, NULL);
+
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
 	phandle->fw_dump = MTRUE;
 	if (phandle->card_info->dump_fw_info == DUMP_FW_SDIO_V2) {
@@ -2350,9 +2356,11 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 		woal_dump_firmware_info(phandle);
 	}
 #endif
+	phandle->fw_dump = MFALSE;
+	if (!phandle->priv_num)
+		return;
 	woal_send_fw_dump_complete_event(
 		woal_get_priv(phandle, MLAN_BSS_ROLE_ANY));
-	phandle->fw_dump = MFALSE;
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);
 	woal_process_hang(phandle);
@@ -2471,11 +2479,14 @@ void woal_sdio_reset_hw(moal_handle *handle)
 	sdio_claim_host(func);
 	sdio_release_irq(card->func);
 	sdio_disable_func(card->func);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	mmc_hw_reset(func->card);
 #else
 	mmc_hw_reset(func->card->host);
 #endif
+#endif
+
 #ifdef MMC_QUIRK_BLKSZ_FOR_BYTE_MODE
 	/* The byte mode patch is available in kernel MMC driver
 	 * which fixes one issue in MP-A transfer.

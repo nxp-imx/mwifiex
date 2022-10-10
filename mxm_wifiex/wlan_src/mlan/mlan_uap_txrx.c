@@ -443,6 +443,10 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 			pmadapter->pmoal_handle, &last_rx_sec, &last_rx_usec);
 		sta_ptr->stats.last_rx_in_msec =
 			(t_u64)last_rx_sec * 1000 + (t_u64)last_rx_usec / 1000;
+		if (rx_pkt_type != PKT_TYPE_BAR) {
+			sta_ptr->stats.rx_packets++;
+			sta_ptr->stats.rx_bytes += prx_pd->rx_pkt_length;
+		}
 	}
 
 #ifdef DRV_EMBEDDED_AUTHENTICATOR

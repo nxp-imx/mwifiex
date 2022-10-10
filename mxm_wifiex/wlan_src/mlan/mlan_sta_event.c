@@ -370,7 +370,12 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	if (drv_disconnect) {
 		priv->media_connected = MFALSE;
 		pmadapter->state_rdh.tx_block = MFALSE;
-		wlan_11h_check_update_radar_det_state(priv);
+#ifdef UAP_SUPPORT
+		if (pmadapter->dfs_mode)
+			wlan_11h_update_dfs_master_state_on_disconect(priv);
+		else
+#endif
+			wlan_11h_check_update_radar_det_state(priv);
 	}
 
 	if (priv->port_ctrl_mode == MTRUE) {
@@ -919,6 +924,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 					cfp->freq;
 			else
 				pmpriv->curr_bss_params.bss_descriptor.freq = 0;
+#ifdef UAP_SUPPORT
+			if (pmpriv->adapter->dfs_mode)
+				wlan_11h_update_dfs_master_state_by_sta(pmpriv);
+#endif
 			if (pmpriv->adapter->state_rdh.stage ==
 			    RDH_SET_CUSTOM_IE) {
 				pmadapter->state_rdh.stage =
@@ -994,7 +1003,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			   pevent->event_len, pevent->event_len);
 		/* Handle / pass event data */
 		ret = wlan_11h_handle_event_chanrpt_ready(pmpriv, pevent,
-							  &radar_chan);
+							  &radar_chan, 0);
 		/* Also send this event as passthru */
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		pevent->event_len = pmbuf->data_len;
@@ -1373,6 +1382,17 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		pmadapter->fw_hang_report = MTRUE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 		break;
+	case CHAN_LOAD_EVENT: {
+		t_u8 *ptr = MNULL;
+		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
+		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
+		ptr += 4; /* data start */
+		cfg_cmd = (HostCmd_DS_GET_CH_LOAD *)ptr;
+		pmpriv->ch_load_param = wlan_le16_to_cpu(cfg_cmd->ch_load);
+		pmpriv->noise = wlan_le16_to_cpu(cfg_cmd->noise);
+		pmpriv->rx_quality = wlan_le16_to_cpu(cfg_cmd->rx_quality);
+		break;
+	}
 	default:
 		PRINTM(MEVENT, "EVENT: unknown event id: %#x\n", eventcause);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_UNKNOWN, MNULL);

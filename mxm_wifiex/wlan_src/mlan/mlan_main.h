@@ -1147,6 +1147,8 @@ typedef struct _mlan_private {
 	t_bool uap_host_based;
 	/**UAP operating channel*/
 	t_u8 uap_channel;
+	/**UAP bandwidth*/
+	t_u8 uap_bandwidth;
 	/** state variable for UAP Get Info callback */
 	wlan_uap_get_info_cb_t uap_state_chan_cb;
 #endif /* UAP_SUPPORT */
@@ -1311,6 +1313,8 @@ typedef struct _mlan_private {
 	t_u16 ch_load_param;
 	/** Noise floor value for current channel */
 	t_s16 noise;
+	/** rx quality info */
+	t_u16 rx_quality;
 } mlan_private, *pmlan_private;
 
 typedef struct _assoc_logger {
@@ -1593,6 +1597,8 @@ typedef struct {
 	t_bool dfs_radar_found;
 	/** Channel radar is being checked on.  BAND_A is assumed. */
 	t_u8 dfs_check_channel;
+	/** Channel radar is being checked on bandwidth*/
+	t_u8 dfs_check_bandwidth;
 	/** point to the priv which start the DFS check */
 	t_void *dfs_check_priv;
 	/** Timestamp when we got last report,
@@ -2503,6 +2509,8 @@ typedef struct _mlan_adapter {
 	wlan_dfs_testing_settings_t dfs_test_params;
 	/**  dfs w53 cfg */
 	t_u8 dfs53cfg;
+	/**  dfs_mode */
+	t_u8 dfs_mode;
 	/** FSM variable for MEAS support */
 	wlan_meas_state_t state_meas;
 	/** Scan table */
@@ -3059,8 +3067,9 @@ t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter);
 /** Check if this is the last packet */
 t_u8 wlan_check_last_packet_indication(pmlan_private priv);
 
-#define MOAL_ALLOC_MLAN_BUFFER (0)
-#define MOAL_MALLOC_BUFFER (1)
+#define MOAL_ALLOC_MLAN_BUFFER MBIT(0)
+#define MOAL_MALLOC_BUFFER MBIT(1)
+#define MOAL_MEM_FLAG_ATOMIC MBIT(2)
 
 #ifdef PCIE
 /* This defines the direction arg to the DMA mapping routines. */
@@ -3559,6 +3568,8 @@ t_bool wlan_set_chan_blacklist(mlan_private *priv, t_u16 band, t_u8 chan,
 dfs_state_t wlan_get_chan_dfs_state(mlan_private *priv, t_u16 band, t_u8 chan);
 t_void wlan_set_chan_dfs_state(mlan_private *priv, t_u16 band, t_u8 chan,
 			       dfs_state_t dfs_state);
+t_void wlan_reset_all_chan_dfs_state(mlan_private *priv, t_u16 band,
+				     dfs_state_t dfs_state);
 /* 802.11D related functions */
 /** Initialize 11D */
 t_void wlan_11d_priv_init(mlan_private *pmpriv);

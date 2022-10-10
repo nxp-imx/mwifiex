@@ -2680,6 +2680,38 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 			goto setessid_ret;
 		}
 
+		priv->auto_assoc_priv.drv_assoc.status = MFALSE;
+		priv->auto_assoc_priv.drv_reconnect.status = MFALSE;
+#ifdef REASSOCIATION
+		if (priv->reassoc_on == MTRUE) {
+			if (priv->auto_assoc_priv.auto_assoc_type_on &
+			    (0x1 << (AUTO_ASSOC_TYPE_DRV_ASSOC - 1))) {
+				if (priv->scan_type == MLAN_SCAN_TYPE_PASSIVE)
+					woal_set_scan_type(
+						priv, MLAN_SCAN_TYPE_PASSIVE);
+				MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
+				moal_memcpy_ext(
+					priv->phandle,
+					&priv->prev_ssid_bssid.ssid, &req_ssid,
+					sizeof(mlan_802_11_ssid),
+					sizeof(priv->prev_ssid_bssid.ssid));
+				priv->auto_assoc_priv.auto_assoc_trigger_flag =
+					AUTO_ASSOC_TYPE_DRV_ASSOC;
+				priv->auto_assoc_priv.drv_assoc.status = MTRUE;
+				priv->reassoc_required = MTRUE;
+				priv->phandle->is_reassoc_timer_set = MTRUE;
+				PRINTM(MINFO,
+				       " auto assoc: trigger driver auto assoc\n");
+				woal_mod_timer(&priv->phandle->reassoc_timer,
+					       0);
+				ret = MLAN_STATUS_SUCCESS;
+
+				LEAVE();
+				return ret;
+			}
+		}
+#endif
+
 		if (dwrq->flags != 0xFFFF) {
 			if (MLAN_STATUS_SUCCESS !=
 			    woal_find_essid(priv, &ssid_bssid,
@@ -3092,9 +3124,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 					current_ev = IWE_STREAM_ADD_POINT(
 						info, current_ev, end_buf, &iwe,
 						buf);
-					current_val = current_ev +
-						      IW_EV_LCP_LEN +
-						      strlen(buf);
 					break;
 #endif
 				default:
@@ -3114,9 +3143,9 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		ptr += sprintf(ptr, "band=");
 		memset(&iwe, 0, sizeof(iwe));
 		if (scan_table[i].bss_band == BAND_A)
-			ptr += sprintf(ptr, "a");
+			sprintf(ptr, "a");
 		else
-			ptr += sprintf(ptr, "bg");
+			sprintf(ptr, "bg");
 		iwe.u.data.length = strlen(buf);
 		PRINTM(MINFO, "iwe.u.data.length %d\n", iwe.u.data.length);
 		PRINTM(MINFO, "BUF: %s\n", buf);
@@ -3124,7 +3153,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		iwe.len = IW_EV_POINT_LEN + iwe.u.data.length;
 		current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf,
 						  &iwe, buf);
-		current_val = current_ev + IW_EV_LCP_LEN + strlen(buf);
 #endif
 		current_val = current_ev + IW_EV_LCP_LEN;
 
@@ -3260,6 +3288,11 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str)
 	char buf[IW_CUSTOM_MAX];
 
 	ENTER();
+	/* Check register_netdevice is completed before sending*/
+	if (priv->netdev->reg_state != NETREG_REGISTERED) {
+		LEAVE();
+		return;
+	}
 
 	memset(&iwrq, 0, sizeof(union iwreq_data));
 	memset(buf, 0, sizeof(buf));

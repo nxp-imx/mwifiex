@@ -188,9 +188,9 @@ t_u8 wlan_fill_he_cap_ie(mlan_private *pmpriv, IEEEtypes_HECap_t *hecap_ie,
 
 	he_mcsnss = (IEEEtypes_HeMcsNss_t *)hecap_ie->he_txrx_mcs_support;
 
-	cfg_value = GET_HE_NSSMCS(user_hecap_tlv->rx_mcs_80, nss);
-	hw_value = GET_HE_NSSMCS(hw_hecap_tlv->rx_mcs_80, nss);
 	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(user_hecap_tlv->rx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(hw_hecap_tlv->rx_mcs_80, nss);
 		if ((hw_value == NO_NSS_SUPPORT) ||
 		    (cfg_value == NO_NSS_SUPPORT)) {
 			SET_HE_NSSMCS(he_mcsnss->rx_mcs, nss, NO_NSS_SUPPORT);
@@ -200,9 +200,10 @@ t_u8 wlan_fill_he_cap_ie(mlan_private *pmpriv, IEEEtypes_HECap_t *hecap_ie,
 		}
 	}
 
-	cfg_value = GET_HE_NSSMCS(user_hecap_tlv->tx_mcs_80, nss);
-	hw_value = GET_HE_NSSMCS(hw_hecap_tlv->tx_mcs_80, nss);
 	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(user_hecap_tlv->tx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(hw_hecap_tlv->tx_mcs_80, nss);
+
 		if ((hw_value == NO_NSS_SUPPORT) ||
 		    (cfg_value == NO_NSS_SUPPORT)) {
 			SET_HE_NSSMCS(he_mcsnss->tx_mcs, nss, NO_NSS_SUPPORT);

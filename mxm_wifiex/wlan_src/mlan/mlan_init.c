@@ -808,9 +808,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 					     */
 
 	pmadapter->pm_wakeup_card_req = MFALSE;
-	pmadapter->pm_wakeup_timeout = 0;
 
 	pmadapter->pm_wakeup_fw_try = MFALSE;
+	pmadapter->pm_wakeup_timeout = 0;
 
 	if (!pmadapter->init_para.max_tx_buf)
 		pmadapter->max_tx_buf_size =

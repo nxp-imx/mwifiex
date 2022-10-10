@@ -110,6 +110,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_ASSOCESSID "assocessid"
 #define PRIV_CMD_ASSOCBSSID "assocessid_bssid"
 #endif
+#define PRIV_CMD_AUTOASSOC "assocctrl"
 #define PRIV_CMD_WAKEUPREASON "wakeupreason"
 #ifdef STA_SUPPORT
 #define PRIV_CMD_LISTENINTERVAL "listeninterval"
@@ -219,8 +220,10 @@ typedef struct _chan_stats {
 #endif
 #define PRIV_CMD_DFS_TESTING "dfstesting"
 #define PRIV_CMD_CLEAR_NOP "clear_nop"
+#define PRIV_CMD_NOP_LIST "nop_list"
 #define PRIV_CMD_FAKE_RADAR "fake_radar"
 #define PRIV_CMD_DFS53_CFG "dfs53cfg"
+#define PRIV_CMD_DFS_MODE "dfs_mode"
 #define PRIV_CMD_DFS_CAC "dfs_cac"
 #define PRIV_CMD_AUTODFS "autodfs"
 #define PRIV_CMD_CFP_CODE "cfpcode"

@@ -29,6 +29,7 @@ extern pmoal_handle m_handle[];
 static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
+int auto_fw_reload;
 
 static char *hw_name;
 
@@ -61,12 +62,7 @@ static int beacon_hints;
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-#ifdef IMX_SUPPORT
 static int host_mlme = 1;
-#else
-static int host_mlme = 0;
-#endif
-
 #endif
 #endif
 
@@ -356,6 +352,8 @@ static card_type_entry card_type_map_tbl[] = {
 
 static int dfs53cfg = DFS_W53_DEFAULT_FW;
 
+static int keep_previous_scan = 1;
+
 /**
  *  @brief This function read a line in module parameter file
  *
@@ -606,6 +604,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->fw_reload = out_data;
 			PRINTM(MMSG, "fw_reload %d\n", params->fw_reload);
+		} else if (strncmp(line, "auto_fw_reload",
+				   strlen("auto_fw_reload")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->auto_fw_reload = out_data;
+			PRINTM(MMSG, "auto_fw_reload %d\n",
+			       params->auto_fw_reload);
 		} else if (strncmp(line, "fw_serial", strlen("fw_serial")) ==
 			   0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1345,6 +1351,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "chan_track= %s\n",
 			       moal_extflg_isset(handle, EXT_PMQOS) ? "on" :
 								      "off");
+		} else if (strncmp(line, "keep_previous_scan",
+				   strlen("keep_previous_scan")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->keep_previous_scan = out_data;
+			PRINTM(MMSG, "keep_previous_scan=%d\n",
+			       params->keep_previous_scan);
 		}
 	}
 	if (end)
@@ -1385,6 +1399,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	}
 	if (params)
 		handle->params.fw_reload = params->fw_reload;
+
+	handle->params.auto_fw_reload = auto_fw_reload;
+	if (params)
+		handle->params.auto_fw_reload = params->auto_fw_reload;
 	if (fw_serial)
 		moal_extflg_set(handle, EXT_FW_SERIAL);
 	woal_dup_string(&handle->params.hw_name, hw_name);
@@ -1665,6 +1683,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		if (params)
 			handle->params.dfs53cfg = params->dfs53cfg;
 	}
+	handle->params.keep_previous_scan = keep_previous_scan;
 }
 
 /**
@@ -2137,6 +2156,13 @@ void woal_init_from_dev_tree(void)
 				chan_track = data;
 				PRINTM(MIOCTL, "chan_track=%d\n", chan_track);
 			}
+		} else if (!strncmp(prop->name, "keep_previous_scan",
+				    strlen("keep_previous_scan"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MERROR, "keep_previous_scan=0x%x\n",
+				       data);
+				keep_previous_scan = data;
+			}
 		}
 	}
 	LEAVE();
@@ -2343,6 +2369,9 @@ MODULE_PARM_DESC(
 module_param(fw_reload, int, 0);
 MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
+module_param(auto_fw_reload, int, 0);
+MODULE_PARM_DESC(auto_fw_reload,
+		 "0: disable auto_fw_reload; 1: enable auto fw reload feature");
 module_param(fw_serial, int, 0);
 MODULE_PARM_DESC(
 	fw_serial,
@@ -2603,15 +2632,9 @@ MODULE_PARM_DESC(
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 module_param(host_mlme, int, 0);
-#ifdef IMX_SUPPORT
 MODULE_PARM_DESC(
 	host_mlme,
 	"1: Enable Host MLME Support (Default); 0: Disable Host MLME support");
-#else
-MODULE_PARM_DESC(
-	host_mlme,
-	"1: Enable Host MLME Support; 0: Disable Host MLME support (Default)");
-#endif
 #endif
 #endif
 
@@ -2640,3 +2663,8 @@ module_param(chan_track, int, 0);
 MODULE_PARM_DESC(
 	chan_track,
 	"1: Set channel tracking; 0: Restore channel tracking for 9098 only");
+
+module_param(keep_previous_scan, int, 0);
+MODULE_PARM_DESC(
+	keep_previous_scan,
+	"1: keep previous scan result; 0: flush previous scan result before start scan ");

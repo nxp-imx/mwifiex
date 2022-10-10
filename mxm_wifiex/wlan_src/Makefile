@@ -604,9 +604,9 @@ appsbuild:
 	fi
 
 	cp -f README_MLAN $(BINDIR)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 
@@ -623,9 +623,9 @@ build:		echo default
 	cp -rpf script/unload $(BINDIR)/
 
 	cp -f README_MLAN $(BINDIR)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 

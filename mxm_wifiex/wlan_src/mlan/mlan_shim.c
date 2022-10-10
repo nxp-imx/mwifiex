@@ -1262,8 +1262,11 @@ process_start:
 		}
 
 		/* Check for Cmd Resp */
+		wlan_request_cmd_lock(pmadapter);
 		if (pmadapter->cmd_resp_received) {
 			pmadapter->cmd_resp_received = MFALSE;
+			wlan_release_cmd_lock(pmadapter);
+
 			wlan_process_cmdresp(pmadapter);
 
 			/* call moal back when init_fw is done */
@@ -1277,6 +1280,8 @@ process_start:
 					WlanHardwareStatusInitializing;
 				wlan_get_hw_spec_complete(pmadapter);
 			}
+		} else {
+			wlan_release_cmd_lock(pmadapter);
 		}
 
 		/* Check for event */
@@ -1594,11 +1599,13 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 				}
 				PRINTM(MINFO, "mlan_recv: no curr_cmd\n");
 			} else {
+				wlan_request_cmd_lock(pmadapter);
 				pmadapter->upld_len = len;
 				pmbuf->data_offset += MLAN_TYPE_LEN;
 				pmbuf->data_len -= MLAN_TYPE_LEN;
 				pmadapter->curr_cmd->respbuf = pmbuf;
 				pmadapter->cmd_resp_received = MTRUE;
+				wlan_release_cmd_lock(pmadapter);
 			}
 			break;
 		case MLAN_USB_TYPE_EVENT:
@@ -1744,8 +1751,12 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");
 		if (pmpriv->sec_info.ewpa_enabled) {
 			*drop = MTRUE;
-			wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_EAPOL_PKT,
-					 0, 0, MNULL, pmbuf);
+			if (MLAN_STATUS_FAILURE ==
+			    wlan_prepare_cmd(pmpriv,
+					     HostCmd_CMD_802_11_EAPOL_PKT, 0, 0,
+					     MNULL, pmbuf)) {
+				PRINTM(MERROR, "Preparing the CMD failed\n");
+			}
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 					MNULL);

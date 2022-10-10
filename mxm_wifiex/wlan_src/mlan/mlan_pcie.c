@@ -934,9 +934,9 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 				(t_void *)padma_bd_buf;
 			padma_bd_buf->paddr = 0;
 			padma_bd_buf->len = 0;
-			padma_bd_buf->flags =
+			padma_bd_buf->flags = wlan_cpu_to_le16(
 				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_SRC_HOST |
-				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP;
+				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
 		}
@@ -1169,11 +1169,14 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 					    (sizeof(mlan_pcie_data_buf) * i));
 			pmadapter->pcard_pcie->rxbd_ring[i] =
 				(t_void *)prxbd_buf;
-			prxbd_buf->paddr = pmbuf->buf_pa;
-			prxbd_buf->len = (t_u16)pmbuf->data_len;
-			prxbd_buf->flags = MLAN_BD_FLAG_SOP | MLAN_BD_FLAG_EOP;
+			prxbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			prxbd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
+			prxbd_buf->flags = wlan_cpu_to_le16(MLAN_BD_FLAG_SOP |
+							    MLAN_BD_FLAG_EOP);
 			prxbd_buf->offset = 0;
-			prxbd_buf->frag_len = (t_u16)pmbuf->data_len;
+			prxbd_buf->frag_len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
 		}
 #endif
 
@@ -1186,11 +1189,11 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 					    (sizeof(adma_dual_desc_buf) * i));
 			pmadapter->pcard_pcie->rxbd_ring[i] =
 				(t_void *)padma_bd_buf;
-			padma_bd_buf->paddr = pmbuf->buf_pa;
-			padma_bd_buf->len =
-				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE);
-			padma_bd_buf->flags =
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST;
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			padma_bd_buf->len = wlan_cpu_to_le16(
+				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE));
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
 		}
@@ -1382,8 +1385,9 @@ static mlan_status wlan_pcie_create_evtbd_ring(mlan_adapter *pmadapter)
 					    (sizeof(mlan_pcie_evt_buf) * i));
 			pmadapter->pcard_pcie->evtbd_ring[i] =
 				(t_void *)pevtbd_buf;
-			pevtbd_buf->paddr = pmbuf->buf_pa;
-			pevtbd_buf->len = (t_u16)pmbuf->data_len;
+			pevtbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			pevtbd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
 			pevtbd_buf->flags = 0;
 		}
 #endif
@@ -1397,11 +1401,11 @@ static mlan_status wlan_pcie_create_evtbd_ring(mlan_adapter *pmadapter)
 					    (sizeof(adma_dual_desc_buf) * i));
 			pmadapter->pcard_pcie->evtbd_ring[i] =
 				(t_void *)padma_bd_buf;
-			padma_bd_buf->paddr = pmbuf->buf_pa;
-			padma_bd_buf->len =
-				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE);
-			padma_bd_buf->flags =
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST;
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			padma_bd_buf->len = wlan_cpu_to_le16(
+				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE));
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
 		}
@@ -1888,7 +1892,7 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 
 	ENTER();
 
-	if (!(pmadapter && pmbuf)) {
+	if (!pmbuf) {
 		PRINTM(MERROR, "%s() has no buffer", __FUNCTION__);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -1934,10 +1938,13 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 			wr_ptr_start = TXBD_RW_PTR_START;
 			ptx_bd_buf = (mlan_pcie_data_buf *)pmadapter->pcard_pcie
 					     ->txbd_ring[wrindx];
-			ptx_bd_buf->paddr = pmbuf->buf_pa;
-			ptx_bd_buf->len = (t_u16)pmbuf->data_len;
-			ptx_bd_buf->flags = MLAN_BD_FLAG_SOP | MLAN_BD_FLAG_EOP;
-			ptx_bd_buf->frag_len = (t_u16)pmbuf->data_len;
+			ptx_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			ptx_bd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
+			ptx_bd_buf->flags = wlan_cpu_to_le16(MLAN_BD_FLAG_SOP |
+							     MLAN_BD_FLAG_EOP);
+			ptx_bd_buf->frag_len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
 			ptx_bd_buf->offset = 0;
 			pmadapter->pcard_pcie->last_tx_pkt_size[wrindx] =
 				pmbuf->data_len;
@@ -1959,15 +1966,16 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 			wr_ptr_start = ADMA_WPTR_START;
 			padma_bd_buf = (adma_dual_desc_buf *)pmadapter
 					       ->pcard_pcie->txbd_ring[wrindx];
-			padma_bd_buf->paddr = pmbuf->buf_pa;
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
 			padma_bd_buf->len =
 				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE);
-			padma_bd_buf->flags =
+			padma_bd_buf->flags = wlan_cpu_to_le16(
 				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP |
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_SRC_HOST;
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_SRC_HOST);
 			if (padma_bd_buf->len < ADMA_MIN_PKT_SIZE)
 				padma_bd_buf->len = ADMA_MIN_PKT_SIZE;
-			padma_bd_buf->pkt_size = pmbuf->data_len;
+			padma_bd_buf->len = wlan_cpu_to_le16(padma_bd_buf->len);
+			padma_bd_buf->pkt_size = padma_bd_buf->len;
 			pmadapter->pcard_pcie->last_tx_pkt_size[wrindx] =
 				pmbuf->data_len;
 			pmadapter->pcard_pcie->txbd_wrptr++;
@@ -2312,11 +2320,14 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
 			prxbd_buf = (mlan_pcie_data_buf *)pmadapter->pcard_pcie
 					    ->rxbd_ring[rd_index];
-			prxbd_buf->paddr = pmbuf->buf_pa;
-			prxbd_buf->len = (t_u16)pmbuf->data_len;
-			prxbd_buf->flags = MLAN_BD_FLAG_SOP | MLAN_BD_FLAG_EOP;
+			prxbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			prxbd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
+			prxbd_buf->flags = wlan_cpu_to_le16(MLAN_BD_FLAG_SOP |
+							    MLAN_BD_FLAG_EOP);
 			prxbd_buf->offset = 0;
-			prxbd_buf->frag_len = (t_u16)pmbuf->data_len;
+			prxbd_buf->frag_len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
 
 			/* update rxbd's rdptrs */
 			if ((++pmadapter->pcard_pcie->rxbd_rdptr &
@@ -2348,11 +2359,11 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			padma_bd_buf =
 				(adma_dual_desc_buf *)pmadapter->pcard_pcie
 					->rxbd_ring[rd_index];
-			padma_bd_buf->paddr = pmbuf->buf_pa;
-			padma_bd_buf->len =
-				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE);
-			padma_bd_buf->flags =
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST;
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			padma_bd_buf->len = wlan_cpu_to_le16(
+				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE));
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
 			pmadapter->pcard_pcie->rxbd_rdptr++;
@@ -2994,8 +3005,9 @@ static mlan_status wlan_pcie_event_complete(mlan_adapter *pmadapter,
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
 			pevtbd_buf = (mlan_pcie_evt_buf *)pmadapter->pcard_pcie
 					     ->evtbd_ring[wrptr];
-			pevtbd_buf->paddr = pmbuf->buf_pa;
-			pevtbd_buf->len = (t_u16)pmbuf->data_len;
+			pevtbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			pevtbd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
 			pevtbd_buf->flags = 0;
 		}
 #endif
@@ -3004,12 +3016,12 @@ static mlan_status wlan_pcie_event_complete(mlan_adapter *pmadapter,
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			padma_bd_buf = (adma_dual_desc_buf *)pmadapter
 					       ->pcard_pcie->evtbd_ring[wrptr];
-			padma_bd_buf->paddr = pmbuf->buf_pa;
-			padma_bd_buf->len =
-				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE);
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			padma_bd_buf->len = wlan_cpu_to_le16(
+				ALIGN_SZ(pmbuf->data_len, ADMA_ALIGN_SIZE));
 			padma_bd_buf->flags = 0;
-			padma_bd_buf->flags =
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST;
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
 		}
@@ -4335,21 +4347,24 @@ mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv)
 		       sizeof(HostCmd_DS_PCIE_HOST_BUF_DETAILS));
 
 		/* Send the ring base addresses and count to firmware */
-		host_spec.txbd_addr_lo =
-			(t_u32)(pmadapter->pcard_pcie->txbd_ring_pbase);
-		host_spec.txbd_addr_hi = (t_u32)(
-			((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >> 32);
-		host_spec.txbd_count = pmadapter->pcard_pcie->txrx_bd_size;
-		host_spec.rxbd_addr_lo =
-			(t_u32)(pmadapter->pcard_pcie->rxbd_ring_pbase);
-		host_spec.rxbd_addr_hi = (t_u32)(
-			((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >> 32);
-		host_spec.rxbd_count = pmadapter->pcard_pcie->txrx_bd_size;
-		host_spec.evtbd_addr_lo =
-			(t_u32)(pmadapter->pcard_pcie->evtbd_ring_pbase);
-		host_spec.evtbd_addr_hi = (t_u32)(
-			((t_u64)pmadapter->pcard_pcie->evtbd_ring_pbase) >> 32);
-		host_spec.evtbd_count = MLAN_MAX_EVT_BD;
+		host_spec.txbd_addr_lo = wlan_cpu_to_le32(
+			(t_u32)(pmadapter->pcard_pcie->txbd_ring_pbase));
+		host_spec.txbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >> 32));
+		host_spec.txbd_count =
+			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
+		host_spec.rxbd_addr_lo = wlan_cpu_to_le32(
+			(t_u32)(pmadapter->pcard_pcie->rxbd_ring_pbase));
+		host_spec.rxbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >> 32));
+		host_spec.rxbd_count =
+			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
+		host_spec.evtbd_addr_lo = wlan_cpu_to_le32(
+			(t_u32)(pmadapter->pcard_pcie->evtbd_ring_pbase));
+		host_spec.evtbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->evtbd_ring_pbase) >>
+			32));
+		host_spec.evtbd_count = wlan_cpu_to_le32(MLAN_MAX_EVT_BD);
 
 		ret = wlan_prepare_cmd(pmpriv,
 				       HostCmd_CMD_PCIE_HOST_BUF_DETAILS,

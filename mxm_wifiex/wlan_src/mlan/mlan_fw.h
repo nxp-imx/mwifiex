@@ -1623,6 +1623,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_Op_t {
 /** Host Command ID : OTP user data */
 #define HostCmd_CMD_OTP_READ_USER_DATA 0x0114
 
+/** Host Command ID: fw auto reconnect */
+#define HostCmd_CMD_FW_AUTO_RECONNECT 0x0115
+
 /** Host Command ID: HS wakeup reason */
 #define HostCmd_CMD_HS_WAKEUP_REASON 0x0116
 
@@ -2081,6 +2084,8 @@ typedef enum _ENH_PS_MODES {
 /** Card Event definition : RESET PN */
 
 #define EVENT_ASSOC_REQ_IE 0x00000095
+
+#define CHAN_LOAD_EVENT 0x00000099
 
 /** Event ID mask */
 #define EVENT_ID_MASK 0xffff
@@ -3162,6 +3167,14 @@ typedef MLAN_PACK_START struct _mef_op {
 	t_u8 val[MAX_NUM_BYTE_SEQ + 1];
 } MLAN_PACK_END mef_op;
 
+/** Structure definition for low power mode cfg command */
+typedef MLAN_PACK_START struct _HostCmd_DS_LOW_POWER_MODE_CFG {
+	/** Action */
+	t_u16 action;
+	/** Low power mode */
+	t_u16 lpm;
+} MLAN_PACK_END HostCmd_DS_LOW_POWER_MODE_CFG;
+
 /* HostCmd_DS_802_11_SLEEP_PERIOD */
 typedef MLAN_PACK_START struct _HostCmd_DS_802_11_SLEEP_PERIOD {
 	/** ACT_GET/ACT_SET */
@@ -3287,14 +3300,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_bcn_timeout_t {
 	/** Beacon reacquire timeout period */
 	t_u16 bcn_rq_tmo_period;
 } MLAN_PACK_END MrvlIEtypes_bcn_timeout_t;
-
-/** Structure definition for low power mode cfg command */
-typedef MLAN_PACK_START struct _HostCmd_DS_LOW_POWER_MODE_CFG {
-	/** Action */
-	t_u16 action;
-	/** Low power mode */
-	t_u16 lpm;
-} MLAN_PACK_END HostCmd_DS_LOW_POWER_MODE_CFG;
 
 /** Structure definition for new power save command */
 typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
@@ -3527,6 +3532,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_CH_LOAD {
 	t_u16 action;
 	t_u16 ch_load;
 	t_s16 noise;
+	t_u16 rx_quality;
 	t_u16 duration;
 } MLAN_PACK_END HostCmd_DS_GET_CH_LOAD;
 
@@ -5961,6 +5967,25 @@ typedef MLAN_PACK_START struct _HostCmd_DS_OTP_USER_DATA {
 	t_u8 user_data[1];
 } MLAN_PACK_END HostCmd_DS_OTP_USER_DATA;
 
+/** HostCmd_DS_FW_AUTO_RECONNECT */
+typedef MLAN_PACK_START struct _HostCmd_DS_FW_AUTO_RECONNECT {
+	/** ACT_GET/ACT_SET */
+	t_u16 action;
+	/** reconnect counter:
+	 * [0x0]: Do not attempt auto reconnect i.e. disable auto-reconnect
+	 * [0x1-0xFE]: Number of times reconnection needs to be attempted
+	 * [0xFF]: Attempt auto-reconnection forever */
+	t_u8 reconnect_counter;
+	/** reconnect interval */
+	t_u8 reconnect_interval;
+	/** flags:
+	 * [Bit 0]: Set to 1: Firmware should report link-loss to host if AP
+	 * rejects authentication/association while reconnecting Set to 0:
+	 * Default behavior: Firmware does not report link-loss to host on AP
+	 * rejection and continues internally [Bit 1-15]: Reserved */
+	t_u16 flags;
+} MLAN_PACK_END HostCmd_DS_FW_AUTO_RECONNECT;
+
 /** HostCmd_CMD_HS_WAKEUP_REASON */
 typedef MLAN_PACK_START struct _HostCmd_DS_HS_WAKEUP_REASON {
 	/** wakeupReason:
@@ -7960,6 +7985,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 #endif
 		HostCmd_DS_GPIO_TSF_LATCH_PARAM_CONFIG gpio_tsf_latch;
 		HostCmd_DS_COALESCE_CONFIG coalesce_config;
+		HostCmd_DS_FW_AUTO_RECONNECT fw_auto_reconnect_cmd;
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
 		HostCmd_DS_PACKET_AGGR_CTRL aggr_ctrl;
 #ifdef USB

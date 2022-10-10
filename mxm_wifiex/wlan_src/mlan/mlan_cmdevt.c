@@ -134,6 +134,7 @@ static t_u8 wlan_is_cmd_allowed_during_scan(t_u16 cmd_id)
 	case HOST_CMD_APCMD_BSS_STOP:
 	case HOST_CMD_APCMD_STA_DEAUTH:
 #endif
+	case HostCmd_CMD_802_11_BG_SCAN_CONFIG:
 	case HostCMD_APCMD_ACS_SCAN:
 		ret = MFALSE;
 		break;
@@ -2283,7 +2284,8 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 	if (pmadapter->hw_status == WlanHardwareStatusInitializing ||
 	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec) {
 		if (ret == MLAN_STATUS_FAILURE) {
-#ifdef STA_SUPPORT
+#if 0
+            //ignore command error for WARM RESET
 			if (pmadapter->pwarm_reset_ioctl_req) {
 				/* warm reset failure */
 				pmadapter->pwarm_reset_ioctl_req->status_code =
@@ -2344,6 +2346,15 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		if (!pmpriv_next || i >= pmadapter->priv_num) {
 #ifdef STA_SUPPORT
 			if (pmadapter->pwarm_reset_ioctl_req) {
+				for (i = 0; i < pmadapter->priv_num; i++) {
+					if (pmadapter->priv[i]->curr_addr[0] ==
+					    0xff)
+						memmove(pmadapter,
+							pmadapter->priv[i]
+								->curr_addr,
+							pmadapter->permanent_addr,
+							MLAN_MAC_ADDR_LENGTH);
+				}
 				/* warm reset complete */
 				PRINTM(MMSG, "wlan: warm reset complete\n");
 				pmadapter->hw_status = WlanHardwareStatusReady;
@@ -4042,9 +4053,10 @@ mlan_status wlan_cmd_tx_rate_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	rate_drop->length = wlan_cpu_to_le16(sizeof(rate_drop->rate_drop_mode));
 	rate_drop->rate_drop_mode = 0;
 
-	cmd->size = wlan_cpu_to_le16(
-		S_DS_GEN + sizeof(HostCmd_DS_TX_RATE_CFG) + rate_scope->length +
-		sizeof(MrvlIEtypesHeader_t) + sizeof(MrvlRateDropPattern_t));
+	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(HostCmd_DS_TX_RATE_CFG) +
+				     wlan_le16_to_cpu(rate_scope->length) +
+				     sizeof(MrvlIEtypesHeader_t) +
+				     sizeof(MrvlRateDropPattern_t));
 	if (pioctl_buf && pmpriv->adapter->pcard_info->v17_fw_api) {
 		ds_rate = (mlan_ds_rate *)pioctl_buf->pbuf;
 		rate_setting_tlv = (MrvlIETypes_rate_setting_t
@@ -4060,7 +4072,8 @@ mlan_status wlan_cmd_tx_rate_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		       rate_setting_tlv->rate_setting);
 		cmd->size = wlan_cpu_to_le16(
 			S_DS_GEN + sizeof(HostCmd_DS_TX_RATE_CFG) +
-			rate_scope->length + sizeof(MrvlIEtypesHeader_t) +
+			wlan_le16_to_cpu(rate_scope->length) +
+			sizeof(MrvlIEtypesHeader_t) +
 			sizeof(MrvlRateDropPattern_t) +
 			sizeof(MrvlIETypes_rate_setting_t));
 	}
@@ -4102,11 +4115,7 @@ mlan_status wlan_ret_tx_rate_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	prate_cfg = (HostCmd_DS_TX_RATE_CFG *)&(resp->params.tx_rate_cfg);
 
 	tlv_buf = (t_u8 *)prate_cfg->tlv_buf;
-	if (tlv_buf) {
-		tlv_buf_len = resp->size -
-			      (sizeof(HostCmd_DS_TX_RATE_CFG) + S_DS_GEN);
-		tlv_buf_len = wlan_le16_to_cpu(tlv_buf_len);
-	}
+	tlv_buf_len = resp->size - (sizeof(HostCmd_DS_TX_RATE_CFG) + S_DS_GEN);
 
 	while (tlv_buf && tlv_buf_len > 0) {
 		tlv = (*tlv_buf);
@@ -4263,6 +4272,8 @@ mlan_status wlan_adapter_get_hw_spec(pmlan_adapter pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_private priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+
+	ENTER();
 #if defined(SDIO)
 	/*
 	 * This should be issued in the very first to config
@@ -5381,8 +5392,8 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			sb_uuid_tlv = (MrvlIEtypes_Secure_Boot_Uuid_t *)tlv;
 			pmadapter->uuid_lo = sb_uuid_tlv->uuid_lo;
 			pmadapter->uuid_hi = sb_uuid_tlv->uuid_hi;
-			PRINTM(MMSG, "uuid: %llx%llx\n", pmadapter->uuid_lo,
-			       pmadapter->uuid_hi);
+			PRINTM(MMSG, "uuid: %016llx%016llx\n",
+			       pmadapter->uuid_lo, pmadapter->uuid_hi);
 			break;
 		default:
 			break;
@@ -9198,6 +9209,7 @@ mlan_status wlan_cmd_get_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
 	cfg_cmd->ch_load = wlan_cpu_to_le16(cfg->ch_load_param);
 	cfg_cmd->noise = wlan_cpu_to_le16(cfg->noise);
+	cfg_cmd->rx_quality = wlan_cpu_to_le16(cfg->rx_quality);
 	cfg_cmd->duration = wlan_cpu_to_le16(cfg->duration);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -9215,12 +9227,7 @@ mlan_status wlan_cmd_get_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 mlan_status wlan_ret_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			     mlan_ioctl_req *pioctl_buf)
 {
-	HostCmd_DS_GET_CH_LOAD *cfg_cmd =
-		(HostCmd_DS_GET_CH_LOAD *)&resp->params.ch_load;
 	ENTER();
-
-	pmpriv->ch_load_param = wlan_le16_to_cpu(cfg_cmd->ch_load);
-	pmpriv->noise = wlan_le16_to_cpu(cfg_cmd->noise);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

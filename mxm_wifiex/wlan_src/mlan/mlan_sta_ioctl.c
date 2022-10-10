@@ -3372,8 +3372,8 @@ static mlan_status wlan_sec_cfg_ioctl(pmlan_adapter pmadapter,
  *
  *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
  */
-static int wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
-				  t_u16 ie_len)
+static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
+					  t_u16 ie_len)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	IEEEtypes_VendorHeader_t *pvendor_ie;
@@ -3956,9 +3956,9 @@ static mlan_status wlan_misc_ioctl_gen_ie(pmlan_adapter pmadapter,
 				   pmpriv->wpa_ie, misc->param.gen_ie.len,
 				   MAX_IE_SIZE);
 		} else {
-			wlan_set_gen_ie_helper(pmpriv,
-					       misc->param.gen_ie.ie_data,
-					       (t_u16)misc->param.gen_ie.len);
+			ret = wlan_set_gen_ie_helper(
+				pmpriv, misc->param.gen_ie.ie_data,
+				(t_u16)misc->param.gen_ie.len);
 		}
 		break;
 	case MLAN_IE_TYPE_ARP_FILTER:
@@ -4382,6 +4382,42 @@ static mlan_status wlan_misc_ioctl_subscribe_evt(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SUBSCRIBE_EVENT,
 			       cmd_action, 0, (t_void *)pioctl_req,
 			       &misc->param.subscribe_event);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Get/Set fw auto reconnect
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_PENDING -- success, otherwise fail
+ */
+static mlan_status wlan_misc_ioctl_fw_auto_reconnect(pmlan_adapter pmadapter,
+						     pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+
+	/* Send command to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FW_AUTO_RECONNECT,
+			       cmd_action, 0, (t_void *)pioctl_req,
+			       &misc->param.fw_auto_reconnect);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -5258,6 +5294,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_OTP_USER_DATA:
 		status = wlan_misc_otp_user_data(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_AUTO_ASSOC:
+		status = wlan_misc_ioctl_fw_auto_reconnect(pmadapter,
+							   pioctl_req);
 		break;
 #ifdef USB
 	case MLAN_OID_MISC_USB_AGGR_CTRL:

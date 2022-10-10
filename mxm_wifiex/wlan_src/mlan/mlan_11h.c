@@ -200,6 +200,92 @@ static t_u32 wlan_11h_convert_ieee_to_mrvl_ie(mlan_adapter *pmadapter,
 	return sizeof(mrvl_ie_hdr) + pin_ie[1];
 }
 
+/**
+ *  @brief find all bonded channel.
+ *
+ *  @param pri_chan   primary channel
+ *  @param bw         channel bandwidth
+ *  @param chan_list  buffer to return channel list.
+ *
+ *  @return           number of channel
+ */
+static t_u8 woal_get_bonded_channels(t_u8 pri_chan, t_u8 bw, t_u8 *chan_list)
+{
+	t_u8 ht40_plus[] = {52, 60, 100, 108, 116, 124, 132, 140};
+	t_u8 ht40_minus[] = {56, 64, 104, 112, 120, 128, 136, 144};
+	t_u8 vht80_dfs[4][4] = {{52, 56, 60, 64},
+				{100, 104, 108, 112},
+				{116, 120, 124, 128},
+				{132, 136, 140, 144}};
+	t_u8 find = MFALSE;
+	int j;
+	int i;
+	t_u8 sec_chan = 0;
+	t_u8 n_chan = 1;
+	ENTER();
+
+	if (bw == CHAN_BW_20MHZ) {
+		chan_list[0] = pri_chan;
+	} else if (bw == CHAN_BW_40MHZ) {
+		chan_list[0] = pri_chan;
+		for (i = 0; i < sizeof(ht40_minus); i++) {
+			if (pri_chan == (t_u8)ht40_plus[i]) {
+				sec_chan = pri_chan + 4;
+				n_chan = 2;
+				break;
+			}
+		}
+		for (i = 0; i < sizeof(ht40_minus); i++) {
+			if (pri_chan == (t_u8)ht40_minus[i]) {
+				sec_chan = pri_chan - 4;
+				n_chan = 2;
+				break;
+			}
+		}
+		chan_list[1] = sec_chan;
+	} else if (bw == CHAN_BW_80MHZ) {
+		for (i = 0; i < 4; i++) {
+			for (j = 0; j < 4; j++) {
+				if (pri_chan == (t_u8)vht80_dfs[i][j]) {
+					find = MTRUE;
+					break;
+				}
+			}
+			if (find)
+				break;
+		}
+		if (find) {
+			n_chan = 4;
+			for (j = 0; j < n_chan; j++) {
+				chan_list[j] = (t_u8)vht80_dfs[i][j];
+			}
+		}
+	}
+	LEAVE();
+	return n_chan;
+}
+
+/**
+ *  @brief Set channel's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param chan         primary channel
+ *  @param bw           channel bandwidth
+ *  @param dfs_state    dfs state
+ *
+ *  @return  N/A
+ */
+t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan, t_u8 bw,
+				   dfs_state_t dfs_state)
+{
+	t_u8 n_chan;
+	t_u8 chan_list[4];
+	t_u8 i;
+	n_chan = woal_get_bonded_channels(chan, bw, chan_list);
+	for (i = 0; i < n_chan; i++)
+		wlan_set_chan_dfs_state(priv, BAND_A, chan_list[i], dfs_state);
+}
+
 #ifdef STA_SUPPORT
 /**
  *  @brief Setup the IBSS DFS element passed to the firmware in adhoc start
@@ -677,8 +763,9 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 		ptlv_zero_dfs->Header.len = wlan_cpu_to_le16(sizeof(t_u8));
 		if (!is_cancel_req) {
 			ptlv_zero_dfs->zero_dfs_enbl = MTRUE;
-			PRINTM(MCMND, "DFS: START: chan=%d\n",
-			       pchan_rpt_req->chan_desc.chanNum);
+			PRINTM(MCMND, "DFS: START: chan=%d bw=%d\n",
+			       pchan_rpt_req->chan_desc.chanNum,
+			       pchan_rpt_req->chan_desc.bandcfg.chanWidth);
 		} else {
 			ptlv_zero_dfs->zero_dfs_enbl = MFALSE;
 			PRINTM(MCMND, "DFS: STOP\n");
@@ -695,10 +782,12 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 	pstate_dfs->dfs_check_pending = MFALSE;
 	pstate_dfs->dfs_radar_found = MFALSE;
 	pstate_dfs->dfs_check_priv = MNULL;
-
-	if (!is_cancel_req)
+	if (!is_cancel_req) {
 		pstate_dfs->dfs_check_channel =
 			pchan_rpt_req->chan_desc.chanNum;
+		pstate_dfs->dfs_check_bandwidth =
+			pchan_rpt_req->chan_desc.bandcfg.chanWidth;
+	}
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -991,6 +1080,34 @@ static t_bool wlan_11h_is_slave_active_on_dfs_chan(mlan_private *priv)
 
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief Check if the current input channel is on radar channel
+ *
+ *
+ *  @param priv    Private driver information structure
+ *  @param channel Channel to determine radar detection requirements
+ *
+ *  @return
+ *    - MTRUE if radar detection is required
+ *    - MFALSE otherwise
+ */
+t_bool wlan_11h_is_radar_channel(mlan_private *priv, t_u8 channel)
+{
+	t_bool required = MFALSE;
+
+	ENTER();
+
+	/*
+	 * No checks for 11h or measurement code being enabled is placed here
+	 * since regulatory requirements exist whether we support them or not.
+	 */
+
+	required = wlan_get_cfp_radar_detect(priv, channel);
+
+	LEAVE();
+	return required;
 }
 
 /**
@@ -1643,6 +1760,27 @@ static mlan_status wlan_11h_add_dfs_timestamp(mlan_adapter *pmadapter,
 	return ret;
 }
 
+/**
+ *  @brief Add all bonded channel's dfs timestamp to the list
+ *
+ *  @param pmadapter  Pointer to mlan_adapter
+ *  @param repr       Timestamp 'represents' value (see _dfs_timestamp_repr_e)
+ *  @param channel    Channel number
+ *  @param bandwidth  Channel bandwidth
+ *
+ *  @return           Pointer to timestamp if found, or MNULL
+ */
+static void wlan_11h_add_all_dfs_timestamp(mlan_adapter *pmadapter, t_u8 repr,
+					   t_u8 channel, t_u8 bandwidth)
+{
+	t_u8 n_chan;
+	t_u8 chan_list[4];
+	t_u8 i;
+	n_chan = woal_get_bonded_channels(channel, bandwidth, chan_list);
+	for (i = 0; i < n_chan; i++)
+		wlan_11h_add_dfs_timestamp(pmadapter, repr, chan_list[i]);
+}
+
 /********************************************************
 			Global functions
 ********************************************************/
@@ -1725,6 +1863,217 @@ mlan_status wlan_11h_config_slave_radar_det(mlan_private *priv, t_bool enable)
 	LEAVE();
 	return ret;
 }
+
+#ifdef UAP_SUPPORT
+/**
+ *  @brief Return whether the slave interface is on DFS channel.
+ *  priv is assumed to already be a dfs slave interface, doesn't check this.
+ *
+ *  @param priv  Private driver information structure
+ *
+ *  @return
+ *    - MTRUE if priv is slave, and meets both conditions
+ *    - MFALSE otherwise
+ */
+static t_bool wlan_11h_is_slave_on_dfs_chan(mlan_private *priv)
+{
+	t_bool ret = MFALSE;
+
+	ENTER();
+	if ((priv->media_connected == MTRUE) &&
+	    (priv->curr_bss_params.band & BAND_A) &&
+	    wlan_11h_is_radar_channel(
+		    priv, priv->curr_bss_params.bss_descriptor.channel))
+		ret = MTRUE;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief check if dfs_master and dfs_slave are in same channel
+ *
+ *  @param pmadapter Pointer to mlan_adapter structure
+ *
+ *  @return        MTRUE-dfs_master and dfs_slave interface on same DFS channel
+ *
+ */
+t_u8 static wlan_11h_check_dfs_channel(mlan_adapter *pmadapter)
+{
+	mlan_private *priv_master = MNULL;
+	mlan_private *priv_slave = MNULL;
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {MNULL};
+
+	if (wlan_get_privs_by_two_cond(
+		    pmadapter, wlan_11h_is_master_active_on_dfs_chan,
+		    wlan_11h_is_dfs_master, MTRUE, priv_list)) {
+		priv_master = priv_list[0];
+		PRINTM(MINFO, "%s: found dfs_master priv=%p\n", __func__,
+		       priv_master);
+	}
+	if (wlan_get_privs_by_two_cond(pmadapter, wlan_11h_is_slave_on_dfs_chan,
+				       wlan_11h_is_dfs_slave, MTRUE,
+				       priv_list)) {
+		priv_slave = priv_list[0];
+		PRINTM(MINFO, "%s: found dfs_slave priv=%p\n", __func__,
+		       priv_slave);
+	}
+	if (!priv_slave || !priv_master)
+		return MFALSE;
+	if (priv_master->uap_state_chan_cb.channel !=
+	    priv_slave->curr_bss_params.bss_descriptor.channel)
+		return MFALSE;
+	return MTRUE;
+}
+
+/**
+ *   @brief disable 11h and DFS function
+ *
+ *  @param priv         Private driver information structure
+ *  @param pioctl_buf   A pointer to MLAN IOCTL Request buffer
+ *
+ *  @return      MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status static wlan_11h_disable_dfs(mlan_private *priv, t_void *pioctl_buf)
+{
+	t_u32 enable = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	/*
+	 * Send cmd to FW to enable/disable 11h function in firmware
+	 */
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_802_11_SNMP_MIB,
+			       HostCmd_ACT_GEN_SET, Dot11H_i,
+			       (t_void *)pioctl_buf, &enable);
+	if (ret)
+		ret = MLAN_STATUS_FAILURE;
+	else
+		/* Set boolean flag in driver 11h state */
+		priv->intf_state_11h.is_11h_active = MFALSE;
+
+	PRINTM(MINFO, "11h: DFS %s\n", "Deactivate");
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief check if we need enable dfs_master
+ *
+ *  @param priv  Pointer to mlan_private structure
+ *				 priv should be UAP priv
+ *
+ *  @return      N/A
+ *
+ */
+void wlan_11h_update_dfs_master_state_by_uap(mlan_private *pmpriv)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	if (pmadapter->dfs_mode && wlan_11h_check_dfs_channel(pmadapter)) {
+		PRINTM(MCMND,
+		       "11h: disable DFS master when AP+STA on same DFS channel\n");
+		ret = wlan_11h_disable_dfs(pmpriv, MNULL);
+		return;
+	}
+	if (!wlan_11h_is_active(pmpriv)) {
+		/* active 11h extention in Fw */
+		PRINTM(MCMND,
+		       "11h: Enable DFS master after AP up or chan_switch\n");
+		ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
+		ret = wlan_11h_config_master_radar_det(pmpriv, MTRUE);
+		ret = wlan_11h_check_update_radar_det_state(pmpriv);
+	}
+	if (pmpriv->uap_host_based && !pmpriv->adapter->init_para.dfs_offload)
+		pmpriv->intf_state_11h.is_11h_host = MTRUE;
+	wlan_11h_set_dfs_check_chan(pmpriv, pmpriv->uap_channel,
+				    pmpriv->uap_bandwidth);
+	return;
+}
+
+/**
+ *  @brief check if dfs_master and dfs_slave are in same channel
+ *
+ *  @param pmadapter Pointer to mlan_adapter structure
+ *
+ *  @return        MTRUE-dfs_master and dfs_slave interface on same DFS channel
+ *
+ */
+void wlan_11h_update_dfs_master_state_by_sta(mlan_private *pmpriv)
+{
+	mlan_private *priv_master = MNULL;
+	mlan_private *priv_slave = MNULL;
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {MNULL};
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	if (wlan_get_privs_by_two_cond(
+		    pmadapter, wlan_11h_is_master_active_on_dfs_chan,
+		    wlan_11h_is_dfs_master, MTRUE, priv_list)) {
+		priv_master = priv_list[0];
+		PRINTM(MINFO, "%s: found dfs_master priv=%p\n", __func__,
+		       priv_master);
+	}
+	if (wlan_get_privs_by_two_cond(pmadapter, wlan_11h_is_slave_on_dfs_chan,
+				       wlan_11h_is_dfs_slave, MTRUE,
+				       priv_list)) {
+		priv_slave = priv_list[0];
+		PRINTM(MINFO, "%s: found dfs_slave priv=%p\n", __func__,
+		       priv_slave);
+	}
+	if (!priv_slave || !priv_master)
+		return;
+	if (priv_master->uap_state_chan_cb.channel ==
+	    priv_slave->curr_bss_params.bss_descriptor.channel) {
+		PRINTM(MCMND,
+		       "11h: disable DFS master when AP+STA on same DFS channel\n");
+		ret = wlan_11h_disable_dfs(priv_master, MNULL);
+	}
+	return;
+}
+
+/**
+ *  @brief update the dfs master state on station disconnect
+ *
+ *  @param priv  Pointer to mlan_private structure
+ *				 priv should be UAP priv
+ *
+ *  @return      N/A
+ *
+ */
+void wlan_11h_update_dfs_master_state_on_disconect(mlan_private *priv)
+{
+	mlan_private *priv_master = MNULL;
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {MNULL};
+	mlan_adapter *pmadapter = priv->adapter;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	if (wlan_get_privs_by_two_cond(
+		    pmadapter, wlan_11h_is_master_active_on_dfs_chan,
+		    wlan_11h_is_dfs_master, MTRUE, priv_list)) {
+		priv_master = priv_list[0];
+		PRINTM(MINFO, "%s: found dfs_master priv=%p\n", __func__,
+		       priv_master);
+	}
+	if (!priv_master) {
+		wlan_11h_check_update_radar_det_state(priv);
+		return;
+	}
+	if (!wlan_11h_is_active(priv_master)) {
+		PRINTM(MCMND, "11h: Enable DFS master after STA disconnect\n");
+		/* active 11h extention in Fw */
+		ret = wlan_11h_activate(priv_master, MNULL, MTRUE);
+		ret = wlan_11h_config_master_radar_det(priv_master, MTRUE);
+		ret = wlan_11h_check_update_radar_det_state(priv_master);
+	}
+	if (priv_master->uap_host_based && !pmadapter->init_para.dfs_offload)
+		priv_master->intf_state_11h.is_11h_host = MTRUE;
+	wlan_11h_set_dfs_check_chan(priv_master, priv_master->uap_channel,
+				    priv_master->uap_bandwidth);
+	return;
+}
+#endif
 
 /**
  *  @brief Checks all interfaces and determines if radar_detect flag states
@@ -1956,7 +2305,6 @@ t_void wlan_11h_cleanup(mlan_adapter *adapter)
 {
 	wlan_dfs_device_state_t *pstate_dfs = &adapter->state_dfs;
 	wlan_dfs_timestamp_t *pdfs_ts;
-	mlan_private *priv = MNULL;
 
 	ENTER();
 
@@ -1967,10 +2315,6 @@ t_void wlan_11h_cleanup(mlan_adapter *adapter)
 		util_unlink_list(adapter->pmoal_handle,
 				 &pstate_dfs->dfs_ts_head,
 				 (pmlan_linked_list)pdfs_ts, MNULL, MNULL);
-		priv = wlan_get_priv(adapter, MLAN_BSS_ROLE_ANY);
-		if (priv)
-			wlan_set_chan_dfs_state(priv, BAND_A, pdfs_ts->channel,
-						DFS_USABLE);
 		adapter->callbacks.moal_mfree(adapter->pmoal_handle,
 					      (t_u8 *)pdfs_ts);
 
@@ -1978,7 +2322,6 @@ t_void wlan_11h_cleanup(mlan_adapter *adapter)
 			adapter->pmoal_handle, &pstate_dfs->dfs_ts_head, MNULL,
 			MNULL);
 	}
-
 	LEAVE();
 }
 
@@ -2493,8 +2836,7 @@ t_s32 wlan_11h_process_start(mlan_private *priv, t_u8 **ppbuffer,
  *                       network that was parsed out of the scan response.
  *
  *  @return              Integer number of bytes appended to the TLV output
- *                       buffer (ppbuffer), MLAN_STATUS_FAILURE (-1),
- *                       or MLAN_STATUS_SUCCESS (0)
+ *                       buffer (ppbuffer)
  */
 t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 			    IEEEtypes_CapInfo_t *pcap_info, t_u16 band,
@@ -2511,11 +2853,12 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 			 * long as the current & next APs have the same spectrum
 			 * mgmt capability bit setting
 			 */
-			ret = MLAN_STATUS_SUCCESS;
-
+			PRINTM(MINFO,
+			       "Assume DFS parameters are the same for roaming\n");
 		} else {
 			/* No support for roaming between DFS/non-DFS yet */
-			ret = MLAN_STATUS_FAILURE;
+			PRINTM(MINFO,
+			       "No support for roaming between DFS/non-DFS yet\n");
 		}
 
 		LEAVE();
@@ -2526,7 +2869,7 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 		if (!wlan_fw_11d_is_enabled(priv)) {
 			/* No use having 11h enabled without 11d enabled */
 			if (wlan_11d_enable(priv, MNULL, ENABLE_11D)) {
-				ret = MLAN_STATUS_FAILURE;
+				PRINTM(MERROR, "Fail to enable 11D\n");
 				LEAVE();
 				return ret;
 			}
@@ -2888,14 +3231,14 @@ mlan_status wlan_11h_handle_event_chanswann(mlan_private *priv)
 			}
 		}
 	}
-	if (pmadapter->ecsa_enable) {
-		t_u8 stop_tx = *(t_u8 *)pmadapter->event_body;
+#endif /* UAP_SUPPORT */
+	if (priv->adapter->ecsa_enable) {
+		t_u8 stop_tx = *(t_u8 *)priv->adapter->event_body;
 		if (stop_tx)
-			pmadapter->state_rdh.tx_block = MTRUE;
+			priv->adapter->state_rdh.tx_block = MTRUE;
 		LEAVE();
 		return ret;
 	}
-#endif
 	priv->adapter->state_11h.recvd_chanswann_event = MTRUE;
 
 	/* unlikely:  clean up previous csa if still on-going */
@@ -2932,7 +3275,7 @@ mlan_status wlan_11h_handle_event_chanswann(mlan_private *priv)
 	       "11h: handle_event_chanswann() - scan blacklist csa channel\n");
 	wlan_set_chan_blacklist(priv, BAND_A,
 				priv->intf_state_11h.dfs_slave_csa_chan, MTRUE);
-#endif
+#endif /* STA_SUPPORT */
 
 	priv->adapter->state_11h.recvd_chanswann_event = MFALSE;
 	LEAVE();
@@ -2987,6 +3330,53 @@ mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief 802.11h IOCTL to get nop channel list
+ *
+ *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pioctl_req   Pointer to mlan_ioctl_req
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_11h_ioctl_nop_channel_list(pmlan_adapter pmadapter,
+					    pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
+	int i, j;
+	chan_freq_power_t *pcfp = MNULL;
+	t_u8 num_chan = 0;
+	ENTER();
+
+	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+	/*get the cfp table first */
+	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {
+		if (pmadapter->region_channel[i].band == BAND_A) {
+			pcfp = pmadapter->region_channel[i].pcfp;
+			break;
+		}
+	}
+	if (!pcfp) {
+		/* This means operation in BAND-A is not support, we can
+		 * just return false here, it's harmless
+		 */
+		goto done;
+	}
+	/*get the radar detection requirements according to chan num */
+	for (j = 0; j < pmadapter->region_channel[i].num_cfp; j++) {
+		if (pcfp[j].passive_scan_or_radar_detect) {
+			if (wlan_11h_is_channel_under_nop(pmadapter,
+							  pcfp[j].channel)) {
+				ds_11hcfg->param.nop_chan_list
+					.chan_list[num_chan] = pcfp[j].channel;
+				num_chan++;
+			}
+		}
+	}
+done:
+	ds_11hcfg->param.nop_chan_list.num_chan = num_chan;
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief 802.11h IOCTL to handle channel NOP status check/clear
  *  @brief If given channel is under NOP, return a new non-dfs
  *  @brief channel
@@ -3015,7 +3405,8 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 			ch_nop_info->chan_under_nop =
 				wlan_11h_is_channel_under_nop(
 					pmadapter, ch_nop_info->curr_chan);
-			if (ch_nop_info->chan_under_nop) {
+			if (ch_nop_info->chan_under_nop &&
+			    ch_nop_info->check_new_chan) {
 				wlan_11h_switch_non_dfs_chan(
 					pmpriv, &ch_nop_info->new_chan.channel);
 				if (ch_nop_info->chan_width == CHAN_BW_80MHZ ||
@@ -3034,6 +3425,8 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 			}
 		} else if (pioctl_req->action == MLAN_ACT_CLEAR) {
 			wlan_11h_cleanup(pmadapter);
+			wlan_reset_all_chan_dfs_state(pmpriv, BAND_A,
+						      DFS_USABLE);
 		}
 		ret = MLAN_STATUS_SUCCESS;
 	}
@@ -3086,17 +3479,20 @@ mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 {
 	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
 	t_s32 ret = MLAN_STATUS_FAILURE;
-	pmlan_private priv = pmadapter->priv[pioctl_req->bss_index];
+	pmlan_private priv = MNULL;
 
 	ENTER();
 
 	if (pioctl_req) {
 		ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+		priv = pmadapter->priv[pioctl_req->bss_index];
 
 		if (pioctl_req->action == MLAN_ACT_GET) {
-			wlan_11h_is_channel_under_nop(
-				pmadapter,
-				ds_11hcfg->param.ch_dfs_state.channel);
+			if (MFALSE ==
+			    wlan_11h_is_channel_under_nop(
+				    pmadapter,
+				    ds_11hcfg->param.ch_dfs_state.channel))
+				PRINTM(MINFO, "Channel is not in NOP\n");
 			ds_11hcfg->param.ch_dfs_state.dfs_required =
 				wlan_11h_radar_detect_required(
 					priv,
@@ -3211,12 +3607,15 @@ t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter, t_u8 channel)
  *
  *  @param priv     Pointer to mlan_private
  *  @param pevent   Pointer to mlan_event
+ *  @param radar_chan 	Pointer to radar channel
+ *  @param bandwidth    Pointer to band width
  *
  *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 						mlan_event *pevent,
-						t_u8 *radar_chan)
+						t_u8 *radar_chan,
+						t_u8 *bandwidth)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_CHAN_RPT_RSP *pchan_rpt_rsp;
@@ -3229,6 +3628,7 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 	wlan_dfs_device_state_t *pstate_dfs = &priv->adapter->state_dfs;
 	t_u8 dfs_radar_found = MFALSE;
 	t_u8 dfs_check_channel = pstate_dfs->dfs_check_channel;
+	t_u8 dfs_check_bandwidth = pstate_dfs->dfs_check_bandwidth;
 	MrvlIEtypes_channel_band_t *tlv;
 
 	ENTER();
@@ -3236,8 +3636,10 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 	DBG_HEXDUMP(MCMD_D, "11h: Event ChanRptReady (HostCmd_DS_CHAN_RPT_RSP)",
 		    (t_u8 *)pchan_rpt_rsp, pevent->event_len);
 
-	if (priv->bss_type == MLAN_BSS_TYPE_DFS)
+	if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
 		dfs_check_channel = priv->chan_rep_req.chanNum;
+		dfs_check_bandwidth = priv->chan_rep_req.bandcfg.chanWidth;
+	}
 
 	if (wlan_le32_to_cpu(pchan_rpt_rsp->cmd_result) ==
 	    MLAN_CMD_RESULT_SUCCESS) {
@@ -3260,6 +3662,7 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 			case TLV_TYPE_CHANNELBANDLIST:
 				tlv = (MrvlIEtypes_channel_band_t *)ptlv;
 				dfs_check_channel = tlv->channel;
+				dfs_check_bandwidth = tlv->bandcfg.chanWidth;
 				break;
 			default:
 				break;
@@ -3273,19 +3676,23 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 		ret = MLAN_STATUS_FAILURE;
 	}
 	if (dfs_radar_found) {
-		PRINTM(MMSG, "RADAR Detected on channel %d!\n",
-		       dfs_check_channel);
+		PRINTM(MMSG, "RADAR Detected on channel %d bw=%d !\n",
+		       dfs_check_channel, dfs_check_bandwidth);
 		/* add channel to NOP list */
-		wlan_11h_add_dfs_timestamp(priv->adapter, DFS_TS_REPR_NOP_START,
-					   dfs_check_channel);
+		wlan_11h_add_all_dfs_timestamp(priv->adapter,
+					       DFS_TS_REPR_NOP_START,
+					       dfs_check_channel,
+					       dfs_check_bandwidth);
 	}
 	*radar_chan = dfs_check_channel;
+	*bandwidth = dfs_check_bandwidth;
 	if (dfs_radar_found)
-		wlan_set_chan_dfs_state(priv, BAND_A, dfs_check_channel,
-					DFS_UNAVAILABLE);
+		wlan_11h_set_chan_dfs_state(priv, dfs_check_channel,
+					    dfs_check_bandwidth,
+					    DFS_UNAVAILABLE);
 	else
-		wlan_set_chan_dfs_state(priv, BAND_A, dfs_check_channel,
-					DFS_AVAILABLE);
+		wlan_11h_set_chan_dfs_state(priv, dfs_check_channel,
+					    dfs_check_bandwidth, DFS_AVAILABLE);
 	pstate_dfs->dfs_radar_found = dfs_radar_found;
 	/* Update DFS structure. */
 	priv->adapter->callbacks.moal_get_system_time(
@@ -3304,28 +3711,38 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
  *  @param priv   		Pointer to mlan_private
  *  @param pevent 		Pointer to mlan_event
  *  @param radar_chan 	Pointer to radar channel
+ *  @param bandwidth    Pointer to band width
  *
  *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 						mlan_event *pevent,
-						t_u8 *radar_chan)
+						t_u8 *radar_chan,
+						t_u8 *bandwidth)
 {
 	wlan_dfs_device_state_t *pstate_dfs = &priv->adapter->state_dfs;
+	t_u8 dfs_check_bandwidth = pstate_dfs->dfs_check_bandwidth;
 	MrvlIEtypes_channel_band_t *tlv;
 	ENTER();
 	*radar_chan = pstate_dfs->dfs_check_channel;
 	if (pevent->event_len >= sizeof(MrvlIEtypes_channel_band_t)) {
 		tlv = (MrvlIEtypes_channel_band_t *)&pevent->event_buf;
 		*radar_chan = tlv->channel;
+		dfs_check_bandwidth = tlv->bandcfg.chanWidth;
 	} else {
-		if (priv->bss_type == MLAN_BSS_TYPE_DFS)
+		if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
 			*radar_chan = priv->chan_rep_req.chanNum;
+			dfs_check_bandwidth =
+				priv->chan_rep_req.bandcfg.chanWidth;
+		}
 	}
-	wlan_11h_add_dfs_timestamp(priv->adapter, DFS_TS_REPR_NOP_START,
-				   *radar_chan);
-	wlan_set_chan_dfs_state(priv, BAND_A, *radar_chan, DFS_UNAVAILABLE);
-	PRINTM(MEVENT, "DFS: Radar detected on %d\n", *radar_chan);
+	*bandwidth = dfs_check_bandwidth;
+	wlan_11h_add_all_dfs_timestamp(priv->adapter, DFS_TS_REPR_NOP_START,
+				       *radar_chan, dfs_check_bandwidth);
+	wlan_11h_set_chan_dfs_state(priv, *radar_chan, dfs_check_bandwidth,
+				    DFS_UNAVAILABLE);
+	PRINTM(MEVENT, "DFS: Radar detected on %d bw=%d\n", *radar_chan,
+	       dfs_check_bandwidth);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -4372,14 +4789,16 @@ done:
  *  @param priv    Void pointer to mlan_private
  *
  *  @param chan    pointer to channel
+ *  @param bandwidth    band width
  *
  *  @return  N/A
  */
-void wlan_11h_set_dfs_check_chan(mlan_private *priv, t_u8 chan)
+void wlan_11h_set_dfs_check_chan(mlan_private *priv, t_u8 chan, t_u8 bandwidth)
 {
 	wlan_dfs_device_state_t *pstate_dfs = &priv->adapter->state_dfs;
 	ENTER();
 	pstate_dfs->dfs_check_channel = chan;
+	pstate_dfs->dfs_check_bandwidth = bandwidth;
 	PRINTM(MCMND, "Set dfs_check_channel=%d\n", chan);
 	LEAVE();
 }
@@ -4411,5 +4830,31 @@ mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,
 
 	LEAVE();
 
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief 802.11h DFS mode configuration
+ *
+ *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pioctl_req   Pointer to mlan_ioctl_req
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_11h_ioctl_dfs_mode(pmlan_adapter pmadapter,
+				    pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
+
+	ENTER();
+
+	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		ds_11hcfg->param.dfs_mode = pmadapter->dfs_mode;
+	} else {
+		pmadapter->dfs_mode = ds_11hcfg->param.dfs_mode;
+	}
+	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

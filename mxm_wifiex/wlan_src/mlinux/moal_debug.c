@@ -260,6 +260,10 @@ static struct debug_data items[] = {
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
 	 item_handle_addr(hs_force_count), HANDLE_ADDR},
+#ifdef STA_CFG80211
+	{"scan_timeout", item_handle_size(scan_timeout),
+	 item_handle_addr(scan_timeout), HANDLE_ADDR},
+#endif
 };
 
 #endif

@@ -459,7 +459,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 static ssize_t woal_config_write(struct file *f, const char __user *buf,
 				 size_t count, loff_t *off)
 {
-	char databuf[101];
+	char databuf[200];
 	char *line = NULL;
 	t_u32 config_data = 0;
 	struct seq_file *sfp = f->private_data;
@@ -769,7 +769,7 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 				seq_printf(sfp, " %u",
 					   handle->rf_data->tx_frame_data[i]);
 			for (i = 13; i < 20; i++)
-				seq_printf(sfp, " %u",
+				seq_printf(sfp, " %d",
 					   handle->rf_data->tx_frame_data[i]);
 			seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x",
 				   handle->rf_data->bssid[0],

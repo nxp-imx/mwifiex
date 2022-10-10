@@ -63,6 +63,14 @@ extern mlan_status wlan_11h_config_slave_radar_det(mlan_private *priv,
 
 /** Checks all interfaces and updates radar detect flags if necessary */
 extern mlan_status wlan_11h_check_update_radar_det_state(mlan_private *pmpriv);
+#ifdef UAP_SUPPORT
+/** update dfs master state from uap interface */
+void wlan_11h_update_dfs_master_state_by_uap(mlan_private *pmpriv);
+/** update dfs master when station disconnected */
+void wlan_11h_update_dfs_master_state_on_disconect(mlan_private *priv);
+/** update dfs master state from STA interface */
+void wlan_11h_update_dfs_master_state_by_sta(mlan_private *pmpriv);
+#endif
 
 /** Return 1 if 11h is active in the firmware, 0 if it is inactive */
 extern t_bool wlan_11h_is_active(mlan_private *priv);
@@ -135,18 +143,22 @@ extern mlan_status wlan_11h_handle_event_chanswann(mlan_private *priv);
 /** Handler for EVENT_CHANNEL_REPORT_RDY */
 extern mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 						       mlan_event *pevent,
-						       t_u8 *radar_chan);
+						       t_u8 *radar_chan,
+						       t_u8 *bandwidth);
 
 /** Debug output for EVENT_RADAR_DETECTED */
 mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 						mlan_event *pevent,
-						t_u8 *radar_chan);
+						t_u8 *radar_chan,
+						t_u8 *bandwidth);
 
 t_s32 wlan_11h_cancel_radar_detect(mlan_private *priv);
 /** Handler for DFS_TESTING IOCTL */
 extern mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 					      pmlan_ioctl_req pioctl_req);
 extern mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
+						   pmlan_ioctl_req pioctl_req);
+extern mlan_status wlan_11h_ioctl_nop_channel_list(pmlan_adapter pmadapter,
 						   pmlan_ioctl_req pioctl_req);
 
 extern mlan_status wlan_11h_ioctl_dfs_chan_report(mlan_private *priv,
@@ -162,6 +174,9 @@ mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,
 				       pmlan_ioctl_req pioctl_req);
 
+/** get/set dfs mode */
+mlan_status wlan_11h_ioctl_dfs_mode(pmlan_adapter pmadapter,
+				    pmlan_ioctl_req pioctl_req);
 /** Check if channel is under a NOP duration (should not be used) */
 extern t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter,
 					    t_u8 channel);
@@ -172,7 +187,7 @@ extern t_bool wlan_11h_radar_detected_tx_blocked(mlan_adapter *pmadapter);
 /** Callback for RADAR_DETECTED (for UAP cmdresp) */
 extern mlan_status wlan_11h_radar_detected_callback(t_void *priv);
 /** set dfs check channel */
-void wlan_11h_set_dfs_check_chan(mlan_private *priv, t_u8 chan);
+void wlan_11h_set_dfs_check_chan(mlan_private *priv, t_u8 chan, t_u8 bandwidth);
 
 #ifdef UAP_SUPPORT
 /** BW_change event Handler for dfs_repeater */

@@ -532,7 +532,7 @@ static t_u8 wlan_scan_create_channel_list(
 				/* Passive scan on DFS channels */
 				if (wlan_11h_radar_detect_required(
 					    pmpriv, (t_u8)cfp->channel) &&
-				    scan_type != MLAN_SCAN_TYPE_PASSIVE)
+				    scan_type == MLAN_SCAN_TYPE_PASSIVE)
 					scan_type =
 						MLAN_SCAN_TYPE_PASSIVE_TO_ACTIVE;
 				break;
@@ -808,7 +808,8 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 				ret = pcb->moal_malloc(
 					pmadapter->pmoal_handle,
 					MAX_SCAN_CFG_ALLOC - CHAN_TLV_MAX_SIZE,
-					MLAN_MEM_DEF, (t_u8 **)&ptlv_temp);
+					MLAN_MEM_DEF | MOAL_MEM_FLAG_ATOMIC,
+					(t_u8 **)&ptlv_temp);
 				if (ret != MLAN_STATUS_SUCCESS || !ptlv_temp) {
 					PRINTM(MERROR,
 					       "Memory allocation for pscan_cfg_out failed!\n");
@@ -1498,17 +1499,20 @@ static mlan_status wlan_scan_setup_scan_config(
 					return ret;
 				}
 			}
-
-			if (wlan_is_chan_passive(pmpriv,
-						 radio_type_to_band(radio_type),
-						 channel)) {
-				/* do not send probe requests on this channel */
-				scan_type = MLAN_SCAN_TYPE_PASSIVE;
+			if (!puser_scan_in->scan_cfg_only) {
+				if (wlan_is_chan_passive(
+					    pmpriv,
+					    radio_type_to_band(radio_type),
+					    channel)) {
+					/* do not send probe requests on this
+					 * channel */
+					scan_type = MLAN_SCAN_TYPE_PASSIVE;
+				}
 			}
 			/* Prevent active scanning on a radar controlled channel
 			 */
 			if (radio_type == BAND_5GHZ &&
-			    scan_type != MLAN_SCAN_TYPE_PASSIVE) {
+			    scan_type == MLAN_SCAN_TYPE_PASSIVE) {
 				if (pmadapter->active_scan_triggered == MFALSE)
 					if (wlan_11h_radar_detect_required(
 						    pmpriv, channel)) {
@@ -1517,6 +1521,7 @@ static mlan_status wlan_scan_setup_scan_config(
 					}
 			}
 			if (radio_type == BAND_2GHZ &&
+			    !puser_scan_in->scan_cfg_only &&
 			    scan_type != MLAN_SCAN_TYPE_PASSIVE) {
 				if (pmadapter->active_scan_triggered == MFALSE)
 					if (wlan_bg_scan_type_is_passive(
@@ -4142,7 +4147,8 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 	ENTER();
 
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
-			       sizeof(wlan_scan_cmd_config_tlv), MLAN_MEM_DEF,
+			       sizeof(wlan_scan_cmd_config_tlv),
+			       MLAN_MEM_DEF | MLAN_MEM_FLAG_ATOMIC,
 			       (t_u8 **)&pscan_cfg_out);
 	if (ret != MLAN_STATUS_SUCCESS || !pscan_cfg_out) {
 		PRINTM(MERROR, "Memory allocation for pscan_cfg_out failed!\n");
@@ -4153,7 +4159,8 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 	}
 
 	buf_size = sizeof(ChanScanParamSet_t) * WLAN_USER_SCAN_CHAN_MAX;
-	ret = pcb->moal_malloc(pmadapter->pmoal_handle, buf_size, MLAN_MEM_DEF,
+	ret = pcb->moal_malloc(pmadapter->pmoal_handle, buf_size,
+			       MLAN_MEM_DEF | MLAN_MEM_FLAG_ATOMIC,
 			       (t_u8 **)&pscan_chan_list);
 	if (ret != MLAN_STATUS_SUCCESS || !pscan_chan_list) {
 		PRINTM(MERROR, "Failed to allocate scan_chan_list\n");
@@ -6984,7 +6991,8 @@ mlan_status wlan_scan_specific_ssid(mlan_private *pmpriv, t_void *pioctl_buf,
 	wlan_scan_delete_ssid_table_entry(pmpriv, preq_ssid);
 
 	ret = pcb->moal_malloc(pmpriv->adapter->pmoal_handle,
-			       sizeof(wlan_user_scan_cfg), MLAN_MEM_DEF,
+			       sizeof(wlan_user_scan_cfg),
+			       MLAN_MEM_DEF | MLAN_MEM_FLAG_ATOMIC,
 			       (t_u8 **)&pscan_cfg);
 
 	if (ret != MLAN_STATUS_SUCCESS || !pscan_cfg) {
@@ -7047,7 +7055,8 @@ t_void wlan_save_curr_bcn(mlan_private *pmpriv)
 		if (pmpriv->curr_bcn_size) {
 			ret = pcb->moal_malloc(pmadapter->pmoal_handle,
 					       pcurr_bss->beacon_buf_size,
-					       MLAN_MEM_DEF,
+					       MLAN_MEM_DEF |
+						       MLAN_MEM_FLAG_ATOMIC,
 					       &pmpriv->pcurr_bcn_buf);
 
 			if ((ret == MLAN_STATUS_SUCCESS) &&
