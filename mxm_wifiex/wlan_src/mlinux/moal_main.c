@@ -10393,7 +10393,11 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	if (moal_extflg_isset(handle, EXT_NAPI)) {
 		init_dummy_netdev(&handle->napi_dev);
 		netif_napi_add(&handle->napi_dev, &handle->napi_rx,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+			       woal_netdev_poll_rx);
+#else
 			       woal_netdev_poll_rx, NAPI_BUDGET);
+#endif
 		napi_enable(&handle->napi_rx);
 	}
 
