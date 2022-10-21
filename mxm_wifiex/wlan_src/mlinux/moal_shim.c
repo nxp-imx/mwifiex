@@ -3457,7 +3457,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
-			cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
+			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #endif
 			priv->chan_under_nop = MFALSE;
 		}
@@ -3791,7 +3791,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
 						if (!priv->wdev->connected) {
 #else
-						if (!priv->wdev->current_bss) {
+						if (!priv->wdev->connected) {
 #endif
 							PRINTM(MEVENT,
 							       "HostMlme: Drop deauth/disassociate, current_bss = null\n");
@@ -4165,7 +4165,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 			roam_info->links[0].bssid = priv->cfg_bssid;
 #else
-			roam_info->bssid = priv->cfg_bssid;
+			roam_info->links[0].bssid = priv->cfg_bssid;
 #endif
 			roam_info->req_ie = req_ie;
 			roam_info->req_ie_len = ie_len;

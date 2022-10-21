@@ -2268,7 +2268,7 @@ typedef struct _adapter_operations {
 } mlan_adapter_operations;
 
 /** Adapter data structure for MLAN */
-typedef struct _mlan_adapter {
+struct _mlan_adapter {
 	/** MOAL handle structure */
 	t_void *pmoal_handle;
 	/** BSS Attributes */
@@ -2791,7 +2791,7 @@ typedef struct _mlan_adapter {
 
 	/* higher 8 bytes of uuid */
 	t_u64 uuid_hi;
-} mlan_adapter, *pmlan_adapter;
+};
 
 /** Check if stream 2X2 enabled */
 #define IS_STREAM_2X2(x) ((x)&FEATURE_CTRL_STREAM_2X2)

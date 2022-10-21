@@ -35,6 +35,7 @@ endif
 LD ?=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
 YMD=		`date +%Y%m%d%H%M`
+PWD := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 #############################################################################
 # Configuration Options
@@ -126,14 +127,10 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 #############################################################################
 
 MODEXT = ko
-ccflags-y += -I$(PWD)/mlan
+ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
-
-
-
-
-
+KERNELDIR ?= $(KERNEL_SRC)
 ARCH ?= arm64
 CONFIG_IMX_SUPPORT=y
 ifeq ($(CONFIG_IMX_SUPPORT),y)
@@ -144,7 +141,7 @@ CROSS_COMPILE ?= /opt/fsl-imx-internal-xwayland/5.10-gatesgarth/sysroots/x86_64-
 
 LD += -S
 
-BINDIR = ../bin_wlan
+BINDIR = ../bin_mxm_wifiex
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -340,14 +337,14 @@ ifeq ($(CONFIG_MAC80211_SUPPORT_MESH),y)
 endif
 
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
-GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
-ifeq ($(GCC_VERSION),1)
-	ccflags-y += -Wno-packed-bitfield-compat
-endif
-WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
-ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
-ccflags-y += -Wimplicit-fallthrough=3
-endif
+#GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
+#ifeq ($(GCC_VERSION),1)
+#ccflags-y += -Wno-packed-bitfield-compat
+#endif
+
+#ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
+#ccflags-y += -Wimplicit-fallthrough=3
+#endif
 #ccflags-y += -Wunused-but-set-variable
 #ccflags-y += -Wmissing-prototypes
 #ccflags-y += -Wold-style-definition
@@ -361,7 +358,7 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
-ccflags-y += -Wno-array-bounds
+#ccflags-y += -Wno-stringop-truncation
 #############################################################################
 # Make Targets
 #############################################################################
@@ -480,7 +477,6 @@ endif
 
 
 
-
 MOALOBJS =	mlinux/moal_main.o \
 		mlinux/moal_ioctl.o \
 		mlinux/moal_shim.o \
@@ -583,6 +579,10 @@ else
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
 
+modules_install:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
+
+
 endif
 
 ###############################################################
@@ -604,9 +604,9 @@ appsbuild:
 	fi
 
 	cp -f README_MLAN $(BINDIR)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 
@@ -623,9 +623,9 @@ build:		echo default
 	cp -rpf script/unload $(BINDIR)/
 
 	cp -f README_MLAN $(BINDIR)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 
