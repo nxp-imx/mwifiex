@@ -2907,7 +2907,11 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
 	*cookie = random32() | 1;
 #else
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	*cookie = prandom_u32() | 1;
+#else
+	*cookie = get_random_u32() | 1;
+#endif
 #endif
 	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
 	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
