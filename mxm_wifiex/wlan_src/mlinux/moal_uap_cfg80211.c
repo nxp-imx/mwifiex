@@ -2348,7 +2348,7 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 			}
 		}
 		if (vir_priv && vir_priv->bss_type == MLAN_BSS_TYPE_UAP) {
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			if (woal_cfg80211_del_beacon(wiphy, dev, 0))
 #else
 			if (woal_cfg80211_del_beacon(wiphy, dev))
@@ -2356,13 +2356,13 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 				PRINTM(MERROR, "%s: del_beacon failed\n",
 				       __func__);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			vir_priv->wdev->links[0].ap.beacon_interval = 0;
 #else
 			vir_priv->wdev->beacon_interval = 0;
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			memset(&vir_priv->wdev->links[0].ap.chandef, 0,
 			       sizeof(vir_priv->wdev->links[0].ap.chandef));
 #else
@@ -2371,7 +2371,7 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy,
 #endif
 #endif
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			vir_priv->wdev->u.ap.ssid_len = 0;
 #else
 			vir_priv->wdev->ssid_len = 0;
@@ -2650,7 +2650,7 @@ done:
  *
  * @return                0 -- success, otherwise fail
  */
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     unsigned int link_id)
 #else
@@ -3436,7 +3436,7 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	priv->channel = uap_channel.channel;
 	moal_memcpy_ext(priv->phandle, &priv->chan, &priv->csa_chan,
 			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 	cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
 	cfg80211_ch_switch_notify(priv->netdev, &priv->chan);

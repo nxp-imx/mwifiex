@@ -103,7 +103,7 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef);
@@ -4420,6 +4420,12 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	ENTER();
 
 	PRINTM(MINFO, "Received scan request on %s\n", dev->name);
+	if (priv->phandle->driver_status) {
+		PRINTM(MERROR,
+		       "Block woal_cfg80211_scan in abnormal driver state\n");
+		LEAVE();
+		return -EFAULT;
+	}
 	if (priv->phandle->scan_pending_on_block == MTRUE) {
 		PRINTM(MCMND, "scan already in processing...\n");
 		LEAVE();
@@ -5380,7 +5386,7 @@ static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MMSG, " Already disconnected\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 		if (priv->wdev->connected &&
 #else
 		if (priv->wdev->current_bss &&
@@ -5711,7 +5717,7 @@ done:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef)
@@ -8621,7 +8627,7 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
 					     assoc_rsp->assoc_resp_buf;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13)
 			roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 			roam_info.bssid = priv->cfg_bssid;
@@ -9093,7 +9099,7 @@ void woal_start_roaming(moal_private *priv)
 		}
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13)
 		roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 		roam_info.bssid = priv->cfg_bssid;

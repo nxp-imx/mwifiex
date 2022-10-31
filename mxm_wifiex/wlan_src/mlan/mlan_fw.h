@@ -2266,6 +2266,43 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 #define TXPD_RETRY_ENABLE MBIT(12)
 
 /** tx_control*/
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _tx_ctrl {
+	/** reserved */
+	t_u32 reserved : 3;
+	/** mc retry packet */
+	t_u32 mc_pkt_retry : 1;
+	/** end of mc AMPDU */
+	t_u32 mc_ampdu_end : 1;
+	/** start of mc AMPDU */
+	t_u32 mc_ampdu_start : 1;
+	/** End of mc cycle */
+	t_u32 mc_cycle_end : 1;
+	/** start of mc cycle */
+	t_u32 mc_cycle_start : 1;
+	/** bw 0-20MHz, 1-40MHz */
+	t_u32 bw : 3;
+	/** Rate used for transmission MCS0-7*/
+	t_u32 tx_rate : 5;
+	/** Control the use of txRate. 0 - use FW setting, 1 - use the specified
+	 * txRate;*/
+	t_u32 host_txrate_ctrl : 1;
+	/**  0/1 - use FW setting, 2 - ACK_IMMD, 3 - NO_ACK.*/
+	t_u32 ack_policy : 2;
+	/** Control the use of retryLimit. 0 - use FW setting, 1 - use the
+	 * specified retryLimit.*/
+	t_u32 host_retry_ctrl : 1;
+	/** retry limit */
+	t_u32 retry_limit : 4;
+	/** Control the use of txPower. 0 - use FW power setting, 1 - use the
+	 * specified txPower.*/
+	t_u32 host_tx_powerctrl : 1;
+	/** Sign of the txPower, 0 - positive_sign(+), 1 - negative_sign(-). */
+	t_u32 tx_power_sign : 1;
+	/** Power used for transmission(in dBm); */
+	t_u32 tx_power : 6;
+} MLAN_PACK_END tx_ctrl;
+#else
 typedef MLAN_PACK_START struct _tx_ctrl {
 	/** Power used for transmission(in dBm); */
 	t_u32 tx_power : 6;
@@ -2301,6 +2338,7 @@ typedef MLAN_PACK_START struct _tx_ctrl {
 	/** reserved */
 	t_u32 reserved : 3;
 } MLAN_PACK_END tx_ctrl;
+#endif
 
 /** mc tx ctrl */
 typedef MLAN_PACK_START struct _mc_tx_ctrl {
@@ -2383,6 +2421,32 @@ typedef MLAN_PACK_START struct _RxPD {
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _IEEEtypes_FrameCtl_t {
+	/** Order */
+	t_u8 order : 1;
+	/** Wep */
+	t_u8 wep : 1;
+	/** More Data */
+	t_u8 more_data : 1;
+	/** Power Mgmt */
+	t_u8 pwr_mgmt : 1;
+	/** Retry */
+	t_u8 retry : 1;
+	/** More Frag */
+	t_u8 more_frag : 1;
+	/** From DS */
+	t_u8 from_ds : 1;
+	/** To DS */
+	t_u8 to_ds : 1;
+	/** Sub Type */
+	t_u8 sub_type : 4;
+	/** Type */
+	t_u8 type : 2;
+	/** Protocol Version */
+	t_u8 protocol_version : 2;
+} MLAN_PACK_END IEEEtypes_FrameCtl_t;
+#else
 typedef MLAN_PACK_START struct _IEEEtypes_FrameCtl_t {
 	/** Protocol Version */
 	t_u8 protocol_version : 2;
@@ -2407,6 +2471,7 @@ typedef MLAN_PACK_START struct _IEEEtypes_FrameCtl_t {
 	/** Order */
 	t_u8 order : 1;
 } MLAN_PACK_END IEEEtypes_FrameCtl_t;
+#endif
 
 /** MrvlIETypes_MgmtFrameSet_t */
 typedef MLAN_PACK_START struct _MrvlIETypes_MgmtFrameSet_t {
@@ -2517,6 +2582,24 @@ typedef MLAN_PACK_START struct _parsed_region_chan_11d {
 
 /** ChanScanMode_t */
 typedef MLAN_PACK_START struct _ChanScanMode_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Reserved */
+	t_u8 reserved_7 : 1;
+	/** First passive scan then active scan */
+	t_u8 passive_to_active_scan : 1;
+	/** First channel in scan */
+	t_u8 first_chan : 1;
+	/** Enable hidden ssid report */
+	t_u8 hidden_ssid_report : 1;
+	/** Enable probe response timeout */
+	t_u8 rsp_timeout_en : 1;
+	/** Multidomain scan mode */
+	t_u8 multidomain_scan : 1;
+	/** Disble channel filtering flag */
+	t_u8 disable_chan_filt : 1;
+	/** Channel scan mode passive flag */
+	t_u8 passive_scan : 1;
+#else
 	/** Channel scan mode passive flag */
 	t_u8 passive_scan : 1;
 	/** Disble channel filtering flag */
@@ -2533,6 +2616,7 @@ typedef MLAN_PACK_START struct _ChanScanMode_t {
 	t_u8 passive_to_active_scan : 1;
 	/** Reserved */
 	t_u8 reserved_7 : 1;
+#endif
 } MLAN_PACK_END ChanScanMode_t;
 
 /** ChanScanParamSet_t */
@@ -2989,24 +3073,50 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GTK_REKEY_PARAMS {
 
 /** Data structure of WMM QoS information */
 typedef MLAN_PACK_START struct _WmmQosInfo_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** QoS UAPSD */
+	t_u8 qos_uapsd : 1;
+	/** Reserved */
+	t_u8 reserved : 3;
+	/** Parameter set count */
+	t_u8 para_set_count : 4;
+#else
 	/** Parameter set count */
 	t_u8 para_set_count : 4;
 	/** Reserved */
 	t_u8 reserved : 3;
 	/** QoS UAPSD */
 	t_u8 qos_uapsd : 1;
+#endif /* BIG_ENDIAN_SUPPORT */
 } MLAN_PACK_END WmmQosInfo_t, *pWmmQosInfo_t;
 
 /** Data structure of WMM ECW */
 typedef MLAN_PACK_START struct _WmmEcw_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Maximum Ecw */
+	t_u8 ecw_max : 4;
+	/** Minimum Ecw */
+	t_u8 ecw_min : 4;
+#else
 	/** Minimum Ecw */
 	t_u8 ecw_min : 4;
 	/** Maximum Ecw */
 	t_u8 ecw_max : 4;
+#endif /* BIG_ENDIAN_SUPPORT */
 } MLAN_PACK_END WmmEcw_t, *pWmmEcw_t;
 
 /** Data structure of WMM Aci/Aifsn */
 typedef MLAN_PACK_START struct _WmmAciAifsn_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Reserved */
+	t_u8 reserved : 1;
+	/** Aci */
+	t_u8 aci : 2;
+	/** Acm */
+	t_u8 acm : 1;
+	/** Aifsn */
+	t_u8 aifsn : 4;
+#else
 	/** Aifsn */
 	t_u8 aifsn : 4;
 	/** Acm */
@@ -3015,6 +3125,7 @@ typedef MLAN_PACK_START struct _WmmAciAifsn_t {
 	t_u8 aci : 2;
 	/** Reserved */
 	t_u8 reserved : 1;
+#endif /* BIG_ENDIAN_SUPPORT */
 } MLAN_PACK_END WmmAciAifsn_t, *pWmmAciAifsn_t;
 
 /** Data structure of WMM AC parameters  */
@@ -5292,9 +5403,15 @@ typedef MLAN_PACK_START struct {
  */
 typedef MLAN_PACK_START struct {
 	mlan_wmm_queue_stats_action_e action; /**< Start, Stop, or Get */
+#ifdef BIG_ENDIAN_SUPPORT
+	t_u8 select_bin : 7; /**< WMM_AC_BK(0) to WMM_AC_VO(3), or TID */
+	t_u8 select_is_userpri : 1; /**< Set if select_bin is UP, Clear for AC
+				     */
+#else
 	t_u8 select_is_userpri : 1; /**< Set if select_bin is UP, Clear for AC
 				     */
 	t_u8 select_bin : 7; /**< WMM_AC_BK(0) to WMM_AC_VO(3), or TID */
+#endif
 	t_u16 pkt_count; /**< Number of successful packets transmitted */
 	t_u16 pkt_loss; /**< Packets lost; not included in pktCount */
 	t_u32 avg_queue_delay; /**< Average Queue delay in microsec */
@@ -7145,6 +7262,20 @@ typedef MLAN_PACK_START enum _MeasType_t {
  * @brief Mode octet of the measurement request element (7.3.2.21)
  */
 typedef MLAN_PACK_START struct {
+#ifdef BIG_ENDIAN_SUPPORT
+	/**< Reserved */
+	t_u8 rsvd5_7 : 3;
+	/**< 11k: duration spec. for meas. is mandatory */
+	t_u8 duration_mandatory : 1;
+	/**< 11h: en/disable report rcpt. of spec. type */
+	t_u8 report : 1;
+	/**< 11h: en/disable requests of specified type */
+	t_u8 request : 1;
+	/**< 11h: enable report/request bits */
+	t_u8 enable : 1;
+	/**< 11k: series or parallel with previous meas */
+	t_u8 parallel : 1;
+#else
 	/**< 11k: series or parallel with previous meas */
 	t_u8 parallel : 1;
 	/**< 11h: enable report/request bits */
@@ -7157,6 +7288,7 @@ typedef MLAN_PACK_START struct {
 	t_u8 duration_mandatory : 1;
 	/**< Reserved */
 	t_u8 rsvd5_7 : 3;
+#endif /* BIG_ENDIAN_SUPPORT */
 
 } MLAN_PACK_END MeasReqMode_t;
 
@@ -7201,10 +7333,17 @@ typedef union {
  * @brief Mode octet of the measurement report element (7.3.2.22)
  */
 typedef MLAN_PACK_START struct {
+#ifdef BIG_ENDIAN_SUPPORT
+	t_u8 rsvd3_7 : 5; /**< Reserved */
+	t_u8 refused : 1; /**< Measurement refused */
+	t_u8 incapable : 1; /**< Incapable of performing measurement */
+	t_u8 late : 1; /**< Start TSF time missed for measurement */
+#else
 	t_u8 late : 1; /**< Start TSF time missed for measurement */
 	t_u8 incapable : 1; /**< Incapable of performing measurement */
 	t_u8 refused : 1; /**< Measurement refused */
 	t_u8 rsvd3_7 : 5; /**< Reserved */
+#endif /* BIG_ENDIAN_SUPPORT */
 
 } MLAN_PACK_END MeasRptMode_t;
 

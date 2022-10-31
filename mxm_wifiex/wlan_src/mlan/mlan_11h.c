@@ -2903,10 +2903,12 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 				priv, ppbuffer, band, channel, p11h_bss_info);
 		}
 	} else {
-		/* Deactivate 11h functions in the firmware */
-		wlan_11h_activate(priv, MNULL, MFALSE);
-		pcap_info->spectrum_mgmt = MFALSE;
-		wlan_11h_check_update_radar_det_state(priv);
+		if (pcap_info->ibss) {
+			/* Deactivate 11h functions in the firmware */
+			wlan_11h_activate(priv, MNULL, MFALSE);
+			pcap_info->spectrum_mgmt = MFALSE;
+			wlan_11h_check_update_radar_det_state(priv);
+		}
 	}
 
 	LEAVE();

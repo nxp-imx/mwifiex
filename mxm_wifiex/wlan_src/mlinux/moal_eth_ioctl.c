@@ -16380,6 +16380,7 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 	int ret = 0;
 	int user_data_len = 0;
 	int data[5] = {0};
+	t_u8 channel;
 	mlan_ds_11h_chan_dfs_state ch_dfs;
 	ENTER();
 
@@ -16409,26 +16410,35 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 		LEAVE();
 		return ret;
 	}
-	memset(&ch_dfs, 0, sizeof(ch_dfs));
-	ch_dfs.channel = data[2];
-	if (woal_11h_chan_dfs_state(priv, MLAN_ACT_GET, &ch_dfs)) {
-		PRINTM(MERROR, "%s: woal_11h_chan_dfs_state failed \n",
-		       __func__);
-		ret = -EFAULT;
-		LEAVE();
-		return ret;
+
+	/* For 2.4G channels skip the DFS checks */
+	channel = data[2];
+	if (channel > MAX_BG_CHANNEL) {
+		memset(&ch_dfs, 0, sizeof(ch_dfs));
+		ch_dfs.channel = data[2];
+
+		if (woal_11h_chan_dfs_state(priv, MLAN_ACT_GET, &ch_dfs)) {
+			PRINTM(MERROR, "%s: woal_11h_chan_dfs_state failed \n",
+			       __func__);
+			ret = -EFAULT;
+			LEAVE();
+			return ret;
+		}
+
+		if (ch_dfs.dfs_required &&
+		    (ch_dfs.dfs_state == DFS_UNAVAILABLE ||
+		     ch_dfs.dfs_state == DFS_USABLE)) {
+			PRINTM(MERROR,
+			       "DFS: Channel=%d is not Available, cannot switch to this channel\n",
+			       data[2]);
+			ret = -EFAULT;
+			LEAVE();
+			return ret;
+		}
+
+		if (ch_dfs.dfs_required)
+			woal_enable_dfs(priv, data[2], MOAL_IOCTL_WAIT);
 	}
-	if (ch_dfs.dfs_required && (ch_dfs.dfs_state == DFS_UNAVAILABLE ||
-				    ch_dfs.dfs_state == DFS_USABLE)) {
-		PRINTM(MERROR,
-		       "DFS: Channel=%d is not Available, cannot switch to this channel\n",
-		       data[2]);
-		ret = -EFAULT;
-		LEAVE();
-		return ret;
-	}
-	if (ch_dfs.dfs_required)
-		woal_enable_dfs(priv, data[2], MOAL_IOCTL_WAIT);
 	if (data[1]) {
 		if (woal_check_valid_channel_operclass(priv, data[2],
 						       data[1])) {
