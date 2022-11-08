@@ -1140,7 +1140,11 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 #endif /* WIFI_DIRECT_SUPPORT */
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+			woal_cfg80211_del_beacon(wiphy, dev, 0);
+#else
 			woal_cfg80211_del_beacon(wiphy, dev);
+#endif
 			bss_role = MLAN_BSS_ROLE_STA;
 			woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET,
 						   &bss_role);
@@ -2107,6 +2111,9 @@ done:
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+				   unsigned int link_id,
+#endif
 				   const u8 *peer,
 				   const struct cfg80211_bitrate_mask *mask)
 {
@@ -4781,7 +4788,11 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	if (MLAN_STATUS_SUCCESS ==
 	    woal_chandef_create(priv, &chandef, pchan_info)) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0);
+#else
 		cfg80211_ch_switch_notify(priv->netdev, &chandef);
+#endif
 		priv->channel = pchan_info->channel;
 #ifdef UAP_CFG80211
 		moal_memcpy_ext(priv->phandle, &priv->chan, &chandef,
