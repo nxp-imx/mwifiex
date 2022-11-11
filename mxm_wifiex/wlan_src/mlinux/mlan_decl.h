@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "362"
+#define MLAN_RELEASE_VERSION "366.p3"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -967,6 +967,16 @@ typedef enum _dfs_moe_t {
 
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
+	t_u8 scanMode : 2;
+	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
+	t_u8 chan2Offset : 2;
+	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	t_u8 chanWidth : 2;
+	/** Band Info - (00)=2.4GHz, (01)=5GHz */
+	t_u8 chanBand : 2;
+#else
 	/** Band Info - (00)=2.4GHz, (01)=5GHz */
 	t_u8 chanBand : 2;
 	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
@@ -975,6 +985,7 @@ typedef MLAN_PACK_START struct _Band_Config_t {
 	t_u8 chan2Offset : 2;
 	/** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
 	t_u8 scanMode : 2;
+#endif
 } MLAN_PACK_END Band_Config_t;
 
 /** channel_band_t */
@@ -1176,6 +1187,16 @@ typedef MLAN_PACK_START struct _radiotap_info {
 
 /** txpower structure */
 typedef MLAN_PACK_START struct {
+#ifdef BIG_ENDIAN_SUPPORT
+	/** Host tx power ctrl:
+	     0x0: use fw setting for TX power
+	     0x1: value specified in bit[6] and bit[5:0] are valid */
+	t_u8 hostctl : 1;
+	/** Sign of the power specified in bit[5:0] */
+	t_u8 sign : 1;
+	/** Power to be used for transmission(in dBm) */
+	t_u8 abs_val : 6;
+#else
 	/** Power to be used for transmission(in dBm) */
 	t_u8 abs_val : 6;
 	/** Sign of the power specified in bit[5:0] */
@@ -1184,6 +1205,7 @@ typedef MLAN_PACK_START struct {
 	     0x0: use fw setting for TX power
 	     0x1: value specified in bit[6] and bit[5:0] are valid */
 	t_u8 hostctl : 1;
+#endif
 } MLAN_PACK_END tx_power_t;
 /* pkt_txctrl */
 typedef MLAN_PACK_START struct _pkt_txctrl {

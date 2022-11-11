@@ -308,6 +308,55 @@ extern t_u32 mlan_drvdbg;
 		 (t_u64)(((t_u64)(x)&0x00ff000000000000ULL) >> 40) |           \
 		 (t_u64)(((t_u64)(x)&0xff00000000000000ULL) >> 56)))
 
+#ifdef BIG_ENDIAN_SUPPORT
+/** Convert ulong n/w to host */
+#define mlan_ntohl(x) x
+/** Convert host ulong to n/w */
+#define mlan_htonl(x) x
+/** Convert n/w to host */
+#define mlan_ntohs(x) x
+/** Convert host to n/w */
+#define mlan_htons(x) x
+/** Convert from 16 bit little endian format to CPU format */
+#define wlan_le16_to_cpu(x) swap_byte_16(x)
+/** Convert from 32 bit little endian format to CPU format */
+#define wlan_le32_to_cpu(x) swap_byte_32(x)
+/** Convert from 64 bit little endian format to CPU format */
+#define wlan_le64_to_cpu(x) swap_byte_64(x)
+/** Convert to 16 bit little endian format from CPU format */
+#define wlan_cpu_to_le16(x) swap_byte_16(x)
+/** Convert to 32 bit little endian format from CPU format */
+#define wlan_cpu_to_le32(x) swap_byte_32(x)
+/** Convert to 64 bit little endian format from CPU format */
+#define wlan_cpu_to_le64(x) swap_byte_64(x)
+
+/** Convert TxPD to little endian format from CPU format */
+#define endian_convert_TxPD(x)                                                 \
+	{                                                                      \
+		(x)->tx_pkt_length = wlan_cpu_to_le16((x)->tx_pkt_length);     \
+		(x)->tx_pkt_offset = wlan_cpu_to_le16((x)->tx_pkt_offset);     \
+		(x)->tx_pkt_type = wlan_cpu_to_le16((x)->tx_pkt_type);         \
+		(x)->tx_control = wlan_cpu_to_le32((x)->tx_control);           \
+		(x)->tx_control_1 = wlan_cpu_to_le32((x)->tx_control_1);       \
+	}
+/** Convert RxPD from little endian format to CPU format */
+#define endian_convert_RxPD(x)                                                 \
+	{                                                                      \
+		(x)->rx_pkt_length = wlan_le16_to_cpu((x)->rx_pkt_length);     \
+		(x)->rx_pkt_offset = wlan_le16_to_cpu((x)->rx_pkt_offset);     \
+		(x)->rx_pkt_type = wlan_le16_to_cpu((x)->rx_pkt_type);         \
+		(x)->seq_num = wlan_le16_to_cpu((x)->seq_num);                 \
+		(x)->rx_info = wlan_le32_to_cpu((x)->rx_info);
+}
+
+/** Convert RxPD extra header from little endian format to CPU format */
+#define endian_convert_RxPD_extra_header(x)                                    \
+	do {                                                                   \
+		(x)->channel_flags = wlan_le16_to_cpu((x)->channel_flags);     \
+		(x)->vht_sig1 = wlan_le32_to_cpu((x)->vht_sig1);               \
+		(x)->vht_sig2 = wlan_le32_to_cpu((x)->vht_sig2);               \
+	} while (0)
+#else
 /** Convert ulong n/w to host */
 #define mlan_ntohl(x) swap_byte_32(x)
 /** Convert host ulong to n/w */
@@ -341,6 +390,7 @@ extern t_u32 mlan_drvdbg;
 #define endian_convert_RxPD_extra_header(x)                                    \
 	do {                                                                   \
 	} while (0)
+#endif /* BIG_ENDIAN_SUPPORT */
 
 /** Global moal_assert_callback */
 extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
@@ -2268,7 +2318,7 @@ typedef struct _adapter_operations {
 } mlan_adapter_operations;
 
 /** Adapter data structure for MLAN */
-typedef struct _mlan_adapter {
+struct _mlan_adapter {
 	/** MOAL handle structure */
 	t_void *pmoal_handle;
 	/** BSS Attributes */
@@ -2791,7 +2841,7 @@ typedef struct _mlan_adapter {
 
 	/* higher 8 bytes of uuid */
 	t_u64 uuid_hi;
-} mlan_adapter, *pmlan_adapter;
+};
 
 /** Check if stream 2X2 enabled */
 #define IS_STREAM_2X2(x) ((x)&FEATURE_CTRL_STREAM_2X2)

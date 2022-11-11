@@ -1042,6 +1042,44 @@ done:
 #endif /* KERNEL_VERSION */
 #endif /* WIFI_DIRECT_SUPPORT */
 
+#ifdef UAP_SUPPORT
+/**
+ * @brief Request to cancel CAC
+ *
+ * @param priv         A pointer to moal_private structure
+ *
+ * @return              N/A */
+void woal_cancel_cac(moal_private *priv)
+{
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	if (priv->phandle->is_cac_timer_set &&
+	    priv->bss_index == priv->phandle->cac_bss_index) {
+		woal_cancel_timer(&priv->phandle->cac_timer);
+		priv->phandle->is_cac_timer_set = MFALSE;
+		/* Make sure Chan Report is cancelled */
+		if (woal_11h_cancel_chan_report_ioctl(priv, MOAL_IOCTL_WAIT))
+			PRINTM(MERROR, "%s: cancel chan report failed \n",
+			       __func__);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		cfg80211_cac_event(priv->netdev, &priv->phandle->dfs_channel,
+				   NL80211_RADAR_CAC_ABORTED, GFP_KERNEL);
+#else
+		cfg80211_cac_event(priv->netdev, NL80211_RADAR_CAC_ABORTED,
+				   GFP_KERNEL);
+#endif
+		memset(&priv->phandle->dfs_channel, 0,
+		       sizeof(struct cfg80211_chan_def));
+		priv->phandle->cac_bss_index = 0xff;
+	}
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	if (moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD))
+		woal_cancel_cac_block(priv);
+#endif
+	return;
+}
+#endif
+
 /**
  * @brief Request the driver to change the interface type
  *
@@ -1211,7 +1249,7 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 #endif /* WIFI_DIRECT_SUPPORT */
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			woal_cfg80211_del_beacon(wiphy, dev, 0);
 #else
 			woal_cfg80211_del_beacon(wiphy, dev);
@@ -1445,7 +1483,7 @@ fail:
  */
 #endif
 int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if IMX_ANDROID_13
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1504,7 +1542,7 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
  */
 #endif
 int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if IMX_ANDROID_13
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1563,7 +1601,7 @@ int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 #endif
 int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 				  struct net_device *netdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if IMX_ANDROID_13
 				  int link_id,
 #endif
 				  t_u8 key_index
@@ -1598,7 +1636,7 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(2, 6, 30) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if IMX_ANDROID_13
 				       int link_id,
 #endif
 				       t_u8 key_index)
@@ -1612,7 +1650,7 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
 					 struct net_device *netdev,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if IMX_ANDROID_13
 					 int link_id,
 #endif
 					 t_u8 key_index)
@@ -2199,7 +2237,7 @@ done:
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 				   unsigned int link_id,
 #endif
 				   const u8 *peer,
@@ -2760,6 +2798,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				if (!priv->bss_started) {
 					PRINTM(MCMND,
 					       "Drop deauth packet before AP started\n");
+					woal_cancel_cac(priv);
 					goto done;
 				}
 #endif
@@ -4719,7 +4758,7 @@ done:
  */
 void woal_cfg80211_free_bands(struct wiphy *wiphy)
 {
-	enum nl80211_band band;
+	t_u8 band;
 
 	for (band = NL80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; ++band) {
 		if (!wiphy->bands[band])
@@ -4893,7 +4932,7 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 		mutex_lock(&priv->wdev->mtx);
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0);
 #else
 		cfg80211_ch_switch_notify(priv->netdev, &chandef);
@@ -5242,7 +5281,8 @@ int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 			if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
 				ch_dfs_state->dfs_state =
-					sband->channels[i].dfs_state;
+					(dfs_state_t)sband->channels[i]
+						.dfs_state;
 				ch_dfs_state->dfs_required = MTRUE;
 #endif
 			}

@@ -512,7 +512,7 @@ int woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id)
 
 	if (NULL ==
 	    woal_add_card(card, &card->func->dev, &sdiommc_ops, card_type)) {
-		PRINTM(MERROR, "woal_add_card failed\n");
+		PRINTM(MMSG, "woal_add_card failed\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto err;
 	}

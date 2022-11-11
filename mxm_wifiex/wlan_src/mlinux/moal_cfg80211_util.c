@@ -54,6 +54,18 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 	}, /*event_id 1*/
 	{
 		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_fw_reset_success,
+	}, /*event_id 2*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_fw_reset_failure,
+	}, /*event_id 3*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_fw_reset_start,
+	}, /*event_id 4*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_rssi_monitor,
 	}, /*event_id 0x1501*/
 	{
@@ -775,7 +787,8 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 			   | WLAN_FEATURE_LINK_LAYER_STATS |
 			   WLAN_FEATURE_LOGGER | WLAN_FEATURE_RSSI_MONITOR |
 			   WLAN_FEATURE_CONFIG_NDO | WLAN_FEATURE_SCAN_RAND |
-			   WLAN_FEATURE_MKEEP_ALIVE | WLAN_FEATURE_PNO;
+			   WLAN_FEATURE_MKEEP_ALIVE | WLAN_FEATURE_PNO |
+			   WLAN_FEATURE_TDLS;
 
 	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	if (MLAN_STATUS_SUCCESS !=

@@ -1470,6 +1470,7 @@ done:
 static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 {
 	t_u32 i;
+	MrvlIEtypes_He_cap_t *user_he_cap_tlv = MNULL;
 
 	ENTER();
 
@@ -1582,6 +1583,28 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 					pmadapter->hw_he_cap,
 					pmadapter->hw_hecap_len,
 					sizeof(pmadapter->priv[i]->user_he_cap));
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_2g_he_cap;
+				if (pmadapter->priv[i]->bss_role ==
+				    MLAN_BSS_ROLE_STA)
+					user_he_cap_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_RESP_SUPPORT;
+				else
+					user_he_cap_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_REQ_SUPPORT;
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_he_cap;
+				if (pmadapter->priv[i]->bss_role ==
+				    MLAN_BSS_ROLE_STA)
+					user_he_cap_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_RESP_SUPPORT;
+				else
+					user_he_cap_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_REQ_SUPPORT;
 			}
 		}
 	}

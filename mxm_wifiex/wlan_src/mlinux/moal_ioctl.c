@@ -7542,14 +7542,40 @@ static int parse_radio_mode_string(const char *s, size_t len,
 }
 
 /*
+ *  @brief PoweLevelToDUT11Bits
+ *
+ *  @param Pwr		A user txpwr values of type int
+ *  @param PowerLevel	A Pointer of uint32 type for converted txpwr vals
+ *  @return		nothing just exit
+ */
+
+static void PoweLevelToDUT11Bits(int Pwr, t_u32 *PowerLevel)
+{
+	int Z = 0;
+
+	if ((Pwr > 64) || (Pwr < -64))
+		return;
+
+	Z = (int)(Pwr * 16);
+	if (Z < 0) {
+		Z = Z + (1 << 11);
+	}
+	(*PowerLevel) = (t_u32)Z;
+
+	return;
+}
+
+/*
  *  @brief Parse mfg cmd tx pwr string
  *
+ *  @param handle   A pointer to moal_handle structure
  *  @param s        A pointer to user buffer
  *  @param len      Length of user buffer
  *  @param d        A pointer to mfg_cmd_generic_cfg struct
  *  @return         0 on success, -EINVAL otherwise
  */
-static int parse_tx_pwr_string(const char *s, size_t len,
+
+static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 			       struct mfg_cmd_generic_cfg *d)
 {
 	int ret = MLAN_STATUS_SUCCESS;
@@ -7557,12 +7583,19 @@ static int parse_tx_pwr_string(const char *s, size_t len,
 	char *tmp = NULL;
 	char *pos = NULL;
 	gfp_t flag;
+	t_u32 tx_pwr_converted = 0xffffffff;
+	int tx_pwr_local = 0;
+	t_u8 fc_card = MFALSE;
 
 	ENTER();
 	if (!s || !d) {
 		LEAVE();
 		return -EINVAL;
 	}
+#ifdef SD9177
+	if (IS_SD9177(handle->card_type))
+		fc_card = MTRUE;
+#endif
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
 	string = kzalloc(TX_PWR_STR_LEN, flag);
 	if (string == NULL) {
@@ -7578,9 +7611,15 @@ static int parse_tx_pwr_string(const char *s, size_t len,
 
 	/* tx power value */
 	pos = strsep(&string, " \t");
-	if (pos)
+	if (fc_card && pos) {
+		/* for sd9177 we need to convert user power vals including -ve
+		 * vals as per labtool */
+		tx_pwr_local = woal_string_to_number(pos);
+		PoweLevelToDUT11Bits(tx_pwr_local, &tx_pwr_converted);
+		d->data1 = tx_pwr_converted;
+	} else if (pos) {
 		d->data1 = (t_u32)woal_string_to_number(pos);
-
+	}
 	/* modulation */
 	pos = strsep(&string, " \t");
 	if (pos)
@@ -7591,7 +7630,7 @@ static int parse_tx_pwr_string(const char *s, size_t len,
 	if (pos)
 		d->data3 = (t_u32)woal_string_to_number(pos);
 
-	if ((d->data1 > 24) || (d->data2 > 2))
+	if (((!fc_card) && (d->data1 > 24)) || (d->data2 > 2))
 		ret = -EINVAL;
 
 	kfree(tmp);
@@ -7637,12 +7676,12 @@ static int parse_tx_cont_string(const char *s, size_t len,
 	if (pos)
 		d->enable_tx = (t_u32)woal_string_to_number(pos);
 
-	if (d->enable_tx == MFALSE)
-		goto done;
-
 	pos = strsep(&string, " \t");
 	if (pos)
 		d->cw_mode = (t_u32)woal_string_to_number(pos);
+
+	if (d->enable_tx == MFALSE)
+		goto done;
 
 	pos = strsep(&string, " \t");
 	if (pos)
@@ -7997,7 +8036,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			err = MTRUE;
 		break;
 	case MFG_CMD_RFPWR:
-		if (parse_tx_pwr_string(buffer, len,
+		if (parse_tx_pwr_string(handle, buffer, len,
 					&misc->param.mfg_generic_cfg))
 			err = MTRUE;
 		break;

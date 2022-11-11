@@ -104,9 +104,22 @@ typedef MLAN_PACK_START struct _FWSyncPkt {
 	t_u32 fw_ready;
 } MLAN_PACK_END FWSyncPkt;
 
+#ifdef BIG_ENDIAN_SUPPORT
+/** Convert sequence number and command fields
+ *  of fwheader to correct endian format
+ */
+#define endian_convert_syncfwheader(x)                                         \
+	{                                                                      \
+		(x)->cmd = wlan_le32_to_cpu((x)->cmd);                         \
+		(x)->seq_num = wlan_le32_to_cpu((x)->seq_num);                 \
+		(x)->status = wlan_le32_to_cpu((x)->status);                   \
+		(x)->offset = wlan_le32_to_cpu((x)->offset);                   \
+	}
+#else
 /** Convert sequence number and command fields
  *  of fwheader to correct endian format
  */
 #define endian_convert_syncfwheader(x)
+#endif /* BIG_ENDIAN_SUPPORT */
 
 #endif /* _MLAN_INIT_H_ */

@@ -374,6 +374,14 @@
 	Path ID     (0: PathA, 1:PathB, 2:PathA+B)
 	echo "tx_power=16 2 0" > /proc/mwlan/adapterX/config
 
+    Set MFG HE TB Tx to configure Trigger based TX reponse
+    Enable Tx   (0:disable, 1:enable)
+    Q num       (0-7 : TCQs 0-7, 17-20: AXQs 0-3)
+    AID         (Association ID as applicable)
+    AXQ MU Timer(to set the MU EDCA Timer for the Queue)
+    Tx Power    (-11 to 9 dBm)
+    echo "he_tb_tx=1 1 5 400 10" > /proc/mwlan/adapterX/config
+
     Set Tx Continuous Mode
 	Start                 (0:disable, 1:enable)
 	Continuous Wave Mode  (0:disable, 1:enable)
@@ -528,7 +536,8 @@ SYNOPSIS
 	mlanutl mlanX getkey
 	mlanutl mlanX getscantable [ARGS]
 	mlanutl uapX getstalist
-	mlanutl uapX channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth/num_pkts>
+    mlanutl uapX channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth/num_pkts>
+    mlanutl uapX channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth>
 	mlanutl mlanX hostcmd <11n_2040coex.conf> 2040coex
 	mlanutl mlanX hostcmd <auto_tx.conf> auto_tx_get
 	mlanutl mlanX hostcmd <auto_tx.conf> auto_tx_unreg
@@ -2448,15 +2457,15 @@ Usage:
 		mlanutl uap0 fake_radar              : trigger fake rader event
 
 getchload
-        This command gets the current channel load and noise floor value
+        This command gets the current channel load (in %), noise floor value (in dbm) and rx_quality (in %, higher % indicates better rx quality)
 Usage:
         mlanutl uapX getchload <duration>
 	<duration> can be within 1-10(specifying 10ms to 100ms), default duration will be 100ms
 
         Examples:
-        mlanutl uap0 getchload          : gets channel load, noise floor and rx_quality for 100ms duration
-		mlanutl uap0 getchload 1	    : gets channel load, noise floor and rx_quality for 10ms duration
-		mlanutl uap0 getchload 6	    : gets channel load, noise floor and rx_quality for 60ms duration
+        mlanutl uap0 getchload          : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 100ms duration
+		mlanutl uap0 getchload 1	    : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 10ms duration
+		mlanutl uap0 getchload 6	    : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 60ms duration
 
 dfs_repeater
 	This command is used to get/set DFS Repeater mode.
@@ -2696,6 +2705,7 @@ getstalist
         mlanutl uap0 getstalist
 
 channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth/num_pkts>
+channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth>
     This command is used to do channel switch according to spec.
 
     Where the paramters are:
@@ -2704,17 +2714,20 @@ channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidt
         new channel : the channel will switch to
         switch count: channel switch time to send ECSA ie
                       (when set to 0, CSA/ECSA action frame will be send out)
+        switch count: channel switch time to send CSA ie
+
         bandwidth   : channel width switch to(optional),only for 5G channels.
                       Support value 1 -- 40M above, 3 -- 40M below, 4 -- 80M, 5 -- 160M
         num_pkts    : send number of CSA/ECSA action frame
 
     Example:
-        mlanutl uap0 channel_switch 1 115 36 10      :switch to channel 36, oper class 115
+        mlanutl uap0 channel_switch 1 115 36 10     :switch to channel 36, oper class 115
         mlanutl uap0 channel_switch 1 81 6 10        :switch to channel 6, oper class 81
-        mlanutl uap0 channel_switch 1 0 6 10         :switch to channel 6
-        mlanutl uap0 channel_switch 1 0 36 10 1      :switch to channel 36, bandwidth 40MHz above
-        mlanutl uap0 channel_switch 1 0 36 0 3        :switch to channel 36, and send 3 broadcast CSA action frame
-        mlanutl uap0 channel_switch 1 115 36 0 3      :switch to channel 36, and send 3 broadcast ECSA action frame
+        mlanutl uap0 channel_switch 1 0 6 10          :switch to channel 6
+        mlanutl uap0 channel_switch 1 0 36 10 1     :switch to channel 36, bandwidth 40MHz above
+        mlanutl uap0 channel_switch 1 0 36 0 3       :switch to channel 36, and send 3 broadcast CSA action frame
+        mlanutl uap0 channel_switch 1 115 36 0 3   :switch to channel 36, and send 3 broadcast ECSA action frame
+		                                                                     (Only IW61X supports sending CSA/ECSA action frames)
 
 hostcmd 2040coex
 	This command is used to send the 11n 20/40 Coex command to firmware.

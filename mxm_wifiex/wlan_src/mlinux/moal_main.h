@@ -156,6 +156,17 @@ Change log:
 #define COMPAT_VERSION_CODE KERNEL_VERSION(0, 0, 0)
 #define CFG80211_VERSION_CODE MAX(LINUX_VERSION_CODE, COMPAT_VERSION_CODE)
 
+#define IMX_ANDROID_13 0
+
+#if defined(IMX_SUPPORT)
+#if defined(IMX_ANDROID)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
+#undef IMX_ANDROID_13
+#define IMX_ANDROID_13 1
+#endif
+#endif
+#endif
+
 /**
  * Reason Code 3: STA is leaving (or has left) IBSS or ESS
  */
@@ -327,12 +338,16 @@ typedef enum _MOAL_HARDWARE_STATUS {
 } MOAL_HARDWARE_STATUS;
 
 #define WIFI_STATUS_OK 0
-#define WIFI_STATUS_DNLD_FW_FAIL 1
-#define WIFI_STATUS_INIT_FW_FAIL 2
-#define WIFI_STATUS_TX_TIMEOUT 3
-#define WIFI_STATUS_WIFI_HANG 4
-#define WIFI_STATUS_SCAN_TIMEOUT 5
-#define WIFI_STATUS_FW_DUMP 6
+#define WIFI_STATUS_FW_DNLD 1
+#define WIFI_STATUS_FW_DNLD_COMPLETE 2
+#define WIFI_STATUS_INIT_FW 3
+#define WIFI_STATUS_DNLD_FW_FAIL 4
+#define WIFI_STATUS_INIT_FW_FAIL 5
+#define WIFI_STATUS_TX_TIMEOUT 6
+#define WIFI_STATUS_WIFI_HANG 7
+#define WIFI_STATUS_SCAN_TIMEOUT 8
+#define WIFI_STATUS_FW_DUMP 9
+#define WIFI_STATUS_FW_RELOAD 10
 
 /** fw cap info 11p */
 #define FW_CAPINFO_80211P MBIT(24)
@@ -1099,7 +1114,7 @@ struct tcp_sess {
 	/** timer for ack */
 	moal_drv_timer ack_timer __ATTRIB_ALIGN__;
 	/** timer is set */
-	BOOLEAN is_timer_set;
+	atomic_t is_timer_set;
 	/** last update time*/
 	wifi_timeval update_time;
 };
@@ -3064,6 +3079,20 @@ static inline void hexdump(t_u32 level, char *prompt, t_u8 *buf, int len)
 	} while (0)
 #endif
 
+#ifdef BIG_ENDIAN_SUPPORT
+/** Convert from 16 bit little endian format to CPU format */
+#define woal_le16_to_cpu(x) le16_to_cpu(x)
+/** Convert from 32 bit little endian format to CPU format */
+#define woal_le32_to_cpu(x) le32_to_cpu(x)
+/** Convert from 64 bit little endian format to CPU format */
+#define woal_le64_to_cpu(x) le64_to_cpu(x)
+/** Convert to 16 bit little endian format from CPU format */
+#define woal_cpu_to_le16(x) cpu_to_le16(x)
+/** Convert to 32 bit little endian format from CPU format */
+#define woal_cpu_to_le32(x) cpu_to_le32(x)
+/** Convert to 64 bit little endian format from CPU format */
+#define woal_cpu_to_le64(x) cpu_to_le64(x)
+#else
 /** Do nothing */
 #define woal_le16_to_cpu(x) x
 /** Do nothing */
@@ -3076,6 +3105,7 @@ static inline void hexdump(t_u32 level, char *prompt, t_u8 *buf, int len)
 #define woal_cpu_to_le32(x) x
 /** Do nothing */
 #define woal_cpu_to_le64(x) x
+#endif
 
 /**
  *  @brief This function returns first available priv
