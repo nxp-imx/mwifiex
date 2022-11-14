@@ -5462,6 +5462,17 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
 	moal_private *pmpriv = (moal_private *)woal_get_netdev_priv(dev);
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (priv->host_mlme) {
+		priv->host_mlme = MFALSE;
+		priv->auth_flag = 0;
+		priv->auth_alg = 0xFFFF;
+		/*send deauth packet to notify disconnection to wpa_supplicant
+		 */
+		woal_deauth_event(priv, req->reason_code);
+	}
+#endif
 
 	ret = woal_cfg80211_disconnect(wiphy, dev, req->reason_code);
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
@@ -5492,6 +5503,17 @@ static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 	int ret = 0;
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
 	moal_private *pmpriv = (moal_private *)woal_get_netdev_priv(dev);
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (priv->host_mlme) {
+		priv->host_mlme = MFALSE;
+		priv->auth_flag = 0;
+		priv->auth_alg = 0xFFFF;
+		/*send deauth packet to notify disconnection to wpa_supplicant
+		 */
+		woal_deauth_event(priv, req->reason_code);
+	}
 #endif
 
 	ret = woal_cfg80211_disconnect(wiphy, dev, req->reason_code);
