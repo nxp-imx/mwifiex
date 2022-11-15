@@ -156,6 +156,9 @@ int woal_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+				   unsigned int link_id,
+#endif
 				   const u8 *peer,
 				   const struct cfg80211_bitrate_mask *mask);
 #if KERNEL_VERSION(2, 6, 38) <= CFG80211_VERSION_CODE
@@ -418,7 +421,12 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct beacon_parameters *params);
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)
+int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id);
+#else
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev);
+#endif
+
 int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 #if KERNEL_VERSION(3, 19, 0) <= CFG80211_VERSION_CODE
 			      struct station_del_parameters *param);

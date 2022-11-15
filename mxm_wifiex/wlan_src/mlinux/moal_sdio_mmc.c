@@ -2512,3 +2512,5 @@ static moal_if_ops sdiommc_ops = {
 	.reg_dbg = woal_sdiommc_reg_dbg,
 	.is_second_mac = woal_sdiommc_is_second_mac,
 };
+
+MODULE_DEVICE_TABLE(sdio, wlan_ids);
