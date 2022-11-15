@@ -76,7 +76,7 @@ static t_u8 wlan_check_ap_11ax_twt_supported(BSSDescriptor_t *pbss_desc)
 {
 	if (!pbss_desc->phe_cap)
 		return MFALSE;
-	if (!(pbss_desc->phe_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_REQ_SUPPORT))
+	if (!(pbss_desc->phe_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_RESP_SUPPORT))
 		return MFALSE;
 	if (!pbss_desc->pext_cap)
 		return MFALSE;
@@ -526,6 +526,7 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 	MrvlIEtypes_He_cap_t *phe_cap = MNULL;
 	t_u8 i = 0;
 	t_u8 he_cap_2g = 0;
+	MrvlIEtypes_He_cap_t *user_he_cap_tlv = MNULL;
 
 	ENTER();
 	if ((hw_he_cap->len + sizeof(MrvlIEtypesHeader_t)) >
@@ -584,6 +585,28 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 					pmadapter->hw_hecap_len,
 					sizeof(pmadapter->priv[i]->user_he_cap));
 			}
+			/**
+			 *  Clear TWT bits in he_mac_cap by bss role
+			 *  STA mode should clear TWT responder bit
+			 *  UAP mode should clear TWT request bit
+			 */
+			if (he_cap_2g)
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_2g_he_cap;
+			else
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_he_cap;
+
+			if (pmadapter->priv[i]->bss_role == MLAN_BSS_ROLE_STA)
+				user_he_cap_tlv->he_mac_cap[0] &=
+					~HE_MAC_CAP_TWT_RESP_SUPPORT;
+			else
+				user_he_cap_tlv->he_mac_cap[0] &=
+					~HE_MAC_CAP_TWT_REQ_SUPPORT;
 		}
 	}
 	LEAVE();

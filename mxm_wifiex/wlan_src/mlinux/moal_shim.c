@@ -3281,11 +3281,23 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	case MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE:
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 		pchan_info = (chan_band_info *)pmevent->event_buf;
+#ifdef UAP_SUPPORT
+		if (priv->bss_role == MLAN_BSS_ROLE_UAP) {
+			if (priv->uap_tx_blocked) {
+				if (!netif_carrier_ok(priv->netdev))
+					netif_carrier_on(priv->netdev);
+				woal_start_queue(priv->netdev);
+				priv->uap_tx_blocked = MFALSE;
+			}
+			priv->phandle->chsw_wait_q_woken = MTRUE;
+			wake_up_interruptible(&priv->phandle->chsw_wait_q);
+		}
+#endif
+
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 			PRINTM(MMSG,
 			       "CSA/ECSA: Switch to new channel %d complete!\n",
 			       pchan_info->channel);
-			priv->channel = pchan_info->channel;
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 			if (priv->csa_chan.chan &&
@@ -3299,6 +3311,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			}
 #endif
 #endif
+			if (priv->channel == pchan_info->channel)
+				break;
+			priv->channel = pchan_info->channel;
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (MFALSE
 #ifdef UAP_CFG80211
@@ -3319,18 +3335,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				woal_channel_switch_event(priv, pchan_info);
 			}
 #endif
-		}
-#endif
-#ifdef UAP_SUPPORT
-		if (priv->bss_role == MLAN_BSS_ROLE_UAP) {
-			if (priv->uap_tx_blocked) {
-				if (!netif_carrier_ok(priv->netdev))
-					netif_carrier_on(priv->netdev);
-				woal_start_queue(priv->netdev);
-				priv->uap_tx_blocked = MFALSE;
-			}
-			priv->phandle->chsw_wait_q_woken = MTRUE;
-			wake_up_interruptible(&priv->phandle->chsw_wait_q);
 		}
 #endif
 		break;

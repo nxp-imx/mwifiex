@@ -10736,7 +10736,11 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	if (moal_extflg_isset(handle, EXT_NAPI)) {
 		init_dummy_netdev(&handle->napi_dev);
 		netif_napi_add(&handle->napi_dev, &handle->napi_rx,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+			       woal_netdev_poll_rx);
+#else
 			       woal_netdev_poll_rx, NAPI_BUDGET);
+#endif
 		napi_enable(&handle->napi_rx);
 	}
 
@@ -11397,6 +11401,7 @@ static void woal_post_reset(moal_handle *handle)
 #endif
 	if (!handle->wifi_hal_flag) {
 		PRINTM(MMSG, "wlan: post_reset remove/add interface\n");
+		handle->surprise_removed = MTRUE;
 		for (intf_num = 0;
 		     intf_num < MIN(MLAN_MAX_BSS_NUM, handle->priv_num);
 		     intf_num++)
@@ -11411,6 +11416,8 @@ static void woal_post_reset(moal_handle *handle)
 			handle->wiphy = NULL;
 		}
 #endif
+		handle->surprise_removed = MFALSE;
+
 		for (intf_num = 0; intf_num < handle->drv_mode.intf_num;
 		     intf_num++) {
 			if (handle->drv_mode.bss_attr[intf_num].bss_virtual)
@@ -11424,6 +11431,7 @@ static void woal_post_reset(moal_handle *handle)
 				goto done;
 			}
 		}
+		PRINTM(MMSG, "wlan: post_reset remove/add interface done\n");
 		goto done;
 	}
 	/* Reset all interfaces */

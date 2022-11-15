@@ -3777,6 +3777,10 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 				&hecap_ie->ext_id, he_cfg.he_cap.len,
 				he_cfg.he_cap.len);
 	}
+#define HE_MAC_CAP_TWT_REQ_SUPPORT MBIT(1)
+	/* uap mode clear TWT request bit */
+	he_cfg.he_cap.he_mac_cap[0] &= ~HE_MAC_CAP_TWT_REQ_SUPPORT;
+
 	if (action == MLAN_ACT_DISABLE) {
 		if (he_cfg.he_cap.len &&
 		    (he_cfg.he_cap.ext_id == HE_CAPABILITY)) {

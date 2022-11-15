@@ -771,11 +771,9 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 			PRINTM(MCMND, "DFS: STOP\n");
 		}
 		pcmd_ptr->size += sizeof(MrvlIEtypes_ZeroDfsOperation_t);
-		pcmd_ptr->size = wlan_cpu_to_le16(pcmd_ptr->size);
 		LEAVE();
 		return MLAN_STATUS_SUCCESS;
 	}
-	pcmd_ptr->size = wlan_cpu_to_le16(pcmd_ptr->size);
 
 	/* update dfs sturcture.
 	 * dfs_check_pending is set when we receive CMD_RESP == SUCCESS */

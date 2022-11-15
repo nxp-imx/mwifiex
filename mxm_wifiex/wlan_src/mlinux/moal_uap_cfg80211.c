@@ -2869,6 +2869,14 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	ENTER();
 
+#ifdef UAP_SUPPORT
+	if ((priv->bss_type == MLAN_BSS_TYPE_UAP) && !priv->bss_started) {
+		woal_cancel_cac(priv);
+		LEAVE();
+		return 0;
+	}
+#endif
+
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MINFO, "cfg80211: Media not connected!\n");
 		LEAVE();
@@ -3737,7 +3745,8 @@ mlan_status woal_register_uap_cfg80211(struct net_device *dev, t_u8 bss_type)
 		return MLAN_STATUS_FAILURE;
 	}
 
-	wdev->iftype = NL80211_IFTYPE_STATION;
+	if (bss_type == MLAN_BSS_TYPE_UAP)
+		wdev->iftype = NL80211_IFTYPE_AP;
 
 	dev_net_set(dev, wiphy_net(wdev->wiphy));
 	dev->ieee80211_ptr = wdev;

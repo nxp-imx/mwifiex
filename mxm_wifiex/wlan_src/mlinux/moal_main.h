@@ -158,8 +158,8 @@ Change log:
 
 #define IMX_ANDROID_13 0
 
-#ifdef IMX_SUPPORT
-#ifdef IMX_ANDROID
+#if defined(IMX_SUPPORT)
+#if defined(IMX_ANDROID)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1

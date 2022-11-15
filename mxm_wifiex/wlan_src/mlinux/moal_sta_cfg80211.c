@@ -6229,7 +6229,11 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 	*cookie = (u64)random32() | 1;
 #else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	*cookie = (u64)prandom_u32() | 1;
+#else
+	*cookie = (u64)get_random_u32() | 1;
+#endif
 #endif
 	priv->phandle->remain_on_channel = MTRUE;
 	priv->phandle->remain_bss_index = priv->bss_index;
