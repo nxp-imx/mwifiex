@@ -169,7 +169,8 @@ extern const struct net_device_ops woal_netdev_ops;
  ********************************************************/
 #ifdef UAP_SUPPORT
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
+		  t_u8 wait_option);
 #endif
 #endif
 
@@ -1483,7 +1484,7 @@ fail:
  */
 #endif
 int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1542,7 +1543,7 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
  */
 #endif
 int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 			  int link_id,
 #endif
 			  t_u8 key_index,
@@ -1601,7 +1602,7 @@ int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 #endif
 int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 				  struct net_device *netdev,
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 				  int link_id,
 #endif
 				  t_u8 key_index
@@ -1636,7 +1637,7 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(2, 6, 30) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 				       int link_id,
 #endif
 				       t_u8 key_index)
@@ -1650,7 +1651,7 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 #if KERNEL_VERSION(5, 10, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_set_default_beacon_key(struct wiphy *wiphy,
 					 struct net_device *netdev,
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || IMX_ANDROID_13)
+#if ((KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) || IMX_ANDROID_13)
 					 int link_id,
 #endif
 					 t_u8 key_index)
@@ -3572,9 +3573,10 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 					       "Retrieve 11ax cfg by channel=%d band=%d\n",
 					       priv->channel, he_cfg.band);
 
-					if (0 == woal_11ax_cfg(priv,
-							       MLAN_ACT_GET,
-							       &he_cfg)) {
+					if (0 ==
+					    woal_11ax_cfg(priv, MLAN_ACT_GET,
+							  &he_cfg,
+							  MOAL_IOCTL_WAIT)) {
 						hecap_ie = (IEEEtypes_HECap_t
 								    *)&he_cfg
 								   .he_cap.len;
@@ -4041,7 +4043,8 @@ int woal_cfg80211_mgmt_frame_ie(
 		if ((beacon_ies && beacon_ies_len &&
 		     beacon_ies_data->ie_length) ||
 		    (beacon_ies_data->mgmt_subtype_mask ==
-		     MLAN_CUSTOM_IE_DELETE_MASK)) {
+			     MLAN_CUSTOM_IE_DELETE_MASK &&
+		     beacon_vendor_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)) {
 			if (MLAN_STATUS_FAILURE ==
 			    woal_cfg80211_custom_ie(
 				    priv, beacon_ies_data, &beacon_vendor_index,
@@ -4501,7 +4504,6 @@ done:
 }
 #endif
 
-#if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 /*
 ===============
 11AX CAP for uAP
@@ -4655,6 +4657,7 @@ static void woal_uap_update_11ax_ie(t_u8 band, mlan_ds_11ax_he_capa *hecap_ie)
 	return;
 }
 
+#if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 /**
  *  @brief Sets up the CFG802.11 specific HE capability fields *  with default
  * values
@@ -4745,7 +4748,71 @@ void woal_cfg80211_setup_he_cap(moal_private *priv,
 done:
 	LEAVE();
 }
+#else
+/**
+ *  @brief setup uap he_cap based on FW he_cap
+ *
+ *  @param priv         A pointer to moal private structure
+ *  @param wait_option  wait_option
+ *
+ *  @return             N/A
+ */
+void woal_cfg80211_setup_uap_he_cap(moal_private *priv, t_u8 wait_option)
+{
+	mlan_ds_11ax_he_capa *phe_cap = NULL;
+	mlan_ds_11ax_he_cfg he_cfg;
+	t_u8 hw_hecap_len;
+	mlan_fw_info fw_info;
+#ifdef UAP_SUPPORT
+	int ret = 0;
+#endif
 
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+
+	// Enable 2G 11AX on UAP
+	if (fw_info.fw_bands & BAND_GAX) {
+		memset(&he_cfg, 0, sizeof(he_cfg));
+		phe_cap = (mlan_ds_11ax_he_capa *)fw_info.hw_2g_he_cap;
+		hw_hecap_len = fw_info.hw_2g_hecap_len;
+		if (hw_hecap_len) {
+			woal_uap_update_11ax_ie(BAND_2GHZ, phe_cap);
+			he_cfg.band = MBIT(0);
+			moal_memcpy_ext(priv->phandle, &he_cfg.he_cap, phe_cap,
+					hw_hecap_len,
+					sizeof(mlan_ds_11ax_he_capa));
+			DBG_HEXDUMP(MCMD_D, "2G HE_CFG ", (t_u8 *)&he_cfg,
+				    sizeof(he_cfg));
+#ifdef UAP_SUPPORT
+			ret = woal_11ax_cfg(priv, MLAN_ACT_SET, &he_cfg,
+					    wait_option);
+			if (ret)
+				PRINTM(MERROR, "Fail to set 2G HE CAP\n");
+#endif
+		}
+	}
+	// Enable 5G 11AX on UAP
+	if (fw_info.fw_bands & BAND_AAX) {
+		memset(&he_cfg, 0, sizeof(he_cfg));
+		phe_cap = (mlan_ds_11ax_he_capa *)fw_info.hw_he_cap;
+		hw_hecap_len = fw_info.hw_hecap_len;
+		if (hw_hecap_len) {
+			woal_uap_update_11ax_ie(BAND_5GHZ, phe_cap);
+			he_cfg.band = MBIT(1);
+			moal_memcpy_ext(priv->phandle, &he_cfg.he_cap, phe_cap,
+					hw_hecap_len,
+					sizeof(mlan_ds_11ax_he_capa));
+			DBG_HEXDUMP(MCMD_D, "5G HE_CFG ", (t_u8 *)&he_cfg,
+				    sizeof(he_cfg));
+#ifdef UAP_SUPPORT
+			ret = woal_11ax_cfg(priv, MLAN_ACT_SET, &he_cfg,
+					    wait_option);
+			if (ret)
+				PRINTM(MERROR, "Fail to set 5G HE CAP\n");
+#endif
+		}
+	}
+	return;
+}
 #endif
 
 /**

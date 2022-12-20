@@ -688,7 +688,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 	}
 
 	if (pmbuf_aggr && pmbuf_aggr->data_len) {
-		pmadapter->data_sent = MTRUE;
+		wlan_update_port_status(pmadapter, pusb_tx_aggr->port, MTRUE);
+		pmadapter->data_sent = wlan_usb_data_sent(pmadapter);
 		ret = pmadapter->callbacks.moal_write_data_async(
 			pmadapter->pmoal_handle, pmbuf_aggr,
 			pusb_tx_aggr->port);
@@ -710,6 +711,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 			wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
 			break;
 		case MLAN_STATUS_FAILURE:
+			wlan_update_port_status(pmadapter, pusb_tx_aggr->port,
+						MFALSE);
 			pmadapter->data_sent = MFALSE;
 			PRINTM(MERROR,
 			       "Error: moal_write_data_async failed: 0x%X\n",
@@ -719,6 +722,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 			wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
 			break;
 		case MLAN_STATUS_PENDING:
+			wlan_update_port_status(pmadapter, pusb_tx_aggr->port,
+						MFALSE);
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_SUCCESS:
@@ -964,13 +969,16 @@ t_void wlan_usb_tx_aggr_timeout_func(t_void *function_context)
 {
 	usb_tx_aggr_params *pusb_tx_aggr =
 		(usb_tx_aggr_params *)function_context;
+	t_u8 port_index = 0;
 	pmlan_adapter pmadapter = (mlan_adapter *)pusb_tx_aggr->phandle;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pusb_tx_aggr->paggr_lock);
 	pusb_tx_aggr->aggr_hold_timer_is_set = MFALSE;
-	if (pusb_tx_aggr->pmbuf_aggr && !pmadapter->data_sent &&
+	port_index = wlan_get_port_index(pmadapter, pusb_tx_aggr->port);
+	if (pusb_tx_aggr->pmbuf_aggr &&
+	    wlan_is_port_ready(pmadapter, port_index) &&
 	    !wlan_is_port_tx_paused(pmadapter, pusb_tx_aggr))
 		wlan_usb_tx_send_aggr(pmadapter, pusb_tx_aggr);
 	pcb->moal_spin_unlock(pmadapter->pmoal_handle,
@@ -1136,6 +1144,98 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief  This function used to check if any USB port still available
+ *
+ *  @param pmadapter	A pointer to mlan_adapter
+ *
+ *  @return		MTRUE--non of the port is available.
+ *              MFALSE -- still have port available.
+ */
+inline t_u8 wlan_usb_data_sent(pmlan_adapter pmadapter)
+{
+	int i;
+	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+		if (pmadapter->pcard_usb->usb_port_status[i] == MFALSE)
+			return MFALSE;
+	}
+	return MTRUE;
+}
+
+/**
+ *  @brief  This function resync the USB tx port
+ *
+ *  @param pmadapter	A pointer to mlan_adapter
+ *
+ *  @return		N/A
+ */
+void wlan_resync_usb_port(pmlan_adapter pmadapter)
+{
+	t_u32 active_port = pmadapter->usb_tx_ports[0];
+	int i;
+	/* MC is enabled */
+	if (pmadapter->mc_status) {
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				if (((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_UAP) &&
+				     !pmadapter->priv[i]->uap_bss_started) ||
+				    ((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_STA) &&
+				     !pmadapter->priv[i]->media_connected)) {
+					PRINTM(MINFO,
+					       "Set deactive interface to default EP\n");
+					pmadapter->priv[i]->port =
+						pmadapter->usb_tx_ports[0];
+					;
+					pmadapter->priv[i]->port_index = 0;
+				}
+			}
+		}
+		/** Enable all the ports */
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++)
+			pmadapter->pcard_usb->usb_port_status[i] = MFALSE;
+	} else {
+		/* Get active port from connected interface */
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				if (((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_UAP) &&
+				     pmadapter->priv[i]->uap_bss_started) ||
+				    ((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_STA) &&
+				     pmadapter->priv[i]->media_connected)) {
+					active_port = pmadapter->priv[i]->port;
+					PRINTM(MEVENT, "active port=%d\n",
+					       active_port);
+					break;
+				}
+			}
+		}
+		/** set all the interface to the same port */
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				pmadapter->priv[i]->port = active_port;
+				pmadapter->priv[i]->port_index =
+					wlan_get_port_index(pmadapter,
+							    active_port);
+			}
+		}
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+			if (active_port == pmadapter->usb_tx_ports[i])
+				pmadapter->pcard_usb->usb_port_status[i] =
+					MFALSE;
+			else
+				pmadapter->pcard_usb->usb_port_status[i] =
+					MTRUE;
+		}
+	}
+	return;
+}
+
+/**
  *  @brief This function wakes up the card.
  *
  *  @param pmadapter		A pointer to mlan_adapter structure
@@ -1214,7 +1314,9 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		ret = wlan_usb_host_to_card_aggr(pmadapter, pmbuf, tx_param,
 						 pusb_tx_aggr);
 	} else {
-		pmadapter->data_sent = MTRUE;
+		pmadapter->pcard_usb->usb_port_status[pmpriv->port_index] =
+			MTRUE;
+		pmadapter->data_sent = wlan_usb_data_sent(pmadapter);
 		ret = pmadapter->callbacks.moal_write_data_async(
 			pmadapter->pmoal_handle, pmbuf, pmpriv->port);
 		switch (ret) {
@@ -1225,9 +1327,13 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 
 			break;
 		case MLAN_STATUS_FAILURE:
+			pmadapter->pcard_usb
+				->usb_port_status[pmpriv->port_index] = MFALSE;
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_PENDING:
+			pmadapter->pcard_usb
+				->usb_port_status[pmpriv->port_index] = MFALSE;
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_SUCCESS:

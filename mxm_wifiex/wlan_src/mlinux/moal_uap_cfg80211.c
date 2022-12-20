@@ -581,7 +581,7 @@ static t_u8 woal_check_11ax_capability(moal_private *priv, t_u8 band,
 		he_cfg.band = MBIT(1);
 	else if (band == BAND_2GHZ)
 		he_cfg.band = MBIT(0);
-	if (0 == woal_11ax_cfg(priv, MLAN_ACT_GET, &he_cfg)) {
+	if (0 == woal_11ax_cfg(priv, MLAN_ACT_GET, &he_cfg, MOAL_IOCTL_WAIT)) {
 		if (he_cfg.he_cap.len &&
 		    (he_cfg.he_cap.ext_id == HE_CAPABILITY)) {
 			if (memcmp(he_cfg.he_cap.he_txrx_mcs_support,
@@ -1003,6 +1003,7 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 #endif
 
 	if (priv->channel) {
+		woal_check_mc_connection(priv, MOAL_IOCTL_WAIT, priv->channel);
 		memset(sys_config->rates, 0, sizeof(sys_config->rates));
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
@@ -1513,8 +1514,7 @@ static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	name_assign_type_tmp = name_assign_type;
 #endif
-	mon_if = woal_prepare_mon_if(priv, name, name_assign_type_tmp,
-				     CHANNEL_SPEC_SNIFFER_MODE);
+	mon_if = woal_prepare_mon_if(priv, name, name_assign_type_tmp);
 	if (!mon_if) {
 		PRINTM(MFATAL, "Prepare mon_if fail.\n");
 		goto fail;
@@ -1536,24 +1536,44 @@ static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 	mon_if->wdev.wiphy = wiphy;
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-	/* Set default band channel config */
-	mon_if->band_chan_cfg.band = BAND_B | BAND_G;
-	mon_if->band_chan_cfg.band |= BAND_GN;
-	mon_if->band_chan_cfg.channel = 1;
-	mon_if->band_chan_cfg.chan_bandwidth = CHANNEL_BW_20MHZ;
 	memset(&chan_info, 0x00, sizeof(chan_info));
-	chan_info.channel = 1;
-	chan_info.is_11n_enabled = MTRUE;
-	if (MLAN_STATUS_FAILURE ==
-	    woal_chandef_create(priv, &mon_if->chandef, &chan_info)) {
+	mon_if->band_chan_cfg.channel = 0;
+	if (!woal_is_any_interface_active(handle)) {
+		/* Set default band channel config */
+		mon_if->band_chan_cfg.band = BAND_B | BAND_G;
+		mon_if->band_chan_cfg.band |= BAND_GN;
+		mon_if->band_chan_cfg.channel = 1;
+		mon_if->band_chan_cfg.chan_bandwidth = CHANNEL_BW_20MHZ;
+		memset(&chan_info, 0x00, sizeof(chan_info));
+		chan_info.channel = 1;
+		chan_info.is_11n_enabled = MTRUE;
+	}
+	mon_if->flag = 0x7;
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_net_monitor(priv, MOAL_IOCTL_WAIT, MTRUE, mon_if->flag,
+				 &mon_if->band_chan_cfg)) {
+		PRINTM(MERROR, "%s: woal_set_net_monitor fail\n", __func__);
 		ret = -EFAULT;
 		goto fail;
 	}
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_net_monitor(priv, MOAL_IOCTL_WAIT,
-				 CHANNEL_SPEC_SNIFFER_MODE, 0x7,
-				 &mon_if->band_chan_cfg)) {
-		PRINTM(MERROR, "%s: woal_set_net_monitor fail\n", __func__);
+	if (woal_is_any_interface_active(handle)) {
+		/* set current band channel config */
+		chan_info.bandcfg.chanBand = mon_if->band_chan_cfg.band;
+		if (mon_if->band_chan_cfg.band &
+		    (BAND_B | BAND_G | BAND_GN | BAND_GAC))
+			chan_info.bandcfg.chanBand = BAND_2GHZ;
+		else
+			/* TODO: Add support for BAND_4GHZ */
+			chan_info.bandcfg.chanBand = BAND_5GHZ;
+		chan_info.bandcfg.chanWidth =
+			mon_if->band_chan_cfg.chan_bandwidth;
+		chan_info.channel = mon_if->band_chan_cfg.channel;
+		chan_info.is_11n_enabled = MTRUE;
+	}
+	if (MLAN_STATUS_FAILURE ==
+	    woal_chandef_create(priv, &mon_if->chandef, &chan_info)) {
+		/* stop monitor mode on error */
+		woal_set_net_monitor(priv, MOAL_IOCTL_WAIT, MFALSE, 0, NULL);
 		ret = -EFAULT;
 		goto fail;
 	}
@@ -2665,7 +2685,7 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 
 	ENTER();
 
-	if (priv->phandle->driver_status) {
+	if (priv->phandle->driver_status || priv->phandle->surprise_removed) {
 		PRINTM(MERROR,
 		       "Block  woal_cfg80211_del_beacon in abnormal driver state\n");
 		LEAVE();
@@ -2725,6 +2745,9 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 			ret = -EFAULT;
 			goto done;
 		}
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+		woal_cfg80211_setup_uap_he_cap(priv, MOAL_NO_WAIT);
+#endif
 	}
 	woal_clear_all_mgmt_ies(priv, MOAL_NO_WAIT);
 #ifdef STA_SUPPORT
@@ -3546,6 +3569,8 @@ int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 	mlan_ds_11h_cfg *p11h_cfg = NULL;
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+	chan_band_info channel;
+	t_u16 enable = 0;
 
 	ENTER();
 
@@ -3567,6 +3592,25 @@ int woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 		       "Maybe other interface is doing CAC, please defer your oper\n");
 		ret = -EBUSY;
 		goto done;
+	}
+	if (MLAN_STATUS_SUCCESS ==
+	    woal_mc_policy_cfg(priv, &enable, MOAL_IOCTL_WAIT, MLAN_ACT_GET)) {
+		if (enable) {
+			if (MLAN_STATUS_SUCCESS ==
+			    woal_get_active_intf_channel(priv, &channel)) {
+				if (channel.channel !=
+				    chandef->chan->hw_value) {
+					PRINTM(MERROR,
+					       "DFS channel is not allowed when another connection exists on different channel\n");
+					PRINTM(MERROR,
+					       "Another connection's channel=%d, dfs channel=%d\n",
+					       channel.channel,
+					       chandef->chan->hw_value);
+					ret = -EINVAL;
+					goto done;
+				}
+			}
+		}
 	}
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
 	if (NULL == req) {
@@ -3745,8 +3789,12 @@ mlan_status woal_register_uap_cfg80211(struct net_device *dev, t_u8 bss_type)
 		return MLAN_STATUS_FAILURE;
 	}
 
-	if (bss_type == MLAN_BSS_TYPE_UAP)
+	if (bss_type == MLAN_BSS_TYPE_UAP) {
 		wdev->iftype = NL80211_IFTYPE_AP;
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+		woal_cfg80211_setup_uap_he_cap(priv, MOAL_IOCTL_WAIT);
+#endif
+	}
 
 	dev_net_set(dev, wiphy_net(wdev->wiphy));
 	dev->ieee80211_ptr = wdev;

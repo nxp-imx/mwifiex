@@ -1318,11 +1318,16 @@ static mlan_status wlan_ret_802_11_key_material(pmlan_private pmpriv,
 			}
 			if (memcmp(pmpriv->adapter, pmpriv->gtk_rekey.kek,
 				   zero_kek, sizeof(zero_kek)) != 0) {
-				wlan_prepare_cmd(
+				mlan_status ret = MLAN_STATUS_SUCCESS;
+				ret = wlan_prepare_cmd(
 					pmpriv,
 					HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG,
 					HostCmd_ACT_GEN_SET, 0, MNULL,
 					&pmpriv->gtk_rekey);
+				if (ret) {
+					PRINTM(MINFO,
+					       "Error sending message to FW\n");
+				}
 				memset(pmpriv->adapter, &pmpriv->gtk_rekey, 0,
 				       sizeof(mlan_ds_misc_gtk_rekey_data));
 			}
@@ -1391,13 +1396,16 @@ static mlan_status wlan_ret_802_11_key_material(pmlan_private pmpriv,
 					wlan_le16_to_cpu(
 						pkey->key_param_set.key_params
 							.aes.key_len);
-				memcpy_ext(
-					pmpriv->adapter,
-					sec->param.encrypt_key.key_material,
-					pkey->key_param_set.key_params.aes.key,
+				sec->param.encrypt_key
+					.key_len = MIN(
 					sec->param.encrypt_key.key_len,
-					sizeof(sec->param.encrypt_key
-						       .key_material));
+					sizeof(pkey->key_param_set.key_params
+						       .aes.key)),
+		  memcpy_ext(pmpriv->adapter,
+			     sec->param.encrypt_key.key_material,
+			     pkey->key_param_set.key_params.aes.key,
+			     sec->param.encrypt_key.key_len,
+			     sizeof(sec->param.encrypt_key.key_material));
 				memcpy_ext(
 					pmpriv->adapter,
 					sec->param.encrypt_key.pn,
@@ -1410,13 +1418,16 @@ static mlan_status wlan_ret_802_11_key_material(pmlan_private pmpriv,
 					wlan_le16_to_cpu(
 						pkey->key_param_set.key_params
 							.cmac_aes.key_len);
-				memcpy_ext(pmpriv->adapter,
-					   sec->param.encrypt_key.key_material,
-					   pkey->key_param_set.key_params
-						   .cmac_aes.key,
-					   sec->param.encrypt_key.key_len,
-					   sizeof(sec->param.encrypt_key
-							  .key_material));
+				sec->param.encrypt_key
+					.key_len = MIN(
+					sec->param.encrypt_key.key_len,
+					sizeof(pkey->key_param_set.key_params
+						       .cmac_aes.key)),
+		  memcpy_ext(pmpriv->adapter,
+			     sec->param.encrypt_key.key_material,
+			     pkey->key_param_set.key_params.cmac_aes.key,
+			     sec->param.encrypt_key.key_len,
+			     sizeof(sec->param.encrypt_key.key_material));
 				memcpy_ext(pmpriv->adapter,
 					   sec->param.encrypt_key.pn,
 					   pkey->key_param_set.key_params
@@ -1429,13 +1440,16 @@ static mlan_status wlan_ret_802_11_key_material(pmlan_private pmpriv,
 					wlan_le16_to_cpu(
 						pkey->key_param_set.key_params
 							.wep.key_len);
-				memcpy_ext(
-					pmpriv->adapter,
-					sec->param.encrypt_key.key_material,
-					pkey->key_param_set.key_params.wep.key,
+				sec->param.encrypt_key
+					.key_len = MIN(
 					sec->param.encrypt_key.key_len,
-					sizeof(sec->param.encrypt_key
-						       .key_material));
+					sizeof(pkey->key_param_set.key_params
+						       .wep.key)),
+		  memcpy_ext(pmpriv->adapter,
+			     sec->param.encrypt_key.key_material,
+			     pkey->key_param_set.key_params.wep.key,
+			     sec->param.encrypt_key.key_len,
+			     sizeof(sec->param.encrypt_key.key_material));
 				break;
 			}
 		}
@@ -3216,6 +3230,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_RECONFIGURE_TX_BUFF:
 		wlan_set_tx_pause_flag(pmpriv, MFALSE);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 
 		pmadapter->tx_buf_size =
 			(t_u16)wlan_le16_to_cpu(resp->params.tx_buf.buff_size);
@@ -3383,6 +3401,15 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
 		break;
 #endif
+	case HostCmd_CMD_MULTI_CHAN_CONFIG:
+		ret = wlan_ret_multi_chan_cfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_MULTI_CHAN_POLICY:
+		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
 		break;
 	case HostCmd_DFS_REPEATER_MODE:

@@ -94,6 +94,9 @@ typedef MLAN_PACK_START struct {
 /** Setup the number of rates passed in the driver/firmware API */
 #define A_SUPPORTED_RATES 9
 
+/** IEEEtypes Data Frame Subtype of QoS pkt */
+#define QOS_DATA 8
+
 /** CapInfo Short Slot Time Disabled */
 /* #define SHORT_SLOT_TIME_DISABLED(CapInfo)
  * ((IEEEtypes_CapInfo_t)(CapInfo).short_slot_time = 0) */
@@ -245,7 +248,7 @@ typedef enum _KEY_INFO_WAPI {
 #define MRVDRV_SNAP_HEADER_LEN 8
 
 /** The number of times to try when polling for status bits */
-#define MAX_POLL_TRIES 100
+#define MAX_POLL_TRIES 300
 
 /** The number of times to try when waiting for downloaded firmware to
      become active when multiple interface is present */
@@ -1298,6 +1301,19 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : ROAMING OFFLOAD TO FW*/
 #define HostCmd_CMD_ROAM_OFFLOAD 0x0245
 
+/** Host Command ID: Multi chan config */
+#define HostCmd_CMD_MULTI_CHAN_CONFIG 0x011e
+/** Host Command ID: Multi chan policy */
+#define HostCmd_CMD_MULTI_CHAN_POLICY 0x0121
+/** TLV ID for multi chan info */
+#define TLV_TYPE_MULTI_CHAN_INFO (PROPRIETARY_TLV_BASE_ID + 0xb7)
+/** TLV ID for multi chan group info */
+#define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0xb8)
+/** TLV ID for DRCS TimeSlice */
+#define MRVL_DRCS_TIME_SLICE_TLV_ID (PROPRIETARY_TLV_BASE_ID + 263)
+/** Host Command ID: DRCS config */
+#define HostCmd_CMD_DRCS_CONFIG 0x024a
+
 #ifdef RX_PACKET_COALESCE
 /** TLV ID for RX pkt coalesce config */
 #define TLV_TYPE_RX_PKT_COAL_CONFIG (PROPRIETARY_TLV_BASE_ID + 0xC9)
@@ -1552,6 +1568,12 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_Op_t {
 	 * Indicator, and 6Ghz Operation Info  */
 	t_u8 option[9];
 } MLAN_PACK_END MrvlIEtypes_He_Op_t;
+
+/** fw_cap_info bit30 for Embedded OWE Support*/
+#define FW_CAPINFO_EMBEDDED_OWE_SUPPORT MBIT(30)
+/** Check if Embedded OWE is supported by firmware */
+#define IS_FW_SUPPORT_EMBEDDED_OWE(_adapter)                                   \
+	(_adapter->fw_cap_info & FW_CAPINFO_EMBEDDED_OWE_SUPPORT)
 
 #ifdef RX_PACKET_COALESCE
 /** Host Command ID : Rx packet coalescing configuration */
@@ -2063,6 +2085,9 @@ typedef enum _ENH_PS_MODES {
 /** Event ID: SAD Report */
 #define EVENT_SAD_REPORT 0x00000066
 
+/** Event ID: Multi Chan Info*/
+#define EVENT_MULTI_CHAN_INFO 0x0000006a
+
 #define EVENT_FW_DUMP_INFO 0x00000073
 /** Event ID: Tx status */
 #define EVENT_TX_STATUS_REPORT 0x00000074
@@ -2171,6 +2196,8 @@ typedef enum _tdls_error_code_e {
 
 #define RXPD_FLAG_EXTRA_HEADER (1 << 1)
 
+#define RXPD_FLAG_UCAST_PKT (1 << 3)
+
 /** Event_WEP_ICV_ERR structure */
 typedef MLAN_PACK_START struct _Event_WEP_ICV_ERR {
 	/** Reason code */
@@ -2220,6 +2247,10 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 #define PAIRWISE_CIPHER_SUITE_LEN 4
 /** AKM Suite length */
 #define AKM_SUITE_LEN 4
+/** PMKID length */
+#define PMKID_LEN 16
+/** Group mgmt Cipher Suite length */
+#define GROUP_MGMT_CIPHER_SUITE_LEN 4
 /** MFPC bit in RSN capability */
 #define MFPC_BIT 7
 /** MFPR bit in RSN capability */
@@ -3645,6 +3676,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_CH_LOAD {
 	t_s16 noise;
 	t_u16 rx_quality;
 	t_u16 duration;
+	t_u16 cca_th;
 } MLAN_PACK_END HostCmd_DS_GET_CH_LOAD;
 
 /**  HostCmd_DS_CMD_802_11_RSSI_INFO */
@@ -6975,6 +7007,92 @@ typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
 } MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
 #endif
 
+typedef MLAN_PACK_START struct _MrvlTypes_DrcsTimeSlice_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Channel Index*/
+	t_u16 chan_idx;
+	/** Channel time (in TU) for chan_idx*/
+	t_u8 chantime;
+	/** Channel swith time (in TU) for chan_idx*/
+	t_u8 switchtime;
+	/** Undoze time (in TU) for chan_idx*/
+	t_u8 undozetime;
+	/** Rx traffic control scheme when channel switch*/
+	/** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END MrvlTypes_DrcsTimeSlice_t;
+typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
+	/** Action */
+	t_u16 action;
+	/** Channel time */
+	t_u32 channel_time;
+	/** Buffer weight */
+	t_u8 buffer_weight;
+	/** TLV buffer */
+	t_u8 tlv_buf[];
+	/* t_u8 *tlv_buf; */
+} MLAN_PACK_END HostCmd_DS_MULTI_CHAN_CFG;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_DRCS_CFG {
+	/** Action */
+	t_u16 action;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t time_slicing;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t drcs_buf[];
+	/* t_u8 *tlv_buf; */
+} MLAN_PACK_END HostCmd_DS_DRCS_CFG;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_POLICY {
+	/** Action */
+	t_u16 action;
+	/** Multi-channel Policy */
+	t_u16 policy;
+} MLAN_PACK_END HostCmd_DS_MULTI_CHAN_POLICY;
+
+/** Channel band info */
+typedef MLAN_PACK_START struct _ChannelBandInfo {
+	/* band config */
+	Band_Config_t bandcfg;
+	/** channel num for specificed band */
+	t_u8 chan_num;
+} MLAN_PACK_END ChannelBandInfo;
+
+/** MrvlIETypes_mutli_chan_group_info_t */
+typedef MLAN_PACK_START struct _MrvlIETypes_mutli_chan_group_info_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** channel group id */
+	t_u8 chan_group_id;
+	/** buffer weight for this channel group */
+	t_u8 chan_buff_weight;
+	/** channel number and band information */
+	ChannelBandInfo chan_band_info;
+	/** Max channel time (us) */
+	t_u32 channel_time;
+	/** Reserved */
+	t_u32 reserved;
+	MLAN_PACK_START union {
+		t_u8 sdio_func_num;
+		t_u8 usb_epnum;
+	} MLAN_PACK_END hid_num;
+	/** interface number in this group */
+	t_u8 num_intf;
+	/** bss_type list */
+	t_u8 bss_type_numlist[];
+} MLAN_PACK_END MrvlIEtypes_multi_chan_group_info_t;
+
+/** MrvlIEtypes_multi_chan_info_t */
+typedef MLAN_PACK_START struct _MrvlIETypes_mutli_chan_info_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** multi channel operation status */
+	t_u16 status;
+	/** Tlv buffer */
+	t_u8 tlv_buffer[];
+} MLAN_PACK_END MrvlIEtypes_multi_chan_info_t;
+
 /** TLV buffer : firmware roam keys */
 typedef MLAN_PACK_START struct _MrvlIEtypes_keyParams_t {
 	/** Header */
@@ -8130,6 +8248,9 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 #ifdef USB
 		HostCmd_DS_PACKET_AGGR_OVER_HOST_INTERFACE packet_aggr;
 #endif
+		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
+		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
+		HostCmd_DS_DRCS_CFG drcs_cfg;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
 		HostCmd_DS_TSF tsf;
 		HostCmd_DS_DFS_REPEATER_MODE dfs_repeater;

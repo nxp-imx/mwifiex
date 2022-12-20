@@ -42,6 +42,7 @@ static char *mod_para;
 /** Mfg mode */
 int mfg_mode;
 #endif
+int rf_test_mode;
 
 #if defined(SDIO)
 /** SDIO interrupt mode (0: INT_MODE_SDIO, 1: INT_MODE_GPIO) */
@@ -59,6 +60,7 @@ static int country_ie_ignore;
 static int beacon_hints;
 #endif
 #endif
+static int cfg80211_drcs;
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
@@ -67,6 +69,8 @@ static int host_mlme = 1;
 #endif
 
 static int roamoffload_in_hs;
+
+static int drcs_chantime_mode;
 
 /** Auto deep sleep */
 static int auto_ds;
@@ -130,6 +134,23 @@ static int shutdown_hs;
 static int slew_rate = 3;
 #endif
 int tx_work = 0;
+
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+/**
+ * RPS to steer packets to specific CPU
+ * Default value of 0 keeps rps disabled by default
+ */
+static int rps = 0;
+
+/**
+ * rps cpu mask
+ * rps can be configure to any value between 0x1 - 0xf
+ * ex: value of 0x3(0011) indicates to use cpu-0 and cpu-1
+ */
+#define RPS_CPU_MASK 0xf
+#endif
+#endif
 
 static int tx_skb_clone = 0;
 #ifdef IMX_SUPPORT
@@ -647,7 +668,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "mfg_mode = %d\n", params->mfg_mode);
 		}
 #endif
-		else if (strncmp(line, "drv_mode", strlen("drv_mode")) == 0) {
+		else if (strncmp(line, "rf_test_mode",
+				 strlen("rf_test_mode")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->rf_test_mode = out_data;
+			PRINTM(MMSG, "rf_test_mode = %d\n",
+			       params->rf_test_mode);
+		} else if (strncmp(line, "drv_mode", strlen("drv_mode")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1179,8 +1208,22 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "tx_work %s\n",
 			       moal_extflg_isset(handle, EXT_TX_WORK) ? "on" :
 									"off");
-		} else if (strncmp(line, "tx_skb_clone",
-				   strlen("tx_skb_clone")) == 0) {
+		}
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+		else if (strncmp(line, "rps", strlen("rps")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+
+			handle->params.rps = out_data & RPS_CPU_MASK;
+			PRINTM(MMSG, "rps set to %x from cfg\n",
+			       handle->params.rps);
+		}
+#endif
+#endif
+		else if (strncmp(line, "tx_skb_clone",
+				 strlen("tx_skb_clone")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1220,8 +1263,29 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				       "off");
 		}
 #endif
-		else if (strncmp(line, "roamoffload_in_hs",
-				 strlen("roamoffload_in_hs")) == 0) {
+		else if (strncmp(line, "cfg80211_drcs",
+				 strlen("cfg80211_drcs")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_CFG80211_DRCS);
+			else
+				moal_extflg_clear(handle, EXT_CFG80211_DRCS);
+			PRINTM(MMSG, "cfg80211_drcs %s\n",
+			       moal_extflg_isset(handle, EXT_CFG80211_DRCS) ?
+				       "on" :
+				       "off");
+		} else if (strncmp(line, "drcs_chantime_mode",
+				   strlen("drcs_chantime_mode")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->drcs_chantime_mode = out_data;
+			PRINTM(MMSG, "drcs_chantime_mode=%d\n",
+			       params->drcs_chantime_mode);
+		} else if (strncmp(line, "roamoffload_in_hs",
+				   strlen("roamoffload_in_hs")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1417,6 +1481,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.mfg_mode = params->mfg_mode;
 #endif
+	handle->params.rf_test_mode = rf_test_mode;
+	if (params)
+		handle->params.rf_test_mode = params->rf_test_mode;
+
 	handle->params.drv_mode = drv_mode;
 	if (params)
 		handle->params.drv_mode = params->drv_mode;
@@ -1625,6 +1693,13 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (tx_work)
 		moal_extflg_set(handle, EXT_TX_WORK);
 
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	handle->params.rps = rps & RPS_CPU_MASK;
+	PRINTM(MMSG, "rps set to %x from module param\n", handle->params.rps);
+#endif
+#endif
+
 	if (tx_skb_clone)
 		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
 	if (pmqos)
@@ -1645,6 +1720,11 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		moal_extflg_set(handle, EXT_HOST_MLME);
 #endif
 #endif
+	if (cfg80211_drcs)
+		moal_extflg_set(handle, EXT_CFG80211_DRCS);
+	handle->params.drcs_chantime_mode = drcs_chantime_mode;
+	if (params)
+		handle->params.drcs_chantime_mode = params->drcs_chantime_mode;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	if (disable_regd_by_driver)
 		moal_extflg_set(handle, EXT_DISABLE_REGD_BY_DRIVER);
@@ -1853,8 +1933,19 @@ void woal_init_from_dev_tree(void)
 				PRINTM(MIOCTL, "tx_work=0x%x\n", data);
 				tx_work = data;
 			}
-		} else if (!strncmp(prop->name, "tx_skb_clone",
-				    strlen("tx_skb_clone"))) {
+		}
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+		else if (!strncmp(prop->name, "rps", strlen("rps"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "rps=0x%x\n", data);
+				rps = data;
+			}
+		}
+#endif
+#endif
+		else if (!strncmp(prop->name, "tx_skb_clone",
+				  strlen("tx_skb_clone"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "tx_skb_clone=0x%x\n", data);
 				tx_skb_clone = data;
@@ -1878,7 +1969,14 @@ void woal_init_from_dev_tree(void)
 			}
 		}
 #endif
-		else if (!strncmp(prop->name, "mac_addr", strlen("mac_addr"))) {
+		else if (!strncmp(prop->name, "rf_test_mode",
+				  strlen("rf_test_mode"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "rf_test_mode=0x%x\n", data);
+				rf_test_mode = data;
+			}
+		} else if (!strncmp(prop->name, "mac_addr",
+				    strlen("mac_addr"))) {
 			if (!of_property_read_string(dt_node, prop->name,
 						     &string_data)) {
 				mac_addr = (char *)string_data;
@@ -1964,6 +2062,12 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "max_vir_bss=0x%x\n", data);
 				max_vir_bss = data;
+			}
+		} else if (!strncmp(prop->name, "cfg80211_drcs",
+				    strlen("cfg80211_drcs"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "cfg80211_drcs=0x%x\n", data);
+				cfg80211_drcs = data;
 			}
 		}
 #endif
@@ -2068,6 +2172,13 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				indrstcfg = data;
 				PRINTM(MIOCTL, "indrstcfg=%d\n", indrstcfg);
+			}
+		} else if (!strncmp(prop->name, "drcs_chantime_mode",
+				    strlen("drcs_chantime_mode"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				drcs_chantime_mode = data;
+				PRINTM(MIOCTL, "drcs_chantime_mode=%d\n",
+				       drcs_chantime_mode);
 			}
 		} else if (!strncmp(prop->name, "fixed_beacon_buffer",
 				    strlen("fixed_beacon_buffer"))) {
@@ -2383,6 +2494,10 @@ module_param(mfg_mode, int, 0660);
 MODULE_PARM_DESC(mfg_mode,
 		 "0: Download normal firmware; 1: Download MFG firmware");
 #endif /* MFG_CMD_SUPPORT */
+module_param(rf_test_mode, int, 0660);
+MODULE_PARM_DESC(
+	rf_test_mode,
+	"0: Download normal firmware; 1: Download RF_TEST_MODE firmware");
 module_param(drv_mode, int, 0660);
 MODULE_PARM_DESC(drv_mode,
 		 "Bit 0: STA; Bit 1: uAP; Bit 2: WIFIDIRECT; Bit 7: ZERO_DFS");
@@ -2466,6 +2581,14 @@ MODULE_PARM_DESC(
 #endif
 module_param(tx_work, uint, 0660);
 MODULE_PARM_DESC(tx_work, "1: Enable tx_work; 0: Disable tx_work");
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+module_param(rps, uint, 0660);
+MODULE_PARM_DESC(
+	rps,
+	"bit0-bit4(0x1 - 0xf): Enables rps on specific cpu ; 0: Disables rps");
+#endif
+#endif
 module_param(tx_skb_clone, uint, 0660);
 MODULE_PARM_DESC(tx_skb_clone,
 		 "1: Enable tx_skb_clone; 0: Disable tx_skb_clone");
@@ -2615,6 +2738,14 @@ MODULE_PARM_DESC(napi, "1: enable napi api; 0: disable napi");
 module_param(dfs_offload, int, 0);
 MODULE_PARM_DESC(dfs_offload, "1: enable dfs offload; 0: disable dfs offload.");
 #endif
+
+module_param(drcs_chantime_mode, int, 0);
+MODULE_PARM_DESC(
+	drcs_chantime_mode,
+	"0: use default value;Bit31~Bit24:Channel time for channel index0;Bit23~Bit16:mode for channel index0;Bit15~Bit8:Channel time for channel index1;Bit7~Bit0:mode for channel index1; mode:0--PM1,1--Null2Self.");
+module_param(cfg80211_drcs, int, 0);
+MODULE_PARM_DESC(cfg80211_drcs,
+		 "1: Enable DRCS support; 0: Disable DRCS support");
 
 module_param(roamoffload_in_hs, int, 0);
 MODULE_PARM_DESC(

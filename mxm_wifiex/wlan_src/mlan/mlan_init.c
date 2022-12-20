@@ -614,6 +614,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 			priv->intf_hr_len = MLAN_USB_TX_AGGR_HEADER;
 		}
 		priv->port = pmadapter->tx_data_ep;
+		priv->port_index = 0;
 	}
 #endif
 	ret = wlan_add_bsspriotbl(priv);
@@ -824,6 +825,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #ifdef USB
 	if (IS_USB(pmadapter->card_type)) {
 		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+			pmadapter->pcard_usb->usb_port_status[i] = MFALSE;
+		}
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 			pmadapter->pcard_usb->usb_tx_aggr[i].aggr_ctrl.enable =
 				MFALSE;
 			pmadapter->pcard_usb->usb_tx_aggr[i]
@@ -842,7 +846,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 			pmadapter->pcard_usb->usb_tx_aggr[i].hold_timeout_msec =
 				MLAN_USB_TX_AGGR_TIMEOUT_MSEC;
 			pmadapter->pcard_usb->usb_tx_aggr[i].port =
-				pmadapter->tx_data_ep;
+				pmadapter->usb_tx_ports[i];
 			pmadapter->pcard_usb->usb_tx_aggr[i].phandle =
 				(t_void *)pmadapter;
 		}
@@ -945,6 +949,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	       sizeof(pmadapter->arp_filter));
 	pmadapter->arp_filter_size = 0;
 #endif /* STA_SUPPORT */
+
+	pmadapter->mc_status = MFALSE;
 
 #ifdef PCIE
 	if (IS_PCIE(pmadapter->card_type)) {

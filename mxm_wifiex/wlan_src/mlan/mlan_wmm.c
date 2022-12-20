@@ -661,6 +661,18 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 				/* Ignore data pkts from a BSS if tx pause */
 				goto next_intf;
 			}
+#if defined(USB)
+			if (!wlan_is_port_ready(pmadapter,
+						priv_tmp->port_index)) {
+				PRINTM(MINFO,
+				       "get_highest_prio_ptr(): "
+				       "usb port is busy,Ignore pkts from BSS%d\n",
+				       priv_tmp->bss_index);
+				/* Ignore data pkts from a BSS if usb port is
+				 * busy */
+				goto next_intf;
+			}
+#endif
 
 			pmadapter->callbacks.moal_spin_lock(
 				pmadapter->pmoal_handle,
@@ -1945,6 +1957,10 @@ int wlan_wmm_lists_empty(pmlan_adapter pmadapter)
 			}
 			if (priv->tx_pause)
 				continue;
+#if defined(USB)
+			if (!wlan_is_port_ready(pmadapter, priv->port_index))
+				continue;
+#endif
 
 			if (util_scalar_read(
 				    pmadapter->pmoal_handle,

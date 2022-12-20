@@ -44,6 +44,9 @@
 	To load driver with MFG firmware file, use mfg_mode=1 when insmod WLAN driver and
 	specify MFG firmware name if needed.
 
+	To load driver with rf_test firmware file, use rf_test_mode=1 when insmod WLAN driver.
+	This parameter only used for 9177(FC)
+
 	There are some other parameters for debugging purpose etc. Use modinfo to check details.
 	  drvdbg=<bit mask of driver debug message control>
 	  dev_cap_mask=<Bit mask of the device capability>
@@ -95,6 +98,7 @@
 		Bit 1: uAP WEXT
 		Bit 2: STA CFG80211
 		Bit 3: uAP CFG80211
+	  cfg80211_drcs=1|0 <Enable DRCS support (default) | Disable DRCS support>
 	  reg_alpha2=<Regulatory alpha2 (default NULL)>
 	  skip_fwdnld=0|1 <enable FW download support (default) | disable FW download support>
 	  wq_sched_prio: Priority for work queue
@@ -126,6 +130,11 @@
 	GoAgeoutTime=0|x <use default ageout time (default) | set Go age out time xTU(TU 100ms)>
 	multi_dtim=0|x <use default DTIM interval(default) | set x*beacon_period as DTIM interval>
 	inact_tmo=0|x <use default IEEE ps inactivity timout value (default) | use IEEE ps inactivity timeout value x ms>
+	drcs_chantime_mode=0|x <channel time and mode for DRCS, use default value (default) | use setting value>
+	  Bit31~Bit24:Channel time for channel index0;
+	  Bit23~Bit16:mode for channel index0; 0|1 <PM1 | Null2Self>
+	  Bit15~Bit8:Channel time for channel index1;
+	  Bit7~Bit0:mode for channel index1; 0|1 <PM1 | Null2Self>
 	roamoffload_in_hs=0|1 <always enable fw roaming (default) | enable fw roaming only when host suspend>
 	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 64)
 	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
@@ -516,6 +525,7 @@ SYNOPSIS
 	mlanutl uapX clear_nop
 	mlanutl uapX nop_list
 	mlanutl uapX fake_radar
+	mlanutl uapX getchload <duration> [<cca_threshold>]
 	mlanutl uapX getchload <duration>
 	mlanutl dfsX dfs_cac <channel> [<bw> <cac-period>]
 	mlanutl dfsX autodfs <stop | start> [conf_file]
@@ -602,7 +612,6 @@ SYNOPSIS
 	mlanutl mlanX mgmtframetx <mgmt_frame.conf>
 	mlanutl mlanX mpactrl [tx_ena] [rx_ena] [tx_size] [rx_size] [tx_ports] [rx_ports]
 	mlanutl mlanX netmon [<act> [<filter> <band> <chan> <opt>]]
-	mlanutl mlanX monitormode [l]
 	mlanutl mlanX offchannel [<l> <m> <n> <bandwidth>]
 	mlanutl mlanX otpuserdata <l>
 	mlanutl mlanX passphrase [l]
@@ -682,6 +691,9 @@ SYNOPSIS
 				[AC_VI AIFSN ECW_MAX ECW_MIN TX_OP]
 				[AC_VO AIFSN ECW_MAX ECW_MIN TX_OP]
 	mlanutl mlanX wwscfg [m]
+	mlanutl mlanX mc_cfg [n]
+	mlanutl mlanX mc_policy [n]
+	mlanutl mlanX mc_cfg_ext [c] [s] [u] [m] <a> <b> <d> <e>
 	mlanutl p2pX cfg_noa [h] [i] [j] [k] [l]
 	mlanutl p2pX cfg_opp_ps [m] [n]
         mlanutl mlanX get_sensor_temp
@@ -1407,7 +1419,7 @@ htcapinfo
     This command is used to config 11ax HE capability using command.
 
     Usage:
-            mlanutl <mlanX|uapX> 11axcmd <subcmd> [value_1] [value_2]
+            mlanutl <mlanX|uapX> 11axcmd <subcmd> [value_1] [value_2] [value_3]
             <subcmd = obss_pd_offset > : spatial reuse configuration
                                          set obss_pd offset, [value_1] = NON_SRG_OffSET, [value_2] = SRG_OFFSET
 
@@ -1430,12 +1442,21 @@ htcapinfo
                                      Bit 0-9: TXOP RTS Threshold
             <subcmd = tx_omi > :     set/get omi value
                                      used for OMI transmission in MAC header HTC+ field, please see 11ax spec for OMI definition
-                                     set OMI when [value_1 = <omi>], where <omi> is defined as:
-                                       Bit 0-2: Rx NSS
-                                       Bit 3-4: Channel Width
-                                       Bit 6  : Tx NSTS (applies to client mode only)
-                                       All other bits are not supported currently.
-                                     get OMI without value_1 and value_2
+                                     set OMI: [value_1 = <omi>] [value_2 = <tx_option>] [value_3 = <num_data_packeets>]
+                                     where
+                                       <omi> is defined as:
+                                          Bit 0-2: Rx NSS
+                                          Bit 3-4: Channel Width
+                                          Bit 6  : Tx NSTS (applies to client mode only)
+                                          All other bits are not supported currently.
+                                       <tx_option> is defined as:
+                                             0: OMI is transmitted in QoS NULL frame;
+                                             1: OMI is transmitted in QoS data frame;
+                                          0xFF: OMI is transmitted in both QoS NULL and QoS data frame.
+                                       <num_data_packeets> is applied only if OMI is sent in QoS data frame.
+                                          It specifies the number of consecutive data frames containing the OMI.
+
+                                     get OMI without any value
 
             <subcmd = obssnbru_toltime> :  set/get OBSS narrow band RU tolerance time value in seconds
                                            set tolerance time when [value_1 = <time>], where <time> indicates:
@@ -2102,12 +2123,13 @@ authtype
 		0: 802.11 open system authentication
 		1: 802.11 shared key authentication
 		3: 802.11 WPA3 SAE authentication
+		4: 802.11 OWE authentication
 		255: allow open system or shared key authentication (default)
 
 	Examples:
 		mlanutl mlan0 authtype 0         : use open system authentication
 		mlanutl mlan0 authtype 1         : use shared key authentication
-		mlanutl mlan0 authtype 255       : allow open system or shared key authentication
+		mlanutl mlan0 authtype 255       : allow WEP open system or shared key authentication, embedded supplicant WPA2/WPA3 roaming
 		mlanutl mlan0 authtype           : get current setting
 
 autotdls
@@ -2448,15 +2470,19 @@ Usage:
 		mlanutl uap0 fake_radar              : trigger fake rader event
 
 getchload
-        This command gets the current channel load and noise floor value
+    This command gets the current channel load (in %), noise floor value (in dbm) and rx_quality (in %, higher % indicates better rx quality)
+	This command also sets cca threhold value when provided and enables OFDM desense (Only for IW416)
 Usage:
-        mlanutl uapX getchload <duration>
+        mlanutl uapX getchload <duration> [<cca_threshold>]
 	<duration> can be within 1-10(specifying 10ms to 100ms), default duration will be 100ms
+	[<cca_threshold>] can be within 1 to 120 and also sets OFDM desense (Only for IW416)
 
         Examples:
-        mlanutl uap0 getchload          : gets channel load, noise floor and rx_quality for 100ms duration
-		mlanutl uap0 getchload 1	    : gets channel load, noise floor and rx_quality for 10ms duration
-		mlanutl uap0 getchload 6	    : gets channel load, noise floor and rx_quality for 60ms duration
+        mlanutl uap0 getchload          : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 100ms duration
+		mlanutl uap0 getchload 1	    : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 10ms duration
+		mlanutl uap0 getchload 6	    : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 60ms duration
+		mlanutl uap0 getchload 4 70     : gets channel load (in %), noise floor (in dbm) and rx_quality (in %) for 40ms duration
+                                          and sets cca threshold as -70dBm setting OFDM desense (Only for IW416)
 
 dfs_repeater
 	This command is used to get/set DFS Repeater mode.
@@ -3379,26 +3405,6 @@ netmon
 			mlanutl mlan0 netmon 1 7 20 64 1 : Enable channel specified sniffer activity, set filter
 		                                  management, control and data frame, band A/AN,
 		                                  channel 64 and secondary channel above
-
-monitormode
-	This command is used to set/get monitor mode.
-	Note: The enable monitor mode setting should be issued when no active interface exist.
-              Before we want to use sniffer mode, need enable monitor mode.
-              After this can only use sniffer mode, don't make STA/P2P/UAP work.
-              When sniffer mode using done, should disable monitor mode.
-
-	Usage:
-		mlanutl mlanX monitormode [l]
-
-	where the parameter:
-		[l]
-			0 : Disable monitor mode
-			1 : Enable monitor mode
-			<none>: Get monitor mode
-
-	Examples:
-		mlanutl mlan0 monitormode   : Get monitor mode.
-		mlanutl mlan0 monitormode 1 : Enable monitor mode.
 
 offchannel
 	This command is used to set/cancel the offchannel configuration.
@@ -4420,6 +4426,64 @@ wwscfg
 		mlanutl mlan0 wwscfg             : Get WWS mode
 		mlanutl mlan0 wwscfg 1           : Enable WWS mode
 		mlanutl mlan0 wwscfg 0           : Disable WWS mode
+
+mc_cfg
+	This command is used to set/get the channel time.
+
+	Usage:
+		mlanutl mlanX mc_cfg [n]
+
+	where <n> :  Channel time in microseconds.
+
+	Examples:
+		mlanutl mlanX mc_cfg			: Get Channel time and buffer weight.
+		mlanutl mlanX mc_cfg 10000		: Set Channel time to 10000us.
+
+mc_policy
+        This command is used to set/get the multi-channel policy.
+	Note: This is a device specific command. Hence, setting on one interface is
+		reflected on all other interfaces.
+
+        Usage:
+                mlanutl mlanX mc_policy [n]
+
+        where <n> :  Multi-channel policy
+
+        Examples:
+                mlanutl mlanX mc_policy			: Get multi-channel policy setting.
+                mlanutl mlanX mc_policy 1		: Set multi-channel policy to 1.
+                mlanutl mlanX mc_policy 0		: Disable multi-channel policy
+
+mc_cfg_ext
+    This command is used to set/get the drcs parameters.
+
+    Usage:
+        mlanutl mlanX mc_cfg_ext [c] [s] [u] [m] <a> <b> <d> <e>
+
+    where:
+    channel index0:
+        [c] :  chantime(in TU)
+        [s] :  switchtime(in TU)
+        [u] :  undozetime(in TU)
+        [m] :  mode :0x0 --- PM1(default)
+                     0x1 --- Null2Self
+    channel index1:
+        <a> :  chantime(in TU)
+        <b> :  switchtime(in TU)
+        <d> :  undozetime(in TU)
+        <e> :  mode :0x0 --- PM1(default)
+                     0x1 --- Null2Self
+    Note:
+        channel index0: the first channel
+        channel index1: the second channel
+        undozetime should be less than other channel's switchtime
+        If want to set two channels the same parameters, just ignore the last four parameters and
+        use [c] [s] [u] [m] to set.
+    Examples:
+        mlanutl mlanX mc_cfg_ext                        : Get the drcs parameters for two channels.
+        mlanutl mlanX mc_cfg_ext 15 10 5 0              : Set two channels:channeltime 15TU, switchtime 10TU, undozetime 5TU, mode PM1
+        mlanutl mlanX mc_cfg_ext 15 10 5 0 25 15 9 0    : Set channel index0: channeltime 17TU, switchtime 10TU, undozetime 5TU, mode PM1;
+                                                        set channel index1: channeltime 25TU, switchtime 15TU, undozetime 9TU, mode PM1.
 
 cfg_noa
 	This is used to get/set P2P NoA (Notice of Absence) parameters only for P2P GO.

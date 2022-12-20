@@ -215,9 +215,6 @@ typedef struct _chan_stats {
 #endif
 #define PRIV_CMD_SLEEP_PARAMS "sleepparams"
 #define PRIV_CMD_NET_MON "netmon"
-#if defined(STA_CFG80211) && defined(UAP_CFG80211)
-#define PRIV_CMD_MONITOR_MODE "monitormode"
-#endif
 #define PRIV_CMD_DFS_TESTING "dfstesting"
 #define PRIV_CMD_CLEAR_NOP "clear_nop"
 #define PRIV_CMD_NOP_LIST "nop_list"
@@ -241,6 +238,9 @@ typedef struct _chan_stats {
 #ifdef RX_PACKET_COALESCE
 #define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
 #endif
+#define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
+#define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
+#define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(UAP_CFG80211)
 #define PRIV_CMD_CFG_NOA "cfg_noa"

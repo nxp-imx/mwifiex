@@ -691,7 +691,7 @@ done:
  */
 static int woal_11n_tx_cfg(moal_private *priv, struct iwreq *wrq)
 {
-	int data[2], copy_len;
+	int data[2] = {0}, copy_len;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
 	int ret = 0;
@@ -794,7 +794,7 @@ done:
  */
 static int woal_11n_prio_tbl(moal_private *priv, struct iwreq *wrq)
 {
-	int data[MAX_NUM_TID * 2], i, j, copy_len;
+	int data[MAX_NUM_TID * 2] = {0}, i, j, copy_len;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
 	int ret = 0;
@@ -968,7 +968,7 @@ error:
  */
 static int woal_addba_para_updt(moal_private *priv, struct iwreq *wrq)
 {
-	int data[5], ret = 0, copy_len;
+	int data[5] = {0}, ret = 0, copy_len;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
 	int data_length = wrq->u.data.length;
@@ -1848,10 +1848,9 @@ static int woal_net_monitor_ioctl(moal_private *priv, struct iwreq *wrq)
 				goto done;
 			}
 			/* Supported filter flags */
-			if (!data[1] ||
-			    data[1] & ~(MLAN_NETMON_DATA_FRAME |
-					MLAN_NETMON_MANAGEMENT_FRAME |
-					MLAN_NETMON_CONTROL_FRAME)) {
+			if (!data[1] || data[1] & ~(MLAN_NETMON_DATA |
+						    MLAN_NETMON_MANAGEMENT |
+						    MLAN_NETMON_CONTROL)) {
 				PRINTM(MERROR,
 				       "NET_MON: Invalid filter flag\n");
 				ret = -EINVAL;
@@ -6433,7 +6432,7 @@ done:
  */
 static int woal_ind_rst_ioctl(moal_private *priv, struct iwreq *wrq)
 {
-	int data[2], data_length = wrq->u.data.length, copy_len;
+	int data[2] = {0}, data_length = wrq->u.data.length, copy_len;
 	int ret = 0;
 	mlan_ds_misc_cfg *misc = NULL;
 	mlan_ioctl_req *req = NULL;

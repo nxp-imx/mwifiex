@@ -1016,12 +1016,6 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 
 	ENTER();
 
-	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
-		PRINTM(MINFO,
-		       "Association is blocked in Channel Specified Network Monitor mode...\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
 	/* Before ASSOC REQ, If "port ctrl" mode is enabled,
 	 * move the port to CLOSED state */
 	if (pmpriv->port_ctrl_mode == MTRUE) {
@@ -2945,7 +2939,9 @@ static mlan_status wlan_sec_ioctl_set_wep_key(pmlan_adapter pmadapter,
 			goto exit;
 		if (!sec->param.encrypt_key.key_len) {
 			sec->param.encrypt_key.key_index = pwep_key->key_index;
-			sec->param.encrypt_key.key_len = pwep_key->key_length;
+			sec->param.encrypt_key.key_len =
+				MIN(pwep_key->key_length,
+				    sizeof(pwep_key->key_material));
 			memcpy_ext(pmadapter,
 				   sec->param.encrypt_key.key_material,
 				   pwep_key->key_material,
@@ -3994,89 +3990,6 @@ static mlan_status wlan_misc_ioctl_gen_ie(pmlan_adapter pmadapter,
 	return ret;
 }
 
-/**
- *  @brief Perform warm reset
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_PENDING --success, MLAN_STATUS_FAILURE
- */
-mlan_status wlan_misc_ioctl_warm_reset(pmlan_adapter pmadapter,
-				       pmlan_ioctl_req pioctl_req)
-{
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	pmlan_callbacks pcb = &pmadapter->callbacks;
-	pmlan_buffer pmbuf;
-	t_s32 i = 0;
-	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-
-	ENTER();
-	mlan_block_rx_process(pmadapter, MTRUE);
-
-	/* Cancel all pending commands and complete ioctls */
-	if (misc->param.fw_reload)
-		wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
-
-	/** Init all the head nodes and free all the locks here */
-	for (i = 0; i < pmadapter->priv_num; i++)
-		wlan_free_priv(pmadapter->priv[i]);
-
-	while ((pmbuf = (pmlan_buffer)util_dequeue_list(
-			pmadapter->pmoal_handle, &pmadapter->rx_data_queue,
-			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
-		pmadapter->ops.data_complete(pmadapter, pmbuf,
-					     MLAN_STATUS_FAILURE);
-	}
-	pmadapter->rx_pkts_queued = 0;
-
-	/* Initialize adapter structure */
-	wlan_init_adapter(pmadapter);
-	pmadapter->hw_status = WlanHardwareStatusInitializing;
-
-	/* Initialize private structures */
-	for (i = 0; i < pmadapter->priv_num; i++) {
-		if (pmadapter->priv[i])
-			wlan_init_priv(pmadapter->priv[i]);
-	}
-	mlan_block_rx_process(pmadapter, MFALSE);
-
-	if (misc->param.fw_reload != MTRUE) {
-		/* Restart the firmware */
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_SHUTDOWN,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-		if (ret)
-			goto done;
-	}
-
-	/* Issue firmware initialize commands for first BSS,
-	 * for other interfaces it will be called after getting
-	 * the last init command response of previous interface
-	 */
-	pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
-	if (!pmpriv) {
-		ret = MLAN_STATUS_FAILURE;
-		LEAVE();
-		return ret;
-	}
-	ret = wlan_adapter_get_hw_spec(pmpriv->adapter);
-	if (ret == MLAN_STATUS_FAILURE) {
-		LEAVE();
-		return ret;
-	}
-	ret = pmpriv->ops.init_cmd(pmpriv, MTRUE);
-	if (ret == MLAN_STATUS_FAILURE) {
-		LEAVE();
-		return ret;
-	}
-	if (ret == MLAN_STATUS_PENDING)
-		pmadapter->pwarm_reset_ioctl_req = pioctl_req;
-done:
-	LEAVE();
-	return ret;
-}
-
 #ifdef SDIO
 /**
  *  @brief Reconfigure SDIO multiport aggregation parameters
@@ -4763,75 +4676,6 @@ done:
 }
 
 /**
- *  @brief This function sets up country code and downloads CMD to FW
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param pioctl_req   Pointer to the IOCTL request buffer
- *
- *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status wlan_misc_ioctl_country_code(pmlan_adapter pmadapter,
-						mlan_ioctl_req *pioctl_req)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_country_code *country_code = MNULL;
-	mlan_ds_misc_cfg *cfg_misc = MNULL;
-	t_u8 cfp_bg = 0, cfp_a = 0;
-
-	ENTER();
-
-	cfg_misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-	country_code = &cfg_misc->param.country_code;
-
-	if (pioctl_req->action == MLAN_ACT_SET) {
-		if (pmadapter->otp_region && pmadapter->otp_region->force_reg) {
-			PRINTM(MERROR,
-			       "ForceRegionRule is set in the on-chip OTP"
-			       "memory\n");
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-		/* Update region code and table based on country code */
-		if (wlan_misc_country_2_cfp_table_code(
-			    pmadapter, country_code->country_code, &cfp_bg,
-			    &cfp_a)) {
-			PRINTM(MERROR, "Country code not found!\n");
-			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-		pmadapter->cfp_code_bg = cfp_bg;
-		pmadapter->cfp_code_a = cfp_a;
-		if (cfp_a)
-			pmadapter->region_code = cfp_a;
-		else if (cfp_bg)
-			pmadapter->region_code = cfp_bg;
-		else
-			pmadapter->region_code = 0;
-		if (wlan_set_regiontable(pmpriv, pmadapter->region_code,
-					 pmadapter->config_bands |
-						 pmadapter->adhoc_start_band)) {
-			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-		memcpy_ext(pmadapter, pmadapter->country_code,
-			   country_code->country_code, COUNTRY_CODE_LEN,
-			   COUNTRY_CODE_LEN);
-	} else {
-		/* GET operation */
-		memcpy_ext(pmadapter, country_code->country_code,
-			   pmadapter->country_code, COUNTRY_CODE_LEN,
-			   COUNTRY_CODE_LEN);
-	}
-
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Configure MFPC and MFPR for management frame protection
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -5318,6 +5162,17 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_PMFCFG:
 		status = wlan_misc_pmfcfg(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_MULTI_CHAN_CFG:
+		status = wlan_misc_ioctl_multi_chan_config(pmadapter,
+							   pioctl_req);
+		break;
+	case MLAN_OID_MISC_MULTI_CHAN_POLICY:
+		status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
+							   pioctl_req);
+		break;
+	case MLAN_OID_MISC_DRCS_CFG:
+		status = wlan_misc_ioctl_drcs_config(pmadapter, pioctl_req);
+		break;
 #ifdef RX_PACKET_COALESCE
 	case MLAN_OID_MISC_RX_PACKET_COALESCE:
 		status = wlan_misc_ioctl_rx_pkt_coalesce_config(pmadapter,
@@ -5579,13 +5434,6 @@ static mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter,
 		return status;
 	}
 
-	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
-		PRINTM(MINFO,
-		       "Scan is blocked in Channel Specified Network Monitor mode...\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
 	if (pmadapter->scan_block && pioctl_req->action == MLAN_ACT_SET) {
 		PRINTM(MERROR, "Scan is blocked during association...\n");
 		LEAVE();
@@ -5792,6 +5640,18 @@ mlan_status wlan_find_bss(mlan_private *pmpriv, pmlan_ioctl_req pioctl_req)
 		memcpy_ext(pmadapter, (t_u8 *)&bss->param.ssid_bssid.bssid,
 			   (t_u8 *)&pbss_desc->mac_address,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		if (pbss_desc->owe_transition_mode) {
+			bss->param.ssid_bssid.owe_transition_mode =
+				pbss_desc->owe_transition_mode;
+			memcpy_ext(pmadapter, &bss->param.ssid_bssid.trans_ssid,
+				   &pbss_desc->trans_ssid,
+				   sizeof(mlan_802_11_ssid),
+				   sizeof(mlan_802_11_ssid));
+			memcpy_ext(pmadapter,
+				   (t_u8 *)&bss->param.ssid_bssid.trans_bssid,
+				   (t_u8 *)&pbss_desc->trans_mac_address,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		}
 		bss->param.ssid_bssid.rssi = pbss_desc->rssi;
 		bss->param.ssid_bssid.channel = (t_u16)pbss_desc->channel;
 

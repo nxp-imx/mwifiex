@@ -406,6 +406,8 @@ static void woal_usb_tx_complete(struct urb *urb)
 		atomic_dec(&cardp->tx_cmd_urb_pending);
 	else if (context->ep == cardp->tx_data_ep)
 		atomic_dec(&cardp->tx_data_urb_pending);
+	else if (context->ep == cardp->tx_data2_ep)
+		atomic_dec(&cardp->tx_data2_urb_pending);
 
 	queue_work(handle->workqueue, &handle->main_work);
 
@@ -635,6 +637,10 @@ static void woal_usb_unlink_urb(void *card_desc)
 					usb_kill_urb(
 						cardp->tx_data_list[i].urb);
 				}
+				if (cardp->tx_data2_list[i].urb) {
+					usb_kill_urb(
+						cardp->tx_data2_list[i].urb);
+				}
 			}
 		}
 	}
@@ -673,6 +679,10 @@ void woal_usb_free(struct usb_card_rec *cardp)
 		if (cardp->tx_data_list[i].urb) {
 			usb_free_urb(cardp->tx_data_list[i].urb);
 			cardp->tx_data_list[i].urb = NULL;
+		}
+		if (cardp->tx_data2_list[i].urb) {
+			usb_free_urb(cardp->tx_data2_list[i].urb);
+			cardp->tx_data2_list[i].urb = NULL;
 		}
 	}
 	/* Free Tx cmd URB */
@@ -1003,6 +1013,24 @@ static int woal_usb_probe(struct usb_interface *intf,
 					(__force int)woal_le16_to_cpu(
 						endpoint->wMaxPacketSize);
 			}
+			if (usb_endpoint_is_bulk_out(endpoint) &&
+			    (usb_endpoint_num(endpoint) ==
+				     MLAN_USB_EP_DATA_CH2 ||
+			     usb_endpoint_num(endpoint) ==
+				     MLAN_USB_EP_DATA_CH2_IF2)) {
+				/* We found a bulk out data endpoint */
+				PRINTM(MCMND,
+				       "Bulk OUT2: max packet size = %d, address = %d\n",
+				       woal_le16_to_cpu(
+					       endpoint->wMaxPacketSize),
+				       endpoint->bEndpointAddress);
+				usb_cardp->tx_data2_ep =
+					endpoint->bEndpointAddress;
+				atomic_set(&usb_cardp->tx_data2_urb_pending, 0);
+				usb_cardp->tx_data2_maxpktsize =
+					(__force int)woal_le16_to_cpu(
+						endpoint->wMaxPacketSize);
+			}
 
 			if ((usb_endpoint_is_bulk_out(endpoint) ||
 			     usb_endpoint_is_int_out(endpoint)) &&
@@ -1040,6 +1068,14 @@ static int woal_usb_probe(struct usb_interface *intf,
 				       "%s: invalid endpoint assignment\n",
 				       __FUNCTION__);
 				goto error;
+			}
+			if (!usb_cardp->tx_data2_ep) {
+				PRINTM(MERROR,
+				       "%s: invalid endpoint assignment\n",
+				       __FUNCTION__);
+				PRINTM(MERROR,
+				       "%s: DATA2 endpoint is not enumarated\n",
+				       __FUNCTION__);
 			}
 		}
 
@@ -1254,6 +1290,9 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		if (cardp->tx_data_list[i].urb) {
 			usb_kill_urb(cardp->tx_data_list[i].urb);
 		}
+		if (cardp->tx_data2_list[i].urb) {
+			usb_kill_urb(cardp->tx_data2_list[i].urb);
+		}
 	}
 	/* Unlink Tx cmd URB */
 	if (cardp->tx_cmd.urb) {
@@ -1381,6 +1420,15 @@ mlan_status woal_usb_tx_init(moal_handle *handle)
 		/* Allocate URB for data */
 		cardp->tx_data_list[i].urb = usb_alloc_urb(0, GFP_KERNEL);
 		if (!cardp->tx_data_list[i].urb) {
+			PRINTM(MERROR, "Tx data URB allocation failed\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto init_exit;
+		}
+		cardp->tx_data2_list[i].handle = handle;
+		cardp->tx_data2_list[i].ep = cardp->tx_data2_ep;
+		/* Allocate URB for data */
+		cardp->tx_data2_list[i].urb = usb_alloc_urb(0, GFP_KERNEL);
+		if (!cardp->tx_data2_list[i].urb) {
 			PRINTM(MERROR, "Tx data URB allocation failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto init_exit;
@@ -1513,6 +1561,8 @@ static mlan_status woal_usb_write_data_sync(moal_handle *handle,
 		bulk_out_maxpktsize = cardp->tx_cmd_maxpktsize;
 	else if (ep == cardp->tx_data_ep)
 		bulk_out_maxpktsize = cardp->tx_data_maxpktsize;
+	else if (ep == cardp->tx_data2_ep)
+		bulk_out_maxpktsize = cardp->tx_data2_maxpktsize;
 
 	if (length % bulk_out_maxpktsize == 0)
 		length++;
@@ -1599,6 +1649,11 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 	    (atomic_read(&cardp->tx_data_urb_pending) >= MVUSB_TX_HIGH_WMARK)) {
 		ret = MLAN_STATUS_RESOURCE;
 		goto tx_ret;
+	} else if ((ep == cardp->tx_data2_ep) &&
+		   (atomic_read(&cardp->tx_data2_urb_pending) >=
+		    MVUSB_TX_HIGH_WMARK)) {
+		ret = MLAN_STATUS_RESOURCE;
+		goto tx_ret;
 	}
 	PRINTM(MINFO, "woal_write_data_async: ep=%d\n", ep);
 
@@ -1611,6 +1666,11 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 			if (cardp->tx_data_ix >= MVUSB_TX_HIGH_WMARK)
 				cardp->tx_data_ix = 0;
 			context = &cardp->tx_data_list[cardp->tx_data_ix++];
+		} else if (ep == cardp->tx_data2_ep) {
+			bulk_out_maxpktsize = cardp->tx_data2_maxpktsize;
+			if (cardp->tx_data2_ix >= MVUSB_TX_HIGH_WMARK)
+				cardp->tx_data2_ix = 0;
+			context = &cardp->tx_data2_list[cardp->tx_data2_ix++];
 		}
 	}
 
@@ -1652,6 +1712,8 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 		atomic_inc(&cardp->tx_cmd_urb_pending);
 	else if (ep == cardp->tx_data_ep)
 		atomic_inc(&cardp->tx_data_urb_pending);
+	else if (ep == cardp->tx_data2_ep)
+		atomic_inc(&cardp->tx_data2_urb_pending);
 	if (usb_submit_urb(tx_urb, GFP_ATOMIC)) {
 		/* Submit URB failure */
 		PRINTM(MERROR, "Submit EP %d Tx URB failed: %d\n", ep, ret);
@@ -1664,6 +1726,13 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 					cardp->tx_data_ix--;
 				else
 					cardp->tx_data_ix = MVUSB_TX_HIGH_WMARK;
+			} else if (ep == cardp->tx_data2_ep) {
+				atomic_dec(&cardp->tx_data2_urb_pending);
+				if (cardp->tx_data2_ix)
+					cardp->tx_data2_ix--;
+				else
+					cardp->tx_data2_ix =
+						MVUSB_TX_HIGH_WMARK;
 			}
 		}
 		ret = MLAN_STATUS_FAILURE;
@@ -1671,6 +1740,10 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 		if (ep == cardp->tx_data_ep &&
 		    (atomic_read(&cardp->tx_data_urb_pending) ==
 		     MVUSB_TX_HIGH_WMARK))
+			ret = MLAN_STATUS_PRESOURCE;
+		else if (ep == cardp->tx_data2_ep &&
+			 (atomic_read(&cardp->tx_data2_urb_pending) ==
+			  MVUSB_TX_HIGH_WMARK))
 			ret = MLAN_STATUS_PRESOURCE;
 		else
 			ret = MLAN_STATUS_SUCCESS;

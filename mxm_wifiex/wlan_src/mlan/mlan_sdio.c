@@ -976,7 +976,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 	t_u8 *firmware = fw;
 	t_u32 firmwarelen = fw_len;
 	t_u32 offset = 0;
-	t_u32 base0, base1;
+	t_u32 base0 = 0, base1;
 	t_void *tmpfwbuf = MNULL;
 	t_u32 tmpfwbufsz;
 	t_u8 *fwbuf;

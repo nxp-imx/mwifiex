@@ -315,7 +315,28 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
  */
 INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 {
-	return (pmadapter->bypass_pkt_count) ? MFALSE : MTRUE;
+#if defined(USB)
+	if (IS_USB(pmadapter->card_type)) {
+		pmlan_callbacks pcb = &pmadapter->callbacks;
+		pmlan_private priv;
+		int j = 0;
+		for (j = 0; j < pmadapter->priv_num; ++j) {
+			priv = pmadapter->priv[j];
+			if (priv) {
+				if (!wlan_is_port_ready(pmadapter,
+							priv->port_index))
+					continue;
+				if (util_peek_list(pmadapter->pmoal_handle,
+						   &priv->bypass_txq,
+						   pcb->moal_spin_lock,
+						   pcb->moal_spin_unlock))
+					return MFALSE;
+			}
+		}
+		return MTRUE;
+	} else
+#endif
+		return (pmadapter->bypass_pkt_count) ? MFALSE : MTRUE;
 }
 
 /**
@@ -364,6 +385,11 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 		for (j = 0; j < pmadapter->priv_num; ++j) {
 			priv = pmadapter->priv[j];
 			if (priv) {
+#if defined(USB)
+				if (!wlan_is_port_ready(pmadapter,
+							priv->port_index))
+					continue;
+#endif
 				pmbuf = (pmlan_buffer)util_dequeue_list(
 					pmadapter->pmoal_handle,
 					&priv->bypass_txq,

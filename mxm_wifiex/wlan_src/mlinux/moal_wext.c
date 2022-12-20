@@ -790,30 +790,31 @@ static int woal_get_sens(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param vwrq                 A pointer to iwreq_data structure
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_txpow(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_power_cfg_t power_cfg;
 
 	ENTER();
-	if (vwrq->disabled) {
+	if (vwrq_->disabled) {
 		woal_set_radio(priv, 0);
 		goto done;
 	}
 	woal_set_radio(priv, 1);
 
-	if (!vwrq->fixed)
+	if (!vwrq_->fixed)
 		power_cfg.is_power_auto = 1;
 	else {
 		power_cfg.is_power_auto = 0;
-		power_cfg.power_level = vwrq->value;
+		power_cfg.power_level = vwrq_->value;
 	}
 
 	if (MLAN_STATUS_SUCCESS !=
@@ -832,15 +833,16 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param vwrq                 A pointer to iwreq_data structure
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_txpow(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_power_cfg_t power_cfg;
 	mlan_bss_info bss_info;
@@ -857,16 +859,16 @@ static int woal_get_txpow(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq->value = power_cfg.power_level;
+	vwrq_->value = power_cfg.power_level;
 	if (power_cfg.is_power_auto)
-		vwrq->fixed = 0;
+		vwrq_->fixed = 0;
 	else
-		vwrq->fixed = 1;
+		vwrq_->fixed = 1;
 	if (bss_info.radio_on) {
-		vwrq->disabled = 0;
-		vwrq->flags = IW_TXPOW_DBM;
+		vwrq_->disabled = 0;
+		vwrq_->flags = IW_TXPOW_DBM;
 	} else {
-		vwrq->disabled = 1;
+		vwrq_->disabled = 1;
 	}
 
 done:
@@ -2587,6 +2589,59 @@ done:
 }
 
 /**
+ * @brief Request scan based on connect parameter
+ *
+ * @param priv            A pointer to moal_private structure
+ * @param ssid_bssid      A pointer to mlan_ssid_bssid structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int woal_owe_specific_scan(moal_private *priv,
+				  mlan_ssid_bssid *ssid_bssid)
+{
+	moal_handle *handle = priv->phandle;
+	int ret = 0;
+	wlan_user_scan_cfg *scan_req;
+	ENTER();
+	if (handle->scan_pending_on_block == MTRUE) {
+		PRINTM(MINFO, "scan already in processing...\n");
+		LEAVE();
+		return ret;
+	}
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	priv->report_scan_result = MTRUE;
+	memset(scan_req, 0x00, sizeof(wlan_user_scan_cfg));
+	scan_req->keep_previous_scan = MTRUE;
+	moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
+			ssid_bssid->trans_ssid.ssid,
+			ssid_bssid->trans_ssid.ssid_len,
+			sizeof(scan_req->ssid_list[0].ssid));
+	scan_req->ssid_list[0].max_len = 0;
+	scan_req->chan_list[0].chan_number = ssid_bssid->channel;
+	if (ssid_bssid->bss_band == BAND_A)
+		scan_req->chan_list[0].radio_type = BAND_5GHZ;
+	else
+		scan_req->chan_list[0].radio_type = BAND_2GHZ;
+	scan_req->chan_list[0].scan_time = 0;
+	// TODO need set to PASSIVE TO ACTIVE on DFS channel
+	scan_req->chan_list[0].scan_type = MLAN_SCAN_TYPE_ACTIVE;
+
+	moal_memcpy_ext(priv->phandle, scan_req->random_mac, priv->random_mac,
+			ETH_ALEN, sizeof(scan_req->random_mac));
+	ret = woal_request_userscan(priv, MOAL_IOCTL_WAIT, scan_req);
+	kfree(scan_req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set essid
  *
  *  @param dev          A pointer to net_device structure
@@ -2603,6 +2658,7 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 	struct iw_point *dwrq = &wrqu->data;
 	mlan_802_11_ssid req_ssid;
 	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *owe_ssid_bssid = NULL;
 #ifdef REASSOCIATION
 	moal_handle *handle = priv->phandle;
 	mlan_bss_info bss_info;
@@ -2740,6 +2796,34 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 			ret = -EFAULT;
 			goto setessid_ret;
 		}
+		if (ssid_bssid.trans_ssid.ssid_len &&
+		    (ssid_bssid.owe_transition_mode == OWE_TRANS_MODE_OPEN)) {
+			// We need scan for OWE AP
+			owe_ssid_bssid = (mlan_ssid_bssid *)kmalloc(
+				sizeof(mlan_ssid_bssid), GFP_KERNEL);
+			if (!owe_ssid_bssid) {
+				PRINTM(MERROR, "Malloc buffer failed\n");
+				ret = -ENOMEM;
+				goto setessid_ret;
+			}
+			woal_owe_specific_scan(priv, &ssid_bssid);
+			memset(owe_ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+			moal_memcpy_ext(priv->phandle, &owe_ssid_bssid->ssid,
+					&ssid_bssid.trans_ssid,
+					sizeof(mlan_802_11_ssid),
+					sizeof(owe_ssid_bssid->ssid));
+			moal_memcpy_ext(priv->phandle, &owe_ssid_bssid->bssid,
+					&ssid_bssid.trans_bssid,
+					sizeof(mlan_802_11_mac_addr),
+					sizeof(owe_ssid_bssid->bssid));
+			if (MLAN_STATUS_SUCCESS ==
+			    woal_find_essid(priv, owe_ssid_bssid,
+					    MOAL_IOCTL_WAIT))
+				moal_memcpy_ext(priv->phandle, &ssid_bssid,
+						owe_ssid_bssid,
+						sizeof(mlan_ssid_bssid),
+						sizeof(ssid_bssid));
+		}
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_11d_check_ap_channel(priv, MOAL_IOCTL_WAIT,
 					      &ssid_bssid)) {
@@ -2793,6 +2877,8 @@ setessid_ret:
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
 #endif
+	if (owe_ssid_bssid)
+		kfree(owe_ssid_bssid);
 	LEAVE();
 	return ret;
 }

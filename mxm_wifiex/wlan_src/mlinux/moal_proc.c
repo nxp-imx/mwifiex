@@ -409,6 +409,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	char *string = NULL;
+	char *tmp;
 	char *pos = NULL;
 	gfp_t flag;
 
@@ -420,6 +421,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 
 	moal_memcpy_ext(NULL, string, buffer + strlen("sdcmd52rw="),
 			len - strlen("sdcmd52rw="), CMD52_STR_LEN - 1);
+	tmp = string;
 	string = strstrip(string);
 
 	*func = -1;
@@ -440,7 +442,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 	pos = strsep(&string, " \t");
 	if (pos)
 		*val = woal_string_to_number(pos);
-	kfree(string);
+	kfree(tmp);
 	LEAVE();
 	return ret;
 }
@@ -785,7 +787,8 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[1]);
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[2]);
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[3]);
-			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[4]);
+			seq_printf(sfp, " %d",
+				   handle->rf_data->he_tb_tx_power[0]);
 		}
 		seq_printf(sfp, "\n");
 	}

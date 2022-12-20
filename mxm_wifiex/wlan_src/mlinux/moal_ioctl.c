@@ -267,6 +267,7 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	t_u8 chan2Offset = SEC_CHAN_NONE;
 	mlan_bss_info bss_info;
 
+	memset(&bss_info, 0, sizeof(bss_info));
 	/* Special Case: 20Mhz-only Channel */
 	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 	if (bss_info.region_code != COUNTRY_CODE_US && chan == 165)
@@ -1029,6 +1030,202 @@ done:
 }
 #endif
 
+#ifdef UAP_SUPPORT
+/**
+ *  @brief Check current uap/go connection status
+ *         Need handle channel switch if current channel is DFS channel
+ *
+ *  @param priv          A pointer to moal_private structure
+ *  @param wait_option          Wait option
+ *  @param new channel          new channel
+ *  @return              N/A
+ */
+static void woal_check_uap_dfs_status(moal_private *priv, t_u8 wait_option,
+				      t_u8 new_channel)
+{
+	chan_band_info channel;
+	mlan_bss_info bss_info;
+#if defined(UAP_SUPPORT)
+	IEEEtypes_ChanSwitchAnn_t *chan_switch = NULL;
+	IEEEtypes_ExtChanSwitchAnn_t *ext_chan_switch = NULL;
+	custom_ie *pcust_chansw_ie = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_u8 bw = 0, oper_class = 0;
+#endif
+
+	/* Get BSS information */
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_bss_info(priv, wait_option, &bss_info))
+		goto done;
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_get_ap_channel(priv, MLAN_ACT_GET, wait_option, &channel))
+		goto done;
+	PRINTM(MCMND, "is_11h_active=%d dfs_check_channel=%d\n",
+	       bss_info.is_11h_active, bss_info.dfs_check_channel);
+	PRINTM(MCMND, "uap current channel=%d new_channel=%d\n",
+	       channel.channel, new_channel);
+#if defined(UAP_SUPPORT)
+	if (new_channel == channel.channel)
+		goto done;
+	if (bss_info.is_11h_active &&
+	    (bss_info.dfs_check_channel == channel.channel)) {
+		if (new_channel < MAX_BG_CHANNEL) {
+			bw = 20;
+		} else {
+			switch (channel.bandcfg.chanWidth) {
+			case CHAN_BW_20MHZ:
+				bw = 20;
+				break;
+			case CHAN_BW_40MHZ:
+				bw = 40;
+				break;
+			case CHAN_BW_80MHZ:
+				bw = 80;
+				break;
+			default:
+				break;
+			}
+		}
+		woal_priv_get_nonglobal_operclass_by_bw_channel(
+			priv, bw, new_channel, &oper_class);
+		PRINTM(MCMND,
+		       "Switch the uap channel from %d to %d, oper_class=%d bw=%d\n",
+		       channel.channel, new_channel, oper_class, bw);
+		ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+		if (ioctl_req) {
+			misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+			misc->sub_command = MLAN_OID_MISC_CUSTOM_IE;
+			ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+			ioctl_req->action = MLAN_ACT_SET;
+			misc->param.cust_ie.type = TLV_TYPE_MGMT_IE;
+			misc->param.cust_ie.len =
+				sizeof(custom_ie) - MAX_IE_SIZE;
+			pcust_chansw_ie = (custom_ie *)&misc->param.cust_ie
+						  .ie_data_list[0];
+			pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
+			if (!oper_class) {
+				pcust_chansw_ie->ie_length =
+					sizeof(IEEEtypes_ChanSwitchAnn_t);
+				pcust_chansw_ie->mgmt_subtype_mask =
+					MGMT_MASK_BEACON |
+					MGMT_MASK_PROBE_RESP; /*Add IE for
+								 BEACON/probe
+								 resp*/
+				chan_switch =
+					(IEEEtypes_ChanSwitchAnn_t *)
+						pcust_chansw_ie->ie_buffer;
+				chan_switch->element_id = CHANNEL_SWITCH_ANN;
+				chan_switch->len =
+					sizeof(IEEEtypes_ChanSwitchAnn_t) -
+					sizeof(IEEEtypes_Header_t);
+				chan_switch->chan_switch_mode = 1; /* STA should
+								      not
+								      transmit
+								    */
+				chan_switch->new_channel_num = new_channel;
+				chan_switch->chan_switch_count =
+					DEF_CHAN_SWITCH_COUNT;
+				DBG_HEXDUMP(MCMD_D, "CSA IE",
+					    (t_u8 *)pcust_chansw_ie->ie_buffer,
+					    pcust_chansw_ie->ie_length);
+			} else {
+				pcust_chansw_ie->ie_length =
+					sizeof(IEEEtypes_ExtChanSwitchAnn_t);
+				pcust_chansw_ie->mgmt_subtype_mask =
+					MGMT_MASK_BEACON |
+					MGMT_MASK_PROBE_RESP; /*Add IE for
+								 BEACON/probe
+								 resp*/
+				ext_chan_switch =
+					(IEEEtypes_ExtChanSwitchAnn_t *)
+						pcust_chansw_ie->ie_buffer;
+				ext_chan_switch->element_id =
+					EXTEND_CHANNEL_SWITCH_ANN;
+				ext_chan_switch->len =
+					sizeof(IEEEtypes_ExtChanSwitchAnn_t) -
+					sizeof(IEEEtypes_Header_t);
+				ext_chan_switch->chan_switch_mode =
+					1; /* STA should not transmit */
+				ext_chan_switch->new_channel_num = new_channel;
+				ext_chan_switch->chan_switch_count =
+					DEF_CHAN_SWITCH_COUNT;
+				ext_chan_switch->new_oper_class = oper_class;
+				DBG_HEXDUMP(MCMD_D, "ECSA IE",
+					    (t_u8 *)pcust_chansw_ie->ie_buffer,
+					    pcust_chansw_ie->ie_length);
+			}
+			status = woal_request_ioctl(priv, ioctl_req,
+						    wait_option);
+			if (status != MLAN_STATUS_SUCCESS) {
+				PRINTM(MERROR, "Failed to set CSA IE\n");
+				goto done;
+			}
+			PRINTM(MCMND, "CSA/ECSA ie index=%d\n",
+			       pcust_chansw_ie->ie_index);
+			priv->phandle->chsw_wait_q_woken = MFALSE;
+			/* wait for channel switch to complete  */
+			wait_event_interruptible_timeout(
+				priv->phandle->chsw_wait_q,
+				priv->phandle->chsw_wait_q_woken,
+				(u32)HZ * (DEF_CHAN_SWITCH_COUNT + 2) * 110 /
+					1000);
+
+			pcust_chansw_ie->ie_index = 0xffff;
+			pcust_chansw_ie->mgmt_subtype_mask =
+				MLAN_CUSTOM_IE_DELETE_MASK;
+			status = woal_request_ioctl(priv, ioctl_req,
+						    MOAL_IOCTL_WAIT);
+			if (status != MLAN_STATUS_SUCCESS) {
+				PRINTM(MERROR, "Failed to clear CSA/ECSA IE\n");
+			}
+		}
+	}
+#endif
+done:
+#if defined(UAP_SUPPORT)
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+#endif
+	return;
+}
+
+/**
+ *  @brief Check current multi-channel connections
+ *
+ *  @param priv          A pointer to moal_private structure
+ *  @param wait_option          Wait option
+ *  @param new channel  new channel
+ *
+ *  @return              N/A
+ */
+void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
+			      t_u8 new_channel)
+{
+	moal_handle *handle = priv->phandle;
+#ifdef UAP_SUPPORT
+	int i;
+#endif
+	t_u16 enable = 0;
+
+	woal_mc_policy_cfg(priv, &enable, wait_option, MLAN_ACT_GET);
+	if (!enable)
+		return;
+#ifdef UAP_SUPPORT
+	for (i = 0; i < handle->priv_num; i++) {
+		if (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_UAP) {
+			if (handle->priv[i]->bss_started == MTRUE)
+				woal_check_uap_dfs_status(handle->priv[i],
+							  wait_option,
+							  new_channel);
+		}
+	}
+#endif
+	return;
+}
+#endif
+
 /**
  *  @brief Send bss_start command to MLAN
  *
@@ -1045,6 +1242,9 @@ mlan_status woal_bss_start(moal_private *priv, t_u8 wait_option,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
 	mlan_status status;
+#ifdef UAP_SUPPORT
+	mlan_ssid_bssid temp_ssid_bssid;
+#endif
 
 	ENTER();
 
@@ -1054,6 +1254,18 @@ mlan_status woal_bss_start(moal_private *priv, t_u8 wait_option,
 		if (netif_carrier_ok(priv->netdev))
 			netif_carrier_off(priv->netdev);
 	}
+#ifdef UAP_SUPPORT
+	if (!ssid_bssid) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	moal_memcpy_ext(priv->phandle, &temp_ssid_bssid, ssid_bssid,
+			sizeof(mlan_ssid_bssid), sizeof(mlan_ssid_bssid));
+	if (MLAN_STATUS_SUCCESS ==
+	    woal_find_best_network(priv, wait_option, &temp_ssid_bssid))
+		woal_check_mc_connection(priv, wait_option,
+					 temp_ssid_bssid.channel);
+#endif
 
 	/* Allocate an IOCTL request buffer */
 	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
@@ -2941,6 +3153,7 @@ done:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 /**
  *  @brief Enable IPv6 Neighbor Solicitation offload
  *
@@ -3016,6 +3229,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 /**
  *  @brief Set auto arp resp
@@ -4546,6 +4760,10 @@ int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+#ifdef UAP_SUPPORT
+	chan_band_info chan;
+	chan_band_info uapchan;
+#endif
 
 	ENTER();
 
@@ -4566,6 +4784,41 @@ int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	}
 
 	if (woal_is_any_interface_active(priv->phandle)) {
+#ifdef UAP_SUPPORT
+		/* When any other interface is active
+		 * Get rid of CAC timer when drcs is disabled */
+		t_u16 enable = 0;
+		if (priv->phandle->card_info->drcs)
+			ret = woal_mc_policy_cfg(priv, &enable, wait_option,
+						 MLAN_ACT_GET);
+		if (!enable) {
+			LEAVE();
+			return ret;
+		} else {
+			woal_get_active_intf_channel(priv, &chan);
+			woal_set_get_ap_channel(priv, MLAN_ACT_GET,
+						MOAL_IOCTL_WAIT, &uapchan);
+			if (chan.channel != uapchan.channel) {
+				if (uapchan.is_dfs_chan) {
+					PRINTM(MERROR,
+					       "DFS channel is not allowed when another connection exists on different channel\n");
+					PRINTM(MERROR,
+					       "Another connection's channel=%d, dfs channel=%d\n",
+					       chan.channel, uapchan.channel);
+					return -EINVAL;
+				} else {
+					// check if we need move first uap0 from
+					// DFS channel to new non dfs channel
+					woal_check_mc_connection(
+						priv, wait_option,
+						uapchan.channel);
+				}
+			}
+		}
+#else
+		LEAVE();
+		return status;
+#endif
 	}
 
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
@@ -7275,6 +7528,50 @@ done:
 #endif
 
 /**
+ * @brief Set/Get configure multi-channel policy
+ *
+ * @param priv		A pointer to moal_private structure
+ * @param enable	A pointer to enable
+ * @param wait_option	wait_option of ioctl
+ * @param action	action of ioctl
+ *
+ * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
+ */
+mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
+			       t_u8 wait_option, t_u8 action)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_MULTI_CHAN_POLICY;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = action;
+	if (MLAN_ACT_SET == action)
+		cfg->param.multi_chan_policy = *enable;
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status != MLAN_STATUS_SUCCESS)
+		goto done;
+	if (MLAN_ACT_GET == action)
+		*enable = cfg->param.multi_chan_policy;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}
+
+/**
  *  @brief Set hotspot configuration value to mlan layer
  *
  *  @param priv         A pointer to moal_private structure
@@ -7354,7 +7651,7 @@ mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
 	net_mon->enable_net_mon = enable;
 	if (net_mon->enable_net_mon) {
 		net_mon->filter_flag = filter;
-		if (net_mon->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
+		if (band_chan_cfg && band_chan_cfg->channel) {
 			net_mon->band = band_chan_cfg->band;
 			net_mon->channel = band_chan_cfg->channel;
 			net_mon->chan_bandwidth = band_chan_cfg->chan_bandwidth;
@@ -7367,6 +7664,14 @@ mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
 		goto done;
 	}
 
+	/* update chan band values from response in band_chan_cfg */
+	if (net_mon->enable_net_mon) {
+		if (band_chan_cfg) {
+			band_chan_cfg->band = net_mon->band;
+			band_chan_cfg->channel = net_mon->channel;
+			band_chan_cfg->chan_bandwidth = net_mon->chan_bandwidth;
+		}
+	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -7541,15 +7846,16 @@ static int parse_radio_mode_string(const char *s, size_t len,
 	return ret;
 }
 
+#ifdef SD9177
 /*
- *  @brief PoweLevelToDUT11Bits
+ *  @brief PowerLevelToDUT11Bits
  *
  *  @param Pwr		A user txpwr values of type int
  *  @param PowerLevel	A Pointer of uint32 type for converted txpwr vals
  *  @return		nothing just exit
  */
 
-static void PoweLevelToDUT11Bits(int Pwr, t_u32 *PowerLevel)
+static void PowerLevelToDUT11Bits(int Pwr, t_u32 *PowerLevel)
 {
 	int Z = 0;
 
@@ -7564,6 +7870,7 @@ static void PoweLevelToDUT11Bits(int Pwr, t_u32 *PowerLevel)
 
 	return;
 }
+#endif
 
 /*
  *  @brief Parse mfg cmd tx pwr string
@@ -7583,9 +7890,11 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 	char *tmp = NULL;
 	char *pos = NULL;
 	gfp_t flag;
+#ifdef SD9177
 	t_u32 tx_pwr_converted = 0xffffffff;
 	int tx_pwr_local = 0;
 	t_u8 fc_card = MFALSE;
+#endif
 
 	ENTER();
 	if (!s || !d) {
@@ -7611,13 +7920,16 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 
 	/* tx power value */
 	pos = strsep(&string, " \t");
+#ifdef SD9177
 	if (fc_card && pos) {
 		/* for sd9177 we need to convert user power vals including -ve
 		 * vals as per labtool */
 		tx_pwr_local = woal_string_to_number(pos);
-		PoweLevelToDUT11Bits(tx_pwr_local, &tx_pwr_converted);
+		PowerLevelToDUT11Bits(tx_pwr_local, &tx_pwr_converted);
 		d->data1 = tx_pwr_converted;
-	} else if (pos) {
+	} else
+#endif
+		if (pos) {
 		d->data1 = (t_u32)woal_string_to_number(pos);
 	}
 	/* modulation */
@@ -7630,7 +7942,11 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 	if (pos)
 		d->data3 = (t_u32)woal_string_to_number(pos);
 
+#ifdef SD9177
 	if (((!fc_card) && (d->data1 > 24)) || (d->data2 > 2))
+#else
+	if ((d->data1 > 24) || (d->data2 > 2))
+#endif
 		ret = -EINVAL;
 
 	kfree(tmp);
@@ -8184,7 +8500,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		handle->rf_data->he_tb_tx[2] = misc->param.mfg_he_power.aid;
 		handle->rf_data->he_tb_tx[3] =
 			misc->param.mfg_he_power.axq_mu_timer;
-		handle->rf_data->he_tb_tx[4] =
+		handle->rf_data->he_tb_tx_power[0] =
 			misc->param.mfg_he_power.tx_power;
 		break;
 	}

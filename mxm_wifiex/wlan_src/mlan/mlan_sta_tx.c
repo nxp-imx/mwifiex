@@ -256,6 +256,12 @@ mlan_status wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+#if defined(USB)
+	if (!wlan_is_port_ready(pmadapter, priv->port_index)) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+#endif
 
 	pmbuf = wlan_alloc_mlan_buffer(pmadapter, data_len, 0,
 				       MOAL_MALLOC_BUFFER);

@@ -42,17 +42,6 @@ Change log:
 		Local Variables
 ********************************************************/
 
-/** Ethernet II header */
-typedef struct {
-	/** Ethernet II header destination address */
-	t_u8 dest_addr[MLAN_MAC_ADDR_LENGTH];
-	/** Ethernet II header source address */
-	t_u8 src_addr[MLAN_MAC_ADDR_LENGTH];
-	/** Ethernet II header length */
-	t_u16 ethertype;
-
-} EthII_Hdr_t;
-
 /** IPv4 ARP request header */
 typedef MLAN_PACK_START struct {
 	/** Hardware type */
@@ -614,8 +603,10 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	       pmbuf->out_ts_sec, pmbuf->out_ts_usec, prx_pd->seq_num,
 	       prx_pd->priority);
 	if (pmadapter->enable_net_mon) {
-		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
-		goto mon_process;
+		if (prx_pd->rx_pkt_type == PKT_TYPE_802DOT11) {
+			pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
+			goto mon_process;
+		}
 	}
 
 #ifdef DRV_EMBEDDED_SUPPLICANT

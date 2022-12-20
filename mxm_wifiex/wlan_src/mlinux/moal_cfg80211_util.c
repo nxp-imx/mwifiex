@@ -616,6 +616,7 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 	char end_c = '\0';
 	int ret = 0;
 	char fw_ver[32] = {0};
+	t_u8 hotfix_ver = 0;
 	union {
 		t_u32 l;
 		t_u8 c[4];
@@ -623,9 +624,15 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 
 	ENTER();
 
+	hotfix_ver = priv->phandle->fw_hotfix_version;
 	ver.l = priv->phandle->fw_release_number;
-	snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u%c", ver.c[2], ver.c[1],
-		 ver.c[0], ver.c[3], end_c);
+	if (hotfix_ver) {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u.%u%c", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3], hotfix_ver, end_c);
+	} else {
+		snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u%c", ver.c[2],
+			 ver.c[1], ver.c[0], ver.c[3], end_c);
+	}
 	reply_len = strlen(fw_ver) + 1;
 
 	/** Allocate skb for cmd reply*/
@@ -2851,7 +2858,7 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		 * 24days.
 		 */
 		if (inter_msec > max_msec) {
-			PRINTM(MMSG,
+			PRINTM(MINFO,
 			       "Out of range, set inter_msec=%llu to max_msec=%llu\n",
 			       inter_msec, max_msec);
 			inter_msec = max_msec;
