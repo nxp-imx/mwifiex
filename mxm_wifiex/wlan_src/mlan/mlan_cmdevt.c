@@ -4477,6 +4477,32 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 			goto done;
 		}
 	}
+	if (pmadapter->init_para.drcs_chantime_mode) {
+		mlan_ds_drcs_cfg drcs_init_cfg[2];
+		drcs_init_cfg[0].chan_idx = 0x1;
+		drcs_init_cfg[0].chantime =
+			(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 8);
+		/* switchtime use default value in fw*/
+		drcs_init_cfg[0].switchtime = 10;
+		drcs_init_cfg[0].undozetime = 5;
+		drcs_init_cfg[0].mode =
+			(t_u8)(pmadapter->init_para.drcs_chantime_mode);
+		drcs_init_cfg[1].chan_idx = 0x2;
+		drcs_init_cfg[1].chantime =
+			(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 24);
+		/* switchtime use default value in fw*/
+		drcs_init_cfg[1].switchtime = 10;
+		drcs_init_cfg[1].undozetime = 5;
+		drcs_init_cfg[1].mode =
+			(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 16);
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DRCS_CONFIG,
+				       HostCmd_ACT_GEN_SET, 0, MNULL,
+				       (t_void *)drcs_init_cfg);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_RF_ANTENNA,
 			       HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
@@ -4673,10 +4699,19 @@ static mlan_status wlan_get_vdll_image(pmlan_adapter pmadapter, t_u32 vdll_len)
 	ENTER();
 
 	if (ctrl->vdll_mem) {
-		PRINTM(MCMND, "VDLL mem is not empty: %p len=%d\n",
-		       ctrl->vdll_mem, ctrl->vdll_len);
-		goto done;
+		PRINTM(MCMND,
+		       "VDLL mem is not empty: %p old_len=%d new_len=%d\n",
+		       ctrl->vdll_mem, ctrl->vdll_len, vdll_len);
+		if (pcb->moal_vmalloc && pcb->moal_vfree)
+			pcb->moal_vfree(pmadapter->pmoal_handle,
+					(t_u8 *)ctrl->vdll_mem);
+		else
+			pcb->moal_mfree(pmadapter->pmoal_handle,
+					(t_u8 *)ctrl->vdll_mem);
+		ctrl->vdll_mem = MNULL;
+		ctrl->vdll_len = 0;
 	}
+
 	if (pcb->moal_vmalloc && pcb->moal_vfree)
 		status = pcb->moal_vmalloc(pmadapter->pmoal_handle, vdll_len,
 					   (t_u8 **)&ctrl->vdll_mem);
@@ -4834,6 +4869,454 @@ mlan_status wlan_process_csi_event(pmlan_private pmpriv)
 
 	LEAVE();
 	return status;
+}
+
+/**
+ *  @brief This function handle the multi_chan info event
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pevent       A pointer to event buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_handle_event_multi_chan_info(pmlan_private pmpriv,
+					      pmlan_buffer pevent)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	t_u32 interfaces = 0;
+	MrvlIEtypes_multi_chan_info_t *pmulti_chan_info = MNULL;
+	MrvlIEtypes_multi_chan_group_info_t *pmulti_chan_grp_info = MNULL;
+	int tlv_buf_left = pevent->data_len - sizeof(mlan_event_id);
+	t_u16 tlv_type, tlv_len;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_private intf_priv = MNULL;
+	int num_intf = 0, bss_type = 0, bss_num = 0;
+	MrvlIEtypesHeader_t *tlv = MNULL;
+
+	ENTER();
+
+	PRINTM(MEVENT, "multi channel event\n");
+	pmulti_chan_info =
+		(MrvlIEtypes_multi_chan_info_t *)(pevent->pbuf +
+						  pevent->data_offset +
+						  sizeof(mlan_event_id));
+	if (tlv_buf_left < (int)(sizeof(MrvlIEtypes_multi_chan_info_t)) ||
+	    wlan_le16_to_cpu(pmulti_chan_info->header.type) !=
+		    TLV_TYPE_MULTI_CHAN_INFO) {
+		PRINTM(MERROR, "Invalid multi channel event\n");
+		goto done;
+	}
+
+	pmadapter->mc_status = wlan_le16_to_cpu(pmulti_chan_info->status);
+	PRINTM(MEVENT, "mc_status=%d\n", pmadapter->mc_status);
+	tlv_buf_left -= sizeof(MrvlIEtypes_multi_chan_info_t);
+	tlv = (MrvlIEtypesHeader_t *)pmulti_chan_info->tlv_buffer;
+
+	while (tlv_buf_left >= (int)sizeof(MrvlIEtypesHeader_t)) {
+		tlv_type = wlan_le16_to_cpu(tlv->type);
+		tlv_len = wlan_le16_to_cpu(tlv->len);
+		if ((sizeof(MrvlIEtypesHeader_t) + tlv_len) >
+		    (unsigned int)tlv_buf_left) {
+			PRINTM(MERROR, "wrong tlv: tlvLen=%d, tlvBufLeft=%d\n",
+			       tlv_len, tlv_buf_left);
+			break;
+		}
+		if (tlv_type != TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID) {
+			PRINTM(MERROR, "wrong tlv type:0x%x\n", tlv_type);
+			break;
+		}
+		pmulti_chan_grp_info =
+			(MrvlIEtypes_multi_chan_group_info_t *)tlv;
+		PRINTM(MEVENT, "mc_info: groupid=%d chan=%d, numintf=%d\n",
+		       pmulti_chan_grp_info->chan_group_id,
+		       pmulti_chan_grp_info->chan_band_info.chan_num,
+		       pmulti_chan_grp_info->num_intf);
+		num_intf = pmulti_chan_grp_info->num_intf;
+		for (interfaces = 0; interfaces < (t_u32)num_intf;
+		     interfaces++) {
+			bss_type = pmulti_chan_grp_info
+					   ->bss_type_numlist[interfaces] >>
+				   4;
+			bss_num = pmulti_chan_grp_info
+					  ->bss_type_numlist[interfaces] &
+				  BSS_NUM_MASK;
+			PRINTM(MEVENT, "intf%d: bss_type=%d bss_num=%d\n",
+			       interfaces, bss_type, bss_num);
+			intf_priv = wlan_get_priv_by_id(pmadapter, bss_num,
+							bss_type);
+			if (intf_priv) {
+#ifdef USB
+				if (IS_USB(pmadapter->card_type)) {
+					if (pmulti_chan_grp_info->hid_num
+							    .usb_epnum ==
+						    MLAN_USB_EP_DATA ||
+					    pmulti_chan_grp_info->hid_num
+							    .usb_epnum ==
+						    MLAN_USB_EP_DATA_CH2 ||
+					    pmulti_chan_grp_info->hid_num
+							    .usb_epnum ==
+						    MLAN_USB_EP_DATA_IF2 ||
+					    pmulti_chan_grp_info->hid_num
+							    .usb_epnum ==
+						    MLAN_USB_EP_DATA_CH2_IF2) {
+						intf_priv->port =
+							pmulti_chan_grp_info
+								->hid_num
+								.usb_epnum;
+						intf_priv->port_index =
+							wlan_get_port_index(
+								pmadapter,
+								intf_priv->port);
+						PRINTM(MEVENT,
+						       "intf%d: bss_type=%d bss_num=%d port=%d index=%d\n",
+						       interfaces, bss_type,
+						       bss_num, intf_priv->port,
+						       intf_priv->port_index);
+
+					} else
+						PRINTM(MERROR,
+						       "Invalid Endpoint num in multi_channel event\n");
+				}
+#endif
+			} else {
+				PRINTM(MERROR,
+				       "Invalid bss_type, bss_num in multi_channel event\n");
+			}
+		}
+
+		tlv_buf_left -= (sizeof(MrvlIEtypesHeader_t) + tlv_len);
+		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
+					      sizeof(MrvlIEtypesHeader_t));
+	}
+
+#ifdef USB
+	if (IS_USB(pmadapter->card_type)) {
+		wlan_resync_usb_port(pmadapter);
+	}
+#endif
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function prepares the command MULTI_CHAN_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_multi_chan_cfg(pmlan_private pmpriv,
+				    HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
+				    t_void *pdata_buf)
+{
+	mlan_ds_multi_chan_cfg *multi_chan_cfg =
+		(mlan_ds_multi_chan_cfg *)pdata_buf;
+	HostCmd_DS_MULTI_CHAN_CFG *pmchan_cfg =
+		(HostCmd_DS_MULTI_CHAN_CFG *)&cmd->params.multi_chan_cfg;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_MULTI_CHAN_CONFIG);
+	pmchan_cfg->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		pmchan_cfg->buffer_weight = multi_chan_cfg->buffer_weight;
+		pmchan_cfg->channel_time =
+			wlan_cpu_to_le32(multi_chan_cfg->channel_time);
+		PRINTM(MCMND,
+		       "Set multi-channel: buffer_weight=%d channel_time=%d\n",
+		       multi_chan_cfg->buffer_weight,
+		       multi_chan_cfg->channel_time);
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN +
+					     sizeof(HostCmd_DS_MULTI_CHAN_CFG));
+	} else {
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(cmd_action));
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of MULTI_CHAN_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_multi_chan_cfg(pmlan_private pmpriv,
+				    const HostCmd_DS_COMMAND *resp,
+				    mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_MULTI_CHAN_CFG *presp_cfg =
+		&resp->params.multi_chan_cfg;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		pcfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		pcfg->param.multi_chan_cfg.channel_time =
+			wlan_le32_to_cpu(presp_cfg->channel_time);
+		pcfg->param.multi_chan_cfg.buffer_weight =
+			presp_cfg->buffer_weight;
+		pcfg->param.multi_chan_cfg.tlv_len =
+			resp->size - (sizeof(HostCmd_DS_GEN) +
+				      sizeof(HostCmd_DS_MULTI_CHAN_CFG));
+		PRINTM(MCMND,
+		       "Get multi-channel: buffer_weight=%d channel_time=%d tlv_len=%d\n",
+		       pcfg->param.multi_chan_cfg.buffer_weight,
+		       pcfg->param.multi_chan_cfg.channel_time,
+		       pcfg->param.multi_chan_cfg.tlv_len);
+		memcpy_ext(pmpriv->adapter, pcfg->param.multi_chan_cfg.tlv_buf,
+			   presp_cfg->tlv_buf,
+			   pcfg->param.multi_chan_cfg.tlv_len,
+			   pcfg->param.multi_chan_cfg.tlv_len);
+		pioctl_buf->buf_len = sizeof(mlan_ds_multi_chan_cfg) +
+				      pcfg->param.multi_chan_cfg.tlv_len;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares the command MULTI_CHAN_POLICY
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_multi_chan_policy(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *cmd,
+				       t_u16 cmd_action, t_void *pdata_buf)
+{
+	t_u16 policy = 0;
+	HostCmd_DS_MULTI_CHAN_POLICY *pmulti_chan_policy =
+		(HostCmd_DS_MULTI_CHAN_POLICY *)&cmd->params.multi_chan_policy;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_MULTI_CHAN_POLICY);
+	pmulti_chan_policy->action = wlan_cpu_to_le16(cmd_action);
+	cmd->size = wlan_cpu_to_le16(S_DS_GEN +
+				     sizeof(HostCmd_DS_MULTI_CHAN_POLICY));
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		policy = *((t_u16 *)pdata_buf);
+		pmulti_chan_policy->policy = wlan_cpu_to_le16(policy);
+		PRINTM(MCMND, "Set multi-channel policy: %d\n", policy);
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of MULTI_CHAN_POLICY
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_multi_chan_policy(pmlan_private pmpriv,
+				       const HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_MULTI_CHAN_POLICY *presp_cfg =
+		&resp->params.multi_chan_policy;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		pcfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		pcfg->param.multi_chan_policy =
+			wlan_le16_to_cpu(presp_cfg->policy);
+
+		if (pioctl_buf->action == HostCmd_ACT_GEN_SET) {
+			if (pcfg->param.multi_chan_policy)
+				pmpriv->adapter->mc_policy = MTRUE;
+			else
+				pmpriv->adapter->mc_policy = MFALSE;
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares the command DRCD_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_drcs_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			      t_u16 cmd_action, t_void *pdata_buf)
+{
+	mlan_ds_drcs_cfg *drcs_cfg = (mlan_ds_drcs_cfg *)pdata_buf;
+	HostCmd_DS_DRCS_CFG *pdrcs_cfg =
+		(HostCmd_DS_DRCS_CFG *)&cmd->params.drcs_cfg;
+	MrvlTypes_DrcsTimeSlice_t *channel_time_slicing =
+		&pdrcs_cfg->time_slicing;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_DRCS_CONFIG);
+	pdrcs_cfg->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		channel_time_slicing->header.type =
+			wlan_cpu_to_le16(MRVL_DRCS_TIME_SLICE_TLV_ID);
+		channel_time_slicing->header.len =
+			wlan_cpu_to_le16(sizeof(MrvlTypes_DrcsTimeSlice_t) -
+					 sizeof(MrvlIEtypesHeader_t));
+		channel_time_slicing->chan_idx =
+			wlan_cpu_to_le16(drcs_cfg->chan_idx);
+		channel_time_slicing->chantime = drcs_cfg->chantime;
+		channel_time_slicing->switchtime = drcs_cfg->switchtime;
+		channel_time_slicing->undozetime = drcs_cfg->undozetime;
+		channel_time_slicing->mode = drcs_cfg->mode;
+		PRINTM(MCMND,
+		       "Set multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+		       channel_time_slicing->chan_idx,
+		       channel_time_slicing->chantime,
+		       channel_time_slicing->switchtime,
+		       channel_time_slicing->undozetime,
+		       channel_time_slicing->mode);
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN +
+					     sizeof(HostCmd_DS_DRCS_CFG));
+		/* Set two channels different parameters */
+		if (0x3 != channel_time_slicing->chan_idx) {
+			drcs_cfg++;
+			channel_time_slicing = pdrcs_cfg->drcs_buf;
+			channel_time_slicing->header.type =
+				wlan_cpu_to_le16(MRVL_DRCS_TIME_SLICE_TLV_ID);
+			channel_time_slicing->header.len = wlan_cpu_to_le16(
+				sizeof(MrvlTypes_DrcsTimeSlice_t) -
+				sizeof(MrvlIEtypesHeader_t));
+			channel_time_slicing->chan_idx =
+				wlan_cpu_to_le16(drcs_cfg->chan_idx);
+			channel_time_slicing->chantime = drcs_cfg->chantime;
+			channel_time_slicing->switchtime = drcs_cfg->switchtime;
+			channel_time_slicing->undozetime = drcs_cfg->undozetime;
+			channel_time_slicing->mode = drcs_cfg->mode;
+			PRINTM(MCMND,
+			       "Set multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+			       channel_time_slicing->chan_idx,
+			       channel_time_slicing->chantime,
+			       channel_time_slicing->switchtime,
+			       channel_time_slicing->undozetime,
+			       channel_time_slicing->mode);
+			cmd->size += wlan_cpu_to_le16(
+				sizeof(MrvlTypes_DrcsTimeSlice_t));
+		}
+	} else {
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(cmd_action));
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of DRCS_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_drcs_cfg(pmlan_private pmpriv,
+			      const HostCmd_DS_COMMAND *resp,
+			      mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_DRCS_CFG *presp_cfg = &resp->params.drcs_cfg;
+	const MrvlTypes_DrcsTimeSlice_t *channel_time_slicing =
+		&presp_cfg->time_slicing;
+	const MrvlTypes_DrcsTimeSlice_t *channel_time_slicing1 = MNULL;
+	mlan_ds_drcs_cfg *drcs_cfg1 = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		pcfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		if (wlan_le16_to_cpu(channel_time_slicing->header.type) !=
+			    MRVL_DRCS_TIME_SLICE_TLV_ID ||
+		    wlan_le16_to_cpu(channel_time_slicing->header.len) !=
+			    sizeof(MrvlTypes_DrcsTimeSlice_t) -
+				    sizeof(MrvlIEtypesHeader_t)) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+		pcfg->param.drcs_cfg[0].chan_idx =
+			wlan_le16_to_cpu(channel_time_slicing->chan_idx);
+		pcfg->param.drcs_cfg[0].chantime =
+			channel_time_slicing->chantime;
+		pcfg->param.drcs_cfg[0].switchtime =
+			channel_time_slicing->switchtime;
+		pcfg->param.drcs_cfg[0].undozetime =
+			channel_time_slicing->undozetime;
+		pcfg->param.drcs_cfg[0].mode = channel_time_slicing->mode;
+		PRINTM(MCMND,
+		       "multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+		       pcfg->param.drcs_cfg[0].chan_idx,
+		       channel_time_slicing->chantime,
+		       channel_time_slicing->switchtime,
+		       channel_time_slicing->undozetime,
+		       channel_time_slicing->mode);
+		pioctl_buf->buf_len = sizeof(mlan_ds_drcs_cfg);
+		/*Channel for chan_idx 1 and 2 have different parameters*/
+		if (0x3 != pcfg->param.drcs_cfg[0].chan_idx) {
+			channel_time_slicing1 = presp_cfg->drcs_buf;
+			if (wlan_le16_to_cpu(
+				    channel_time_slicing1->header.type) !=
+				    MRVL_DRCS_TIME_SLICE_TLV_ID ||
+			    wlan_le16_to_cpu(
+				    channel_time_slicing1->header.len) !=
+				    sizeof(MrvlTypes_DrcsTimeSlice_t) -
+					    sizeof(MrvlIEtypesHeader_t)) {
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
+			drcs_cfg1 =
+				(mlan_ds_drcs_cfg *)&pcfg->param.drcs_cfg[1];
+			drcs_cfg1->chan_idx = wlan_le16_to_cpu(
+				channel_time_slicing1->chan_idx);
+			drcs_cfg1->chantime = channel_time_slicing1->chantime;
+			drcs_cfg1->switchtime =
+				channel_time_slicing1->switchtime;
+			drcs_cfg1->undozetime =
+				channel_time_slicing1->undozetime;
+			drcs_cfg1->mode = channel_time_slicing1->mode;
+			PRINTM(MCMND,
+			       "multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+			       drcs_cfg1->chan_idx, drcs_cfg1->chantime,
+			       drcs_cfg1->switchtime, drcs_cfg1->undozetime,
+			       drcs_cfg1->mode);
+			pioctl_buf->buf_len += sizeof(mlan_ds_drcs_cfg);
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
 }
 
 /**
@@ -5422,7 +5905,7 @@ mlan_status wlan_cmd_802_11_radio_control(pmlan_private pmpriv,
 					  t_u16 cmd_action, t_void *pdata_buf)
 {
 	HostCmd_DS_802_11_RADIO_CONTROL *pradio_control = &cmd->params.radio;
-	t_u32 radio_ctl;
+	t_u32 radio_ctl = 0;
 	ENTER();
 	cmd->size = wlan_cpu_to_le16((sizeof(HostCmd_DS_802_11_RADIO_CONTROL)) +
 				     S_DS_GEN);
@@ -7495,8 +7978,12 @@ mlan_status wlan_ret_chan_region_cfg(pmlan_private pmpriv,
 	/* Add FW cfp tables and region info */
 	wlan_add_fw_cfp_tables(pmpriv, tlv_buf, tlv_buf_left);
 	if (pmadapter->otp_region) {
-		wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
-				     pmadapter->fw_bands);
+		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
+					 pmadapter->fw_bands)) {
+			PRINTM(MERROR,
+			       "Set region table failure!! region_code = 0x%X, fw_bands = 0x%X\n",
+			       pmadapter->region_code, pmadapter->fw_bands);
+		}
 	}
 	if (!pioctl_buf)
 		goto done;
@@ -9211,6 +9698,7 @@ mlan_status wlan_cmd_get_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	cfg_cmd->noise = wlan_cpu_to_le16(cfg->noise);
 	cfg_cmd->rx_quality = wlan_cpu_to_le16(cfg->rx_quality);
 	cfg_cmd->duration = wlan_cpu_to_le16(cfg->duration);
+	cfg_cmd->cca_th = wlan_cpu_to_le16(cfg->cca_th);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

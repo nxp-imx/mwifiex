@@ -1953,12 +1953,16 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				skb_put(skb, pmbuf->data_len);
 			}
 			ethh = (struct ethhdr *)(skb->data);
-			if (ntohs(ethh->h_proto) == ETH_P_PAE)
+			if (ntohs(ethh->h_proto) == ETH_P_PAE) {
 				PRINTM(MEVENT,
 				       "wlan: %s Rx EAPOL pkt from " MACSTR
 				       "\n",
 				       priv->netdev->name,
 				       MAC2STR(ethh->h_source));
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+				priv->deauth_evt_cnt = 0;
+#endif
+			}
 			if (!netdev)
 				netdev = priv->netdev;
 			skb->dev = netdev;
@@ -2811,6 +2815,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		if (IS_STA_WEXT(cfg80211_wext))
 			woal_send_iwevcustom_event(priv, CUS_EVT_PORT_RELEASE);
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		priv->deauth_evt_cnt = 0;
+#endif
 		woal_broadcast_event(priv, CUS_EVT_PORT_RELEASE,
 				     strlen(CUS_EVT_PORT_RELEASE));
 		break;
@@ -3293,7 +3300,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			wake_up_interruptible(&priv->phandle->chsw_wait_q);
 		}
 #endif
-
+		snprintf(event_buf, sizeof(event_buf) - 1, "%s %d",
+			 CUS_EVT_CHAN_SWITCH_COMPLETE, pchan_info->channel);
+		woal_broadcast_event(priv, event_buf, strlen(event_buf));
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 			PRINTM(MMSG,
 			       "CSA/ECSA: Switch to new channel %d complete!\n",
@@ -3757,6 +3766,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						    ((struct ieee80211_mgmt *)
 							     pkt)
 							    ->frame_control)) {
+						priv->auth_tx_cnt = 0;
 						PRINTM(MEVENT,
 						       "HostMlme %s: Received auth frame type = 0x%x\n",
 						       priv->netdev->name,
@@ -3800,6 +3810,27 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 							PRINTM(MEVENT,
 							       "HostMlme: Drop deauth/disassociate, current_bss = null\n");
 							break;
+						}
+
+						if (ieee80211_is_deauth(
+							    ((struct ieee80211_mgmt
+								      *)pkt)
+								    ->frame_control)) {
+							/* subtype 12 deauth
+							 * packet */
+							priv->deauth_evt_cnt++;
+#define MAX_DEAUTH_COUNTER 5
+							if (priv->deauth_evt_cnt >=
+							    MAX_DEAUTH_COUNTER) {
+								if (woal_reset_wifi(
+									    priv->phandle,
+									    priv->deauth_evt_cnt,
+									    "EAPOL timeout") ==
+								    MLAN_STATUS_SUCCESS) {
+									priv->deauth_evt_cnt =
+										0;
+								}
+							}
 						}
 						priv->cfg_disconnect = MTRUE;
 						woal_mgmt_frame_register(

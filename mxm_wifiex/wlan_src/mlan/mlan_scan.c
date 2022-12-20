@@ -1740,6 +1740,7 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 	IEEEtypes_VendorSpecific_t *pvendor_ie;
 	const t_u8 wpa_oui[4] = {0x00, 0x50, 0xf2, 0x01};
 	const t_u8 wmm_oui[4] = {0x00, 0x50, 0xf2, 0x02};
+	const t_u8 owe_oui[4] = {0x50, 0x6f, 0x9a, 0x1c};
 	const t_u8 osen_oui[] = {0x50, 0x6f, 0x9a, 0x12};
 
 	IEEEtypes_CountryInfoSet_t *pcountry_info;
@@ -2079,6 +2080,54 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 						(t_u8 *)&pbss_entry->wmm_ie,
 						total_ie_len);
 				}
+			} else if (IS_FW_SUPPORT_EMBEDDED_OWE(pmadapter) &&
+				   !memcmp(pmadapter, pvendor_ie->vend_hdr.oui,
+					   owe_oui, sizeof(owe_oui))) {
+				/* Current Format of OWE IE is
+				 * element_id:element_len:oui:MAC Address:SSID
+				 * length:SSID */
+				t_u8 trans_ssid_len = *(
+					pcurrent_ptr +
+					sizeof(IEEEtypes_Header_t) +
+					sizeof(owe_oui) + MLAN_MAC_ADDR_LENGTH);
+
+				if (!trans_ssid_len ||
+				    trans_ssid_len > MRVDRV_MAX_SSID_LENGTH) {
+					bytes_left_for_current_beacon = 0;
+					continue;
+				}
+				if (!pcap_info->privacy)
+					pbss_entry->owe_transition_mode =
+						OWE_TRANS_MODE_OPEN;
+				else
+					pbss_entry->owe_transition_mode =
+						OWE_TRANS_MODE_OWE;
+
+				memcpy_ext(
+					pmadapter,
+					pbss_entry->trans_mac_address,
+					(pcurrent_ptr +
+					 sizeof(IEEEtypes_Header_t) +
+					 sizeof(owe_oui)),
+					MLAN_MAC_ADDR_LENGTH,
+					sizeof(pbss_entry->trans_mac_address));
+				pbss_entry->trans_ssid.ssid_len =
+					trans_ssid_len;
+				memcpy_ext(
+					pmadapter, pbss_entry->trans_ssid.ssid,
+					(pcurrent_ptr +
+					 sizeof(IEEEtypes_Header_t) +
+					 sizeof(owe_oui) +
+					 MLAN_MAC_ADDR_LENGTH + sizeof(t_u8)),
+					trans_ssid_len,
+					sizeof(pbss_entry->trans_ssid.ssid));
+
+				PRINTM(MCMND,
+				       "InterpretIE: OWE Transition AP privacy=%d MAC Addr-" MACSTR
+				       " ssid %s\n",
+				       pbss_entry->owe_transition_mode,
+				       MAC2STR(pbss_entry->trans_mac_address),
+				       pbss_entry->trans_ssid.ssid);
 			} else if (!memcmp(pmadapter, pvendor_ie->vend_hdr.oui,
 					   osen_oui, sizeof(osen_oui))) {
 				pbss_entry->posen_ie =
@@ -3781,6 +3830,13 @@ t_s32 wlan_is_network_compatible(mlan_private *pmpriv, t_u32 index, t_u32 mode)
 		LEAVE();
 		return index;
 	}
+	if ((pbss_desc->owe_transition_mode == OWE_TRANS_MODE_OPEN) &&
+	    (pmpriv->sec_info.authentication_mode != MLAN_AUTH_MODE_OWE)) {
+		PRINTM(MINFO,
+		       "Return success directly in OWE Transition mode\n");
+		LEAVE();
+		return index;
+	}
 
 	if (pmpriv->sec_info.osen_enabled && pbss_desc->posen_ie &&
 	    ((*(pbss_desc->posen_ie)).ieee_hdr.element_id ==
@@ -3799,7 +3855,8 @@ t_s32 wlan_is_network_compatible(mlan_private *pmpriv, t_u32 index, t_u32 mode)
 #ifdef DRV_EMBEDDED_SUPPLICANT
 	     || supplicantIsEnabled(pmpriv->psapriv)
 #endif
-		     )) {
+	     || pmpriv->sec_info.authentication_mode == MLAN_AUTH_MODE_OWE ||
+	     pbss_desc->owe_transition_mode == OWE_TRANS_MODE_OWE)) {
 		if (((pbss_desc->pwpa_ie) &&
 		     ((*(pbss_desc->pwpa_ie)).vend_hdr.element_id == WPA_IE)) ||
 		    ((pbss_desc->prsn_ie) &&
@@ -4142,7 +4199,6 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 	t_u8 filtered_scan;
 	t_u8 scan_current_chan_only;
 	t_u8 max_chan_per_scan;
-	t_u8 i;
 
 	ENTER();
 
@@ -4209,8 +4265,6 @@ mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
 	} else {
 		wlan_scan_delete_ageout_entry(pmpriv);
 	}
-	for (i = 0; i < pmadapter->num_in_chan_stats; i++)
-		pmadapter->pchan_stats[i].cca_scan_duration = 0;
 	pmadapter->idx_chan_stats = 0;
 
 	ret = wlan_scan_channel_list(pmpriv, pioctl_buf, max_chan_per_scan,

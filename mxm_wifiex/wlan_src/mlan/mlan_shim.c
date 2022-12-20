@@ -170,7 +170,6 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 			}
 			break;
 #endif
-#ifdef STA_SUPPORT
 		case MLAN_IOCTL_MISC_CFG:
 			misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
 			if (misc->sub_command == MLAN_OID_MISC_WARM_RESET) {
@@ -179,7 +178,6 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 								    pioctl_buf);
 			}
 			break;
-#endif
 		default:
 			break;
 		}
@@ -442,6 +440,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
+	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
@@ -459,6 +458,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->rx_cmd_ep = pmdevice->rx_cmd_ep;
 		pmadapter->tx_data_ep = pmdevice->tx_data_ep;
 		pmadapter->rx_data_ep = pmdevice->rx_data_ep;
+		pmadapter->usb_tx_ports[0] = pmdevice->tx_data_ep;
+		pmadapter->usb_tx_ports[1] = pmdevice->tx_data2_ep;
 	}
 #endif
 	pmadapter->init_para.dfs53cfg = pmdevice->dfs53cfg;
@@ -1525,6 +1526,9 @@ mlan_status mlan_write_data_async_complete(t_void *padapter, pmlan_buffer pmbuf,
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	} else {
 		pmadapter->data_sent = MFALSE;
+		wlan_update_port_status(pmadapter, port, MFALSE);
+		PRINTM(MDATA, "mlan_write_data_async_complete: DATA(%d)\n",
+		       port);
 		ret = wlan_write_data_complete(pmadapter, pmbuf, status);
 	}
 
@@ -1548,9 +1552,9 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	t_u8 *pbuf;
 	t_u32 len, recv_type;
-	t_u32 event_cause;
+	t_u32 event_cause = 0;
 #ifdef DEBUG_LEVEL1
-	t_u32 sec, usec;
+	t_u32 sec = 0, usec = 0;
 #endif
 	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
 

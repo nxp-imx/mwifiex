@@ -592,7 +592,8 @@ int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
 
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 			     IEEEtypes_VHTCap_t *vhtcap_ie);
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
+		  t_u8 wait_option);
 int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 			     IEEEtypes_HECap_t *hecap_ie);
 int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,

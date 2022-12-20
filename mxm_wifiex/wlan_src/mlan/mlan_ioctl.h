@@ -293,6 +293,8 @@ enum _mlan_ioctl_req_id {
 #if defined(STA_SUPPORT)
 	MLAN_OID_MISC_PMFCFG = 0x00200022,
 #endif
+	MLAN_OID_MISC_MULTI_CHAN_CFG = 0x00200023,
+	MLAN_OID_MISC_MULTI_CHAN_POLICY = 0x00200024,
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_OID_MISC_WIFI_DIRECT_CONFIG = 0x00200025,
 #endif
@@ -319,6 +321,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
 	MLAN_OID_MISC_CLOUD_KEEP_ALIVE = 0x00200048,
 	MLAN_OID_MISC_OPER_CLASS_CHECK = 0x00200049,
+	MLAN_OID_MISC_DRCS_CFG = 0x00200050,
 
 	MLAN_OID_MISC_CWMODE_CTRL = 0x00200051,
 	MLAN_OID_MISC_AGGR_CTRL = 0x00200052,
@@ -766,6 +769,11 @@ typedef struct _mlan_ssid_bssid {
 	t_u8 host_mlme;
 	/** assoicate resp frame/ie from firmware */
 	mlan_ds_misc_assoc_rsp assoc_rsp;
+	t_u8 owe_transition_mode;
+	/** Transition SSID */
+	mlan_802_11_ssid trans_ssid;
+	/** Transition BSSID */
+	mlan_802_11_mac_addr trans_bssid;
 } mlan_ssid_bssid, *pmlan_ssid_bssid;
 
 /** Data structure of WMM ECW */
@@ -911,6 +919,8 @@ typedef struct _mlan_deauth_param {
 #define PROTOCOL_WAPI 0x80
 /** WPA3 SAE */
 #define PROTOCOL_WPA3_SAE 0x100
+/** OWE */
+#define PROTOCOL_OWE 0x200
 
 /** Key_mgmt_psk */
 #define KEY_MGMT_NONE 0x04
@@ -2592,6 +2602,7 @@ enum _mlan_auth_mode {
 	MLAN_AUTH_MODE_SHARED = 0x01,
 	MLAN_AUTH_MODE_FT = 0x02,
 	MLAN_AUTH_MODE_SAE = 0x03,
+	MLAN_AUTH_MODE_OWE = 0x04,
 	MLAN_AUTH_MODE_NETWORKEAP = 0x80,
 	MLAN_AUTH_MODE_AUTO = 0xFF,
 };
@@ -2604,6 +2615,7 @@ typedef enum {
 	AssocAgentAuth_FastBss_Skip,
 	AssocAgentAuth_Network_EAP,
 	AssocAgentAuth_Wpa3Sae = 6,
+	AssocAgentAuth_Owe = 7,
 	AssocAgentAuth_Auto,
 } AssocAgentAuthType_e;
 
@@ -4065,10 +4077,19 @@ typedef struct _mlan_ds_11ax_txop_cmd {
 } mlan_ds_11ax_txop_cmd, *pmlan_ds_11ax_txop_cmd;
 
 /** Type definition of mlan_ds_11ax_htc_cmd for MLAN_OID_11AX_CMD_CFG */
-typedef struct _mlan_ds_11ax_txomi_cmd {
+typedef struct MLAN_PACK_START_mlan_ds_11ax_txomi_cmd {
 	/* 11ax spec 9.2.4.6a.2 OM Control 12 bits. Bit 0 to bit 11 */
 	t_u16 omi;
-} mlan_ds_11ax_txomi_cmd, *pmlan_ds_11ax_txomi_cmd;
+	/* tx option
+	 * 0: send OMI in QoS NULL; 1: send OMI in QoS data; 0xFF: set OMI in
+	 * both
+	 */
+	t_u8 tx_option;
+	/* if OMI is sent in QoS data, specify the number of consecutive data
+	 * packets containing the OMI
+	 */
+	t_u8 num_data_pkts;
+} MLAN_PACK_END mlan_ds_11ax_txomi_cmd, *pmlan_ds_11ax_txomi_cmd;
 
 /** Type definition of mlan_ds_11ax_toltime_cmd for MLAN_OID_11AX_CMD_CFG */
 typedef struct _mlan_ds_11ax_toltime_cmd {
@@ -4471,12 +4492,13 @@ enum _mlan_func_cmd {
 	MLAN_FUNC_SHUTDOWN,
 };
 
-/** Net monitor filter: management frame */
-#define MLAN_NETMON_MANAGEMENT_FRAME MBIT(0)
-/** Net monitor filter: control frame */
-#define MLAN_NETMON_CONTROL_FRAME MBIT(1)
-/** Net monitor filter: data frame */
-#define MLAN_NETMON_DATA_FRAME MBIT(2)
+/* Net monitor filters: */
+/* management frame */
+#define MLAN_NETMON_MANAGEMENT MBIT(0)
+/* control frame */
+#define MLAN_NETMON_CONTROL MBIT(1)
+/* data frame */
+#define MLAN_NETMON_DATA MBIT(2)
 
 typedef struct _mlan_ds_misc_net_monitor {
 	/** Enable/disable network monitor */
@@ -4911,6 +4933,31 @@ typedef struct _mlan_ds_misc_pmfcfg {
 	t_u8 mfpr;
 } mlan_ds_misc_pmfcfg;
 #endif
+
+typedef MLAN_PACK_START struct _mlan_ds_multi_chan_cfg {
+	/** Channel Time */
+	t_u32 channel_time;
+	/** Buffer Weight */
+	t_u8 buffer_weight;
+	/** tlv len */
+	t_u16 tlv_len;
+	/** TLV buffer */
+	t_u8 tlv_buf[];
+} MLAN_PACK_END mlan_ds_multi_chan_cfg;
+
+typedef MLAN_PACK_START struct _mlan_ds_drcs_cfg {
+	/** Channel Index*/
+	t_u16 chan_idx;
+	/** Channel time (in TU) for chan_idx */
+	t_u8 chantime;
+	/** Channel swith time (in TU) for chan_idx */
+	t_u8 switchtime;
+	/** Undoze time (in TU) for chan_idx */
+	t_u8 undozetime;
+	/** Rx traffic control scheme when channel switch*/
+	/** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END mlan_ds_drcs_cfg;
 
 #define MAX_SSID_NUM 16
 #define MAX_AP_LIST 8
@@ -5627,7 +5674,7 @@ struct MLAN_PACK_START mfg_Cmd_HE_TBTx_t {
 	/** AXQ Mu Timer */
 	t_u16 axq_mu_timer;
 	/** Tx Power */
-	t_u16 tx_power;
+	t_s16 tx_power;
 } MLAN_PACK_END;
 
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
@@ -5684,6 +5731,7 @@ typedef struct _mlan_ds_ch_load {
 	t_s16 noise;
 	t_u16 rx_quality;
 	t_u16 duration;
+	t_u16 cca_th;
 } mlan_ds_ch_load;
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
@@ -5770,6 +5818,13 @@ typedef struct _mlan_ds_misc_cfg {
 #if defined(STA_SUPPORT)
 		mlan_ds_misc_pmfcfg pmfcfg;
 #endif
+		/** Multi-channel config for MLAN_OID_MISC_MULTI_CHAN_CFG */
+		mlan_ds_multi_chan_cfg multi_chan_cfg;
+		/** Multi-channel policy for MLAN_OID_MISC_MULTI_CHAN_POLICY */
+		t_u16 multi_chan_policy;
+		/** channel drcs time slicing config for MLAN_OID_MISC_DRCS_CFG
+		 */
+		mlan_ds_drcs_cfg drcs_cfg[2];
 #ifdef WIFI_DIRECT_SUPPORT
 		mlan_ds_wifi_direct_config p2p_config;
 #endif

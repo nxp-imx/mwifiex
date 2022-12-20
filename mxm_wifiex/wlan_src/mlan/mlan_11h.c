@@ -3171,7 +3171,10 @@ mlan_status wlan_11h_handle_event_chanswann(mlan_private *priv)
 
 	ENTER();
 #ifdef UAP_SUPPORT
-	if (priv->adapter->state_11h.is_master_radar_det_active) {
+	/** No need handle AP if mc_policy is disabled, FW will move the AP to
+	 * client's new channel */
+	if (pmadapter->mc_policy &&
+	    priv->adapter->state_11h.is_master_radar_det_active) {
 		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
 		     i++) {
 			if (pmadapter->priv[i] &&
@@ -3811,8 +3814,13 @@ void wlan_dfs_rep_disconnect(mlan_adapter *pmadapter)
 
 		if (wlan_11h_radar_detect_required(pmpriv,
 						   pmadapter->dfsr_channel)) {
-			wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
-					 HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+			mlan_status ret = MLAN_STATUS_SUCCESS;
+			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       MNULL);
+			if (ret) {
+				PRINTM(MMSG, "Error sending message to FW\n");
+			}
 		}
 	}
 }
@@ -3829,6 +3837,7 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 	mlan_private *priv_list[MLAN_MAX_BSS_NUM];
 	mlan_private *pmpriv = MNULL;
 	t_u8 pcount, i;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	memset(pmadapter, priv_list, 0x00, sizeof(priv_list));
 	pcount = wlan_get_privs_by_cond(pmadapter, wlan_is_intf_active,
@@ -3855,8 +3864,12 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 				    pmpriv, pmadapter->dfsr_channel))
 				return;
 
-			wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
-					 HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       MNULL);
+			if (ret) {
+				PRINTM(MERROR, "Error sending message to FW\n");
+			}
 		}
 	}
 
@@ -3865,8 +3878,12 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 		pmpriv = priv_list[i];
 
 		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
-			wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_START,
-					 HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_START,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       MNULL);
+			if (ret) {
+				PRINTM(MERROR, "Error sending message to FW\n");
+			}
 		}
 	}
 }
@@ -4215,7 +4232,8 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 
 		/* check next intf */
 		while ((++pstate_rdh->priv_curr_idx) <
-		       pstate_rdh->priv_list_count) {
+			       pstate_rdh->priv_list_count &&
+		       (pstate_rdh->priv_curr_idx < MLAN_MAX_BSS_NUM)) {
 			pmpriv =
 				pstate_rdh->priv_list[pstate_rdh->priv_curr_idx];
 

@@ -2669,13 +2669,15 @@ mlan_status wlan_cmd_net_monitor(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	cmd->command = wlan_cpu_to_le16(cmd->command);
 	cmd_net_mon->action = wlan_cpu_to_le16(cmd_action);
 	if (cmd_action == HostCmd_ACT_GEN_SET) {
-		cmd_net_mon->enable_net_mon =
-			wlan_cpu_to_le16((t_u16)net_mon->enable_net_mon);
 		if (net_mon->enable_net_mon) {
-			pchan_band =
-				&cmd_net_mon->monitor_chan.chan_band_param[0];
+			cmd_net_mon->enable_net_mon =
+				wlan_cpu_to_le16((t_u16)NET_MON_MODE1);
 			cmd_net_mon->filter_flag =
 				wlan_cpu_to_le16((t_u16)net_mon->filter_flag);
+		}
+		if (net_mon->enable_net_mon && net_mon->channel) {
+			pchan_band =
+				&cmd_net_mon->monitor_chan.chan_band_param[0];
 			cmd_net_mon->monitor_chan.header.type =
 				wlan_cpu_to_le16(TLV_TYPE_CHANNELBANDLIST);
 			cmd_net_mon->monitor_chan.header.len =
@@ -4017,6 +4019,17 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						   pdata_buf);
 		break;
 #endif
+	case HostCmd_CMD_MULTI_CHAN_CONFIG:
+		ret = wlan_cmd_multi_chan_cfg(pmpriv, cmd_ptr, cmd_action,
+					      pdata_buf);
+		break;
+	case HostCmd_CMD_MULTI_CHAN_POLICY:
+		ret = wlan_cmd_multi_chan_policy(pmpriv, cmd_ptr, cmd_action,
+						 pdata_buf);
+		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
 		ret = wlan_cmd_low_pwr_mode(pmpriv, cmd_ptr, pdata_buf);
 		break;

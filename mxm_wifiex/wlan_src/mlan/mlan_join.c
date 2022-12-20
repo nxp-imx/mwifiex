@@ -351,7 +351,7 @@ static mlan_status wlan_setup_rates_from_bssdesc(mlan_private *pmpriv,
 						 t_u8 *pout_rates,
 						 t_u32 *pout_rates_size)
 {
-	t_u8 card_rates[WLAN_SUPPORTED_RATES];
+	t_u8 card_rates[WLAN_SUPPORTED_RATES] = {0};
 	t_u32 card_rates_size = 0;
 	ENTER();
 	/* Copy AP supported rates */
@@ -625,19 +625,53 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
  *  @param ptlv_rsn_ie       A pointer to rsn_ie TLV
  */
 static int wlan_update_rsn_ie(mlan_private *pmpriv,
-			      MrvlIEtypes_RsnParamSet_t *ptlv_rsn_ie)
+			      MrvlIEtypes_RsnParamSet_t *ptlv_rsn_ie,
+			      t_u16 *rsn_ie_len, t_u8 *akm_type)
 {
 	t_u16 *prsn_cap;
-	t_u16 *ptr;
-	t_u16 *akm_suite_count_ptr;
+	t_u8 *ptr;
+	t_u8 *pairwise_cipher_count_ptr;
+	t_u8 *group_mgmt_cipher_suite_ptr = MNULL;
+	t_u8 *pmkid_list_ptr = MNULL;
+	t_u8 *end_ptr;
 	t_u16 pmf_mask = 0x00;
-	t_u8 *temp;
 	t_u16 pairwise_cipher_count = 0;
 	t_u16 akm_suite_count = 0;
-	t_u16 temp_akm_suite_count = 0;
-	int found = 0;
-	t_u8 sha_256_oui[4] = {0x00, 0x0f, 0xac, 0x06};
-	t_u8 sae_oui[4] = {0x00, 0x0f, 0xac, 0x08};
+	t_u16 pmkid_count = 0;
+	t_u8 i;
+
+#define PREFERENCE_TKIP 1
+	/* Cipher Perference Order:
+	   (5) CIPHER_SYITE_TYPE_GCMP_256 = 9
+	   (4) CIPHER_SYITE_TYPE_GCMP_128 = 8
+	   (3) CIPHER_SYITE_TYPE_CCMP_256 = 10
+	   (2) CIPHER_SYITE_TYPE_CCMP_128 = 4
+	   (1) CIPHER_SYITE_TYPE_TKIP     = 2
+	   (0) Skip
+	*/
+	t_u8 preference_selected;
+	t_u8 cipher_selected_id;
+#if 0 // defined(ENABLE_GCMP_SUPPORT)
+      // embedded supplicant doesn't support GCMP yet
+	t_u8 cipher_preference[11] = {0, 0, 1, 0, 2, 0, 0, 0, 4, 5, 3};
+#else
+	t_u8 cipher_preference[5] = {0, 0, 1, 0, 2};
+#endif
+	t_u8 oui[4] = {0x00, 0x0f, 0xac, 0x00};
+
+	/* AKM Perference Order:
+	   (6) AKM_SUITE_TYPE_FT_SAE     = 9   //Not supported in esupp
+	   (5) AKM_SUITE_TYPE_SAE        = 8
+	   (4) AKM_SUITE_TYPE_OWE        = 18
+	   (3) AKM_SUITE_TYPE_FT_PSK     = 4   //Not supported in esupp
+	   (2) AKM_SUITE_TYPE_PSK_SHA256 = 6
+	   (1) AKM_SUITE_TYPE_PSK        = 2
+	   (0) Skip
+	*/
+	t_u8 akm_type_selected;
+	t_u8 akm_type_id = 0;
+	t_u8 akm_preference[19] = {0, 0, 1, 0, 0, 0, 2, 0, 5, 0,
+				   0, 0, 0, 0, 0, 0, 0, 0, 4};
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
 	int ap_mfpc = 0, ap_mfpr = 0, ret = MLAN_STATUS_SUCCESS;
@@ -650,82 +684,114 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	 * pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN + 2 bytes
 	 * akm_suite_count + akm_suite_count * AKM_SUITE_LEN
 	 */
-	ptr = (t_u16 *)(ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8));
-	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
-	ptr = (t_u16 *)(ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
-			sizeof(t_u16) +
-			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
-	temp_akm_suite_count = wlan_le16_to_cpu(*ptr);
-	akm_suite_count = wlan_le16_to_cpu(*ptr);
-	/* Save pointer to akm_suite_count in RSN IE to update it later */
-	akm_suite_count_ptr = ptr;
-	temp = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
-	       sizeof(t_u16) +
-	       pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
-	       sizeof(t_u16);
-	/* ptr now points to the 1st AKM suite */
-	if (temp_akm_suite_count > 1) {
-		while (temp_akm_suite_count) {
-			if (pmpriv->sec_info.authentication_mode ==
-			    MLAN_AUTH_MODE_SAE) {
-				if (!memcmp(pmadapter, temp, sae_oui,
-					    AKM_SUITE_LEN)) {
-					found = 1;
+	end_ptr = ptlv_rsn_ie->rsn_ie + *rsn_ie_len;
+
+	ptr = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8);
+
+	pairwise_cipher_count_ptr = ptr;
+	pairwise_cipher_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+	ptr += sizeof(t_u16);
+
+	preference_selected = 0;
+	cipher_selected_id = 0;
+	for (i = 0; i < pairwise_cipher_count; i++) {
+		if ((ptr[3] < sizeof(cipher_preference)) &&
+		    (cipher_preference[ptr[3]] > preference_selected)) {
+			preference_selected = cipher_preference[ptr[3]];
+			cipher_selected_id = ptr[3];
+		}
+		ptr += PAIRWISE_CIPHER_SUITE_LEN;
+	}
+
+	if (preference_selected == 0) {
+		PRINTM(MERROR, "RSNE: PAIRWISE_CIPHER not supported\n");
+		return MLAN_STATUS_FAILURE;
+	}
+	if ((preference_selected == PREFERENCE_TKIP) &&
+	    ((*akm_type == AssocAgentAuth_Wpa3Sae) ||
+	     (*akm_type == AssocAgentAuth_Owe))) {
+		PRINTM(MERROR,
+		       "RSNE: PAIRWISE_CIPHER TKIP not allowed for AKM %s\n",
+		       (*akm_type == AssocAgentAuth_Wpa3Sae) ? "SAE" : "ÖWE");
+		return MLAN_STATUS_FAILURE;
+	}
+	if ((preference_selected == PREFERENCE_TKIP) &&
+	    (*akm_type == AssocAgentAuth_Auto)) {
+		*akm_type = AssocAgentAuth_Open;
+	}
+	/* Process AKM
+	 * Preference order for AssocAgentAuth_Auto:
+	 *  FT Authentication using SAE 00-0F-AC:9  (not supported in embedded
+	 * supplicant) SAE Authentication 00-0F-AC:8 OWE Authentication
+	 * 00-0F-AC:18 FT Authentication using PSK 00-0F-AC:4  (not supported in
+	 * embedded supplicant) PSK using SHA-256 00-0F-AC:6 PSK 00-0F-AC:2
+	 */
+	ptr = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
+	      sizeof(t_u16) + pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN;
+	akm_suite_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+	ptr += sizeof(t_u16); // move pointer to AKM suite
+
+	akm_type_selected = 0;
+	if (*akm_type == AssocAgentAuth_Auto) {
+		// find the best one
+		for (i = 0; i < akm_suite_count; i++) {
+			if ((ptr[3] < sizeof(akm_preference)) &&
+			    (akm_preference[ptr[3]] > akm_type_selected)) {
+				akm_type_selected = akm_preference[ptr[3]];
+				akm_type_id = ptr[3];
+			}
+			ptr += AKM_SUITE_LEN;
+		}
+		if (akm_type_selected) {
+			if (akm_type_id == 6)
+				*akm_type = AssocAgentAuth_Open;
+			else if (akm_type_id == 2)
+				*akm_type = AssocAgentAuth_Open;
+			else if (akm_type_id == 18)
+				*akm_type = AssocAgentAuth_Owe;
+			else if (akm_type_id == 8)
+				*akm_type = AssocAgentAuth_Wpa3Sae;
+		}
+	} else {
+		// find the matched AKM
+		for (i = 0; i < akm_suite_count; i++) {
+			if (ptr[3] < sizeof(akm_preference)) {
+				if ((*akm_type == AssocAgentAuth_Open) &&
+				    (ptr[3] == 6)) {
+					break;
+				} else if ((*akm_type == AssocAgentAuth_Open) &&
+					   (ptr[3] == 2)) {
+					break;
+				} else if ((*akm_type ==
+					    AssocAgentAuth_Wpa3Sae) &&
+					   (ptr[3] == 8)) {
+					break;
+				} else if ((*akm_type == AssocAgentAuth_Owe) &&
+					   (ptr[3] == 18)) {
 					break;
 				}
-			} else if (!memcmp(pmadapter, temp, sha_256_oui,
-					   AKM_SUITE_LEN)) {
-				found = 1;
-				break;
 			}
-			temp += AKM_SUITE_LEN;
-			temp_akm_suite_count--;
+			ptr += AKM_SUITE_LEN;
 		}
-		if (found) {
-			/* Copy SHA256 as AKM suite */
-			memcpy_ext(pmadapter,
-				   ptlv_rsn_ie->rsn_ie +
-					   (sizeof(t_u16) + 4 * sizeof(t_u8) +
-					    sizeof(t_u16) +
-					    pairwise_cipher_count *
-						    PAIRWISE_CIPHER_SUITE_LEN +
-					    sizeof(t_u16)),
-				   temp, AKM_SUITE_LEN, AKM_SUITE_LEN);
-			/* Shift remaining bytes of RSN IE after this */
-			memmove(pmadapter,
-				ptlv_rsn_ie->rsn_ie +
-					(sizeof(t_u16) + 4 * sizeof(t_u8) +
-					 sizeof(t_u16) +
-					 pairwise_cipher_count *
-						 PAIRWISE_CIPHER_SUITE_LEN +
-					 sizeof(t_u16) + AKM_SUITE_LEN),
-				ptlv_rsn_ie->rsn_ie +
-					(sizeof(t_u16) + 4 * sizeof(t_u8) +
-					 sizeof(t_u16) +
-					 pairwise_cipher_count *
-						 PAIRWISE_CIPHER_SUITE_LEN +
-					 sizeof(t_u16) +
-					 akm_suite_count * AKM_SUITE_LEN),
-				ptlv_rsn_ie->header.len -
-					(sizeof(t_u16) + 4 * sizeof(t_u8) +
-					 sizeof(t_u16) +
-					 pairwise_cipher_count *
-						 PAIRWISE_CIPHER_SUITE_LEN +
-					 sizeof(t_u16) +
-					 akm_suite_count * AKM_SUITE_LEN));
-			ptlv_rsn_ie->header.len =
-				ptlv_rsn_ie->header.len -
-				(akm_suite_count - 1) * AKM_SUITE_LEN;
-			/* Update akm suite count */
-			akm_suite_count = 1;
-			*akm_suite_count_ptr = akm_suite_count;
+		if (i == akm_suite_count) {
+			akm_type_selected = 0; // not found
+		} else {
+			akm_type_selected = akm_preference[ptr[3]];
+			akm_type_id = ptr[3];
 		}
 	}
-	ptr = (t_u16 *)(ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
-			sizeof(t_u16) +
-			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
-			sizeof(t_u16) + akm_suite_count * AKM_SUITE_LEN);
-	prsn_cap = ptr;
+
+	if (akm_type_selected == 0) {
+		PRINTM(MERROR, "RSNE: AKM Suite not found for authtype %d\n",
+		       *akm_type);
+		return MLAN_STATUS_FAILURE;
+	}
+	/* Process RSNCAP */
+	ptr = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
+	      sizeof(t_u16) +
+	      pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
+	      sizeof(t_u16) + akm_suite_count * AKM_SUITE_LEN;
+	prsn_cap = (t_u16 *)ptr;
 
 	ap_mfpc = ((*prsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
 	ap_mfpr = ((*prsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
@@ -734,15 +800,61 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	    ((!ap_mfpc) && ap_mfpr) ||
 	    (ap_mfpc && ap_mfpr && (!pmpriv->pmfcfg.mfpc))) {
 		PRINTM(MERROR,
-		       "Mismatch in PMF config of STA and AP, can't associate to AP\n");
+		       "RSNE: Mismatch in PMF config of STA and AP, can't associate to AP\n");
 		return MLAN_STATUS_FAILURE;
 	}
-	if ((pmpriv->pmfcfg.mfpr && pmpriv->pmfcfg.mfpc) ||
-	    pmpriv->pmfcfg.mfpc) {
-		*prsn_cap |= PMF_MASK;
-		*prsn_cap &= pmf_mask;
-	}
+	*prsn_cap |= PMF_MASK;
+	*prsn_cap &= pmf_mask;
 
+	// PMKID
+	ptr += sizeof(t_u16);
+	if (end_ptr > ptr) {
+		pmkid_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+		ptr += sizeof(t_u16);
+		pmkid_list_ptr = ptr;
+		ptr += pmkid_count * PMKID_LEN;
+	}
+	// Group Mgmt Cipher Suite
+	if ((end_ptr > ptr) && (pmf_mask & PMF_MASK)) {
+		group_mgmt_cipher_suite_ptr = ptr;
+	}
+	/* Compose new RSNE */
+	// pairwiase
+	ptr = pairwise_cipher_count_ptr;
+	*(t_u16 *)ptr = wlan_cpu_to_le16(1);
+	ptr += sizeof(t_u16);
+	oui[3] = cipher_selected_id;
+	*(t_u32 *)ptr = *(t_u32 *)oui;
+	ptr += PAIRWISE_CIPHER_SUITE_LEN;
+	// akm
+	*(t_u16 *)ptr = wlan_cpu_to_le16(1);
+	ptr += sizeof(t_u16);
+	oui[3] = akm_type_id;
+	*(t_u32 *)ptr = *(t_u32 *)oui;
+	ptr += AKM_SUITE_LEN;
+	// RSNCAP
+	*(t_u16 *)ptr = wlan_cpu_to_le16(*prsn_cap);
+	ptr += sizeof(t_u16);
+	// PMKID list
+	if (pmkid_list_ptr || group_mgmt_cipher_suite_ptr) {
+		// Add PMKID
+		*(t_u16 *)ptr = wlan_cpu_to_le16(pmkid_count);
+		ptr += sizeof(t_u16);
+		if (pmkid_count) {
+			memcpy_ext(pmadapter, ptr, (t_u8 *)pmkid_list_ptr,
+				   (pmkid_count * PMKID_LEN), (end_ptr - ptr));
+			ptr += pmkid_count * PMKID_LEN;
+		}
+		if (group_mgmt_cipher_suite_ptr) {
+			// Add Group Mgmt Cipher Suite
+			memcpy_ext(pmadapter, ptr,
+				   (t_u8 *)group_mgmt_cipher_suite_ptr,
+				   GROUP_MGMT_CIPHER_SUITE_LEN,
+				   (end_ptr - ptr));
+			ptr += GROUP_MGMT_CIPHER_SUITE_LEN;
+		}
+	}
+	*rsn_ie_len = ptr - ptlv_rsn_ie->rsn_ie;
 	return ret;
 }
 
@@ -884,6 +996,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	t_u8 ft_akm = 0;
 	t_u8 oper_class;
 	t_u8 oper_class_flag = MFALSE;
+	t_u8 akm_type = 0;
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
 	MrvlIEtypes_PrevBssid_t *prev_bssid_tlv = MNULL;
 	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
@@ -961,7 +1074,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	PRINTM(MINFO, "ASSOC_CMD: Rates size = %d\n", rates_size);
 
 	/* Add the Authentication type to be used for Auth frames if needed */
-	if ((pmpriv->sec_info.authentication_mode != MLAN_AUTH_MODE_AUTO)) {
+	if ((pmpriv->sec_info.authentication_mode != MLAN_AUTH_MODE_AUTO) ||
+	    (pbss_desc->owe_transition_mode == OWE_TRANS_MODE_OWE)) {
 		pauth_tlv = (MrvlIEtypes_AuthType_t *)pos;
 		pauth_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_AUTH_TYPE);
 		pauth_tlv->header.len = sizeof(pauth_tlv->auth_type);
@@ -978,9 +1092,16 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			 MLAN_AUTH_MODE_SAE)
 			pauth_tlv->auth_type =
 				wlan_cpu_to_le16(AssocAgentAuth_Wpa3Sae);
+		else if (!pmpriv->curr_bss_params.host_mlme &&
+			 ((pbss_desc->owe_transition_mode ==
+			   OWE_TRANS_MODE_OWE) ||
+			  pmpriv->sec_info.authentication_mode ==
+				  MLAN_AUTH_MODE_OWE))
+			pauth_tlv->auth_type =
+				wlan_cpu_to_le16(AssocAgentAuth_Owe);
 		else
 			pauth_tlv->auth_type =
-				wlan_cpu_to_le16(MLAN_AUTH_MODE_OPEN);
+				wlan_cpu_to_le16(AssocAgentAuth_Open);
 		pos += sizeof(pauth_tlv->header) + pauth_tlv->header.len;
 		pauth_tlv->header.len = wlan_cpu_to_le16(pauth_tlv->header.len);
 	}
@@ -1097,7 +1218,11 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				pmpriv->psapriv, rsn_wpa_ie_tmp, prsn_ie_tlv);
 		}
 #endif
-		else if (pmpriv->sec_info.ewpa_enabled) {
+		else if (pmpriv->sec_info.ewpa_enabled ||
+			 (pbss_desc->owe_transition_mode ==
+			  OWE_TRANS_MODE_OWE) ||
+			 (pmpriv->sec_info.authentication_mode ==
+			  MLAN_AUTH_MODE_OWE)) {
 			prsn_ie_tlv = (MrvlIEtypes_RsnParamSet_t *)pos;
 			if (pbss_desc->pwpa_ie) {
 				prsn_ie_tlv->header.type =
@@ -1156,8 +1281,16 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 							     .data[0]),
 						   prsn_ie_tlv->header.len,
 						   prsn_ie_tlv->header.len);
-					ret = wlan_update_rsn_ie(pmpriv,
-								 prsn_ie_tlv);
+					akm_type =
+						pauth_tlv ?
+							wlan_le16_to_cpu(
+								pauth_tlv
+									->auth_type) :
+							AssocAgentAuth_Auto;
+					ret = wlan_update_rsn_ie(
+						pmpriv, prsn_ie_tlv,
+						&prsn_ie_tlv->header.len,
+						&akm_type);
 					if (ret != MLAN_STATUS_SUCCESS) {
 						goto done;
 					}
@@ -1174,8 +1307,29 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				       prsn_ie_tlv->header.len;
 				prsn_ie_tlv->header.len = wlan_cpu_to_le16(
 					prsn_ie_tlv->header.len);
+
+				if ((pauth_tlv == MNULL) &&
+				    (pmpriv->sec_info.authentication_mode ==
+				     MLAN_AUTH_MODE_AUTO)) {
+					pauth_tlv =
+						(MrvlIEtypes_AuthType_t *)pos;
+					pauth_tlv->header.type =
+						wlan_cpu_to_le16(
+							TLV_TYPE_AUTH_TYPE);
+					pauth_tlv->header.len =
+						sizeof(pauth_tlv->auth_type);
+					pauth_tlv->auth_type =
+						wlan_cpu_to_le16(akm_type);
+
+					pos += sizeof(pauth_tlv->header) +
+					       pauth_tlv->header.len;
+					pauth_tlv->header.len =
+						wlan_cpu_to_le16(
+							pauth_tlv->header.len);
+				}
 			}
-			if (pbss_desc->prsnx_ie) {
+			if ((pbss_desc->prsnx_ie) &&
+			    (akm_type == AssocAgentAuth_Wpa3Sae)) {
 				prsnx_ie_tlv =
 					(MrvlIEtypes_SAE_PWE_Mode_t *)pos;
 				prsnx_ie_tlv->header.type =

@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "366.p5"
+#define MLAN_RELEASE_VERSION "368"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -1747,6 +1747,15 @@ typedef struct {
 	t_u32 time_usec;
 } wifi_timeval;
 
+#define timeval_to_msec(timeval)                                               \
+	(t_u64)((t_u64)(timeval.time_sec) * 1000 +                             \
+		(t_u64)(timeval.time_usec) / 1000)
+#define timeval_to_usec(timeval)                                               \
+	(t_u64)((t_u64)(timeval.time_sec) * 1000 * 1000 +                      \
+		(t_u64)(timeval.time_usec))
+#define is_zero_timeval(timeval)                                               \
+	((timeval.time_sec == 0) && (timeval.time_usec == 0))
+
 #define MAX_NUM_RATE 32
 #define MAX_RADIO 2
 #define MAX_NUM_CHAN 1
@@ -1827,15 +1836,6 @@ typedef struct {
 	 */
 	t_u32 cca_busy_time;
 } wifi_channel_stat;
-
-#define timeval_to_msec(timeval)                                               \
-	(t_u64)((t_u64)(timeval.time_sec) * 1000 +                             \
-		(t_u64)(timeval.time_usec) / 1000)
-#define timeval_to_usec(timeval)                                               \
-	(t_u64)((t_u64)(timeval.time_sec) * 1000 * 1000 +                      \
-		(t_u64)(timeval.time_usec))
-#define is_zero_timeval(timeval)                                               \
-	((timeval.time_sec == 0) && (timeval.time_usec == 0))
 
 /** radio statistics */
 typedef struct {
@@ -2322,6 +2322,8 @@ typedef struct _mlan_device {
 	t_u8 indication_gpio;
 	/** Dynamic MIMO-SISO switch for hscfg*/
 	t_u8 hs_mimo_switch;
+	/** channel time and mode for DRCS*/
+	t_u32 drcs_chantime_mode;
 #ifdef USB
 	/** Tx CMD endpoint address */
 	t_u8 tx_cmd_ep;
@@ -2332,6 +2334,8 @@ typedef struct _mlan_device {
 	t_u8 rx_data_ep;
 	/** Tx data endpoint address */
 	t_u8 tx_data_ep;
+	/** Tx data second endpoint address */
+	t_u8 tx_data2_ep;
 #endif
 	/** passive to active scan */
 	t_u8 passive_to_active_scan;

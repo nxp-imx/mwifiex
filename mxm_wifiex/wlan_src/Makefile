@@ -87,7 +87,15 @@ CONFIG_OPENWRT_SUPPORT=n
 # Big-endian platform
 CONFIG_BIG_ENDIAN=n
 
+#ifdef EMBEDDED_AUTH
+# Enable driver based authenticator
+CONFIG_DRV_EMBEDDED_AUTHENTICATOR=n
+#endif
 
+#ifdef EMBEDDED_SUPP
+# Enable driver based supplicant
+CONFIG_DRV_EMBEDDED_SUPPLICANT=n
+#endif
 
 ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
 CONFIG_EMBEDDED_SUPP_AUTH=y
@@ -105,6 +113,8 @@ CONFIG_SDIO_SUSPEND_RESUME=y
 # DFS testing support
 CONFIG_DFS_TESTING_SUPPORT=y
 
+# Multi-channel support
+CONFIG_MULTI_CHAN_SUPPORT=y
 
 
 
@@ -126,6 +136,12 @@ ccflags-y += -DLINUX
 
 
 
+#if defined(EMBEDDED_SUPP) || defined(EMBEDDED_AUTH)
+ifeq ($(CONFIG_EMBEDDED_SUPP_AUTH), y)
+ccflags-y += -I$(M)/mlan/esa
+ccflags-y += -I$(M)/mlan/esa/common
+endif
+#endif
 
 
 
@@ -208,6 +224,9 @@ ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 endif
 #endif
 
+ifeq ($(CONFIG_MULTI_CHAN_SUPPORT),y)
+	ccflags-y += -DMULTI_CHAN_SUPPORT
+endif
 
 ifeq ($(CONFIG_DFS_TESTING_SUPPORT),y)
 	ccflags-y += -DDFS_TESTING_SUPPORT
@@ -480,7 +499,17 @@ endif
 endif
 
 
+#ifdef EMBEDDED_AUTH
+ifeq ($(CONFIG_DRV_EMBEDDED_AUTHENTICATOR), y)
+    ccflags-y += -DDRV_EMBEDDED_AUTHENTICATOR
+endif
+#endif
 
+#ifdef EMBEDDED_SUPP
+ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
+    ccflags-y += -DDRV_EMBEDDED_SUPPLICANT
+endif
+#endif
 
 
 MOALOBJS =	mlinux/moal_main.o \
@@ -560,9 +589,37 @@ endif
 
 
 
+#if defined(EMBEDDED_SUPP) || defined(EMBEDDED_AUTH)
+ifeq ($(CONFIG_EMBEDDED_SUPP_AUTH), y)
+MLANOBJS += mlan/esa/common/crypto_api.o \
+			mlan/esa/common/aes_cmac_rom.o \
+			mlan/esa/common/crypt_new_rom.o \
+			mlan/esa/common/pmkCache.o \
+			mlan/esa/common/pmkCache_rom.o \
+			mlan/esa/common/parser.o \
+			mlan/esa/common/parser_rom.o \
+			mlan/esa/keyMgmtApStaCommon.o \
+			mlan/esa/hostsa_init.o \
+			mlan/esa/authenticator_api.o
+endif
+#endif
 
 
+#ifdef EMBEDDED_SUPP
+ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT),y)
+MLANOBJS += mlan/esa/keyMgmtSta.o \
+			mlan/esa/keyMgmtSta_rom.o \
+			mlan/esa/supplicant.o
+endif
+#endif
 
+#ifdef EMBEDDED_AUTH
+ifeq ($(CONFIG_DRV_EMBEDDED_AUTHENTICATOR),y)
+MLANOBJS += mlan/esa/AssocAp_srv_rom.o \
+			mlan/esa/keyMgmtAp_rom.o \
+			mlan/esa/keyMgmtAp.o
+endif
+#endif
 
 obj-m := mlan.o
 mlan-objs := $(MLANOBJS)

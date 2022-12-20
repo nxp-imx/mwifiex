@@ -56,6 +56,9 @@ Change log:
 #include "moal_cfg80211_util.h"
 #endif
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#include <linux/compat.h>
+#endif
 
 /********************************************************
 			Local Variables
@@ -439,7 +442,7 @@ static int woal_setget_priv_11axcmdcfg(moal_private *priv, t_u8 *respbuf,
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	int header_len = 0, user_data_len = 0;
-	int data[3] = {0};
+	int data[4] = {0};
 	ENTER();
 
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ax_cmd_cfg));
@@ -459,7 +462,7 @@ static int woal_setget_priv_11axcmdcfg(moal_private *priv, t_u8 *respbuf,
 	PRINTM(MINFO, "data_len=%d,data=%d,%d,%d\n", user_data_len, data[0],
 	       data[1], data[2]);
 
-	if (user_data_len > 3 || user_data_len == 0) {
+	if (user_data_len > 4 || user_data_len == 0) {
 		PRINTM(MERROR, "Invalid parameters\n");
 		ret = -EFAULT;
 		goto done;
@@ -496,6 +499,8 @@ static int woal_setget_priv_11axcmdcfg(moal_private *priv, t_u8 *respbuf,
 	case MLAN_11AXCMD_CFG_ID_TX_OMI:
 		cfg->sub_id = MLAN_11AXCMD_TXOMI_SUBID;
 		cfg->param.txomi_cfg.omi = data[1];
+		cfg->param.txomi_cfg.tx_option = data[2];
+		cfg->param.txomi_cfg.num_data_pkts = data[3];
 		break;
 	case MLAN_11AXCMD_CFG_ID_OBSSNBRU_TOLTIME:
 		cfg->sub_id = MLAN_11AXCMD_OBSS_TOLTIME_SUBID;
@@ -3652,6 +3657,53 @@ static int woal_priv_set_get_countrycode(moal_private *priv, t_u8 *respbuf,
 				respbuflen);
 	}
 
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Get country code
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param country      A pointer to country string
+ *
+ *  @return             0--success, otherwise failure
+ */
+static int woal_get_countrycode(moal_private *priv, t_u8 *country)
+{
+	int ret = 0;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *pcfg_misc = NULL;
+	mlan_ds_misc_country_code *country_code = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	pcfg_misc = (mlan_ds_misc_cfg *)req->pbuf;
+	country_code = &pcfg_misc->param.country_code;
+	pcfg_misc->sub_command = MLAN_OID_MISC_COUNTRY_CODE;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_GET;
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+	moal_memcpy_ext(priv->phandle, country, country_code->country_code,
+			COUNTRY_CODE_LEN, COUNTRY_CODE_LEN);
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -8247,6 +8299,216 @@ done:
 	return ret;
 }
 
+/**
+ *  @brief Set/Get channel time and buffer weight
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_multi_chan_config(moal_private *priv, t_u8 *respbuf,
+				       t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	t_u8 *data_ptr;
+	int ret = 0;
+	int user_data_len = 0, header_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	data_ptr = respbuf + strlen(CMD_NXP) + strlen(PRIV_CMD_MULTI_CHAN_CFG);
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_MULTI_CHAN_CFG);
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		user_data_len = sizeof(mlan_ds_multi_chan_cfg);
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_MULTI_CHAN_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (user_data_len == 0) {
+		req->action = MLAN_ACT_GET;
+	} else {
+		req->action = MLAN_ACT_SET;
+		moal_memcpy_ext(priv->phandle, &cfg->param.multi_chan_cfg,
+				data_ptr, sizeof(mlan_ds_multi_chan_cfg),
+				sizeof(mlan_ds_multi_chan_cfg));
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	moal_memcpy_ext(priv->phandle, respbuf,
+			(mlan_ds_multi_chan_cfg *)&cfg->param.multi_chan_cfg,
+			req->buf_len, respbuflen);
+	ret = req->buf_len;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get multi_channel policy setting
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_multi_chan_policy(moal_private *priv, t_u8 *respbuf,
+				       t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0;
+	int data = 0;
+	t_u16 enable;
+	t_u8 action;
+
+	ENTER();
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_MULTI_CHAN_POLICY);
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data, 1, &user_data_len);
+	}
+
+	if (user_data_len > 1) {
+		PRINTM(MERROR, "Invalid number of arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (user_data_len == 0) {
+		action = MLAN_ACT_GET;
+	} else {
+		action = MLAN_ACT_SET;
+		enable = (t_u16)data;
+	}
+
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_mc_policy_cfg(priv, &enable, MOAL_IOCTL_WAIT, action)) {
+		ret = -EFAULT;
+		goto done;
+	}
+	moal_memcpy_ext(priv->phandle, respbuf, &enable, sizeof(t_u16),
+			respbuflen);
+	ret = sizeof(t_u16);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get drcs time slicing parameters
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_drcs_time_slicing_cfg(moal_private *priv, t_u8 *respbuf,
+					   t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	mlan_ds_drcs_cfg *drcs_cfg = NULL;
+	t_u8 *data_ptr;
+	int ret = 0;
+	int user_data_len = 0, header_len = 0;
+	int data[8];
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	data_ptr = respbuf + strlen(CMD_NXP) + strlen(PRIV_CMD_DRCS_CFG);
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_DRCS_CFG);
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
+		parse_arguments(data_ptr, data, ARRAY_SIZE(data),
+				&user_data_len);
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_DRCS_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (user_data_len == 0) {
+		req->action = MLAN_ACT_GET;
+	} else {
+		req->action = MLAN_ACT_SET;
+		drcs_cfg = (mlan_ds_drcs_cfg *)&cfg->param.drcs_cfg[0];
+		drcs_cfg->chantime = (t_u8)data[0];
+		drcs_cfg->switchtime = (t_u8)data[1];
+		drcs_cfg->undozetime = (t_u8)data[2];
+		drcs_cfg->mode = (t_u8)data[3];
+		/* Set the same parameters for two channels*/
+		if (user_data_len < (int)ARRAY_SIZE(data))
+			drcs_cfg->chan_idx = 0x03;
+		else {
+			/* Set the different parameters for two channels*/
+			drcs_cfg->chan_idx = 0x1;
+			drcs_cfg = (mlan_ds_drcs_cfg *)&cfg->param.drcs_cfg[1];
+			drcs_cfg->chan_idx = 0x2;
+			drcs_cfg->chantime = (t_u8)data[4];
+			drcs_cfg->switchtime = (t_u8)data[5];
+			drcs_cfg->undozetime = (t_u8)data[6];
+			drcs_cfg->mode = (t_u8)data[7];
+		}
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)&cfg->param.drcs_cfg,
+			req->buf_len, respbuflen);
+	ret = req->buf_len;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
 #ifdef RX_PACKET_COALESCE
 /**
  *  @brief Set/Get RX packet coalesceing setting
@@ -9286,7 +9548,7 @@ static int woal_priv_auth_type(moal_private *priv, t_u8 *respbuf,
 		if (user_data_len == 1) {
 			PRINTM(MINFO, "SET: auth_type %d\n", auth_type);
 			if (((auth_type < MLAN_AUTH_MODE_OPEN) ||
-			     (auth_type > MLAN_AUTH_MODE_SAE)) &&
+			     (auth_type > MLAN_AUTH_MODE_OWE)) &&
 			    (auth_type != MLAN_AUTH_MODE_AUTO)) {
 				ret = -EINVAL;
 				goto done;
@@ -10851,27 +11113,20 @@ static int woal_priv_net_monitor_ioctl(moal_private *priv, t_u8 *respbuf,
 		/* SET operation */
 		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 				&user_data_len);
-		if (user_data_len == 1 || user_data_len == 4 ||
-		    user_data_len == 5) {
-			if (data[0] != MFALSE &&
-			    data[0] != CHANNEL_SPEC_SNIFFER_MODE) {
+		if (user_data_len == 1 || user_data_len == 2 ||
+		    user_data_len == 4 || user_data_len == 5) {
+			if (data[0] != MTRUE && data[0] != MFALSE) {
 				PRINTM(MERROR,
-				       "NET_MON: Activity should be enable(=1/2)/disable(=0)\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			if ((data[0] == MFALSE && user_data_len != 1) ||
-			    (data[0] == CHANNEL_SPEC_SNIFFER_MODE &&
-			     (user_data_len != 4 && user_data_len != 5))) {
-				PRINTM(MERROR,
-				       "NET_MON: Sniffer activity not match with user_data_len\n");
+				       "NET_MON: Activity should be enable(=1)/"
+				       "disable(=0)\n");
 				ret = -EINVAL;
 				goto done;
 			}
 			net_mon->enable_net_mon = data[0];
-			if (data[0] == CHANNEL_SPEC_SNIFFER_MODE) {
+			if (data[0] == MTRUE) {
 				int i;
-				if (user_data_len != 4 && user_data_len != 5) {
+				if (user_data_len != 2 && user_data_len != 4 &&
+				    user_data_len != 5) {
 					PRINTM(MERROR,
 					       "NET_MON: Invalid number of args!\n");
 					ret = -EINVAL;
@@ -10879,9 +11134,9 @@ static int woal_priv_net_monitor_ioctl(moal_private *priv, t_u8 *respbuf,
 				}
 				/* Supported filter flags */
 				if (!data[1] ||
-				    data[1] & ~(MLAN_NETMON_DATA_FRAME |
-						MLAN_NETMON_MANAGEMENT_FRAME |
-						MLAN_NETMON_CONTROL_FRAME)) {
+				    data[1] & ~(MLAN_NETMON_DATA |
+						MLAN_NETMON_MANAGEMENT |
+						MLAN_NETMON_CONTROL)) {
 					PRINTM(MERROR,
 					       "NET_MON: Invalid filter flag\n");
 					ret = -EINVAL;
@@ -10962,8 +11217,7 @@ static int woal_priv_net_monitor_ioctl(moal_private *priv, t_u8 *respbuf,
 	if (req->action == MLAN_ACT_SET) {
 		if (data[0]) { /** Enable sniffer mode: 1/2 */
 			if (!handle->mon_if) {
-				mon_if = woal_prepare_mon_if(priv, "rtap", 0,
-							     data[0]);
+				mon_if = woal_prepare_mon_if(priv, "rtap", 0);
 				if (!mon_if) {
 					PRINTM(MFATAL,
 					       "Prepare mon_if fail.\n");
@@ -10988,6 +11242,7 @@ static int woal_priv_net_monitor_ioctl(moal_private *priv, t_u8 *respbuf,
 				net_mon->channel;
 			handle->mon_if->band_chan_cfg.chan_bandwidth =
 				net_mon->chan_bandwidth;
+			handle->mon_if->flag = net_mon->filter_flag;
 		} else { /** Disable sniffer mode: 0 */
 			if (handle->mon_if) {
 				ndev = handle->mon_if->mon_ndev;
@@ -11012,69 +11267,6 @@ done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 
-	LEAVE();
-	return ret;
-}
-#endif
-
-#if defined(STA_CFG80211) && defined(UAP_CFG80211)
-/**
- * @brief Set/Get monitor mode
- *
- * @param priv         A pointer to moal_private structure
- * @param respbuf      A pointer to response buffer
- * @param respbuflen   Available length of response buffer
- *
- * @return         0 --success, otherwise fail
- */
-static int woal_priv_set_get_monitor_mode(moal_private *priv, t_u8 *respbuf,
-					  t_u32 respbuflen)
-{
-	int ret = 0;
-	int data = 0;
-	int user_data_len = 0, header_len = 0;
-	t_u32 action = MLAN_ACT_GET;
-
-	ENTER();
-
-	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_MONITOR_MODE);
-
-	if ((int)strlen(respbuf) == header_len) {
-		/* GET operation */
-		user_data_len = 0;
-		action = MLAN_ACT_GET;
-	} else {
-		/* SET operation */
-		parse_arguments(respbuf + header_len, &data,
-				sizeof(data) / sizeof(int), &user_data_len);
-		action = MLAN_ACT_SET;
-	}
-
-	if (sizeof(int) * user_data_len > sizeof(data)) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
-	if (action == MLAN_ACT_SET) {
-		if (data == 1) {
-			priv->phandle->wiphy->interface_modes |=
-				MBIT(NL80211_IFTYPE_MONITOR);
-		} else if (data == 0) {
-			priv->phandle->wiphy->interface_modes &=
-				~(MBIT(NL80211_IFTYPE_MONITOR));
-		} else {
-			PRINTM(MERROR, "Invalid input arguments\n");
-			ret = -EINVAL;
-			goto done;
-		}
-	}
-	data = !!(priv->phandle->wiphy->interface_modes &
-		  MBIT(NL80211_IFTYPE_MONITOR));
-
-	ret = sprintf(respbuf, "Monitor mode: %d\n", data) + 1;
-
-done:
 	LEAVE();
 	return ret;
 }
@@ -12266,6 +12458,8 @@ static void woal_auto_uap_channel_switch(moal_private *priv, t_u8 channel)
 	moal_handle *ref_handle;
 	t_u8 band_width = CHANNEL_BW_20MHZ;
 
+	memset(&chaninfo, 0, sizeof(chaninfo));
+
 	pmpriv = woal_get_active_uap_interface(priv->phandle);
 	if (!pmpriv) {
 		ref_handle = (moal_handle *)priv->phandle->pref_mac;
@@ -12430,6 +12624,18 @@ static int woal_priv_do_dfs_cac(moal_private *priv, t_u8 *respbuf,
 					}
 					priv->chan_rpt_pending = MFALSE;
 				}
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+				if (!data[0] && priv->chan_rpt_req.chanNum) {
+					woal_update_channels_dfs_state(
+						priv,
+						priv->chan_rpt_req.chanNum,
+						priv->chan_rpt_req.bandcfg
+							.chanWidth,
+						DFS_USABLE);
+				}
+#endif
+#endif
 				memset(&priv->chan_rpt_req, 0,
 				       sizeof(mlan_ds_11h_chan_rep_req));
 				PRINTM(MCMND, "DFS: Stop Radar detect\n");
@@ -13055,6 +13261,7 @@ static int woal_priv_get_ch_load(moal_private *priv, t_u8 *respbuf,
 	misc->param.ch_load.noise = cl_cfg->noise;
 	misc->param.ch_load.rx_quality = cl_cfg->rx_quality;
 	misc->param.ch_load.duration = cl_cfg->duration;
+	misc->param.ch_load.cca_th = cl_cfg->cca_th;
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_NO_WAIT);
 	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_PENDING) {
 		ret = -EFAULT;
@@ -19422,6 +19629,26 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_region_code(priv, buf,
 						    priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_DRCS_CFG,
+				    strlen(PRIV_CMD_DRCS_CFG)) == 0) {
+			/* DRCS configuration for mc_cfg_ext*/
+			len = woal_priv_drcs_time_slicing_cfg(
+				priv, buf, priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_MULTI_CHAN_CFG,
+				    strlen(PRIV_CMD_MULTI_CHAN_CFG)) == 0) {
+			/* Channel time and buffer weight configuration */
+			len = woal_priv_multi_chan_config(priv, buf,
+							  priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_MULTI_CHAN_POLICY,
+				    strlen(PRIV_CMD_MULTI_CHAN_POLICY)) == 0) {
+			/* Multi-channel Policy enable/disable */
+			len = woal_priv_multi_chan_policy(priv, buf,
+							  priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_FWMACADDR,
 				    strlen(PRIV_CMD_FWMACADDR)) == 0) {
 			/* Set FW MAC address */
@@ -19667,20 +19894,6 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get network monitor configurations */
 			len = woal_priv_net_monitor_ioctl(priv, buf,
 							  priv_cmd.total_len);
-			goto handled;
-#endif
-#if defined(STA_CFG80211) && defined(UAP_CFG80211)
-		} else if (strnicmp(buf + strlen(CMD_NXP),
-				    PRIV_CMD_MONITOR_MODE,
-				    strlen(PRIV_CMD_MONITOR_MODE)) == 0) {
-			if (IS_STA_CFG80211(cfg80211_wext)) {
-				/* Set/Get monitor mode */
-				len = woal_priv_set_get_monitor_mode(
-					priv, buf, priv_cmd.total_len);
-			} else
-				len = sprintf(buf,
-					      "CFG80211 is not enabled\n") +
-				      1;
 			goto handled;
 #endif
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_DFS_TESTING,
@@ -20158,6 +20371,14 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		}
 #endif
 		len = sprintf(buf, "OK\n") + 1;
+	} else if (strncmp(buf, "COUNTRYCODE", strlen("COUNTRYCODE")) == 0) {
+		memset(country_code, 0, sizeof(country_code));
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_countrycode(priv, country_code)) {
+			ret = -EFAULT;
+			goto done;
+		}
+		len = sprintf(buf, "%s\n", country_code) + 1;
 	} else if (strncmp(buf, "COUNTRY", strlen("COUNTRY")) == 0) {
 		copy_len = strlen(buf) - strlen("COUNTRY") - 1;
 		if (copy_len > COUNTRY_CODE_LEN || copy_len <= 0) {
@@ -20180,14 +20401,16 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		}
 #ifdef STA_CFG80211
 		if (IS_STA_CFG80211(cfg80211_wext)) {
-			PRINTM(MIOCTL, "Notify country code=%s\n",
-			       country_code);
 			if (!moal_extflg_isset(priv->phandle,
-					       EXT_DISABLE_REGD_BY_DRIVER))
+					       EXT_DISABLE_REGD_BY_DRIVER)) {
+				PRINTM(MIOCTL, "Notify country code=%s\n",
+				       country_code);
+
 				regulatory_hint(priv->wdev->wiphy,
 						country_code);
-			len = sprintf(buf, "OK\n") + 1;
-			goto done;
+				len = sprintf(buf, "OK\n") + 1;
+				goto done;
+			}
 		}
 #endif
 		if (MLAN_STATUS_SUCCESS !=
@@ -20788,9 +21011,11 @@ int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 
 	ENTER();
 
+#ifdef CONFIG_COMPAT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	if (in_compat_syscall()) /* not implemented yet */
 		return -EOPNOTSUPP;
+#endif
 #endif
 
 	PRINTM(MINFO, "woal_do_ioctl: ioctl cmd = 0x%x\n", cmd);

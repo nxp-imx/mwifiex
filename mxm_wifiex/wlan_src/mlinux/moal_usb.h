@@ -243,6 +243,16 @@ struct usb_card_rec {
 	t_u8 resubmit_urbs;
 	/** USB card type */
 	t_u16 card_type;
+	/** Tx data endpoint address */
+	t_u8 tx_data2_ep;
+	/** Tx data endpoint max pkt size */
+	int tx_data2_maxpktsize;
+	/** Tx data2 URB pending count */
+	atomic_t tx_data2_urb_pending;
+	/** Index to point to next data urb to use */
+	int tx_data2_ix;
+	/** Pre-allocated urb for data */
+	urb_context tx_data2_list[MVUSB_TX_HIGH_WMARK];
 	t_u8 second_mac;
 };
 

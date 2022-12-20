@@ -1939,6 +1939,11 @@ typedef MLAN_PACK_START struct {
 } MLAN_PACK_END wlan_bgscan_cfg;
 #endif /* STA_SUPPORT */
 
+/** The open AP in OWE transmition Mode */
+#define OWE_TRANS_MODE_OPEN 1
+/** The security AP in OWE trsnsition Mode */
+#define OWE_TRANS_MODE_OWE 2
+
 #ifdef PRAGMA_PACK
 #pragma pack(pop)
 #endif
@@ -1952,6 +1957,15 @@ typedef struct _BSSDescriptor_t {
 
 	/** SSID */
 	mlan_802_11_ssid ssid;
+
+	/** Transition MAC address */
+	mlan_802_11_mac_addr trans_mac_address;
+
+	/** Transition SSID */
+	mlan_802_11_ssid trans_ssid;
+
+	/** OWE Transition mode */
+	t_u8 owe_transition_mode;
 
 	/** WEP encryption requirement */
 	t_u32 privacy;

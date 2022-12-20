@@ -1285,7 +1285,7 @@ static mlan_status woal_pcie_init(pcie_service_card *card)
 		goto err_iomap2;
 	}
 
-	PRINTM(MINFO,
+	PRINTM(MMSG,
 	       "PCI memory map Virt0: %p PCI memory map Virt2: "
 	       "%p\n",
 	       card->pci_mmap, card->pci_mmap1);

@@ -35,6 +35,9 @@ Change log:
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#include <linux/compat.h>
+#endif
 
 /********************************************************
 		Local Variables
@@ -3690,10 +3693,12 @@ done:
  *  @param priv     A pointer to moal_private structure
  *  @param action   MLAN_ACT_SET or MLAN_ACT_GET
  *  @param he_cfg   a pointer to mlan_ds_11ax_he_cfg
+ *  @param wait_option  wait_option
  *
  *  @return         0--success, otherwise failure
  */
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg)
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
+		  t_u8 wait_option)
 {
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -3711,14 +3716,12 @@ int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg)
 	moal_memcpy_ext(priv->phandle, &cfg_11ax->param.he_cfg, he_cfg,
 			sizeof(mlan_ds_11ax_he_cfg),
 			sizeof(mlan_ds_11ax_he_cfg));
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status == MLAN_STATUS_SUCCESS) {
+		moal_memcpy_ext(priv->phandle, he_cfg, &cfg_11ax->param.he_cfg,
+				sizeof(mlan_ds_11ax_he_cfg),
+				sizeof(mlan_ds_11ax_he_cfg));
 	}
-	moal_memcpy_ext(priv->phandle, he_cfg, &cfg_11ax->param.he_cfg,
-			sizeof(mlan_ds_11ax_he_cfg),
-			sizeof(mlan_ds_11ax_he_cfg));
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -3762,7 +3765,7 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 		ret = -EFAULT;
 		goto done;
 	}
-	if (woal_11ax_cfg(priv, MLAN_ACT_GET, &he_cfg)) {
+	if (woal_11ax_cfg(priv, MLAN_ACT_GET, &he_cfg, MOAL_IOCTL_WAIT)) {
 		PRINTM(MERROR, "Fail to get 11ax cfg!\n");
 		ret = -EFAULT;
 		goto done;
@@ -3792,7 +3795,7 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 		}
 	}
 	DBG_HEXDUMP(MCMD_D, "HE_CFG ", (t_u8 *)&he_cfg, sizeof(he_cfg));
-	ret = woal_11ax_cfg(priv, MLAN_ACT_SET, &he_cfg);
+	ret = woal_11ax_cfg(priv, MLAN_ACT_SET, &he_cfg, MOAL_IOCTL_WAIT);
 done:
 	LEAVE();
 	return ret;
@@ -4482,9 +4485,11 @@ int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 	int ret = 0;
 	ENTER();
 
+#ifdef CONFIG_COMPAT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	if (in_compat_syscall()) /* not implemented yet */
 		return -EOPNOTSUPP;
+#endif
 #endif
 
 	switch (cmd) {

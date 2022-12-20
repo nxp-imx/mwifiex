@@ -420,6 +420,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
 		goto done;
 	}
+
 	if (rx_pkt_type != PKT_TYPE_BAR) {
 		priv->rxpd_rate = prx_pd->rx_rate;
 		priv->rxpd_rate_info = prx_pd->rate_info;
@@ -465,6 +466,11 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 #endif
 
 	pmbuf->priority |= prx_pd->priority;
+	if (pmadapter->enable_net_mon &&
+	    (prx_pd->rx_pkt_type == PKT_TYPE_802DOT11)) {
+		wlan_process_uap_rx_packet(priv, pmbuf);
+		goto done;
+	}
 	memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if ((rx_pkt_type != PKT_TYPE_BAR) && (prx_pd->priority < MAX_NUM_TID)) {
@@ -675,8 +681,10 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 	       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
 
 	if (pmadapter->enable_net_mon) {
-		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
-		goto upload;
+		if (prx_pd->rx_pkt_type == PKT_TYPE_802DOT11) {
+			pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
+			goto upload;
+		}
 	}
 
 	/* don't do packet forwarding in disconnected state */

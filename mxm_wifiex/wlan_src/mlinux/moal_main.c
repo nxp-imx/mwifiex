@@ -1284,8 +1284,7 @@ static int woal_netdevice_event(struct notifier_block *nb, unsigned long event,
 				sizeof(priv->ip_addr));
 		priv->ip_addr_type = IPADDR_TYPE_IPV4;
 #ifdef STA_CFG80211
-		if (!moal_extflg_isset(priv->phandle, EXT_HW_TEST) &&
-		    priv->roaming_enabled) {
+		if (!moal_extflg_isset(priv->phandle, EXT_HW_TEST)) {
 			snprintf(rssi_low, sizeof(rssi_low), "%d",
 				 priv->rssi_low);
 			if (MLAN_STATUS_SUCCESS !=
@@ -2085,6 +2084,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 		device.rx_cmd_ep = cardp->rx_cmd_ep;
 		device.tx_data_ep = cardp->tx_data_ep;
 		device.rx_data_ep = cardp->rx_data_ep;
+		device.tx_data2_ep = cardp->tx_data2_ep;
 	}
 #endif
 #ifdef MFG_CMD_SUPPORT
@@ -2104,6 +2104,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device.cfg_11d = (t_u32)handle->params.cfg_11d;
 #endif
 	device.indrstcfg = (t_u32)handle->params.indrstcfg;
+	device.drcs_chantime_mode = (t_u32)handle->params.drcs_chantime_mode;
 #ifdef PCIE
 	if (IS_PCIE(handle->card_type))
 		device.ring_size = handle->params.ring_size;
@@ -3433,6 +3434,87 @@ done:
 	return status;
 }
 
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
+				size_t len)
+{
+	struct rps_map *old_map, *map;
+	cpumask_var_t mask;
+	int err, cpu, i;
+	static DEFINE_MUTEX(local_rps_map_mutex);
+
+	if (!queue || !queue->dev) {
+		PRINTM(MERROR, "%s: queue=%px or queue->dev is NULL\n",
+		       __func__, queue);
+		return -EINVAL;
+	}
+
+	if (!alloc_cpumask_var(&mask, GFP_KERNEL)) {
+		PRINTM(MERROR, "%s: alloc_cpumask_var fail.\n", __func__);
+		return -ENOMEM;
+	}
+
+	err = bitmap_parse(buf, len, cpumask_bits(mask), nr_cpumask_bits);
+	if (err) {
+		PRINTM(MERROR, "%s: bitmap_parse fail err=%d.\n", __func__,
+		       err);
+		free_cpumask_var(mask);
+		return err;
+	}
+
+	map = kzalloc(max_t(unsigned int, RPS_MAP_SIZE(cpumask_weight(mask)),
+			    L1_CACHE_BYTES),
+		      GFP_KERNEL);
+	if (!map) {
+		PRINTM(MERROR, "%s: kzalloc map fail.\n", __func__);
+		free_cpumask_var(mask);
+		return -ENOMEM;
+	}
+
+	i = 0;
+	for_each_cpu_and (cpu, mask, cpu_online_mask) {
+		PRINTM(MCMND, "map->cpus[%d]=%d\n", i, cpu);
+		map->cpus[i++] = cpu;
+	}
+
+	if (i) {
+		map->len = i;
+		PRINTM(MCMND, "map->len=%d\n", map->len);
+	} else {
+		kfree(map);
+		map = NULL;
+	}
+
+	mutex_lock(&local_rps_map_mutex);
+	old_map = rcu_dereference_protected(
+		queue->rps_map, mutex_is_locked(&local_rps_map_mutex));
+	rcu_assign_pointer(queue->rps_map, map);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	if (map)
+		static_branch_inc(&rps_needed);
+	if (old_map)
+		static_branch_dec(&rps_needed);
+#else
+	if (map)
+		static_key_slow_inc(&rps_needed);
+	if (old_map)
+		static_key_slow_dec(&rps_needed);
+
+#endif
+	mutex_unlock(&local_rps_map_mutex);
+
+	if (old_map)
+		kfree_rcu(old_map, rcu);
+
+	PRINTM(MMSG, "%s on %s: buf=%s(%u) (%d i=%d)\n", __func__,
+	       queue->dev->name, buf, (t_u32)len, nr_cpumask_bits, i);
+	free_cpumask_var(mask);
+	return len;
+}
+#endif
+#endif
+
 /**
  * @brief Add interfaces DPC
  *
@@ -3445,6 +3527,13 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int i;
 	char str_buf[MLAN_MAX_VER_STR_LEN];
+
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	moal_private *priv_rps = NULL;
+	t_u8 rps_buf[2];
+#endif
+#endif
 
 	ENTER();
 
@@ -3559,6 +3648,28 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 		PRINTM(MFATAL,
 		       "Error registering register_inet6addr_notifier\n");
 		goto err;
+	}
+#endif
+#endif
+
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	if (handle->params.rps) {
+		priv_rps = woal_get_priv_bss_type(handle, MLAN_BSS_TYPE_STA);
+		sprintf(rps_buf, "%x", handle->params.rps);
+		if (priv_rps) {
+			PRINTM(MCMND,
+			       "num_rx_queues=%u real_num_rx_queues=%u\n",
+			       priv_rps->netdev->num_rx_queues,
+			       priv_rps->netdev->real_num_rx_queues);
+			for (i = 0;
+			     i < (int)MIN(priv_rps->netdev->num_rx_queues,
+					  priv_rps->netdev->real_num_rx_queues);
+			     i++) {
+				woal_set_rps_map(&(priv_rps->netdev->_rx[i]),
+						 rps_buf, strlen(rps_buf));
+			}
+		}
 	}
 #endif
 #endif
@@ -4534,13 +4645,11 @@ static void woal_mon_if_setup(struct net_device *dev)
  * @param priv             A pointer to moal_private
  * @param name              Virtual interface name
  * @param name_assign_type  Interface name assignment type
- * @param sniffer_mode           Sniffer mode
  *
  * @return                  A pointer to monitor_iface
  */
 monitor_iface *woal_prepare_mon_if(moal_private *priv, const char *name,
-				   unsigned char name_assign_type,
-				   int sniffer_mode)
+				   unsigned char name_assign_type)
 {
 	int ret = 0;
 	moal_handle *handle = priv->phandle;
@@ -4548,19 +4657,6 @@ monitor_iface *woal_prepare_mon_if(moal_private *priv, const char *name,
 	monitor_iface *mon_if = NULL;
 
 	ENTER();
-
-	if (sniffer_mode != CHANNEL_SPEC_SNIFFER_MODE) {
-		PRINTM(MERROR, "Sniffer mode is not valid\n");
-		ret = -EFAULT;
-		goto fail;
-	}
-	if ((sniffer_mode == CHANNEL_SPEC_SNIFFER_MODE) &&
-	    woal_is_any_interface_active(handle)) {
-		PRINTM(MERROR,
-		       "Cannot start channel specified net monitor when Interface Active\n");
-		ret = -EFAULT;
-		goto fail;
-	}
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
@@ -4601,7 +4697,6 @@ monitor_iface *woal_prepare_mon_if(moal_private *priv, const char *name,
 	mon_if->priv = priv;
 	mon_if->mon_ndev = ndev;
 	mon_if->base_ndev = priv->netdev;
-	mon_if->sniffer_mode = sniffer_mode;
 	mon_if->radiotap_enabled = 1;
 	mon_if->flag = 1;
 
@@ -5799,6 +5894,20 @@ int woal_close(struct net_device *dev)
 
 	woal_flush_tx_stat_queue(priv);
 
+	if ((priv->media_connected == MTRUE)
+#ifdef UAP_SUPPORT
+	    || (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
+#endif
+	) {
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
+				    DEF_DEAUTH_REASON_CODE)) {
+			PRINTM(MERROR, "%s: woal_disconnect failed \n",
+			       __func__);
+		}
+		priv->media_connected = MFALSE;
+	}
+
 #ifdef STA_SUPPORT
 #ifdef STA_CFG80211
 	if (IS_STA_CFG80211(cfg80211_wext))
@@ -6703,7 +6812,7 @@ static void woal_tdls_check_tx(moal_private *priv, struct sk_buff *skb)
 {
 	struct tdls_peer *peer = NULL;
 	unsigned long flags;
-	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
+	t_u8 ra[MLAN_MAC_ADDR_LENGTH] = {0};
 	ENTER();
 	moal_memcpy_ext(priv->phandle, ra, skb->data, MLAN_MAC_ADDR_LENGTH,
 			sizeof(ra));
@@ -7090,29 +7199,6 @@ static int woal_process_tcp_ack(moal_private *priv, mlan_buffer *pmbuf)
 			return ret;
 		}
 	}
-#if 0
-	/* Might have race conditions with woal_tcp_ack_timer_func
-	 * Causing kernel panic, ageout handler will free tcp_sess
-	 * for now.
-	 */
-	else if((*((t_u8 *)tcph + 13) & 0x11) == 0x11){
-		/* TCP ACK + Fin */
-		spin_lock_irqsave(&priv->tcp_sess_lock, flags);
-		tcp_session = woal_get_tcp_sess(priv, (__force t_u32)iph->saddr, (__force t_u16)tcph->source,
-			(__force t_u32)iph->daddr, (__force t_u16)tcph->dest);
-		if (tcp_session) {
-			PRINTM(MDATA,"wlan: delete TCP seesion %p\n",tcp_session);
-			list_del(&tcp_session->link);
-			if (atomic_read(&tcp_session->is_timer_set))
-				woal_cancel_timer(&tcp_session->ack_timer);
-			skb = (struct sk_buff *)tcp_session->ack_skb;
-			if (skb)
-				dev_kfree_skb_any(skb);
-			kfree(tcp_session);
-		}
-		spin_unlock_irqrestore(&priv->tcp_sess_lock, flags);
- 	}
-#endif
 
 done:
 	LEAVE();
@@ -7194,6 +7280,7 @@ static void woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 #endif
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	index = skb_get_queue_mapping(skb);
+	index = MIN(index, 3);
 #endif
 
 	if (is_zero_timeval(priv->phandle->tx_time_start)) {
@@ -9237,6 +9324,8 @@ static int woal_dump_moal_drv_info(moal_handle *phandle, t_u8 *buf)
 			       atomic_read(&cardp->tx_cmd_urb_pending));
 		ptr += sprintf(ptr, "tx_data_urb_pending = %d\n",
 			       atomic_read(&cardp->tx_data_urb_pending));
+		ptr += sprintf(ptr, "tx_data2_urb_pending = %d\n",
+			       atomic_read(&cardp->tx_data2_urb_pending));
 #ifdef USB_CMD_DATA_EP
 		ptr += sprintf(ptr, "rx_cmd_urb_pending = %d\n",
 			       atomic_read(&cardp->rx_cmd_urb_pending));
@@ -9632,7 +9721,7 @@ done:
 int woal_save_dump_info_to_buf(moal_handle *phandle, t_u8 *src, t_u32 len,
 			       t_u32 type)
 {
-	mem_dump_header header;
+	mem_dump_header header = {0};
 	t_u32 left_len = 0;
 	t_u32 len_to_copy = 0;
 	int total_len = 0;
@@ -9734,6 +9823,8 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 		       atomic_read(&cardp->tx_cmd_urb_pending));
 		PRINTM(MERROR, "tx_data_urb_pending = %d\n",
 		       atomic_read(&cardp->tx_data_urb_pending));
+		PRINTM(MERROR, "tx_data2_urb_pending = %d\n",
+		       atomic_read(&cardp->tx_data2_urb_pending));
 #ifdef USB_CMD_DATA_EP
 		PRINTM(MERROR, "rx_cmd_urb_pending = %d\n",
 		       atomic_read(&cardp->rx_cmd_urb_pending));
@@ -10735,10 +10826,11 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 #define NAPI_BUDGET 64
 	if (moal_extflg_isset(handle, EXT_NAPI)) {
 		init_dummy_netdev(&handle->napi_dev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 		netif_napi_add(&handle->napi_dev, &handle->napi_rx,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 			       woal_netdev_poll_rx);
 #else
+		netif_napi_add(&handle->napi_dev, &handle->napi_rx,
 			       woal_netdev_poll_rx, NAPI_BUDGET);
 #endif
 		napi_enable(&handle->napi_rx);
@@ -11358,8 +11450,10 @@ static void woal_post_reset(moal_handle *handle)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int intf_num;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	char str_buf[MLAN_MAX_VER_STR_LEN];
+	mlan_fw_info fw_info;
 	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	t_u8 country_code[COUNTRY_CODE_LEN];
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
@@ -11396,9 +11490,16 @@ static void woal_post_reset(moal_handle *handle)
 	handle->fw_dump_status = MFALSE;
 	handle->driver_status = MFALSE;
 	handle->hardware_status = HardwareStatusReady;
+	handle->remain_on_channel = MFALSE;
 #ifdef STA_CFG80211
 	handle->scan_timeout = SCAN_TIMEOUT_25S;
 #endif
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
+		PRINTM(MERROR, "%s: get_fw_info failed \n", __func__);
+	}
+	woal_get_version(handle, str_buf, sizeof(str_buf) - 1);
+	PRINTM(MMSG, "wlan: version = %s\n", str_buf);
 	if (!handle->wifi_hal_flag) {
 		PRINTM(MMSG, "wlan: post_reset remove/add interface\n");
 		handle->surprise_removed = MTRUE;
@@ -11434,6 +11535,9 @@ static void woal_post_reset(moal_handle *handle)
 		PRINTM(MMSG, "wlan: post_reset remove/add interface done\n");
 		goto done;
 	}
+
+	PRINTM(MMSG, "wlan: start interfaces reset\n");
+
 	/* Reset all interfaces */
 	woal_reset_intf(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
 			MOAL_IOCTL_WAIT, MTRUE);
@@ -11831,8 +11935,11 @@ static void woal_cleanup_module(void)
 			/** cancel dfs monitor on deinit */
 			if (handle->priv[i] &&
 			    handle->priv[i]->bss_type == MLAN_BSS_TYPE_DFS) {
-				woal_11h_cancel_chan_report_ioctl(
-					handle->priv[i], MOAL_IOCTL_WAIT);
+				if (woal_11h_cancel_chan_report_ioctl(
+					    handle->priv[i], MOAL_IOCTL_WAIT))
+					PRINTM(MERROR,
+					       "%s: woal_11h_cancel_chan_report_ioctl failed \n",
+					       __func__);
 				continue;
 			}
 #ifdef STA_SUPPORT

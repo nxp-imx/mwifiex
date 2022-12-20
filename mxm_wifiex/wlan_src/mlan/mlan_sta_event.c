@@ -171,6 +171,7 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 	case TDLS_EVENT_TYPE_LINK_TORN_DOWN:
 		if (sta_ptr) {
 			if (sta_ptr->external_tdls) {
+				mlan_status ret = MLAN_STATUS_SUCCESS;
 				PRINTM(MMSG,
 				       "Receive TDLS TEAR DOWN event, Disable TDLS LINK\n");
 				pmadapter->tdls_status = TDLS_TEAR_DOWN;
@@ -183,10 +184,13 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 					   MLAN_MAC_ADDR_LENGTH);
 				/* Send command to firmware to delete tdls
 				 * link*/
-				wlan_prepare_cmd(priv,
-						 HostCmd_CMD_TDLS_OPERATION,
-						 HostCmd_ACT_GEN_SET, 0,
-						 (t_void *)MNULL, &tdls_oper);
+				ret = wlan_prepare_cmd(
+					priv, HostCmd_CMD_TDLS_OPERATION,
+					HostCmd_ACT_GEN_SET, 0, (t_void *)MNULL,
+					&tdls_oper);
+				if (ret)
+					PRINTM(MERROR,
+					       "11D: failed to send cmd to FW\n");
 				ptdls_event->bss_index = priv->bss_index;
 				ptdls_event->event_id =
 					MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ;
@@ -799,7 +803,12 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		if (pmadapter->pps_uapsd_mode && pmadapter->gen_null_pkt) {
 			if (MTRUE ==
 			    wlan_check_last_packet_indication(pmpriv)) {
-				if (!pmadapter->data_sent) {
+				if (!pmadapter->data_sent
+#if defined(USB)
+				    && wlan_is_port_ready(pmadapter,
+							  pmpriv->port_index)
+#endif
+				) {
 					if (wlan_send_null_packet(
 						    pmpriv,
 						    MRVDRV_TxPD_POWER_MGMT_NULL_PACKET |
@@ -1258,6 +1267,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		       eventcause, pevt_dat[0] + 1, pevt_dat[1] + 1,
 		       pevt_dat[2], pevt_dat[3]);
 	} break;
+	case EVENT_MULTI_CHAN_INFO:
+		PRINTM(MEVENT, "EVENT: MULTI_CHAN_INFO\n");
+		wlan_handle_event_multi_chan_info(pmpriv, pmbuf);
+		break;
 
 	case EVENT_FW_DUMP_INFO:
 		PRINTM(MINFO, "EVENT: Dump FW info\n");

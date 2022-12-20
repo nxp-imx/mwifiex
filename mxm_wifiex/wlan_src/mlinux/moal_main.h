@@ -306,6 +306,9 @@ extern int fw_reload;
 extern int mfg_mode;
 #endif
 
+/** rf_test mode */
+extern int rf_test_mode;
+
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int fw_region;
@@ -860,6 +863,9 @@ mlan_status woal_do_dfs_cac(moal_private *priv,
 /** Custom event : Channel Switch Announcment */
 #define CUS_EVT_CHANNEL_SWITCH_ANN "EVENT=CHANNEL_SWITCH_ANN"
 
+/** Custom event : Channel Switch complete */
+#define CUS_EVT_CHAN_SWITCH_COMPLETE "EVENT=CHANNEL_SWITCH_COMPLETE"
+
 /** Custom indiciation message sent to the application layer for WMM changes */
 #define WMM_CONFIG_CHANGE_INDICATION "WMM_CONFIG_CHANGE.indication"
 
@@ -1329,7 +1335,8 @@ struct rf_test_mode_data {
 	/* Tx frame config values */
 	t_u32 tx_frame_data[20];
 	/* HE TB Tx values */
-	t_u32 he_tb_tx[5];
+	t_u32 he_tb_tx[4];
+	t_s32 he_tb_tx_power[1];
 	/* BSSID */
 	t_u8 bssid[ETH_ALEN];
 };
@@ -1633,6 +1640,10 @@ struct _moal_private {
 	t_u8 auth_flag;
 	/** flag for auth algorithm */
 	t_u16 auth_alg;
+	/** auth tx cnt */
+	t_u8 auth_tx_cnt;
+	/** deauth evt cnt */
+	t_u8 deauth_evt_cnt;
 #endif
 #ifdef CONFIG_PROC_FS
 	/** Proc entry */
@@ -2046,11 +2057,6 @@ typedef struct _monitor_iface {
 	/* The priv data of interface on which the monitor iface is based */
 	moal_private *priv;
 	struct wireless_dev wdev;
-	/** 0 - Disabled
-	 * 1 - Channel Specified sniffer mode
-	 * 2 - In-Channel sniffer mode
-	 */
-	int sniffer_mode;
 	int radiotap_enabled;
 	/* The net_device on which the monitor iface is based. */
 	struct net_device *base_ndev;
@@ -2119,6 +2125,7 @@ enum ext_mod_params {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	EXT_DFS_OFFLOAD,
 #endif
+	EXT_CFG80211_DRCS,
 	EXT_DISABLE_REGD_BY_DRIVER,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	EXT_COUNTRY_IE_IGNORE,
@@ -2149,6 +2156,7 @@ typedef struct _moal_mod_para {
 #ifdef MFG_CMD_SUPPORT
 	int mfg_mode;
 #endif /* MFG_CMD_SUPPORT */
+	int rf_test_mode;
 	char *hw_name;
 	int drv_mode;
 #ifdef DEBUG_LEVEL1
@@ -2224,10 +2232,17 @@ typedef struct _moal_mod_para {
 	int gtk_rekey_offload;
 	t_u16 multi_dtim;
 	t_u16 inact_tmo;
+	int drcs_chantime_mode;
 	char *reg_alpha2;
 	int dfs53cfg;
 	t_u8 mcs32;
 
+#if defined(CONFIG_RPS)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	/* rps module param */
+	int rps;
+#endif
+#endif
 	int keep_previous_scan;
 } moal_mod_para;
 
@@ -3827,6 +3842,12 @@ void woal_remove_mcast_node(moal_private *priv, t_u8 *mcast_addr);
 t_u8 woal_find_mcast_node_tx(moal_private *priv, struct sk_buff *skb);
 
 mlan_status woal_request_country_power_table(moal_private *priv, char *region);
+mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
+			       t_u8 wait_option, t_u8 action);
+#ifdef UAP_SUPPORT
+void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
+			      t_u8 new_channel);
+#endif
 #ifdef RX_PACKET_COALESCE
 mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,
 				     t_u8 wait_option, t_u8 action);
@@ -3877,8 +3898,7 @@ mlan_status woal_init_aggr_ctrl(moal_handle *handle, t_u8 wait_option);
 
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 monitor_iface *woal_prepare_mon_if(moal_private *priv, const char *name,
-				   unsigned char name_assign_type,
-				   int sniffer_mode);
+				   unsigned char name_assign_type);
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)

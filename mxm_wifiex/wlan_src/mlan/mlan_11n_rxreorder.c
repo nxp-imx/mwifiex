@@ -1156,6 +1156,7 @@ void wlan_11n_ba_stream_timeout(mlan_private *priv,
 				HostCmd_DS_11N_BATIMEOUT *event)
 {
 	HostCmd_DS_11N_DELBA delba;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 
@@ -1169,7 +1170,10 @@ void wlan_11n_ba_stream_timeout(mlan_private *priv,
 	delba.del_ba_param_set |= (t_u16)event->origninator
 				  << DELBA_INITIATOR_POS;
 	delba.reason_code = REASON_CODE_STA_TIMEOUT;
-	wlan_prepare_cmd(priv, HostCmd_CMD_11N_DELBA, 0, 0, MNULL, &delba);
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_11N_DELBA, 0, 0, MNULL,
+			       &delba);
+	if (ret)
+		PRINTM(MERROR, "Failed to send cmd to FW\n");
 
 	LEAVE();
 	return;

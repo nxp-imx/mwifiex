@@ -83,7 +83,8 @@ static t_bool wlan_can_radar_det_skip(mlan_private *priv)
 	 * is off then 11n_radar detection is not required for subsequent BSSes
 	 * since they will follow the primary bss.
 	 */
-	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)) {
+	if (!priv->adapter->mc_policy &&
+	    (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)) {
 		memset(pmadapter, priv_list, 0x00, sizeof(priv_list));
 		pcount = wlan_get_privs_by_cond(pmadapter, wlan_is_intf_active,
 						priv_list);
@@ -284,13 +285,6 @@ static mlan_status wlan_uap_bss_ioctl_start(pmlan_adapter pmadapter,
 	mlan_ds_bss *bss = MNULL;
 
 	ENTER();
-
-	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
-		PRINTM(MINFO,
-		       "BSS start is blocked in Channel Specified Network Monitor mode...\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
 
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	pmpriv->uap_host_based = bss->param.host_based;
@@ -2165,6 +2159,17 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_SOFT_RESET)
 			status = wlan_uap_misc_ioctl_soft_reset(pmadapter,
 								pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_WARM_RESET) {
+			PRINTM(MCMND, "Request UAP WARM RESET\n");
+			util_enqueue_list_tail(
+				pmadapter->pmoal_handle,
+				&pmadapter->ioctl_pending_q,
+				(pmlan_linked_list)pioctl_req,
+				pmadapter->callbacks.moal_spin_lock,
+				pmadapter->callbacks.moal_spin_unlock);
+			pmadapter->pending_ioctl = MTRUE;
+			status = MLAN_STATUS_PENDING;
+		}
 		if (misc->sub_command == MLAN_OID_MISC_HOST_CMD)
 			status =
 				wlan_misc_ioctl_host_cmd(pmadapter, pioctl_req);
@@ -2191,6 +2196,15 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 							   pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_MAC_CONTROL)
 			status = wlan_misc_ioctl_mac_control(pmadapter,
+							     pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_MULTI_CHAN_CFG)
+			status = wlan_misc_ioctl_multi_chan_config(pmadapter,
+								   pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_MULTI_CHAN_POLICY)
+			status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
+								   pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_DRCS_CFG)
+			status = wlan_misc_ioctl_drcs_config(pmadapter,
 							     pioctl_req);
 #ifdef RX_PACKET_COALESCE
 		if (misc->sub_command == MLAN_OID_MISC_RX_PACKET_COALESCE)
@@ -2303,6 +2317,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_WACP_MODE)
 			status = wlan_misc_ioctl_wacp_mode(pmadapter,
 							   pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_COUNTRY_CODE)
+			status = wlan_misc_ioctl_country_code(pmadapter,
+							      pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

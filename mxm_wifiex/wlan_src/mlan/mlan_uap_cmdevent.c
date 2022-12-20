@@ -2294,6 +2294,11 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 					.pairwise_cipher_wpa2 =
 					tlv_pwk_cipher->pairwise_cipher;
 			if (wlan_le16_to_cpu(tlv_pwk_cipher->protocol) &
+			    PROTOCOL_OWE)
+				bss->param.bss_config.wpa_cfg
+					.pairwise_cipher_wpa2 =
+					tlv_pwk_cipher->pairwise_cipher;
+			if (wlan_le16_to_cpu(tlv_pwk_cipher->protocol) &
 			    PROTOCOL_WPA3_SAE)
 				bss->param.bss_config.wpa_cfg
 					.pairwise_cipher_wpa2 =
@@ -2670,6 +2675,7 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 						chan_band_tlv->bandcfg;
 					bss->param.ap_channel.channel =
 						chan_band_tlv->channel;
+					bss->param.ap_channel.center_chan = 0;
 					bss->param.ap_channel.is_11n_enabled =
 						pmpriv->is_11n_enabled;
 					pmpriv->uap_channel =
@@ -3816,6 +3822,7 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 	priv->is_11n_enabled = MFALSE;
 	priv->is_11ac_enabled = MFALSE;
 	priv->is_11ax_enabled = MFALSE;
+	event->event_id = 0;
 
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypesHeader_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv->type);
@@ -4788,6 +4795,17 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_WMM_QUEUE_CONFIG:
 		ret = wlan_cmd_wmm_queue_config(pmpriv, cmd_ptr, pdata_buf);
 		break;
+	case HostCmd_CMD_MULTI_CHAN_CONFIG:
+		ret = wlan_cmd_multi_chan_cfg(pmpriv, cmd_ptr, cmd_action,
+					      pdata_buf);
+		break;
+	case HostCmd_CMD_MULTI_CHAN_POLICY:
+		ret = wlan_cmd_multi_chan_policy(pmpriv, cmd_ptr, cmd_action,
+						 pdata_buf);
+		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
 #ifdef RX_PACKET_COALESCE
 	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
 		ret = wlan_cmd_rx_pkt_coalesce_cfg(pmpriv, cmd_ptr, cmd_action,
@@ -5108,6 +5126,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_RECONFIGURE_TX_BUFF:
 		wlan_set_tx_pause_flag(pmpriv, MFALSE);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 
 		pmadapter->tx_buf_size =
 			(t_u16)wlan_le16_to_cpu(resp->params.tx_buf.buff_size);
@@ -5216,6 +5238,15 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_WMM_QUEUE_CONFIG:
 		ret = wlan_ret_wmm_queue_config(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_MULTI_CHAN_CONFIG:
+		ret = wlan_ret_multi_chan_cfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_MULTI_CHAN_POLICY:
+		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef RX_PACKET_COALESCE
 	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
@@ -5771,6 +5802,10 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		       *(t_u16 *)pmadapter->event_body);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		pevent->event_id = MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED;
+		break;
+	case EVENT_MULTI_CHAN_INFO:
+		PRINTM(MEVENT, "EVENT: MULTI_CHAN_INFO\n");
+		wlan_handle_event_multi_chan_info(pmpriv, pmbuf);
 		break;
 
 	case EVENT_FW_DEBUG_INFO:

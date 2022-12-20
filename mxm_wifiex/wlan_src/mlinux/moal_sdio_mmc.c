@@ -1564,15 +1564,32 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			break;
 		case SD9177_A1:
 			if (magic == CHIP_MAGIC_VALUE) {
-				if (strap == CARD_TYPE_SD9177_UART)
-					strcpy(handle->card_info->fw_name,
-					       SDUART9177_DEFAULT_COMBO_V1_FW_NAME);
-				else
-					strcpy(handle->card_info->fw_name,
-					       SDSD9177_DEFAULT_COMBO_V1_FW_NAME);
+				if (strap == CARD_TYPE_SD9177_UART) {
+					if (handle->params.rf_test_mode)
+						strcpy(handle->card_info
+							       ->fw_name,
+						       SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME);
+					else
+						strcpy(handle->card_info
+							       ->fw_name,
+						       SDUART9177_DEFAULT_COMBO_V1_FW_NAME);
+				} else {
+					if (handle->params.rf_test_mode)
+						strcpy(handle->card_info
+							       ->fw_name,
+						       SDSD9177_DEFAULT_RFTM_COMBO_V1_FW_NAME);
+					else
+						strcpy(handle->card_info
+							       ->fw_name,
+						       SDSD9177_DEFAULT_COMBO_V1_FW_NAME);
+				}
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       SD9177_DEFAULT_WLAN_V1_FW_NAME);
+			if (handle->params.rf_test_mode)
+				strcpy(handle->card_info->fw_name,
+				       SD9177_DEFAULT_RFTM_WLAN_V1_FW_NAME);
+			else
+				strcpy(handle->card_info->fw_name_wlan,
+				       SD9177_DEFAULT_WLAN_V1_FW_NAME);
 			break;
 		default:
 			break;

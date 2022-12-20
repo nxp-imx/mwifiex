@@ -61,9 +61,24 @@ static mlan_status wlan_11n_ioctl_max_tx_buf_size(pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_11n_cfg *cfg = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 	ENTER();
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET) {
+		if (cfg->param.tx_buf_size == 0xffff) {
+			PRINTM(MIOCTL, "Send reconfigure tx buf to FW\n");
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_RECONFIGURE_TX_BUFF,
+					       HostCmd_ACT_GEN_SET, 0,
+					       (t_void *)pioctl_req,
+					       &cfg->param.tx_buf_size);
+			if (ret == MLAN_STATUS_SUCCESS)
+				ret = MLAN_STATUS_PENDING;
+			LEAVE();
+			return ret;
+		}
+	}
 	cfg->param.tx_buf_size = (t_u32)pmadapter->max_tx_buf_size;
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 

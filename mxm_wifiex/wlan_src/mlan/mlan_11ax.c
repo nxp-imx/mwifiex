@@ -957,8 +957,9 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &txomi_cmd->omi,
-			   sizeof(t_u16), sizeof(t_u16));
-		cmd->size += sizeof(t_u16);
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_txomi_cmd);
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &toltime_cmd->tol_time,
@@ -1034,7 +1035,8 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.txomi_cfg.omi, axcmd->val,
-			   sizeof(t_u16), sizeof(t_u16));
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.toltime_cfg.tol_time,

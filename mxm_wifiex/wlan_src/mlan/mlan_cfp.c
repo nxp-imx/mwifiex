@@ -2446,9 +2446,6 @@ static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
 		poper_bw_chan = oper_bw_chan_eu;
 		*arraysize = sizeof(oper_bw_chan_eu);
 		break;
-	default:
-		PRINTM(MERROR, "Country not support!\n");
-		break;
 	}
 
 	LEAVE();
