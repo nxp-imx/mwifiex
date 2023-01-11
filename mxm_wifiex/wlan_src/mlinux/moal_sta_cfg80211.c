@@ -6280,6 +6280,8 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy, struct net_device *dev,
 	/* we need update the value cookie */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 	*cookie = (u64)random32() | 1;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	*cookie = (u64)get_random_u32() | 1;
 #else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	*cookie = (u64)prandom_u32() | 1;
