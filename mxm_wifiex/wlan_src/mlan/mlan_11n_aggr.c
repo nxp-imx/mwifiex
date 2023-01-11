@@ -410,6 +410,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			PRINTM(MERROR, "Deaggr, send to moal failed\n");
 			daggr_mbuf->status_code = MLAN_ERROR_PKT_INVALID;
 			/* fall through */
+			fallthrough;
 		case MLAN_STATUS_SUCCESS:
 			wlan_recv_packet_complete(pmadapter, daggr_mbuf, ret);
 			break;
