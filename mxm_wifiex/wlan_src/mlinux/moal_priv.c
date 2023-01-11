@@ -286,6 +286,7 @@ static int woal_get_signal(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 		/* Fall through */
+		fallthrough;
 	case 1: /* Check type range */
 		if (in_data[0] < 1 || in_data[0] > 3) {
 			ret = -EINVAL;
@@ -5137,18 +5138,23 @@ static int woal_do_sdio_mpa_ctrl(moal_private *priv, struct iwreq *wrq)
 	case 6:
 		misc->param.mpa_ctrl.rx_max_ports = data[5];
 		/* fall through */
+		fallthrough;
 	case 5:
 		misc->param.mpa_ctrl.tx_max_ports = data[4];
 		/* fall through */
+		fallthrough;
 	case 4:
 		misc->param.mpa_ctrl.rx_buf_size = data[3];
 		/* fall through */
+		fallthrough;
 	case 3:
 		misc->param.mpa_ctrl.tx_buf_size = data[2];
 		/* fall through */
+		fallthrough;
 	case 2:
 		misc->param.mpa_ctrl.rx_enable = data[1];
 		/* fall through */
+		fallthrough;
 	case 1:
 		/* Set cmd */
 		req->action = MLAN_ACT_SET;
