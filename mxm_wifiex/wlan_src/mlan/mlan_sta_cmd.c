@@ -3636,6 +3636,7 @@ static mlan_status wlan_cmd_csi(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	case CSI_CMD_DISABLE:
 		DBG_HEXDUMP(MCMD_D, "Disable CSI", csi_cfg_cmd,
 			    sizeof(HostCmd_DS_CSI_CFG));
+		fallthrough;
 	default:
 		break;
 	}
