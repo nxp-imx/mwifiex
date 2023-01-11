@@ -4076,6 +4076,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_STOP_TRAFFIC;
 		/* fall through */
+		fallthrough;
 
 	case RDH_STOP_TRAFFIC:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s\n", __func__,
@@ -4089,6 +4090,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_GET_INFO_CHANNEL;
 		/* fall through */
+		fallthrough;
 
 	case RDH_GET_INFO_CHANNEL:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4205,6 +4207,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_GET_INFO_BEACON_DTIM;
 		/* fall through */
+		fallthrough;
 
 	case RDH_GET_INFO_BEACON_DTIM:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4280,6 +4283,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_SET_CUSTOM_IE;
 		/* fall through */
+		fallthrough;
 
 	case RDH_SET_CUSTOM_IE:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4331,6 +4335,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_REM_CUSTOM_IE;
 		/* fall through */
+		fallthrough;
 
 	case RDH_REM_CUSTOM_IE:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4398,6 +4403,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_STOP_INTFS;
 		/* fall through */
+		fallthrough;
 
 	case RDH_STOP_INTFS:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4452,6 +4458,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 			goto rdh_restart_intfs; /* skip next stage */
 		}
 		/* fall through */
+		fallthrough;
 
 	case RDH_SET_NEW_CHANNEL:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s, priv_idx=%d\n", __func__,
@@ -4494,6 +4501,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_RESTART_INTFS;
 		/* fall through */
+		fallthrough;
 
 	case RDH_RESTART_INTFS:
 	rdh_restart_intfs:
@@ -4588,6 +4596,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
 		pstate_rdh->stage = RDH_RESTART_TRAFFIC;
 		/* fall through */
+		fallthrough;
 
 	case RDH_RESTART_TRAFFIC:
 		PRINTM(MCMD_D, "%s(): stage(%d)=%s\n", __func__,
