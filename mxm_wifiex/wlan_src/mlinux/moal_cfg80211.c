@@ -2945,8 +2945,10 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		ret = -ENOMEM;
 		goto done;
 	}
-#if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 	*cookie = random32() | 1;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	*cookie = get_random_u32() | 1;
 #else
 #if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	*cookie = prandom_u32() | 1;
