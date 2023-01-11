@@ -4552,6 +4552,7 @@ void woal_process_ioctl_resp(moal_private *priv, mlan_ioctl_req *req)
 #endif
 	case MLAN_IOCTL_MISC_CFG:
 		woal_ioctl_get_misc_conf(priv, (mlan_ds_misc_cfg *)req->pbuf);
+		fallthrough;
 	default:
 		break;
 	}
