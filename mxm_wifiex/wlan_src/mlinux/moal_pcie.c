@@ -1380,7 +1380,7 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 				break;
 		}
 		// follow through
-
+		fallthrough;
 		/* fall through */
 	case PCIE_INT_MODE_MSI:
 		pcie_int_mode = PCIE_INT_MODE_MSI;
@@ -1397,7 +1397,7 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 			}
 		}
 		// follow through
-
+		fallthrough;
 		/* fall through */
 	case PCIE_INT_MODE_LEGACY:
 		pcie_int_mode = PCIE_INT_MODE_LEGACY;
