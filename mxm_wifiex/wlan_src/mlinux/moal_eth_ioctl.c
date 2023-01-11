@@ -5279,6 +5279,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.rx_deaggr_ctrl.aggr_tmo =
 			(t_u16)data[7];
 		/* fall through */
+		fallthrough;
 	case 7:
 		if (data[6] < 0 || (data[6] > 10000 &&
 				    data[6] != MLAN_USB_TX_AGGR_TIMEOUT_DYN)) {
@@ -5290,6 +5291,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.tx_aggr_ctrl.aggr_tmo =
 			(t_u16)data[6];
 		/* fall through */
+		fallthrough;
 	case 6:
 		if ((data[5] < 512) || ((data[5] % 512) != 0)) {
 			PRINTM(MERROR, "Invalid Rx alignment value (%d)\n",
@@ -5304,6 +5306,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.rx_deaggr_ctrl.aggr_align =
 			(t_u16)data[5];
 		/* fall through */
+		fallthrough;
 	case 5:
 		if ((data[4] < 2048) || ((data[4] % 2048) != 0)) {
 			PRINTM(MERROR, "Invalid Tx alignment value (%d)\n",
@@ -5314,6 +5317,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.tx_aggr_ctrl.aggr_align =
 			(t_u16)data[4];
 		/* fall through */
+		fallthrough;
 	case 4:
 		if ((data[3] == 2) || (data[3] == 4) || (data[3] == 8) ||
 		    (data[3] == 16)) {
@@ -5336,6 +5340,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.rx_deaggr_ctrl.aggr_max =
 			(t_u16)data[3];
 		/* fall through */
+		fallthrough;
 	case 3:
 		if ((data[2] == 2) || (data[2] == 4) || (data[2] == 8) ||
 		    (data[2] == 16)) {
@@ -5354,6 +5359,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.tx_aggr_ctrl.aggr_max =
 			(t_u16)data[2];
 		/* fall through */
+		fallthrough;
 	case 2:
 		if ((data[1] != 0) && (data[1] != 1)) {
 			PRINTM(MERROR, "Invalid Rx enable value (%d)\n",
@@ -5367,6 +5373,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		pcfg_misc->param.usb_aggr_params.rx_deaggr_ctrl.enable =
 			(t_u16)data[1];
 		/* fall through */
+		fallthrough;
 	case 1:
 		if ((data[0] != 0) && (data[0] != 1)) {
 			PRINTM(MERROR, "Invalid Tx enable value (%d)\n",
@@ -9888,6 +9895,7 @@ static int woal_priv_get_signal(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 		/* Fall through */
+		fallthrough;
 	case 1: /* Check type range */
 		if (in_data[0] < 1 || in_data[0] > 3) {
 			ret = -EINVAL;
@@ -10833,18 +10841,23 @@ static int woal_priv_sdio_mpa_ctrl(moal_private *priv, t_u8 *respbuf,
 	case 6:
 		misc->param.mpa_ctrl.rx_max_ports = data[5];
 		/* fall through */
+		fallthrough;
 	case 5:
 		misc->param.mpa_ctrl.tx_max_ports = data[4];
 		/* fall through */
+		fallthrough;
 	case 4:
 		misc->param.mpa_ctrl.rx_buf_size = data[3];
 		/* fall through */
+		fallthrough;
 	case 3:
 		misc->param.mpa_ctrl.tx_buf_size = data[2];
 		/* fall through */
+		fallthrough;
 	case 2:
 		misc->param.mpa_ctrl.rx_enable = data[1];
 		/* fall through */
+		fallthrough;
 	case 1:
 		/* Set cmd */
 		req->action = MLAN_ACT_SET;
@@ -11666,6 +11679,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 44:
 		case 48:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11677,6 +11691,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 52:
 		case 56:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11685,6 +11700,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 60:
 		case 64:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11699,6 +11715,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 68:
 		case 72:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11707,6 +11724,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 76:
 		case 80:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11718,6 +11736,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 84:
 		case 88:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11726,6 +11745,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 92:
 		case 96:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11737,6 +11757,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 100:
 		case 104:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11745,6 +11766,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 108:
 		case 112:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11756,6 +11778,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 116:
 		case 120:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11764,6 +11787,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 124:
 		case 128:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11783,6 +11807,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 140:
 		case 144:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11800,6 +11825,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 157:
 		case 161:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11811,6 +11837,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 165:
 		case 169:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11819,6 +11846,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 173:
 		case 177:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11830,6 +11858,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 184:
 		case 188:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11838,6 +11867,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 192:
 		case 196:
 			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
@@ -11849,6 +11879,7 @@ static t_u8 woal_get_center_freq_idx(moal_private *priv, t_u16 band,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		default: /* error. go to the default */
 			center_freq_idx = 42;
 		}
@@ -15000,9 +15031,11 @@ static int woal_priv_cfg_noa(moal_private *priv, t_u8 *respbuf,
 		case 5:
 			noa_cfg.noa_interval = (t_u32)data[4];
 			/* fall through */
+			fallthrough;
 		case 4:
 			noa_cfg.noa_duration = (t_u32)data[3];
 			/* fall through */
+			fallthrough;
 		case 3:
 			if (data[2] < 1 || data[2] > 255) {
 				PRINTM(MERROR,
@@ -15012,6 +15045,7 @@ static int woal_priv_cfg_noa(moal_private *priv, t_u8 *respbuf,
 			}
 			noa_cfg.noa_count = (t_u8)data[2];
 			/* fall through */
+			fallthrough;
 		case 2:
 			if (data[1] < 0 || data[1] > 255) {
 				PRINTM(MERROR, "Invalid Index\n");
@@ -15020,6 +15054,7 @@ static int woal_priv_cfg_noa(moal_private *priv, t_u8 *respbuf,
 			}
 			noa_cfg.index = (t_u16)data[1];
 			/* fall through */
+			fallthrough;
 		case 1:
 			if (data[0] < 0 || data[0] > 1) {
 				PRINTM(MERROR, "Invalid noa enable\n");
@@ -15094,6 +15129,7 @@ static int woal_priv_cfg_opp_ps(moal_private *priv, t_u8 *respbuf,
 		case 2:
 			opp_ps_cfg.ct_window = (t_u8)data[1];
 			/* fall through */
+			fallthrough;
 		case 1:
 			if (data[0] < 0 || data[0] > 1) {
 				PRINTM(MERROR, "Invalid ps enable\n");
@@ -15103,6 +15139,7 @@ static int woal_priv_cfg_opp_ps(moal_private *priv, t_u8 *respbuf,
 			opp_ps_cfg.opp_ps_enable = (t_u8)data[0];
 			opp_ps_cfg.flags |= WIFI_DIRECT_OPP_PS;
 			/* fall through */
+			fallthrough;
 		default:
 			break;
 		}
@@ -15177,6 +15214,7 @@ static int woal_priv_cfg_clock_sync(moal_private *priv, t_u8 *respbuf,
 			clock_sync_cfg->clock_sync_gpio_pulse_width =
 				(t_u16)data[4];
 			/* fall through */
+			fallthrough;
 		case 4:
 			if (data[3] < 0 || data[3] > 1) {
 				PRINTM(MERROR, "Invalid Level/Trigger\n");
@@ -15186,6 +15224,7 @@ static int woal_priv_cfg_clock_sync(moal_private *priv, t_u8 *respbuf,
 			clock_sync_cfg->clock_sync_gpio_level_toggle =
 				(t_u8)data[3];
 			/* fall through */
+			fallthrough;
 		case 3:
 			if (data[2] < 1 || data[2] > 255) {
 				PRINTM(MERROR,
@@ -15196,6 +15235,7 @@ static int woal_priv_cfg_clock_sync(moal_private *priv, t_u8 *respbuf,
 			clock_sync_cfg->clock_sync_gpio_pin_number =
 				(t_u8)data[2];
 			/* fall through */
+			fallthrough;
 		case 2:
 			if (data[1] < 0 || data[1] > 2) {
 				PRINTM(MERROR, "Invalid Role\n");
@@ -15204,6 +15244,7 @@ static int woal_priv_cfg_clock_sync(moal_private *priv, t_u8 *respbuf,
 			}
 			clock_sync_cfg->clock_sync_Role = (t_u8)data[1];
 			/* fall through */
+			fallthrough;
 		case 1:
 			if (data[0] < 0 || data[0] > 2) {
 				PRINTM(MERROR, "Invalid Mode\n");
