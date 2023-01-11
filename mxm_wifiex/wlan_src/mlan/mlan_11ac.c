@@ -70,6 +70,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 52:
 		case 56:
 		case 60:
@@ -82,6 +83,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 100:
 		case 104:
 		case 108:
@@ -91,6 +93,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 116:
 		case 120:
 		case 124:
@@ -103,6 +106,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 132:
 		case 136:
 		case 140:
@@ -112,6 +116,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 149:
 		case 153:
 		case 157:
@@ -121,6 +126,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 165:
 		case 169:
 		case 173:
@@ -130,6 +136,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		case 184:
 		case 188:
 		case 192:
@@ -139,6 +146,7 @@ t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 				break;
 			}
 			/* fall through */
+			fallthrough;
 		default: /* error. go to the default */
 			center_freq_idx = 42;
 		}
