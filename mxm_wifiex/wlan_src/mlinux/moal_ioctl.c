@@ -7791,6 +7791,7 @@ void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info)
 #define TX_PWR_STR_LEN 20
 #define TX_CONT_STR_LEN 50
 #define TX_FRAME_STR_LEN 200
+#define TRIGGER_FRAME_STR_LEN 250
 #define HE_TB_TX_STR_LEN 30
 
 /*
@@ -8023,6 +8024,209 @@ done:
 	LEAVE();
 	return ret;
 }
+/*
+ *  @brief Parse mfg cmd trigger string
+ *
+ *  @param s        A pointer to user buffer
+ *  @param len      Length of user buffer
+ *  @param d        A pointer to mfg_cmd_tx_frame2 struct
+ *  @return         0 on success, -EINVAL otherwise
+ */
+static int parse_trigger_frame_string(const char *s, size_t len,
+				      mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *d)
+{
+	int ret = MLAN_STATUS_SUCCESS;
+	char *string = NULL;
+	char *tmp = NULL;
+	char *pos = NULL;
+	gfp_t flag;
+
+	ENTER();
+	if (!s || !d) {
+		LEAVE();
+		return -EINVAL;
+	}
+	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
+	string = kzalloc(TRIGGER_FRAME_STR_LEN, flag);
+	if (string == NULL)
+		return -ENOMEM;
+
+	moal_memcpy_ext(NULL, string, s + strlen("trigger_frame="),
+			len - strlen("trigger_frame="),
+			TRIGGER_FRAME_STR_LEN - 1);
+
+	tmp = string;
+	string = strstrip(string);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->enable_tx = (t_u32)woal_string_to_number(pos);
+
+	if (d->enable_tx == MFALSE)
+		goto done;
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->standalone_hetb = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->frmCtl.type = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->frmCtl.sub_type = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->duration = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.trigger_type =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ul_len = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.more_tf =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.cs_required =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ul_bw = (t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ltf_type =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ltf_mode =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ltf_symbol =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ul_stbc =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ldpc_ess =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.ap_tx_pwr =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.pre_fec_pad_fct =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.pe_disambig =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.spatial_reuse =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.doppler =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_common_field.he_sig2 =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.aid12 =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ru_alloc_reg =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ru_alloc =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ul_coding_type =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ul_mcs =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ul_dcm =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ss_alloc =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->trig_user_info_field.ul_target_rssi =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->basic_trig_user_info.mpdu_mu_sf =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->basic_trig_user_info.tid_al =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->basic_trig_user_info.ac_pl =
+			(t_u32)woal_string_to_number(pos);
+
+	pos = strsep(&string, " \t");
+	if (pos)
+		d->basic_trig_user_info.pref_ac =
+			(t_u32)woal_string_to_number(pos);
+
+	if (d->enable_tx > 1)
+		ret = -EINVAL;
+
+done:
+	kfree(tmp);
+	LEAVE();
+	return ret;
+}
 
 /*
  *  @brief Parse mfg cmd tx frame string
@@ -8143,10 +8347,12 @@ static int parse_tx_frame_string(const char *s, size_t len,
 
 	pos = strsep(&string, " \t");
 	if (pos) {
+		char *begin, *end;
+		begin = pos;
 		for (i = 0; i < ETH_ALEN; i++) {
-			pos = strsep(&string, ":");
-			if (pos)
-				d->bssid[i] = woal_atox(pos);
+			end = woal_strsep(&begin, ':', '/');
+			if (end)
+				d->bssid[i] = woal_atox(end);
 		}
 	}
 
@@ -8373,6 +8579,12 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 					  &misc->param.mfg_he_power))
 			err = MTRUE;
 		break;
+	case MFG_CMD_CONFIG_TRIGGER_FRAME:
+		misc->sub_command = MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME;
+		if (parse_trigger_frame_string(
+			    buffer, len, &misc->param.mfg_tx_trigger_config))
+			err = MTRUE;
+		break;
 	default:
 		err = MTRUE;
 	}
@@ -8502,6 +8714,24 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			misc->param.mfg_he_power.axq_mu_timer;
 		handle->rf_data->he_tb_tx_power[0] =
 			misc->param.mfg_he_power.tx_power;
+		break;
+	case MFG_CMD_CONFIG_TRIGGER_FRAME:
+		handle->rf_data->mfg_tx_trigger_config.enable_tx =
+			misc->param.mfg_tx_trigger_config.enable_tx;
+		handle->rf_data->mfg_tx_trigger_config.standalone_hetb =
+			misc->param.mfg_tx_trigger_config.standalone_hetb;
+		handle->rf_data->mfg_tx_trigger_config.frmCtl.type =
+			misc->param.mfg_tx_trigger_config.frmCtl.type;
+		handle->rf_data->mfg_tx_trigger_config.frmCtl.sub_type =
+			misc->param.mfg_tx_trigger_config.frmCtl.sub_type;
+		handle->rf_data->mfg_tx_trigger_config.duration =
+			misc->param.mfg_tx_trigger_config.duration;
+		handle->rf_data->mfg_tx_trigger_config.trig_common_field =
+			misc->param.mfg_tx_trigger_config.trig_common_field;
+		handle->rf_data->mfg_tx_trigger_config.trig_user_info_field =
+			misc->param.mfg_tx_trigger_config.trig_user_info_field;
+		handle->rf_data->mfg_tx_trigger_config.basic_trig_user_info =
+			misc->param.mfg_tx_trigger_config.basic_trig_user_info;
 		break;
 	}
 done:

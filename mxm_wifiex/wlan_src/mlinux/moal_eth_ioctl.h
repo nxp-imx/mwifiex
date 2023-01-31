@@ -235,9 +235,6 @@ typedef struct _chan_stats {
 #ifdef SDIO
 #define PRIV_CMD_SD_CMD53_RW "sdcmd53rw"
 #endif
-#ifdef RX_PACKET_COALESCE
-#define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
-#endif
 #define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
 #define PRIV_CMD_DRCS_CFG "mc_cfg_ext"

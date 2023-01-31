@@ -4806,12 +4806,6 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
-#ifdef RX_PACKET_COALESCE
-	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
-		ret = wlan_cmd_rx_pkt_coalesce_cfg(pmpriv, cmd_ptr, cmd_action,
-						   pdata_buf);
-		break;
-#endif
 	case HOST_CMD_APCMD_OPER_CTRL:
 		ret = wlan_uap_cmd_oper_ctrl(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
@@ -5248,11 +5242,6 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
 		break;
-#ifdef RX_PACKET_COALESCE
-	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
-		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
-		break;
-#endif
 	case HostCMD_APCMD_ACS_SCAN:
 		ret = wlan_ret_cmd_uap_acs_scan(pmpriv, resp, pioctl_buf);
 		break;

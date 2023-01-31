@@ -1314,11 +1314,6 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID: DRCS config */
 #define HostCmd_CMD_DRCS_CONFIG 0x024a
 
-#ifdef RX_PACKET_COALESCE
-/** TLV ID for RX pkt coalesce config */
-#define TLV_TYPE_RX_PKT_COAL_CONFIG (PROPRIETARY_TLV_BASE_ID + 0xC9)
-#endif
-
 #define TLV_TYPE_PREV_BSSID (PROPRIETARY_TLV_BASE_ID + 330)
 
 /** Host Command ID : Channel report request */
@@ -1574,11 +1569,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_Op_t {
 /** Check if Embedded OWE is supported by firmware */
 #define IS_FW_SUPPORT_EMBEDDED_OWE(_adapter)                                   \
 	(_adapter->fw_cap_info & FW_CAPINFO_EMBEDDED_OWE_SUPPORT)
-
-#ifdef RX_PACKET_COALESCE
-/** Host Command ID : Rx packet coalescing configuration */
-#define HostCmd_CMD_RX_PKT_COALESCE_CFG 0x012c
-#endif
 
 /** Host Command ID : Extended scan support */
 #define HostCmd_CMD_802_11_SCAN_EXT 0x0107
@@ -6996,17 +6986,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MIMO_SWITCH {
 	t_u8 rxpath_antmode;
 } MLAN_PACK_END HostCmd_DS_MIMO_SWITCH;
 
-#ifdef RX_PACKET_COALESCE
-typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
-	/** Action */
-	t_u16 action;
-	/** Packet threshold */
-	t_u32 packet_threshold;
-	/** Timeout */
-	t_u16 delay;
-} MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
-#endif
-
 typedef MLAN_PACK_START struct _MrvlTypes_DrcsTimeSlice_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
@@ -8254,9 +8233,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
 		HostCmd_DS_TSF tsf;
 		HostCmd_DS_DFS_REPEATER_MODE dfs_repeater;
-#ifdef RX_PACKET_COALESCE
-		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
-#endif
 		HostCmd_DS_EAPOL_PKT eapol_pkt;
 		HostCmd_DS_SENSOR_TEMP temp_sensor;
 		HostCMD_DS_APCMD_ACS_SCAN acs_scan;
@@ -8310,6 +8286,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
+		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
 		HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG dot11mc_unassoc_ftm_cfg;
 		HostCmd_DS_HAL_PHY_CFG hal_phy_cfg_params;

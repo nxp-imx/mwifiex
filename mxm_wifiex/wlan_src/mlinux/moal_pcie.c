@@ -288,6 +288,7 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 	/* Reset all interfaces */
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
+	woal_clean_up(handle);
 
 	/* Shutdown firmware */
 	handle->init_wait_q_woken = MFALSE;
@@ -322,7 +323,6 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 #endif
 #endif
 #endif
-
 	/* Remove interface */
 	for (i = 0; i < handle->priv_num; i++)
 		woal_remove_interface(handle, i);

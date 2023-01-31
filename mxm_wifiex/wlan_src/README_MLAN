@@ -433,11 +433,94 @@
 	echo "tx_frame=0" > /proc/mwlan/adapterX/config
 	echo "tx_frame=1 7 0xAAA 0x100 1 20 0 0 0 0 0 0 0 05:43:3f:c4:51" > /proc/mwlan/adapterX/config
 
+    Configure Trigger Frame
+    Example: To configure Trigger frame:
+    echo "trigger_frame=1 0 1 2 5484 0 256 0 0 2 1 0 0 0 1 60 1 0 65535 0 511 5 0 67 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
+
+    Example: To disable configuration of  Trigger frame:
+    echo "trigger_frame=0"  > /proc/mwlan/adapter0/config
+
+    For more information about trigger frame configuration as per supported BW(80MHz, 40MHz and 20MHz),
+    Please refer : config/trigger_frame_cfg.conf
+
+    Example : To start trigger frame transmission :
+    echo "rf_test_mode=1" > /proc/mwlan/adapter0/config
+    echo "band=1" > /proc/mwlan/adapter0/config
+    echo "bw=0" > /proc/mwlan/adapter0/config
+    echo "channel=36" > /proc/mwlan/adapter0/config
+    echo "trigger_frame=1 0 1 2 5484 0 256 0 0 0 1 0 0 0 1 60 1 0 65535 0 511 5 0 61 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
+    echo "tx_frame=1 0x1102 0xabababab 200" >/proc/mwlan/adapter0/config
+
+6) Set host sleep parameters
+
     hssetpara
 	This command is used to set host sleep parameters.
     Example:
         echo "hssetpara=2 0xff 0xc8 3 400" > /proc/mwlan/adapter0/config
         echo "hssetpara=2 1 0xc8 3 400 " > /proc/mwlan/adapter0/config
+
+7) For Antenna Diversity Command
+
+    antcfg
+        This command is used to set/get the mode of Tx/Rx path.
+
+        GET Command Format: cat /proc/mwlan/adapter0/config
+        SET Command Format: echo "antcfg=[m] [n] [o] [p]" > /proc/mwlan/adapter0/config
+
+    For chip which support STREAM_2X2
+    where value of m is:
+        Bit 0   -- Tx Path A or Tx/Rx Path A if [n] is not provided
+        Bit 1   -- Tx Path B or Tx/Rx Path B if [n] is not provided
+        Bit 0-1 -- Tx Path A+B or Tx/Rx Path A+B if [n] is not provided
+        For 9097/9098/IW62X, LOW BYTE for 2G setting
+        Bit 8   -- Tx Path A or Tx/Rx Path A if [n] is not provided
+        Bit 9   -- Tx Path B or Tx/Rx Path B if [n] is not provided
+        Bit 8-9 -- Tx Path A+B or Tx/Rx Path A+B if [n] is not provided
+        For 9097/9098/IW62X, HIGH BYTE for 5G setting
+    where value of n is:
+        Bit 0   -- Rx Path A
+        Bit 1   -- Rx Path B
+        Bit 0-1 -- Rx Path A+B
+        For 9097/9098/IW62X, LOW BYTE for 2G setting
+        Bit 8   -- Rx Path A
+        Bit 8   -- Rx Path B
+        Bit 8-9 -- Rx Path A+B
+        For 9097/9098/IW62X, HIGH BYTE for 5G setting
+    The Tx path setting (m) is used for both Tx and Rx if Rx path (n) is not provided.
+
+    Examples:
+        cat /proc/mwlan/adapter0/config                         : Get Tx and Rx path
+        echo "antcfg=3" > /proc/mwlan/adapter0/config           : Set Tx and Rx path to A+B
+        echo "antcfg=1 3" > /proc/mwlan/adapter0/config         : Set Tx path to A and Rx path to A+B
+
+        echo "antcfg=0x103" > /proc/mwlan/adapter0/config           : Set Tx and Rx path to A+B on 2G and Tx and Rx path to A on 5G
+        echo "antcfg=0x103 0x103" > /proc/mwlan/adapter0/config     : Set Tx path to A+B and Rx path to A+B on 2G, and Tx and Rx path to A on 5G
+
+        echo "antcfg=0x202" > /proc/mwlan/adapter0/config : Use 5GHz path B pin for 5G TX/RX and 2GHz path B pin for 2G TX/RX
+
+        On RD board connection is as follows :
+        5GHz path A pin -> AntA
+        5GHz path B pin -> AntB
+        2GHz path A pin -> AntB
+        2GHz path B pin -> AntA
+
+    For chip which support SAD
+        where value of m is:
+        Bit 0   -- Tx/Rx antenna 1
+        Bit 1   -- Tx/Rx antenna 2
+        ...
+        0xFFFF  -- Tx/Rx antenna diversity
+
+        where value of n is:
+                SAD evaluate time interval, only be provided when m = 0xFFFF, default value is 6s(0x1770)
+
+    Examples:
+        cat /proc/mwlan/adapter0/config                                : Get Tx/Rx antenna mode
+        echo "antcfg=1" > /proc/mwlan/adapter0/config                : Set Tx/Rx antenna 1
+        echo "antcfg=0xFFFF" > /proc/mwlan/adapter0/config            : Set Tx/Rx antenna diversity
+        echo "antcfg=0xFFFF 0x1770" > /proc/mwlan/adapter0/config     : Set antenna evaluate time interval to 6s
+
+
 
 ===============================================================================
         U S E R  M A N U A L  F O R  MLANUTL
@@ -4522,19 +4605,6 @@ cfg_opp_ps
         Examples:
                 mlanutl p2pX cfg_opp_ps					: Get noa configuration.
                 mlanutl p2pX cfg_opp_ps 1 7				: Set noa configuration.
-
-rxpktcoal_cfg
-	This is used to get/set RX packet coalescing paramters
-	Usage:
-		mlanutl mlanX rxpktcoal_cfg [m] [n]
-
-	where:
-        [m]: pkt_threshold: count after which packets would be sent to host. Valid values 1-7
-        [n]: delay: timeout in ms after which packets would be sent to host. Valid values 1-4
-        Coalescing is disabled if both or either of packet_thershold and delay is zero
-
-        RX packet coalescing parameters can be changed only when device is in
-        idle state i.e. all interfaces are disconnected.
 
 get_sensor_temp
         This command is used to get SOC temperature

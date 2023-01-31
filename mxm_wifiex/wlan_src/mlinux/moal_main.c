@@ -917,6 +917,91 @@ void woal_send_fw_dump_complete_event(moal_private *priv)
 }
 
 /**
+ *  @brief This function clean up adapter
+ *
+ *  @param handle       Pointer to structure moal_handle
+ *
+ *  @return        N/A
+ */
+void woal_clean_up(moal_handle *handle)
+{
+	int i;
+	moal_private *priv;
+	int cfg80211_wext = 0;
+	cfg80211_wext = handle->params.cfg80211_wext;
+#ifdef STA_CFG80211
+	if (IS_STA_CFG80211(cfg80211_wext) && handle->scan_request &&
+	    handle->scan_priv) {
+		moal_private *scan_priv = handle->scan_priv;
+		/** some supplicant can not handle SCAN abort event */
+		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
+			woal_cfg80211_scan_done(handle->scan_request, MTRUE);
+		else
+			woal_cfg80211_scan_done(handle->scan_request, MFALSE);
+		handle->scan_request = NULL;
+		handle->scan_priv = NULL;
+		cancel_delayed_work_sync(&handle->scan_timeout_work);
+		handle->scan_pending_on_block = MFALSE;
+		MOAL_REL_SEMAPHORE(&handle->async_sem);
+	}
+#endif
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			priv = handle->priv[i];
+			woal_stop_queue(priv->netdev);
+			if (netif_carrier_ok(priv->netdev))
+				netif_carrier_off(priv->netdev);
+			priv->media_connected = MFALSE;
+			// disconnect
+			moal_connection_status_check_pmqos(priv->phandle);
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+			    priv->wdev->connected) {
+#else
+			    priv->wdev->current_bss) {
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+				if (priv->host_mlme)
+					woal_host_mlme_disconnect(
+						priv,
+						MLAN_REASON_DEAUTH_LEAVING,
+						NULL);
+				else
+#endif
+					cfg80211_disconnected(priv->netdev, 0,
+							      NULL, 0,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+							      true,
+#endif
+							      GFP_KERNEL);
+			}
+#endif
+#endif
+			// stop bgscan
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+			if (IS_STA_CFG80211(cfg80211_wext) &&
+			    priv->sched_scanning) {
+				priv->bg_scan_start = MFALSE;
+				priv->bg_scan_reported = MFALSE;
+				cfg80211_sched_scan_stopped(priv->wdev->wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+							    ,
+							    priv->bg_scan_reqid
+#endif
+				);
+				priv->sched_scanning = MFALSE;
+			}
+#endif
+#endif
+		}
+	}
+	return;
+}
+
+/**
  *  @brief This function process FW hang
  *
  *  @param handle       Pointer to structure moal_handle
@@ -1972,7 +2057,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 
 	handle->is_suspended = MFALSE;
 	handle->hs_activated = MFALSE;
-	handle->hs_auto_arp = MTRUE;
+	handle->hs_auto_arp = MFALSE;
 	handle->suspend_fail = MFALSE;
 	handle->hs_skip_count = 0;
 	handle->hs_force_count = 0;
@@ -11377,7 +11462,6 @@ done:
  */
 static void woal_pre_reset(moal_handle *handle)
 {
-	int intf_num;
 	t_u8 driver_status = handle->driver_status;
 	t_u8 i;
 	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
@@ -11415,14 +11499,7 @@ static void woal_pre_reset(moal_handle *handle)
 #endif
 #endif
 #endif
-
-	/** detach network interface */
-	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
-		if (handle->priv[intf_num]) {
-			woal_stop_queue(handle->priv[intf_num]->netdev);
-			netif_device_detach(handle->priv[intf_num]->netdev);
-		}
-	}
+	woal_clean_up(handle);
 	/** mask host interrupt from firmware */
 	mlan_disable_host_int(handle->pmlan_adapter);
 	/** cancel all pending commands */
@@ -11883,6 +11960,7 @@ static void woal_cleanup_module(void)
 		handle = m_handle[index];
 		if (!handle)
 			continue;
+		handle->params.auto_fw_reload = MFALSE;
 		if (!handle->priv_num)
 			goto exit;
 		if (MTRUE == woal_check_driver_status(handle))
