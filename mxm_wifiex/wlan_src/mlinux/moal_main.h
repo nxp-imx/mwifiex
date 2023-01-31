@@ -1339,6 +1339,8 @@ struct rf_test_mode_data {
 	t_s32 he_tb_tx_power[1];
 	/* BSSID */
 	t_u8 bssid[ETH_ALEN];
+	/* Trigger frame config values */
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 };
 
 /** Number of samples in histogram (/proc/mwlan/adapterX/mlan0/histogram).*/
@@ -3759,6 +3761,7 @@ void woal_fill_mlan_buffer(moal_private *priv, mlan_buffer *pmbuf,
 			   struct sk_buff *skb);
 moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_num,
 				 t_u8 bss_type);
+void woal_clean_up(moal_handle *handle);
 void woal_remove_interface(moal_handle *handle, t_u8 bss_index);
 void woal_set_multicast_list(struct net_device *dev);
 mlan_status woal_request_fw(moal_handle *handle);
@@ -3847,10 +3850,6 @@ mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 #ifdef UAP_SUPPORT
 void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
 			      t_u8 new_channel);
-#endif
-#ifdef RX_PACKET_COALESCE
-mlan_status woal_rx_pkt_coalesce_cfg(moal_private *priv, t_u16 *enable,
-				     t_u8 wait_option, t_u8 action);
 #endif
 mlan_status woal_set_low_pwr_mode(moal_handle *handle, t_u8 wait_option);
 mlan_status woal_set_chan_track_mode(moal_handle *handle, t_u8 wait_option);

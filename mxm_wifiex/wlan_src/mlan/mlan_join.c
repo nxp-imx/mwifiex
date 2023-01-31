@@ -7,7 +7,7 @@
  *  to the firmware.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -550,33 +550,53 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
 /**
  *  @brief This function get the rsn_cap from RSN ie buffer.
  *
- *  @param pmpriv       A pointer to mlan_private structure
- *
  *  @param data         A pointer to rsn_ie data after IE header
+ *  @param len          Length of ie rsn_ie data after IE header
  *  @param return       rsn_cap
  */
-static t_u16 wlan_get_rsn_cap(t_u8 *data)
+static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
 {
 	t_u16 rsn_cap = 0;
 	t_u16 *ptr;
+	t_u16 *end_ptr;
 	t_u16 pairwise_cipher_count = 0;
 	t_u16 akm_suite_count = 0;
+
+	if (len < 20) {
+		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
+			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		PRINTM(MERROR,
+		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
+		       len);
+		goto done;
+	}
 	/* rsn_cap = data + 2 bytes version + 4 bytes
 	 * group_cipher_suite + 2 bytes pairwise_cipher_count +
 	 * pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN + 2 bytes
 	 * akm_suite_count + akm_suite_count * AKM_SUITE_LEN
 	 */
+	end_ptr = (t_u16 *)(data + len);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8));
 	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
+	if ((pairwise_cipher_count == 0) || (ptr >= end_ptr)) {
+		PRINTM(MERROR, "RSNE: PAIRWISE_CIPHER not correct\n");
+		goto done;
+	}
 	akm_suite_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
 			sizeof(t_u16) + akm_suite_count * AKM_SUITE_LEN);
+	if ((akm_suite_count == 0) || (ptr > end_ptr)) {
+		PRINTM(MERROR, "RSNE: AKM Suite or RSNCAP not correct\n");
+		goto done;
+	}
 	rsn_cap = wlan_le16_to_cpu(*ptr);
+
+done:
 	PRINTM(MCMND, "rsn_cap=0x%x\n", rsn_cap);
 	return rsn_cap;
 }
@@ -598,10 +618,12 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 
 	if (pmpriv->wpa_ie[0] != RSN_IE)
 		return 0;
-	sta_rsn_cap = wlan_get_rsn_cap(pmpriv->wpa_ie + 2);
+	sta_rsn_cap =
+		wlan_get_rsn_cap(pmpriv->wpa_ie + 2, *(pmpriv->wpa_ie + 1));
 	if (!pbss_desc->prsn_ie)
 		return 0;
-	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data);
+	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data,
+				      pbss_desc->prsn_ie->ieee_hdr.len);
 	ap_mfpc = ((ap_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
 	ap_mfpr = ((ap_rsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
 	sta_mfpc = ((sta_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
@@ -676,6 +698,14 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 
 	int ap_mfpc = 0, ap_mfpr = 0, ret = MLAN_STATUS_SUCCESS;
 
+	if (*rsn_ie_len < 20) {
+		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
+			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		PRINTM(MERROR,
+		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
+		       *rsn_ie_len);
+		return MLAN_STATUS_FAILURE;
+	}
 	pmf_mask = (((pmpriv->pmfcfg.mfpc << MFPC_BIT) |
 		     (pmpriv->pmfcfg.mfpr << MFPR_BIT)) |
 		    (~PMF_MASK));
@@ -691,6 +721,13 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	pairwise_cipher_count_ptr = ptr;
 	pairwise_cipher_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
 	ptr += sizeof(t_u16);
+
+	if ((pairwise_cipher_count == 0) ||
+	    (ptr + PAIRWISE_CIPHER_SUITE_LEN * pairwise_cipher_count) >=
+		    end_ptr) {
+		PRINTM(MERROR, "RSNE: PAIRWISE_CIPHER not correct\n");
+		return MLAN_STATUS_FAILURE;
+	}
 
 	preference_selected = 0;
 	cipher_selected_id = 0;
@@ -730,6 +767,14 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	      sizeof(t_u16) + pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN;
 	akm_suite_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
 	ptr += sizeof(t_u16); // move pointer to AKM suite
+
+	if ((akm_suite_count == 0) || (ptr + AKM_SUITE_LEN * akm_suite_count +
+				       sizeof(t_u16)) > end_ptr) { // sizeof(t_u16)
+								   // is for
+								   // rsncap
+		PRINTM(MERROR, "RSNE: AKM Suite or RSNCAP not correct\n");
+		return MLAN_STATUS_FAILURE;
+	}
 
 	akm_type_selected = 0;
 	if (*akm_type == AssocAgentAuth_Auto) {
@@ -808,14 +853,19 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 
 	// PMKID
 	ptr += sizeof(t_u16);
-	if (end_ptr > ptr) {
+	if (end_ptr >= (ptr + sizeof(t_u16))) {
 		pmkid_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
 		ptr += sizeof(t_u16);
-		pmkid_list_ptr = ptr;
-		ptr += pmkid_count * PMKID_LEN;
+
+		if (pmkid_count &&
+		    (end_ptr >= (ptr + pmkid_count * PMKID_LEN))) {
+			pmkid_list_ptr = ptr;
+			ptr += pmkid_count * PMKID_LEN;
+		}
 	}
 	// Group Mgmt Cipher Suite
-	if ((end_ptr > ptr) && (pmf_mask & PMF_MASK)) {
+	if ((end_ptr >= (ptr + GROUP_MGMT_CIPHER_SUITE_LEN)) &&
+	    (pmf_mask & PMF_MASK)) {
 		group_mgmt_cipher_suite_ptr = ptr;
 	}
 	/* Compose new RSNE */

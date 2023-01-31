@@ -119,7 +119,7 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 
 /********************************************************
-			Local Functions
+			Global Functions
 ********************************************************/
 /**
  * @brief Parse a string to extract numerical arguments
@@ -131,8 +131,8 @@ extern const struct net_device_ops woal_netdev_ops;
  *
  * @return              MLAN_STATUS_SUCCESS
  */
-static mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
-				   int *user_data_len)
+mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
+			    int *user_data_len)
 {
 	int i, j, k;
 	char cdata[10];
@@ -180,6 +180,10 @@ static mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
 	*user_data_len = j;
 	return MLAN_STATUS_SUCCESS;
 }
+
+/********************************************************
+			Local Functions
+********************************************************/
 
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 /**
@@ -8509,87 +8513,6 @@ done:
 	return ret;
 }
 
-#ifdef RX_PACKET_COALESCE
-/**
- *  @brief Set/Get RX packet coalesceing setting
- *
- *  @param priv         A pointer to moal_private structure
- *  @param respbuf      A pointer to response buffer
- *  @param respbuflen   Available length of response buffer
- *
- *  @return             Number of bytes written, negative for failure.
- */
-static int woal_priv_rx_pkt_coalesce_cfg(moal_private *priv, t_u8 *respbuf,
-					 t_u32 respbuflen)
-{
-	int ret = 0;
-	t_u32 data[2];
-	int user_data_len = 0, header_len = 0;
-	mlan_ds_misc_cfg *cfg = NULL;
-	t_u8 *data_ptr;
-	mlan_ioctl_req *req = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	data_ptr = respbuf + strlen(CMD_NXP) + strlen(PRIV_CMD_RX_COAL_CFG);
-	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_RX_COAL_CFG);
-	if ((int)strlen(respbuf) == header_len) {
-		/* GET operation */
-		user_data_len = 0;
-	} else {
-		/* SET operation */
-		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
-				&user_data_len);
-	}
-
-	if (sizeof(int) * user_data_len > sizeof(data)) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
-	if ((user_data_len != 0) && (user_data_len != 2)) {
-		PRINTM(MERROR, "Invalid arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	cfg = (mlan_ds_misc_cfg *)req->pbuf;
-	cfg->sub_command = MLAN_OID_MISC_RX_PACKET_COALESCE;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	if (user_data_len == 0) {
-		req->action = MLAN_ACT_GET;
-	} else {
-		req->action = MLAN_ACT_SET;
-		cfg->param.rx_coalesce.packet_threshold = data[0];
-		cfg->param.rx_coalesce.delay = data[1];
-	}
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	moal_memcpy_ext(
-		priv->phandle, respbuf,
-		(mlan_ds_misc_rx_packet_coalesce *)&cfg->param.rx_coalesce,
-		req->buf_len, respbuflen);
-	ret = req->buf_len;
-
-done:
-	LEAVE();
-	return ret;
-}
-#endif
 /**
  *  @brief Set/Get FW side mac address
  *
@@ -19547,14 +19470,6 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_hotspotcfg(priv, buf,
 						   priv_cmd.total_len);
 			goto handled;
-#ifdef RX_PACKET_COALESCE
-		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_RX_COAL_CFG,
-				    strlen(PRIV_CMD_RX_COAL_CFG)) == 0) {
-			/* RX packet coalescing Configuration */
-			len = woal_priv_rx_pkt_coalesce_cfg(priv, buf,
-							    priv_cmd.total_len);
-			goto handled;
-#endif
 
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_MGMT_FRAME_CTRL,

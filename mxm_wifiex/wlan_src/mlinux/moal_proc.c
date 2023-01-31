@@ -29,6 +29,10 @@ Change log:
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#include "moal_cfg80211.h"
+#include "moal_cfg80211_util.h"
+#endif
 #ifdef SDIO
 #include "moal_sdio.h"
 #endif
@@ -59,6 +63,9 @@ static char *szModes[] = {
 	"Auto",
 };
 #endif
+
+mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
+			    int *user_data_len);
 
 /********************************************************
 		Global Variables
@@ -448,6 +455,133 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 }
 #endif
 
+void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
+{
+	int ret = 0;
+	int data[4] = {0};
+	mlan_ds_radio_cfg *radio = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (sfp == NULL) {
+		PRINTM(MERROR, "Sequence file pointer null\n");
+		LEAVE();
+		return;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
+	if (req == NULL) {
+		PRINTM(MERROR, "Memory allocation failure \n");
+		LEAVE();
+		return;
+	}
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
+	radio->sub_command = MLAN_OID_ANT_CFG;
+	req->req_id = MLAN_IOCTL_RADIO_CFG;
+	req->action = MLAN_ACT_GET;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status == MLAN_STATUS_FAILURE) {
+		PRINTM(MERROR, "Failed to send IOCTL request to firmware\n");
+		kfree(req);
+		LEAVE();
+		return;
+	}
+	if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		data[0] = radio->param.ant_cfg.tx_antenna;
+		data[1] = radio->param.ant_cfg.rx_antenna;
+		if (data[0] && data[1])
+			ret = sizeof(int) * 2;
+		else
+			ret = sizeof(int) * 1;
+		if (ret == sizeof(int) * 1)
+			seq_printf(sfp, "antcfg=0x%x\n", data[0]);
+		else if (ret == sizeof(int) * 2)
+			seq_printf(sfp, "antcfg=0x%x 0x%x\n", data[0], data[1]);
+
+	} else {
+		if (radio->param.ant_cfg_1x1.antenna == 0xffff) {
+			seq_printf(
+				sfp, "antcfg=0x%x %d %d\n",
+				(int)radio->param.ant_cfg_1x1.antenna,
+				(int)radio->param.ant_cfg_1x1.evaluate_time,
+				(int)radio->param.ant_cfg_1x1.current_antenna);
+		} else {
+			seq_printf(sfp, "antcfg=0x%x\n",
+				   (int)radio->param.ant_cfg_1x1.antenna);
+		}
+	}
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return;
+}
+
+mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
+{
+	moal_private *priv = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_radio_cfg *radio = NULL;
+	mlan_status status;
+	int data[5] = {0};
+	int user_data_len = 0;
+
+	ENTER();
+	memset((char *)data, 0, sizeof(data));
+	parse_arguments(line, data, ARRAY_SIZE(data), &user_data_len);
+
+	if (user_data_len > 2) {
+		PRINTM(MERROR, "Invalid number of args!\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
+		sizeof(mlan_ds_radio_cfg));
+	if (req == NULL) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill request buffer */
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
+	radio->sub_command = MLAN_OID_ANT_CFG;
+	req->req_id = MLAN_IOCTL_RADIO_CFG;
+	req->action = MLAN_ACT_SET;
+
+	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		radio->param.ant_cfg.tx_antenna = data[0];
+		radio->param.ant_cfg.rx_antenna = data[0];
+		if (user_data_len == 2)
+			radio->param.ant_cfg.rx_antenna = data[1];
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		if (IS_CARD9098(priv->phandle->card_type) ||
+		    IS_CARD9097(priv->phandle->card_type)) {
+			woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy,
+						    radio);
+		}
+#endif
+	} else
+		radio->param.ant_cfg_1x1.antenna = data[0];
+	if (user_data_len == 2)
+		radio->param.ant_cfg_1x1.evaluate_time = data[1];
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}
+
 /**
  *  @brief config proc write function
  *
@@ -659,7 +793,9 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	if (!strncmp(databuf, "he_tb_tx=", strlen("he_tb_tx=")) &&
 	    count > strlen("he_tb_tx="))
 		cmd = MFG_CMD_CONFIG_MAC_HE_TB_TX;
-
+	if (!strncmp(databuf, "trigger_frame=", strlen("trigger_frame=")) &&
+	    count > strlen("trigger_frame="))
+		cmd = MFG_CMD_CONFIG_TRIGGER_FRAME;
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
 		     handle, cmd, (const char *)databuf, (size_t)count,
@@ -668,6 +804,14 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 	if (cmd && !handle->rf_test_mode)
 		PRINTM(MERROR, "RF test mode is disabled\n");
+
+	if (!strncmp(databuf, "antcfg", strlen("antcfg"))) {
+		line += strlen("antcfg") + 1;
+		if (woal_priv_set_tx_rx_ant(handle, line) !=
+		    MLAN_STATUS_SUCCESS)
+			PRINTM(MERROR, "Could not set Antenna Diversity!!\n");
+	}
+
 	MODULE_PUT;
 	LEAVE();
 	return (int)count;
@@ -791,7 +935,113 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 				   handle->rf_data->he_tb_tx_power[0]);
 		}
 		seq_printf(sfp, "\n");
+		seq_printf(sfp, "trigger_frame=%u",
+			   handle->rf_data->mfg_tx_trigger_config.enable_tx);
+		if (handle->rf_data->mfg_tx_trigger_config.enable_tx == MTRUE) {
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .standalone_hetb);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .sub_type);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config.duration);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.trigger_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_len);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.more_tf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.cs_required);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_bw);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_mode);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_symbol);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_stbc);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ldpc_ess);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ap_tx_pwr);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pre_fec_pad_fct);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pe_disambig);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.spatial_reuse);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.doppler);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.he_sig2);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.aid12);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc_reg);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_coding_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_mcs);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_dcm);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ss_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_target_rssi);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.mpdu_mu_sf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.tid_al);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.ac_pl);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.pref_ac);
+		}
+		seq_printf(sfp, "\n");
 	}
+	// Read current antcfg configuration
+	woal_priv_get_tx_rx_ant(sfp, priv);
+
 	MODULE_PUT;
 	LEAVE();
 	return 0;

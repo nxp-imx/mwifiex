@@ -5173,12 +5173,6 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_DRCS_CFG:
 		status = wlan_misc_ioctl_drcs_config(pmadapter, pioctl_req);
 		break;
-#ifdef RX_PACKET_COALESCE
-	case MLAN_OID_MISC_RX_PACKET_COALESCE:
-		status = wlan_misc_ioctl_rx_pkt_coalesce_config(pmadapter,
-								pioctl_req);
-		break;
-#endif
 	case MLAN_OID_MISC_LOW_PWR_MODE:
 		status = wlan_misc_ioctl_low_pwr_mode(pmadapter, pioctl_req);
 		break;
@@ -5314,6 +5308,7 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_RF_TEST_GENERIC:
 	case MLAN_OID_MISC_RF_TEST_TX_CONT:
+	case MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME:
 	case MLAN_OID_MISC_RF_TEST_TX_FRAME:
 	case MLAN_OID_MISC_RF_TEST_HE_POWER:
 		status = wlan_misc_ioctl_rf_test_cfg(pmadapter, pioctl_req);

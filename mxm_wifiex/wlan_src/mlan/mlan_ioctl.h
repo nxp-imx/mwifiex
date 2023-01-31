@@ -303,9 +303,6 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_LOW_PWR_MODE = 0x00200029,
 	MLAN_OID_MISC_MEF_FLT_CFG = 0x0020002A,
 	MLAN_OID_MISC_DFS_REAPTER_MODE = 0x0020002B,
-#ifdef RX_PACKET_COALESCE
-	MLAN_OID_MISC_RX_PACKET_COALESCE = 0x0020002C,
-#endif
 	MLAN_OID_MISC_TDLS_CS_CHANNEL = 0x0020002D,
 	MLAN_OID_MISC_COALESCE_CFG = 0x0020002E,
 	MLAN_OID_MISC_TDLS_IDLE_TIME = 0x0020002F,
@@ -1375,6 +1372,8 @@ enum _mlan_band_def {
 	BAND_AAC = 64,
 	BAND_GAX = 256,
 	BAND_AAX = 512,
+	MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME = 0x0020008C,
+
 };
 
 /** Channel bandwidth */
@@ -3415,15 +3414,6 @@ typedef struct _mlan_ds_pm_cfg {
 	} param;
 } mlan_ds_pm_cfg, *pmlan_ds_pm_cfg;
 
-#ifdef RX_PACKET_COALESCE
-typedef struct {
-	mlan_cmd_result_e cmd_result; /**< Firmware execution result */
-
-	t_u32 pkt_threshold; /** Packet threshold */
-	t_u16 delay; /** Timeout value in milliseconds */
-} wlan_ioctl_rx_pkt_coalesce_config_t;
-#endif
-
 /*-----------------------------------------------------------------*/
 /** WMM Configuration Group */
 /*-----------------------------------------------------------------*/
@@ -5207,15 +5197,6 @@ typedef struct _mlan_ds_misc_tdls_ies {
 	t_u8 regulatory_class[IEEE_MAX_IE_SIZE];
 } mlan_ds_misc_tdls_ies;
 
-#ifdef RX_PACKET_COALESCE
-typedef struct _mlan_ds_misc_rx_packet_coalesce {
-	/** packet threshold */
-	t_u32 packet_threshold;
-	/** timeout value */
-	t_u16 delay;
-} mlan_ds_misc_rx_packet_coalesce;
-#endif
-
 typedef struct _mlan_ds_misc_dfs_repeater {
 	/** Set or Get */
 	t_u16 action;
@@ -5555,6 +5536,7 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 #define MFG_CMD_RF_CHANNELBW 0x1044
 #define MFG_CMD_RADIO_MODE_CFG 0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
+#define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
 	/** MFG command code */
@@ -5676,6 +5658,178 @@ struct MLAN_PACK_START mfg_Cmd_HE_TBTx_t {
 	/** Tx Power */
 	t_s16 tx_power;
 } MLAN_PACK_END;
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigComInfo_t {
+	t_u64 reserved : 1;
+	t_u64 he_sig2 : 9;
+	t_u64 doppler : 1;
+	t_u64 spatial_reuse : 16;
+	t_u64 pe_disambig : 1;
+	t_u64 pre_fec_pad_fct : 2;
+	t_u64 ap_tx_pwr : 6;
+
+	t_u64 ldpc_ess : 1;
+	t_u64 ul_stbc : 1;
+	t_u64 ltf_symbol : 3;
+	t_u64 ltf_mode : 1;
+	t_u64 ltf_type : 2;
+
+	t_u64 ul_bw : 2;
+	t_u64 cs_required : 1;
+	t_u64 more_tf : 1;
+	t_u64 ul_len : 12;
+	t_u64 trigger_type : 4;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigComInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigComInfo_t {
+	t_u64 trigger_type : 4;
+	t_u64 ul_len : 12;
+	t_u64 more_tf : 1;
+	t_u64 cs_required : 1;
+	t_u64 ul_bw : 2;
+
+	t_u64 ltf_type : 2;
+	t_u64 ltf_mode : 1;
+	t_u64 ltf_symbol : 3;
+	t_u64 ul_stbc : 1;
+	t_u64 ldpc_ess : 1;
+
+	t_u64 ap_tx_pwr : 6;
+	t_u64 pre_fec_pad_fct : 2;
+	t_u64 pe_disambig : 1;
+	t_u64 spatial_reuse : 16;
+	t_u64 doppler : 1;
+	t_u64 he_sig2 : 9;
+	t_u64 reserved : 1;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigComInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigUserInfo_t {
+	t_u8 reserved : 1;
+	t_u8 ul_target_rssi : 7;
+	t_u32 ss_alloc : 6;
+	t_u32 ul_dcm : 1;
+	t_u32 ul_mcs : 4;
+	t_u32 ul_coding_type : 1;
+	t_u32 ru_alloc : 7;
+	t_u32 ru_alloc_reg : 1;
+	t_u32 aid12 : 12;
+
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigUserInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_HETrigUserInfo_t {
+	t_u32 aid12 : 12;
+	t_u32 ru_alloc_reg : 1;
+	t_u32 ru_alloc : 7;
+	t_u32 ul_coding_type : 1;
+	t_u32 ul_mcs : 4;
+	t_u32 ul_dcm : 1;
+	t_u32 ss_alloc : 6;
+	t_u8 ul_target_rssi : 7;
+	t_u8 reserved : 1;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_HETrigUserInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEETypes_BasicHETrigUserInfo_t {
+	t_u8 pref_ac : 2;
+	t_u8 ac_pl : 1;
+	t_u8 tid_al : 3;
+	t_u8 mpdu_mu_sf : 2;
+} MLAN_PACK_END mfg_cmd_IEEETypes_BasicHETrigUserInfo_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEETypes_BasicHETrigUserInfo_t {
+	t_u8 mpdu_mu_sf : 2;
+	t_u8 tid_al : 3;
+	t_u8 ac_pl : 1;
+	t_u8 pref_ac : 2;
+} MLAN_PACK_END mfg_cmd_IEEETypes_BasicHETrigUserInfo_t;
+#endif
+
+#ifdef BIG_ENDIAN_SUPPORT
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_FrameCtrl_t {
+	/** Order */
+	t_u8 order : 1;
+	/** Wep */
+	t_u8 wep : 1;
+	/** More Data */
+	t_u8 more_data : 1;
+	/** Power Mgmt */
+	t_u8 pwr_mgmt : 1;
+	/** Retry */
+	t_u8 retry : 1;
+	/** More Frag */
+	t_u8 more_frag : 1;
+	/** From DS */
+	t_u8 from_ds : 1;
+	/** To DS */
+	t_u8 to_ds : 1;
+	/** Sub Type */
+	t_u8 sub_type : 4;
+	/** Type */
+	t_u8 type : 2;
+	/** Protocol Version */
+	t_u8 protocol_version : 2;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_FrameCtrl_t;
+#else
+typedef MLAN_PACK_START struct _mfg_cmd_IEEEtypes_FrameCtrl_t {
+	/** Protocol Version */
+	t_u8 protocol_version : 2;
+	/** Type */
+	t_u8 type : 2;
+	/** Sub Type */
+	t_u8 sub_type : 4;
+	/** To DS */
+	t_u8 to_ds : 1;
+	/** From DS */
+	t_u8 from_ds : 1;
+	/** More Frag */
+	t_u8 more_frag : 1;
+	/** Retry */
+	t_u8 retry : 1;
+	/** Power Mgmt */
+	t_u8 pwr_mgmt : 1;
+	/** More Data */
+	t_u8 more_data : 1;
+	/** Wep */
+	t_u8 wep : 1;
+	/** Order */
+	t_u8 order : 1;
+} MLAN_PACK_END mfg_cmd_IEEEtypes_FrameCtrl_t;
+#endif
+
+typedef MLAN_PACK_START struct _mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t {
+	/** MFG command code */
+	t_u32 mfg_cmd;
+	/** Action */
+	t_u16 action;
+	/** Device ID */
+	t_u16 device_id;
+	/** MFG Error code */
+	t_u32 error;
+	/** enable Tx*/
+	t_u32 enable_tx;
+	/** enable Stand Alone HE TB */
+	t_u32 standalone_hetb;
+	/** Frame Control */
+	mfg_cmd_IEEEtypes_FrameCtrl_t frmCtl;
+	/** Duration */
+	t_u16 duration;
+	/** Destination MAC Address */
+	t_u8 dest_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Source MAC Address */
+	t_u8 src_addr[MLAN_MAC_ADDR_LENGTH];
+	/** Common Info Field **/
+	mfg_cmd_IEEEtypes_HETrigComInfo_t trig_common_field;
+	/** User Info Field **/
+	mfg_cmd_IEEEtypes_HETrigUserInfo_t trig_user_info_field;
+	/** Trigger Dependent User Info Field **/
+	mfg_cmd_IEEETypes_BasicHETrigUserInfo_t basic_trig_user_info;
+} MLAN_PACK_END mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t;
 
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** length */
@@ -5835,9 +5989,6 @@ typedef struct _mlan_ds_misc_cfg {
 		/** MEF-FLT-CONFIG for MLAN_OID_MISC_NV_FLT_CFG */
 		mlan_ds_misc_mef_flt_cfg mef_flt_cfg;
 		mlan_ds_misc_dfs_repeater dfs_repeater;
-#ifdef RX_PACKET_COALESCE
-		mlan_ds_misc_rx_packet_coalesce rx_coalesce;
-#endif
 		/** FW reload flag */
 		t_u8 fw_reload;
 		mlan_ds_sensor_temp sensor_temp;
@@ -5878,6 +6029,7 @@ typedef struct _mlan_ds_misc_cfg {
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
+		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;

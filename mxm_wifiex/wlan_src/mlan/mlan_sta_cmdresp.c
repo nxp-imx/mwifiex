@@ -2928,6 +2928,53 @@ static mlan_status wlan_ret_mfg_tx_frame(pmlan_private pmpriv,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+/**
+ *  @brief This function prepares command resp of MFG config Trigger frame
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_ret_mfg_config_trigger_frame(pmlan_private pmpriv,
+						     HostCmd_DS_COMMAND *resp,
+						     mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *mcmd =
+		(mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *)&resp->params
+			.mfg_tx_trigger_config;
+	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *cfg = MNULL;
+
+	ENTER();
+	if (!pioctl_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+	cfg = (mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t *)&misc->param
+		      .mfg_tx_trigger_config;
+
+	cfg->enable_tx = wlan_le32_to_cpu(mcmd->enable_tx);
+	cfg->standalone_hetb = wlan_le32_to_cpu(mcmd->standalone_hetb);
+	cfg->frmCtl.type = wlan_le16_to_cpu(mcmd->frmCtl.type);
+	cfg->frmCtl.sub_type = wlan_le16_to_cpu(mcmd->frmCtl.sub_type);
+	cfg->duration = wlan_le16_to_cpu(mcmd->duration);
+
+	cfg->trig_common_field = wlan_le64_to_cpu(mcmd->trig_common_field);
+
+	memcpy_ext(pmpriv->adapter, &cfg->trig_user_info_field,
+		   &mcmd->trig_user_info_field,
+		   sizeof(mcmd->trig_user_info_field),
+		   sizeof(cfg->trig_user_info_field));
+
+	cfg->basic_trig_user_info =
+		wlan_le16_to_cpu(mcmd->basic_trig_user_info);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
 
 /**
  *  @brief This function prepares command resp of MFG HE TB Tx
@@ -2983,6 +3030,9 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		(struct mfg_cmd_generic_cfg *)&resp->params.mfg_generic_cfg;
 	struct mfg_cmd_generic_cfg *cfg = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+#ifdef SD9177
+	mlan_adapter *pmadapter = pmpriv->adapter;
+#endif
 
 	ENTER();
 	if (!pioctl_buf) {
@@ -2998,6 +3048,10 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		goto cmd_mfg_done;
 	case MFG_CMD_CONFIG_MAC_HE_TB_TX:
 		ret = wlan_ret_mfg_he_tb_tx(pmpriv, resp, pioctl_buf);
+		goto cmd_mfg_done;
+	case MFG_CMD_CONFIG_TRIGGER_FRAME:
+		ret = wlan_ret_mfg_config_trigger_frame(pmpriv, resp,
+							pioctl_buf);
 		goto cmd_mfg_done;
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:
@@ -3018,7 +3072,20 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	cfg = (struct mfg_cmd_generic_cfg *)&misc->param.mfg_generic_cfg;
 
 	cfg->error = wlan_le32_to_cpu(mcmd->error);
-	cfg->data1 = wlan_le32_to_cpu(mcmd->data1);
+
+#ifdef SD9177
+	if (IS_SD9177(pmadapter->card_type) &&
+	    (wlan_le32_to_cpu(mcmd->mfg_cmd) == MFG_CMD_RFPWR)) {
+		//! TX_POWER was multipied by 16 while passing to fw
+		//! So It is needed to divide by 16 for user vals understanding.
+		cfg->data1 = (wlan_le32_to_cpu(mcmd->data1) >> 4);
+	} else {
+#endif
+		cfg->data1 = wlan_le32_to_cpu(mcmd->data1);
+#ifdef SD9177
+	}
+#endif
+
 	cfg->data2 = wlan_le32_to_cpu(mcmd->data2);
 	cfg->data3 = wlan_le32_to_cpu(mcmd->data3);
 cmd_mfg_done:
@@ -3394,11 +3461,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_PACKET_AGGR_OVER_HOST_INTERFACE:
 		ret = wlan_ret_packet_aggr_over_host_interface(pmpriv, resp,
 							       pioctl_buf);
-		break;
-#endif
-#ifdef RX_PACKET_COALESCE
-	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
-		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
 		break;
 #endif
 	case HostCmd_CMD_MULTI_CHAN_CONFIG:

@@ -118,9 +118,6 @@ CONFIG_MULTI_CHAN_SUPPORT=y
 
 
 
-# Use static link for app build
-export CONFIG_STATIC_LINK=y
-CONFIG_ANDROID_KERNEL=n
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
@@ -151,6 +148,7 @@ ifeq ($(CONFIG_IMX_SUPPORT),y)
 ccflags-y += -DIMX_SUPPORT
 ifneq ($(ANDROID_PRODUCT_OUT),)
 ccflags-y += -DIMX_ANDROID
+CONFIG_ANDROID_KERNEL=y
 endif
 endif
 KERNELDIR ?= /usr/src/arm/linux_5_10_y_kernel/linux-nxp
@@ -382,7 +380,6 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
-ccflags-y += -Wno-array-bounds
 #############################################################################
 # Make Targets
 #############################################################################

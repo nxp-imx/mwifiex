@@ -611,6 +611,7 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define MFG_CMD_RF_CHANNELBW 0x1044
 #define MFG_CMD_RADIO_MODE_CFG 0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
+#define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
 
 /** Debug command number */
 #define DBG_CMD_NUM 10
@@ -3348,14 +3349,6 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter);
 mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 				      pmlan_ioctl_req pioctl_req);
 
-#ifdef RX_PACKET_COALESCE
-mlan_status wlan_cmd_rx_pkt_coalesce_cfg(pmlan_private pmpriv,
-					 HostCmd_DS_COMMAND *cmd,
-					 t_u16 cmd_action, t_void *pdata_buf);
-mlan_status wlan_ret_rx_pkt_coalesce_cfg(pmlan_private pmpriv,
-					 const HostCmd_DS_COMMAND *resp,
-					 mlan_ioctl_req *pioctl_buf);
-#endif
 mlan_status wlan_handle_event_multi_chan_info(pmlan_private pmpriv,
 					      pmlan_buffer pevent);
 #ifdef USB
@@ -4087,11 +4080,6 @@ mlan_status wlan_misc_ioctl_txcontrol(pmlan_adapter pmadapter,
 
 mlan_status wlan_misc_ioctl_region(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
-
-#ifdef RX_PACKET_COALESCE
-mlan_status wlan_misc_ioctl_rx_pkt_coalesce_config(pmlan_adapter pmadapter,
-						   pmlan_ioctl_req pioctl_req);
-#endif
 
 mlan_status wlan_misc_ioctl_multi_chan_config(pmlan_adapter pmadapter,
 					      pmlan_ioctl_req pioctl_req);

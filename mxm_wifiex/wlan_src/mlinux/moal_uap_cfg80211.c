@@ -2685,7 +2685,7 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 
 	ENTER();
 
-	if (priv->phandle->driver_status || priv->phandle->surprise_removed) {
+	if (priv->phandle->driver_status) {
 		PRINTM(MERROR,
 		       "Block  woal_cfg80211_del_beacon in abnormal driver state\n");
 		LEAVE();
