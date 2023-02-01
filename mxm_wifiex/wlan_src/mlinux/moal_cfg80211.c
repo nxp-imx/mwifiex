@@ -798,11 +798,13 @@ int woal_cfg80211_init_p2p_client(moal_private *priv)
 		goto done;
 	}
 
-	bss_role = MLAN_BSS_ROLE_STA;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET, &bss_role)) {
-		ret = -EFAULT;
-		goto done;
+	if (bss_role != MLAN_BSS_ROLE_STA) {
+		bss_role = MLAN_BSS_ROLE_STA;
+		if (MLAN_STATUS_SUCCESS !=
+			woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET, &bss_role)) {
+			ret = -EFAULT;
+			goto done;
+		}
 	}
 
 	wifi_direct_mode = WIFI_DIRECT_MODE_DISABLE;
@@ -886,12 +888,15 @@ int woal_cfg80211_init_p2p_go(moal_private *priv)
 		goto done;
 	}
 
-	bss_role = MLAN_BSS_ROLE_UAP;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET, &bss_role)) {
-		ret = -EFAULT;
-		goto done;
+	if (bss_role != MLAN_BSS_ROLE_UAP) {
+		bss_role = MLAN_BSS_ROLE_UAP;
+		if (MLAN_STATUS_SUCCESS !=
+			woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET, &bss_role)) {
+			ret = -EFAULT;
+			goto done;
+		}
 	}
+
 /* NoA:-- Interval = 100TUs and Duration= 50TUs, count=255*/
 #define DEF_NOA_COUNT 255
 	if (priv->phandle->noa_duration && priv->phandle->card_info->go_noa) {
