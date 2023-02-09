@@ -5965,7 +5965,11 @@ static int woal_priv_get_ap(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	if (bss_info.media_connected == MTRUE) {
 		moal_memcpy_ext(priv->phandle, mwr->u.ap_addr.sa_data,
 				&bss_info.bssid, MLAN_MAC_ADDR_LENGTH,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				sizeof(mwr->u.ap_addr.sa_data_min));
+#else
 				sizeof(mwr->u.ap_addr.sa_data));
+#endif
 	} else {
 		memset(mwr->u.ap_addr.sa_data, 0, MLAN_MAC_ADDR_LENGTH);
 	}

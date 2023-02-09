@@ -612,7 +612,11 @@ static int woal_get_wap(struct net_device *dev, struct iw_request_info *info,
 
 	if (bss_info.media_connected == MTRUE)
 		moal_memcpy_ext(priv->phandle, awrq->sa_data, &bss_info.bssid,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				MLAN_MAC_ADDR_LENGTH, sizeof(awrq->sa_data_min));
+#else
 				MLAN_MAC_ADDR_LENGTH, sizeof(awrq->sa_data));
+#endif
 	else
 		memset(awrq->sa_data, 0, MLAN_MAC_ADDR_LENGTH);
 	awrq->sa_family = ARPHRD_ETHER;
@@ -3032,7 +3036,11 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		iwe.u.ap_addr.sa_family = ARPHRD_ETHER;
 		moal_memcpy_ext(priv->phandle, iwe.u.ap_addr.sa_data,
 				&scan_table[i].mac_address, ETH_ALEN,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				sizeof(iwe.u.ap_addr.sa_data_min));
+#else
 				sizeof(iwe.u.ap_addr.sa_data));
+#endif
 
 		iwe.len = IW_EV_ADDR_LEN;
 		current_ev = IWE_STREAM_ADD_EVENT(info, current_ev, end_buf,
