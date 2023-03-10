@@ -3467,7 +3467,9 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	priv->channel = uap_channel.channel;
 	moal_memcpy_ext(priv->phandle, &priv->chan, &priv->csa_chan,
 			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+	cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0, 0);
+#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 	cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
 	cfg80211_ch_switch_notify(priv->netdev, &priv->chan);
