@@ -150,6 +150,7 @@ ifeq ($(CONFIG_IMX_SUPPORT),y)
 ccflags-y += -DIMX_SUPPORT
 ifneq ($(ANDROID_PRODUCT_OUT),)
 ccflags-y += -DIMX_ANDROID
+ccflags-y += -Wno-implicit-fallthrough
 CONFIG_ANDROID_KERNEL=y
 endif
 endif
