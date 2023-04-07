@@ -3469,6 +3469,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			       priv->channel);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0, 0);
+#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && IMX_ANDROID_13))
+			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0, 0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
 #else
