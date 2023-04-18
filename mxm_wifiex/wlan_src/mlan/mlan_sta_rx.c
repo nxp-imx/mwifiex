@@ -408,6 +408,8 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	t_u8 gi = 0;
 	t_u8 ldpc = 0;
 	t_u8 ext_rate_info = 0;
+	t_u8 nss = 0;
+	t_u8 dcm = 0;
 
 	memset(priv->adapter, &rt_info_tmp, 0x00, sizeof(rt_info_tmp));
 	rt_info_tmp.snr = prx_pd->snr;
@@ -418,10 +420,25 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 
 	rt_info_tmp.antenna = prx_pd->antenna;
 	rx_rate_info = prx_pd->rate_info;
-	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
+	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE) {
+		t_u8 gi_he = 0;
+		/* HE rate */
+		format = MLAN_RATE_FORMAT_HE;
+		mcs_index = MIN(prx_pd->rx_rate & 0xF, 0xb);
+		nss = ((prx_pd->rx_rate & 0xF0) >> 4);
+		nss = MIN(nss + 1, 2);
+		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
+		bw = (rx_rate_info & 0xC) >> 2;
+		gi = (rx_rate_info & 0x10) >> 4;
+		gi_he = (rx_rate_info & 0x80) >> 7;
+		gi = gi | gi_he;
+		dcm = (prx_pd->rx_info & RXPD_DCM_MASK) >> 16;
+	} else if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
 		/* VHT rate */
 		format = MLAN_RATE_FORMAT_VHT;
 		mcs_index = MIN(prx_pd->rx_rate & 0xF, 9);
+		nss = ((prx_pd->rx_rate & 0xF0) >> 4);
+		nss = MIN(nss + 1, 2);
 		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
 		bw = (rx_rate_info & 0xC) >> 2;
 		/* LGI: gi =0, SGI: gi = 1 */
@@ -444,8 +461,14 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	ldpc = rx_rate_info & 0x40;
 
 	rt_info_tmp.rate_info.mcs_index = mcs_index;
-	rt_info_tmp.rate_info.rate_info =
-		(ldpc << 5) | (format << 3) | (bw << 1) | gi;
+	rt_info_tmp.rate_info.nss_index = nss;
+	rt_info_tmp.rate_info.dcm = dcm;
+	if (format == MLAN_RATE_FORMAT_HE) {
+		rt_info_tmp.rate_info.rate_info =
+			(ldpc << 5) | (format << 3) | (bw << 1) | (gi << 6);
+	} else
+		rt_info_tmp.rate_info.rate_info =
+			(ldpc << 5) | (format << 3) | (bw << 1) | gi;
 	rt_info_tmp.rate_info.bitrate =
 		wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
 					prx_pd->rate_info, ext_rate_info);
@@ -683,6 +706,14 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	RxPD *prx_pd;
 	RxPacketHdr_t *prx_pkt;
+	RxPD *prx_pd2;
+	EthII_Hdr_t *peth_hdr2;
+	wlan_802_11_header *pwlan_hdr;
+	IEEEtypes_FrameCtl_t *frmctl;
+	pmlan_buffer pmbuf2 = MNULL;
+	mlan_802_11_mac_addr src_addr, dest_addr;
+	t_u16 hdr_len;
+	t_u8 snap_eth_hdr[5] = {0xaa, 0xaa, 0x03, 0x00, 0x00};
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
@@ -761,6 +792,112 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		}
 	}
 
+	if (pmadapter->enable_net_mon &&
+	    (prx_pd->flags & RXPD_FLAG_UCAST_PKT)) {
+		pwlan_hdr = (wlan_802_11_header *)((t_u8 *)prx_pd +
+						   prx_pd->rx_pkt_offset);
+		frmctl = (IEEEtypes_FrameCtl_t *)pwlan_hdr;
+		if (frmctl->type == 0x02) {
+			/* This is a valid unicast destined data packet, with
+			 * 802.11 and rtap headers attached. Duplicate this
+			 * packet and process this copy as a sniffed packet,
+			 * meant for monitor iface
+			 */
+			pmbuf2 = wlan_alloc_mlan_buffer(pmadapter,
+							pmbuf->data_len,
+							MLAN_RX_HEADER_LEN,
+							MOAL_ALLOC_MLAN_BUFFER);
+			if (!pmbuf2) {
+				PRINTM(MERROR,
+				       "Unable to allocate mlan_buffer for Rx");
+				PRINTM(MERROR, "sniffed packet\n");
+			} else {
+				pmbuf2->bss_index = pmbuf->bss_index;
+				pmbuf2->buf_type = pmbuf->buf_type;
+				pmbuf2->priority = pmbuf->priority;
+				pmbuf2->in_ts_sec = pmbuf->in_ts_sec;
+				pmbuf2->in_ts_usec = pmbuf->in_ts_usec;
+				pmbuf2->data_len = pmbuf->data_len;
+				memcpy(pmadapter,
+				       pmbuf2->pbuf + pmbuf2->data_offset,
+				       pmbuf->pbuf + pmbuf->data_offset,
+				       pmbuf->data_len);
+
+				prx_pd2 = (RxPD *)(pmbuf2->pbuf +
+						   pmbuf2->data_offset);
+				/* set pkt type of duplicated pkt to 802.11 */
+				prx_pd2->rx_pkt_type = PKT_TYPE_802DOT11;
+				wlan_process_rx_packet(pmadapter, pmbuf2);
+			}
+
+			/* Now, process this pkt as a normal data packet.
+			 * rx_pkt_offset points to the 802.11 hdr. Construct
+			 * 802.3 header from 802.11 hdr fields and attach it
+			 * just before the payload.
+			 */
+			memcpy(pmadapter, (t_u8 *)&dest_addr, pwlan_hdr->addr1,
+			       sizeof(pwlan_hdr->addr1));
+			memcpy(pmadapter, (t_u8 *)&src_addr, pwlan_hdr->addr2,
+			       sizeof(pwlan_hdr->addr2));
+
+			hdr_len = sizeof(wlan_802_11_header);
+
+			/* subtract mac addr field size for 3 address mac80211
+			 * header */
+			if (!(frmctl->from_ds && frmctl->to_ds))
+				hdr_len -= sizeof(mlan_802_11_mac_addr);
+
+			/* add 2 bytes of qos ctrl flags */
+			if (frmctl->sub_type & QOS_DATA)
+				hdr_len += 2;
+
+			if (prx_pd->rx_pkt_type == PKT_TYPE_AMSDU) {
+				/* no need to generate 802.3 hdr, update pkt
+				 * offset */
+				prx_pd->rx_pkt_offset += hdr_len;
+				prx_pd->rx_pkt_length -= hdr_len;
+			} else {
+				/* skip 6-byte snap and 2-byte type */
+				if (memcmp(pmadapter,
+					   (t_u8 *)pwlan_hdr + hdr_len,
+					   snap_eth_hdr,
+					   sizeof(snap_eth_hdr)) == 0)
+					hdr_len += 8;
+
+				peth_hdr2 =
+					(EthII_Hdr_t *)((t_u8 *)prx_pd +
+							prx_pd->rx_pkt_offset +
+							hdr_len -
+							sizeof(EthII_Hdr_t));
+				memcpy(pmadapter, peth_hdr2->dest_addr,
+				       (t_u8 *)&dest_addr,
+				       sizeof(peth_hdr2->dest_addr));
+				memcpy(pmadapter, peth_hdr2->src_addr,
+				       (t_u8 *)&src_addr,
+				       sizeof(peth_hdr2->src_addr));
+
+				/* Update the rx_pkt_offset to point the 802.3
+				 * hdr */
+				prx_pd->rx_pkt_offset +=
+					(hdr_len - sizeof(EthII_Hdr_t));
+				prx_pd->rx_pkt_length -=
+					(hdr_len - sizeof(EthII_Hdr_t));
+			}
+			/* update the prx_pkt pointer */
+			prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd +
+						    prx_pd->rx_pkt_offset);
+		} else {
+			pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
+			ret = MLAN_STATUS_FAILURE;
+			PRINTM(MERROR,
+			       "Drop invalid unicast sniffer pkt, subType=0x%x, flag=0x%x, pkt_type=%d\n",
+			       frmctl->sub_type, prx_pd->flags,
+			       prx_pd->rx_pkt_type);
+			wlan_free_mlan_buffer(pmadapter, pmbuf);
+			goto done;
+		}
+	}
+
 	/*
 	 * If the packet is not an unicast packet then send the packet
 	 * directly to os. Don't pass thru rx reordering
@@ -815,9 +952,14 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	}
 	if ((priv->port_ctrl_mode == MTRUE && priv->port_open == MFALSE) &&
 	    (rx_pkt_type != PKT_TYPE_BAR)) {
-		mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num, prx_pd->priority,
-				       ta, (t_u8)prx_pd->rx_pkt_type,
-				       (t_void *)RX_PKT_DROPPED_IN_FW);
+		if (MLAN_STATUS_SUCCESS !=
+		    mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num,
+					   prx_pd->priority, ta,
+					   (t_u8)prx_pd->rx_pkt_type,
+					   (t_void *)RX_PKT_DROPPED_IN_FW))
+			PRINTM(MINFO, "RX pkt reordering failure seq_num:%d\n",
+			       prx_pd->seq_num);
+
 		if (rx_pkt_type == PKT_TYPE_AMSDU) {
 			pmbuf->data_len = prx_pd->rx_pkt_length;
 			pmbuf->data_offset += prx_pd->rx_pkt_offset;

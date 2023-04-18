@@ -4,7 +4,7 @@
  *  definitions used in MLAN and MOAL module.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -48,7 +48,7 @@ typedef enum _WLAN_802_11_NETWORK_TYPE {
 
 #ifdef BIG_ENDIAN_SUPPORT
 /** Frame control: Type Mgmt frame */
-#define IEEE80211_FC_MGMT_FRAME_TYPE_MASK 0x3000
+#define IEEE80211_FC_MGMT_FRAME_TYPE_MASK 0x0c00
 /** Frame control: SubType Mgmt frame */
 #define IEEE80211_GET_FC_MGMT_FRAME_SUBTYPE(fc) (((fc)&0xF000) >> 12)
 #else
@@ -90,6 +90,8 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	EXTEND_CHANNEL_SWITCH_ANN = 60,
 	QUIET = 40,
 	IBSS_DFS = 41,
+	MEASUREMENT_REQUEST = 38,
+	MEASUREMENT_REPORT = 39,
 	SUPPORTED_CHANNELS = 36,
 	REGULATORY_CLASS = 59,
 	HT_CAPABILITY = 45,
@@ -176,6 +178,33 @@ typedef MLAN_PACK_START struct _IEEEtypes_Generic_t {
 	/** IE Max - size of previous fields */
 	t_u8 data[IEEE_MAX_IE_SIZE - sizeof(IEEEtypes_Header_t)];
 } MLAN_PACK_END IEEEtypes_Generic_t, *pIEEEtypes_Generic_t;
+
+#define MEASURE_TYPE_CLI 8
+#define MEASURE_TYPE_LOCATION_CIVIC 9
+
+/** Measurement Report IE */
+typedef MLAN_PACK_START struct _IEEEtypes_MeasurementReport_t {
+	/** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	/** Measurement Token */
+	t_u8 ms_token;
+	/** Measurement Report Mode */
+	t_u8 ms_rp_mode;
+	/** Measurement Type, value in MEASURE_TYPE_XXX */
+	t_u8 ms_type;
+	/** variable */
+	t_u8 variable[];
+} MLAN_PACK_END IEEEtypes_MeasurementReport_t;
+
+/** Report */
+typedef MLAN_PACK_START struct _IEEEtypes_Report_t {
+	/** Subelement ID */
+	t_u8 subelement_id;
+	/** length */
+	t_u8 length;
+	/** variable */
+	t_u8 variable[];
+} MLAN_PACK_END IEEEtypes_Report_t;
 
 /**ft capability policy*/
 typedef MLAN_PACK_START struct _IEEEtypes_FtCapPolicy_t {
@@ -1718,8 +1747,8 @@ typedef MLAN_PACK_START struct _wlan_user_scan_chan {
 	t_u8 radio_type;
 	/** Scan type: Active = 1, Passive = 2 */
 	t_u8 scan_type;
-	/** Reserved */
-	t_u8 reserved;
+	/** rnr_flag */
+	t_u8 rnr_flag;
 	/** Scan duration in milliseconds; if 0 default used */
 	t_u32 scan_time;
 } MLAN_PACK_END wlan_user_scan_chan;
@@ -1834,11 +1863,14 @@ typedef MLAN_PACK_START struct {
 #define BG_SCAN_SSID_RSSI_MATCH 0x0004
 /**wait for all channel scan to complete to report scan result*/
 #define BG_SCAN_WAIT_ALL_CHAN_DONE 0x80000000
-/** Maximum number of channels that can be sent in bg scan config */
-#define CHAN_MAX_24G 14
-#define CHAN_MAX_5G 24
-#define CHAN_MAX_UNII4 3
-#define WLAN_BG_SCAN_CHAN_MAX (CHAN_MAX_24G + CHAN_MAX_5G + CHAN_MAX_UNII4)
+
+#define CHAN_MAX_6G 0
+
+/** max bgscan chan number */
+#define WLAN_BG_SCAN_CHAN_MAX 38
+
+/** max bgscan chan number, include UNII_4 channel */
+#define WLAN_BG_SCAN_CHAN_MAX_UNII_4 41
 
 /** Enumeration definition */
 /** EES MODE */
@@ -1906,7 +1938,7 @@ typedef MLAN_PACK_START struct {
 	/** SSID filter list used in the to limit the scan results */
 	wlan_user_scan_ssid ssid_list[MRVDRV_MAX_SSID_LIST_LENGTH];
 	/** Variable number (fixed maximum) of channels to scan up */
-	wlan_user_scan_chan chan_list[WLAN_BG_SCAN_CHAN_MAX];
+	wlan_user_scan_chan chan_list[WLAN_USER_SCAN_CHAN_MAX];
 	/** scan channel gap */
 	t_u16 scan_chan_gap;
 	/** Enable EES configuration */

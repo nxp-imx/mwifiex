@@ -279,7 +279,7 @@ t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan, t_u8 bw,
 				   dfs_state_t dfs_state)
 {
 	t_u8 n_chan;
-	t_u8 chan_list[4];
+	t_u8 chan_list[4] = {0};
 	t_u8 i;
 	n_chan = woal_get_bonded_channels(chan, bw, chan_list);
 	for (i = 0; i < n_chan; i++)
@@ -1369,14 +1369,12 @@ wlan_11h_prepare_custom_ie_chansw(mlan_adapter *pmadapter,
 					    sizeof(mlan_ioctl_req));
 
 	/* prepare mlan_ioctl_req */
-	memset(pmadapter, pioctl_req, 0x00, sizeof(mlan_ioctl_req));
 	pioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
 	pioctl_req->action = MLAN_ACT_SET;
 	pioctl_req->pbuf = (t_u8 *)pds_misc_cfg;
 	pioctl_req->buf_len = sizeof(mlan_ds_misc_cfg);
 
 	/* prepare mlan_ds_misc_cfg */
-	memset(pmadapter, pds_misc_cfg, 0x00, sizeof(mlan_ds_misc_cfg));
 	pds_misc_cfg->sub_command = MLAN_OID_MISC_CUSTOM_IE;
 	pds_misc_cfg->param.cust_ie.type = TLV_TYPE_MGMT_IE;
 	pds_misc_cfg->param.cust_ie.len = (sizeof(custom_ie) - MAX_IE_SIZE);
@@ -1731,9 +1729,6 @@ static mlan_status wlan_11h_add_dfs_timestamp(mlan_adapter *pmadapter,
 			return MLAN_STATUS_FAILURE;
 		}
 
-		memset(pmadapter, (t_u8 *)pdfs_ts, 0,
-		       sizeof(wlan_dfs_timestamp_t));
-
 		util_enqueue_list_tail(pmadapter->pmoal_handle,
 				       &pmadapter->state_dfs.dfs_ts_head,
 				       (pmlan_linked_list)pdfs_ts, MNULL,
@@ -1772,7 +1767,7 @@ static void wlan_11h_add_all_dfs_timestamp(mlan_adapter *pmadapter, t_u8 repr,
 					   t_u8 channel, t_u8 bandwidth)
 {
 	t_u8 n_chan;
-	t_u8 chan_list[4];
+	t_u8 chan_list[4] = {0};
 	t_u8 i;
 	n_chan = woal_get_bonded_channels(channel, bandwidth, chan_list);
 	for (i = 0; i < n_chan; i++)
@@ -2764,8 +2759,9 @@ t_s32 wlan_11h_process_start(mlan_private *priv, t_u8 **ppbuffer,
 				return ret;
 			}
 #ifdef STA_SUPPORT
-			wlan_11d_create_dnld_countryinfo(
-				priv, adapter->adhoc_start_band);
+			if (wlan_11d_create_dnld_countryinfo(
+				    priv, adapter->adhoc_start_band))
+				PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
 #endif
 		}
 
@@ -3421,7 +3417,10 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 				if (ch_nop_info->chan_width == CHAN_BW_80MHZ)
 					ch_nop_info->new_chan.center_chan =
 						wlan_get_center_freq_idx(
-							pmpriv, BAND_AAC,
+							pmpriv,
+							ch_nop_info->new_chan
+								.bandcfg
+								.chanBand,
 							ch_nop_info->new_chan
 								.channel,
 							ch_nop_info->chan_width);

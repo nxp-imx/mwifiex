@@ -120,8 +120,6 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	 * Original priority has been overwritten
 	 */
 	ptx_pd->priority = (t_u8)mbuf->priority;
-	ptx_pd->pkt_delay_2ms =
-		wlan_wmm_compute_driver_packet_delay(priv, mbuf);
 	ptx_pd->bss_num = GET_BSS_NUM(priv);
 	ptx_pd->bss_type = priv->bss_type;
 	/* Always zero as the data is followed by TxPD */
@@ -156,6 +154,9 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 	ptx_pd = (TxPD *)mbuf->pbuf;
 	ptx_pd->tx_pkt_length =
 		(t_u16)wlan_cpu_to_le16(mbuf->data_len - sizeof(TxPD));
+	ptx_pd->pkt_delay_2ms =
+		wlan_wmm_compute_driver_packet_delay(priv, mbuf);
+
 #ifdef STA_SUPPORT
 	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) &&
 	    (priv->adapter->pps_uapsd_mode)) {
@@ -494,6 +495,8 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		pmbuf_aggr->data_offset = 0;
 		pmbuf_aggr->in_ts_sec = pmbuf_src->in_ts_sec;
 		pmbuf_aggr->in_ts_usec = pmbuf_src->in_ts_usec;
+		pmbuf_aggr->extra_ts_sec = pmbuf_src->extra_ts_sec;
+		pmbuf_aggr->extra_ts_usec = pmbuf_src->extra_ts_usec;
 		if (pmbuf_src->flags & MLAN_BUF_FLAG_TDLS)
 			pmbuf_aggr->flags |= MLAN_BUF_FLAG_TDLS;
 		if (pmbuf_src->flags & MLAN_BUF_FLAG_TCP_ACK)
@@ -522,7 +525,7 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		/* Collects TP statistics */
 		if (pmadapter->tp_state_on && (pkt_size > sizeof(TxPD)))
 			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf_src->pdesc, 3);
+				pmadapter->pmoal_handle, pmbuf_src, 3);
 		pra_list->total_pkts--;
 
 		/* decrement for every PDU taken from the list */
@@ -670,5 +673,5 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 
 exit:
 	LEAVE();
-	return pkt_size + headroom;
+	return MIN((pkt_size + headroom), INT_MAX);
 }

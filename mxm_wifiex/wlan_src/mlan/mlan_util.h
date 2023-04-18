@@ -403,8 +403,10 @@ static INLINE t_void util_scalar_decrement(
  *  @param moal_spin_lock	A pointer to spin lock handler
  *  @param moal_spin_unlock	A pointer to spin unlock handler
  *
- *  @return					Value after offset
+ *  @return			Value after offset or 0 if (scalar_value + offset)
+ * overflows
  */
+#define INT_MAX 2147483647
 static INLINE t_s32 util_scalar_offset(
 	t_void *pmoal_handle, pmlan_scalar pscalar, t_s32 offset,
 	mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
@@ -414,7 +416,10 @@ static INLINE t_s32 util_scalar_offset(
 
 	if (moal_spin_lock)
 		moal_spin_lock(pmoal_handle, pscalar->plock);
-	newval = (pscalar->value += offset);
+	if (pscalar->value < (INT_MAX - offset))
+		newval = (pscalar->value += offset);
+	else
+		newval = 0;
 	if (moal_spin_unlock)
 		moal_spin_unlock(pmoal_handle, pscalar->plock);
 

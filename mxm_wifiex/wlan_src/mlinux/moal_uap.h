@@ -28,9 +28,6 @@ Change log:
 #ifndef _MOAL_UAP_H
 #define _MOAL_UAP_H
 
-/** Maximum buffer length for WOAL_UAP_SET_GET_256_CHAR */
-#define MAX_BUF_LEN 256
-
 /** Private command ID to send ioctl */
 #define UAP_IOCTL_CMD (SIOCDEVPRIVATE + 2)
 /** Updating ADDBA variables */
@@ -546,6 +543,7 @@ int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
 				    t_u8 bandwidth, t_u8 dfs_state);
+void woal_update_uap_channel_dfs_state(moal_private *priv);
 #endif
 #endif
 

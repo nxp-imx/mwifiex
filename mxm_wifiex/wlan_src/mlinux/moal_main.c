@@ -437,8 +437,8 @@ static struct _card_info card_info_SD9097 = {
 };
 #endif
 
-#ifdef SDNW62X
-static struct _card_info card_info_SDNW62X = {
+#ifdef SDIW62X
+static struct _card_info card_info_SDIW62X = {
 	.embedded_supp = 1,
 	.drcs = 1,
 	.go_noa = 1,
@@ -453,8 +453,8 @@ static struct _card_info card_info_SDNW62X = {
 	.rev_id_reg = 0xc8,
 	.host_strap_reg = 0xf4,
 	.magic_reg = 0xf0,
-	.fw_name = SDNW62X_DEFAULT_COMBO_FW_NAME,
-	.fw_name_wlan = SDNW62X_DEFAULT_WLAN_FW_NAME,
+	.fw_name = SDIW62X_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SDIW62X_DEFAULT_WLAN_FW_NAME,
 #ifdef SDIO
 	.dump_fw_info = DUMP_FW_SDIO_V3,
 	.dump_fw_ctrl_reg = 0xf9,
@@ -476,6 +476,44 @@ static struct _card_info card_info_SDNW62X = {
 	.per_pkt_cfg_support = 1,
 };
 #endif
+
+static struct _card_info card_info_SDAW693 = {
+	.embedded_supp = 1,
+	.drcs = 1,
+	.go_noa = 1,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.pmic = 1,
+	.cal_data_cfg = 0,
+	.low_power_enable = 0,
+	.rx_rate_max = 412,
+	.histogram_table_num = 3,
+	.feature_control = FEATURE_CTRL_DEFAULT,
+	.rev_id_reg = 0xc8,
+	.host_strap_reg = 0xf4,
+	.magic_reg = 0xf0,
+	.fw_name = SDAW693_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SDAW693_DEFAULT_WLAN_FW_NAME,
+#ifdef SDIO
+	.dump_fw_info = DUMP_FW_SDIO_V3,
+	.dump_fw_ctrl_reg = 0xf9,
+	.dump_fw_start_reg = 0xf1,
+	.dump_fw_end_reg = 0xf8,
+	.dump_fw_host_ready = 0xcc,
+	.dump_reg.reg_table = {0x08, 0x58, 0x5C, 0x5D, 0x60, 0x61, 0x62, 0x64,
+			       0x65, 0x66, 0x68, 0x69, 0x6a},
+	.dump_reg.reg_table_size = 13,
+	.scratch_reg = 0xe8,
+	.func1_reg_start = 0x10,
+	.func1_reg_end = 0x17,
+	.fw_reset_reg = 0x0EE,
+	.fw_reset_val = 0x99,
+	.slew_rate_reg = 0x90002328,
+	.slew_rate_bit_offset = 12,
+#endif
+	.sniffer_support = 1,
+	.per_pkt_cfg_support = 1,
+};
 
 #ifdef SD9177
 static struct _card_info card_info_SD9177 = {
@@ -557,6 +595,8 @@ static struct _card_info card_info_PCIE9097 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9097_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9097_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
@@ -580,13 +620,15 @@ static struct _card_info card_info_PCIE9098 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9098_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9098_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
 #endif
 
-#ifdef PCIENW62X
-static struct _card_info card_info_PCIENW62X = {
+#ifdef PCIEIW62X
+static struct _card_info card_info_PCIEIW62X = {
 	.embedded_supp = 1,
 	.drcs = 1,
 	.go_noa = 1,
@@ -601,12 +643,38 @@ static struct _card_info card_info_PCIENW62X = {
 	.rev_id_reg = 0x8,
 	.host_strap_reg = 0x1c70,
 	.magic_reg = 0x1c74,
-	.fw_name = PCIENW62X_DEFAULT_COMBO_FW_NAME,
-	.fw_name_wlan = PCIENW62X_DEFAULT_WLAN_FW_NAME,
+	.boot_mode_reg = 0x1c8c,
+	.fw_name = PCIEIW62X_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = PCIEIW62X_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
 #endif
+
+static struct _card_info card_info_PCIEAW693 = {
+	.embedded_supp = 1,
+	.drcs = 1,
+	.go_noa = 1,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.pmic = 1,
+	.cal_data_cfg = 0,
+	.low_power_enable = 0,
+	.rx_rate_max = 412,
+	.histogram_table_num = 3,
+	.feature_control = FEATURE_CTRL_DEFAULT,
+	.rev_id_reg = 0x8,
+	.host_strap_reg = 0x1c70,
+	.magic_reg = 0x1c74,
+	.fw_name = PCIEAW693_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = PCIEAW693_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0x1c94,
+	.fw_reset_val = 0x98,
+	.sniffer_support = 1,
+	.per_pkt_cfg_support = 1,
+};
 
 #ifdef USB8801
 static struct _card_info card_info_USB8801 = {
@@ -707,8 +775,8 @@ static struct _card_info card_info_USB9097 = {
 };
 #endif
 
-#ifdef USBNW62X
-static struct _card_info card_info_USBNW62X = {
+#ifdef USBIW62X
+static struct _card_info card_info_USBIW62X = {
 	.embedded_supp = 1,
 	.drcs = 1,
 	.go_noa = 1,
@@ -720,8 +788,8 @@ static struct _card_info card_info_USBNW62X = {
 	.rx_rate_max = 412,
 	.feature_control = FEATURE_CTRL_DEFAULT,
 	.histogram_table_num = 3,
-	.fw_name = USBNW62X_DEFAULT_COMBO_FW_NAME,
-	.fw_name_wlan = USBNW62X_DEFAULT_WLAN_FW_NAME,
+	.fw_name = USBIW62X_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = USBIW62X_DEFAULT_WLAN_FW_NAME,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 };
@@ -1014,6 +1082,7 @@ static void woal_hang_work_queue(struct work_struct *work)
 	moal_private *priv;
 	int cfg80211_wext = 0;
 	int ret = 0;
+	t_u8 reload_mode = 0;
 	ENTER();
 	if (!reset_handle) {
 		LEAVE();
@@ -1080,7 +1149,7 @@ static void woal_hang_work_queue(struct work_struct *work)
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 			if (IS_STA_CFG80211(cfg80211_wext) &&
-			    priv->sched_scanning) {
+			    priv->sched_scanning && priv->wdev) {
 				priv->bg_scan_start = MFALSE;
 				priv->bg_scan_reported = MFALSE;
 				cfg80211_sched_scan_stopped(priv->wdev->wiphy
@@ -1118,19 +1187,30 @@ static void woal_hang_work_queue(struct work_struct *work)
 		}
 #ifdef PCIE
 		else if (IS_PCIE(reset_handle->card_type)) {
-			reset_handle->init_wait_q_woken = MFALSE;
-			PRINTM(MMSG, "WIFI auto_fw_reload: fw_reload=4\n");
-			ret = woal_request_fw_reload(reset_handle,
-						     FW_RELOAD_PCIE_RESET);
-			if (!ret) {
-				/* Wait for FLR to complete */
-				wait_event_timeout(
-					reset_handle->init_wait_q,
-					reset_handle->init_wait_q_woken,
-					10 * HZ);
-				if (reset_handle->hardware_status !=
-				    HardwareStatusReady)
-					ret = -1;
+#define FW_RELOAD_PCIE_IN_BAND_RESET 3
+			if (reset_handle->params.auto_fw_reload ==
+			    FW_RELOAD_PCIE_IN_BAND_RESET) {
+				PRINTM(MMSG,
+				       "WIFI auto_fw_reload: fw_reload=6\n");
+				ret = woal_request_fw_reload(
+					reset_handle,
+					FW_RELOAD_PCIE_INBAND_RESET);
+			} else {
+				reset_handle->init_wait_q_woken = MFALSE;
+				PRINTM(MMSG,
+				       "WIFI auto_fw_reload: fw_reload=4\n");
+				ret = woal_request_fw_reload(
+					reset_handle, FW_RELOAD_PCIE_RESET);
+				if (!ret) {
+					/* Wait for FLR to complete */
+					wait_event_timeout(
+						reset_handle->init_wait_q,
+						reset_handle->init_wait_q_woken,
+						10 * HZ);
+					if (reset_handle->hardware_status !=
+					    HardwareStatusReady)
+						ret = -1;
+				}
 			}
 		}
 #endif
@@ -1174,10 +1254,17 @@ static void woal_hang_work_queue(struct work_struct *work)
 				     strlen(CUS_EVT_DRIVER_HANG));
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
-			woal_cfg80211_vendor_event(priv, event_hang,
-						   CUS_EVT_DRIVER_HANG,
-						   strlen(CUS_EVT_DRIVER_HANG));
+		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
+			PRINTM(MMSG, "Send event_hang(0x0) vendor event");
+			if (IS_SD(reset_handle->card_type)) {
+				reload_mode = FW_RELOAD_SDIO_INBAND_RESET;
+			} else if (IS_PCIE(reset_handle->card_type)) {
+				reload_mode = FW_RELOAD_PCIE_INBAND_RESET;
+				// Todo: add check for FW_RELOAD_PCIE_RESET -
+				// FLR
+			}
+			woal_cfg80211_driver_hang_event(priv, reload_mode);
+		}
 #endif
 #endif
 	}
@@ -1201,7 +1288,7 @@ void woal_process_hang(moal_handle *handle)
 		queue_work(hang_workqueue, &hang_work);
 #ifdef ANDROID_KERNEL
 #define WAKE_LOCK_HANG 5000
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 		__pm_wakeup_event(&reset_handle->ws, WAKE_LOCK_HANG);
 #else
 		wake_lock_timeout(&reset_handle->wake_lock,
@@ -2057,7 +2144,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 
 	handle->is_suspended = MFALSE;
 	handle->hs_activated = MFALSE;
-	handle->hs_auto_arp = MFALSE;
+	handle->hs_auto_arp = (t_u8)handle->params.hs_auto_arp;
 	handle->suspend_fail = MFALSE;
 	handle->hs_skip_count = 0;
 	handle->hs_force_count = 0;
@@ -2156,6 +2243,17 @@ mlan_status woal_init_sw(moal_handle *handle)
 	handle->is_remain_timer_set = MFALSE;
 #endif
 #endif
+
+	handle->rtt_capa.rtt_one_sided_supported = MTRUE;
+	handle->rtt_capa.rtt_ftm_supported = MTRUE;
+	handle->rtt_capa.lci_support = MTRUE;
+	handle->rtt_capa.lcr_support = MTRUE;
+	handle->rtt_capa.preamble_support =
+		PREAMBLE_LEGACY | PREAMBLE_HT | PREAMBLE_VHT;
+	handle->rtt_capa.bw_support =
+		BW_20_SUPPORT | BW_40_SUPPORT | BW_80_SUPPORT;
+	handle->rtt_capa.responder_supported = MTRUE;
+	handle->rtt_capa.mc_version = 60;
 
 	/* Register to MLAN */
 	memset(&device, 0, sizeof(mlan_device));
@@ -2257,6 +2355,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	device.dfs_offload = moal_extflg_isset(handle, EXT_DFS_OFFLOAD);
 #endif
+	device.second_mac = handle->second_mac;
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device.bss_attr[i].bss_type =
@@ -2533,6 +2632,7 @@ static t_u32 woal_set_sdio_slew_rate(moal_handle *handle)
 	moal_private *priv = NULL;
 	t_u32 new_value = 0;
 	t_u32 reg_type = MLAN_REG_MAC;
+	int status;
 
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	if (!priv)
@@ -2541,15 +2641,13 @@ static t_u32 woal_set_sdio_slew_rate(moal_handle *handle)
 	if ((handle->card_info->slew_rate_reg != 0) &&
 	    (handle->params.slew_rate > 3 || handle->params.slew_rate < 0))
 		return MLAN_STATUS_FAILURE;
-#if defined(SD9098) || defined(SD9097) || defined(SDNW62X) || defined(SD9177)
 	if (IS_SD9098(handle->card_type) || IS_SD9097(handle->card_type) ||
-	    IS_SDNW62X(handle->card_type) || IS_SD9177(handle->card_type))
+	    IS_SDIW62X(handle->card_type) || IS_SD9177(handle->card_type))
 		reg_type = MLAN_REG_CIU;
-#endif
 
-	ret = woal_getset_regrdwr(priv, MLAN_ACT_GET, reg_type,
-				  handle->card_info->slew_rate_reg, &value);
-	if (ret < 0) {
+	status = woal_getset_regrdwr(priv, MLAN_ACT_GET, reg_type,
+				     handle->card_info->slew_rate_reg, &value);
+	if (status < 0) {
 		PRINTM(MERROR, "woal_getset_regrdwr get REG_MAC failed\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -2562,10 +2660,10 @@ static t_u32 woal_set_sdio_slew_rate(moal_handle *handle)
 		PRINTM(MMSG, "Set REG 0x%8x: 0x%x slew_rate=%d\n",
 		       handle->card_info->slew_rate_reg, new_value,
 		       handle->params.slew_rate);
-		ret = woal_getset_regrdwr(priv, MLAN_ACT_SET, reg_type,
-					  handle->card_info->slew_rate_reg,
-					  &new_value);
-		if (ret < 0) {
+		status = woal_getset_regrdwr(priv, MLAN_ACT_SET, reg_type,
+					     handle->card_info->slew_rate_reg,
+					     &new_value);
+		if (status < 0) {
 			PRINTM(MERROR,
 			       "woal_getset_regrdwr get REG_MAC failed\n");
 			ret = MLAN_STATUS_FAILURE;
@@ -2846,7 +2944,7 @@ static mlan_status woal_process_hostcmd_cfg(moal_handle *handle, t_u8 *data,
 		goto done;
 	}
 	ptr = buf;
-	strcpy(ptr, CMD_STR);
+	strncpy(ptr, CMD_STR, CMD_BUF_LEN);
 	ptr = buf + strlen(CMD_STR) + sizeof(t_u32);
 	while ((pos - data) < size) {
 		while (*pos == ' ' || *pos == '\t')
@@ -3399,7 +3497,7 @@ static t_u32 woal_set_user_init_data(moal_handle *handle, int type,
 	}
 	if (handle->user_data) {
 		cfg_data = (t_u8 *)(handle->user_data)->data;
-		len = (handle->user_data)->size;
+		len = (t_size)((handle->user_data)->size);
 		if (type == INIT_HOSTCMD_CFG_DATA ||
 		    type == BAND_STEER_CFG_DATA ||
 		    type == COUNTRY_POWER_TABLE) {
@@ -3520,7 +3618,7 @@ done:
 }
 
 #if defined(CONFIG_RPS)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 				size_t len)
 {
@@ -3545,7 +3643,7 @@ static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 		PRINTM(MERROR, "%s: bitmap_parse fail err=%d.\n", __func__,
 		       err);
 		free_cpumask_var(mask);
-		return err;
+		return -EINVAL;
 	}
 
 	map = kzalloc(max_t(unsigned int, RPS_MAP_SIZE(cpumask_weight(mask)),
@@ -3614,7 +3712,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 	char str_buf[MLAN_MAX_VER_STR_LEN];
 
 #if defined(CONFIG_RPS)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	moal_private *priv_rps = NULL;
 	t_u8 rps_buf[2];
 #endif
@@ -3738,10 +3836,10 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 #endif
 
 #if defined(CONFIG_RPS)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	if (handle->params.rps) {
 		priv_rps = woal_get_priv_bss_type(handle, MLAN_BSS_TYPE_STA);
-		sprintf(rps_buf, "%x", handle->params.rps);
+		snprintf(rps_buf, sizeof(rps_buf), "%x", handle->params.rps);
 		if (priv_rps) {
 			PRINTM(MCMND,
 			       "num_rx_queues=%u real_num_rx_queues=%u\n",
@@ -3797,10 +3895,10 @@ err:
 static mlan_status woal_req_dpd_data(moal_handle *handle,
 				     mlan_init_param *param)
 {
-	int ret = MLAN_STATUS_SUCCESS;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 	t_u8 req_fw_nowait = moal_extflg_isset(handle, EXT_REQ_FW_NOWAIT);
 	char *dpd_data_cfg = handle->params.dpd_data_cfg;
-	mlan_status status = MLAN_STATUS_SUCCESS;
+	int status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 
@@ -4123,7 +4221,7 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 			if (!IS_USB8997(handle->card_type) &&
 			    !IS_USB9098(handle->card_type) &&
 			    !IS_USB9097(handle->card_type) &&
-			    !IS_USBNW62X(handle->card_type) &&
+			    !IS_USBIW62X(handle->card_type) &&
 			    !IS_USB8978(handle->card_type))
 				ret = woal_reset_usb_dev(handle);
 			goto done;
@@ -5247,8 +5345,8 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 		}
 	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	strcpy(csa_str, "CSA");
-	strcat(csa_str, name);
+	strncpy(csa_str, "CSA", sizeof(csa_str));
+	strncat(csa_str, name, sizeof(csa_str) - 1);
 	priv->csa_workqueue = alloc_workqueue(
 		csa_str, WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
 	if (!priv->csa_workqueue) {
@@ -5297,25 +5395,34 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 
 	if (bss_type == MLAN_BSS_TYPE_STA ||
 	    priv->bss_type == MLAN_BSS_TYPE_UAP) {
+#ifdef MFG_CMD_SUPPORT
+		if (priv->phandle->params.mfg_mode != MLAN_INIT_PARA_ENABLED) {
+#endif
 #if defined(SD8887) || defined(SD8987)
-		mlan_fw_info fw_info;
-		memset(&fw_info, 0, sizeof(mlan_fw_info));
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
-			PRINTM(MERROR, "%s: get_fw_info failed \n", __func__);
-			goto error;
-		}
-		if (MFALSE
+			mlan_fw_info fw_info;
+			memset(&fw_info, 0, sizeof(mlan_fw_info));
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT,
+						     &fw_info)) {
+				PRINTM(MERROR, "%s: get_fw_info failed \n",
+				       __func__);
+				goto error;
+			}
+			if (MFALSE
 #ifdef SD8887
-		    || IS_SD8887(handle->card_type)
+			    || IS_SD8887(handle->card_type)
 #endif
 #ifdef SD8987
-		    || IS_SD8987(handle->card_type)
+			    || IS_SD8987(handle->card_type)
 #endif
-		) {
-			if ((fw_info.antinfo & ANT_DIVERSITY_2G) &&
-			    (fw_info.antinfo & ANT_DIVERSITY_5G))
-				handle->card_info->histogram_table_num = 4;
+			) {
+				if ((fw_info.antinfo & ANT_DIVERSITY_2G) &&
+				    (fw_info.antinfo & ANT_DIVERSITY_5G))
+					handle->card_info->histogram_table_num =
+						4;
+			}
+#endif
+#ifdef MFG_CMD_SUPPORT
 		}
 #endif
 
@@ -5586,7 +5693,8 @@ mlan_status woal_set_user_antcfg(moal_handle *handle, t_u8 wait_option)
 
 	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
 		if (IS_CARD9098(handle->card_type) ||
-		    IS_CARD9097(handle->card_type)) {
+		    IS_CARD9097(handle->card_type) ||
+		    IS_CARDIW62X(handle->card_type)) {
 			radio->param.ant_cfg.tx_antenna =
 				radio->param.ant_cfg.rx_antenna = antcfg;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -6304,18 +6412,19 @@ void woal_mlan_debug_info(moal_private *priv)
 
 	PRINTM(MERROR, "last_cmd_index = %d\n", info->last_cmd_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_id[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_cmd_id[i]);
 	PRINTM(MERROR, "last_cmd_id = %s\n", str);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_act[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_cmd_act[i]);
 	PRINTM(MERROR, "last_cmd_act = %s\n", str);
 	PRINTM(MERROR, "last_cmd_resp_index = %d\n", info->last_cmd_resp_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_resp_id[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ",
+			      info->last_cmd_resp_id[i]);
 	PRINTM(MERROR, "last_cmd_resp_id = %s\n", str);
 	PRINTM(MERROR, "last_event_index = %d\n", info->last_event_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_event[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_event[i]);
 	PRINTM(MERROR, "last_event = %s", str);
 
 	PRINTM(MERROR, "num_data_h2c_failure = %d\n",
@@ -6350,8 +6459,8 @@ void woal_mlan_debug_info(moal_private *priv)
 		       info->last_recv_wr_bitmap, info->last_mp_index);
 		for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
 			for (s = str, j = 0; j < mp_aggr_pkt_limit; j++)
-				s += sprintf(
-					s, "0x%02x ",
+				s += snprintf(
+					s, MAX_BUF_LEN, "0x%02x ",
 					info->last_mp_wr_info
 						[i * mp_aggr_pkt_limit + j]);
 
@@ -6779,7 +6888,7 @@ t_u8 woal_find_mcast_node_tx(moal_private *priv, struct sk_buff *skb)
 	struct mcast_node *node = NULL;
 	unsigned long flags;
 	t_u8 ret = MFALSE;
-	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
+	t_u8 ra[MLAN_MAC_ADDR_LENGTH] = {0};
 	ENTER();
 	moal_memcpy_ext(priv->phandle, ra, skb->data, MLAN_MAC_ADDR_LENGTH,
 			sizeof(ra));
@@ -7290,6 +7399,112 @@ done:
 	return ret;
 }
 
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+/**
+ *  @brief This function sends Tx pkt to monitor iface
+ *
+ *  @param priv      A pointer to moal_private structure
+ *
+ *  @param pmbuf     A mlan buffer
+ *  @return          N/A
+ */
+void woal_send_tx_pkt_to_mon_if(moal_private *priv, pmlan_buffer pmbuf)
+{
+	struct ieee80211_hdr *dot11_hdr = NULL;
+	struct radiotap_info *rt = NULL;
+	pmlan_buffer pmbuf2 = NULL;
+	t_u8 *ptr = NULL;
+	int len, hdr_len;
+	t_u16 fc;
+	t_u8 rfc1042_eth_hdr[ETH_ALEN] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
+	moal_handle *handle = priv->phandle;
+
+	if (!priv || !pmbuf)
+		return;
+
+	/* Only STA and uAP mode are supported */
+	if (!(priv->bss_type == MLAN_BSS_TYPE_STA ||
+	      priv->bss_type == MLAN_BSS_TYPE_UAP))
+		return;
+
+	ENTER();
+	pmbuf2 = woal_alloc_mlan_buffer(handle, pmbuf->data_len + 64);
+	if (!pmbuf2) {
+		PRINTM(MERROR,
+		       "Failed to allocate mlan_buffer for Tx sniffer packet");
+		goto done;
+	}
+	pmbuf2->bss_index = pmbuf->bss_index;
+	pmbuf2->buf_type = pmbuf->buf_type;
+	pmbuf2->priority = pmbuf->priority;
+	pmbuf2->in_ts_sec = pmbuf->in_ts_sec;
+	pmbuf2->in_ts_usec = pmbuf->in_ts_usec;
+	pmbuf2->flags |= MLAN_BUF_FLAG_NET_MONITOR;
+
+	/* attach 802.11 hdr */
+	dot11_hdr = (struct ieee80211_hdr *)((t_u8 *)pmbuf2->pbuf +
+					     pmbuf2->data_offset);
+	memset((t_u8 *)dot11_hdr, 0, sizeof(struct ieee80211_hdr));
+
+	fc = cpu_to_le16(IEEE80211_FTYPE_DATA | IEEE80211_STYPE_QOS_DATA);
+
+	ptr = (t_u8 *)pmbuf->pbuf + pmbuf->data_offset;
+	hdr_len = sizeof(struct ieee80211_hdr);
+
+	switch (priv->bss_type) {
+	case MLAN_BSS_TYPE_STA:
+		fc |= cpu_to_le16(IEEE80211_FCTL_TODS);
+		/* BSSID SA DA */
+		memcpy(dot11_hdr->addr1, priv->cfg_bssid, ETH_ALEN);
+		memcpy(dot11_hdr->addr2, ptr + ETH_ALEN, ETH_ALEN);
+		memcpy(dot11_hdr->addr3, ptr, ETH_ALEN);
+		hdr_len -= ETH_ALEN;
+		break;
+	case MLAN_BSS_TYPE_UAP:
+		fc |= cpu_to_le16(IEEE80211_FCTL_FROMDS);
+		/* DA BSSID SA */
+		memcpy(dot11_hdr->addr1, ptr, ETH_ALEN);
+		memcpy(dot11_hdr->addr2, priv->current_addr, ETH_ALEN);
+		memcpy(dot11_hdr->addr3, ptr + ETH_ALEN, ETH_ALEN);
+		/* subtract mac addr field size for 3 address 802.11 header */
+		hdr_len -= ETH_ALEN;
+		break;
+	default:
+		woal_free_mlan_buffer(priv->phandle, pmbuf2);
+		goto done;
+	}
+
+	dot11_hdr->frame_control = fc;
+	/* add 2 bytes for qos ctrl flags */
+	hdr_len += 2;
+
+	/* Add LLC/SNAP rfc1042 header after 802.11 hdr */
+	memcpy((t_u8 *)dot11_hdr + hdr_len, &rfc1042_eth_hdr, ETH_ALEN);
+
+	/* Copy out rest of the data frame */
+	len = pmbuf->data_len - 2 * ETH_ALEN;
+	ptr += 2 * ETH_ALEN;
+	memcpy(pmbuf2->pbuf + pmbuf2->data_offset + hdr_len +
+		       sizeof(rfc1042_eth_hdr),
+	       ptr, len);
+
+	pmbuf2->data_len = hdr_len + sizeof(rfc1042_eth_hdr) + len;
+
+	rt = (struct radiotap_info *)((t_u8 *)pmbuf2->pbuf +
+				      pmbuf2->data_offset -
+				      sizeof(radiotap_info));
+	memset(rt, 0x00, sizeof(radiotap_info));
+	/* TODO: Fill radiotap header here */
+	/* Send this duplicated packet to Rx monitor pkt handler */
+	if (moal_recv_packet(handle, pmbuf2) != MLAN_STATUS_PENDING)
+		woal_free_mlan_buffer(priv->phandle, pmbuf2);
+done:
+	LEAVE();
+}
+#endif
+#endif
+
 /**
  *  @brief This function handles packet transmission
  *
@@ -7357,6 +7572,14 @@ static void woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 		if (ret)
 			goto done;
 	}
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	if (priv->phandle->mon_if &&
+	    (priv->phandle->mon_if->flag & MLAN_NETMON_DATA) &&
+	    (priv->phandle->mon_if->flag & MLAN_NETMON_TX))
+		woal_send_tx_pkt_to_mon_if(priv, pmbuf);
+#endif
+#endif
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (priv->enable_auto_tdls && priv->tdls_check_tx)
@@ -7869,6 +8092,8 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 #ifdef UAP_SUPPORT
 	priv->target_chan = 0;
 	priv->backup_chan = 0;
+	priv->chan_mode = DEFAULT_CHAN_MODE_MASK;
+	priv->chan_num_pkts = DEFAULT_RETRY_PKTS;
 	priv->user_cac_period_msec = 0;
 	priv->chan_under_nop = MFALSE;
 #endif
@@ -8064,12 +8289,12 @@ done:
  *
  *  @return             moal_private pointer or NULL
  */
-moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u8 bss_index)
+moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u32 bss_index)
 {
 	int i;
 
 	ENTER();
-	if (!handle || !handle->priv_num) {
+	if (!handle) {
 		LEAVE();
 		return NULL;
 	}
@@ -8241,9 +8466,12 @@ static int woal_get_card_info(moal_handle *phandle)
 		phandle->card_info = &card_info_SD9097;
 		break;
 #endif
-#ifdef SDNW62X
-	case CARD_TYPE_SDNW62X:
-		phandle->card_info = &card_info_SDNW62X;
+	case CARD_TYPE_SDAW693:
+		phandle->card_info = &card_info_SDAW693;
+		break;
+#ifdef SDIW62X
+	case CARD_TYPE_SDIW62X:
+		phandle->card_info = &card_info_SDIW62X;
 		break;
 #endif
 #ifdef SD9177
@@ -8262,9 +8490,12 @@ static int woal_get_card_info(moal_handle *phandle)
 		phandle->card_info = &card_info_PCIE9097;
 		break;
 #endif
-#ifdef PCIENW62X
-	case CARD_TYPE_PCIENW62X:
-		phandle->card_info = &card_info_PCIENW62X;
+	case CARD_TYPE_PCIEAW693:
+		phandle->card_info = &card_info_PCIEAW693;
+		break;
+#ifdef PCIEIW62X
+	case CARD_TYPE_PCIEIW62X:
+		phandle->card_info = &card_info_PCIEIW62X;
 		break;
 #endif
 #ifdef PCIE9098
@@ -8298,9 +8529,9 @@ static int woal_get_card_info(moal_handle *phandle)
 		phandle->card_info = &card_info_USB9097;
 		break;
 #endif
-#ifdef USBNW62X
-	case CARD_TYPE_USBNW62X:
-		phandle->card_info = &card_info_USBNW62X;
+#ifdef USBIW62X
+	case CARD_TYPE_USBIW62X:
+		phandle->card_info = &card_info_USBIW62X;
 		break;
 #endif
 #ifdef SD8987
@@ -9182,6 +9413,7 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 	t_u16 seqnum;
 	t_u16 type = 0;
 	t_u8 *pos;
+	moal_private *priv = NULL;
 
 	ENTER();
 
@@ -9247,8 +9479,9 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 			phandle->is_fw_dump_timer_set = MFALSE;
 		}
 		if (phandle->priv_num) {
-			woal_send_fw_dump_complete_event(
-				woal_get_priv(phandle, MLAN_BSS_ROLE_ANY));
+			priv = woal_get_priv(phandle, MLAN_BSS_ROLE_ANY);
+			if (priv)
+				woal_send_fw_dump_complete_event(priv);
 			mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 			woal_process_hang(phandle);
 		}
@@ -9292,10 +9525,10 @@ static int woal_save_hex_dump(int rowsize, const void *buf, size_t len,
 		hex_dump_to_buffer(ptr + i, linelen, rowsize, 1, linebuf,
 				   sizeof(linebuf), false);
 
-		pos += sprintf(pos, "%s\n", linebuf);
+		pos += snprintf(pos, MAX_BUF_LEN, "%s\n", linebuf);
 	}
 
-	return pos - (char *)save_buf;
+	return (int)(pos - (char *)save_buf);
 }
 
 /**
@@ -9325,31 +9558,37 @@ static int woal_dump_priv_drv_info(moal_handle *handle, t_u8 *buf)
 	     index++) {
 		priv = handle->priv[index];
 		if (priv) {
-			ptr += sprintf(ptr, "[Interface : %s]\n",
-				       priv->proc_entry_name);
+			ptr += snprintf(ptr, MAX_BUF_LEN, "[Interface : %s]\n",
+					priv->proc_entry_name);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-			ptr += sprintf(ptr, "wmm_tx_pending[0] = %d\n",
-				       atomic_read(&priv->wmm_tx_pending[0]));
-			ptr += sprintf(ptr, "wmm_tx_pending[1] = %d\n",
-				       atomic_read(&priv->wmm_tx_pending[1]));
-			ptr += sprintf(ptr, "wmm_tx_pending[2] = %d\n",
-				       atomic_read(&priv->wmm_tx_pending[2]));
-			ptr += sprintf(ptr, "wmm_tx_pending[3] = %d\n",
-				       atomic_read(&priv->wmm_tx_pending[3]));
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"wmm_tx_pending[0] = %d\n",
+					atomic_read(&priv->wmm_tx_pending[0]));
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"wmm_tx_pending[1] = %d\n",
+					atomic_read(&priv->wmm_tx_pending[1]));
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"wmm_tx_pending[2] = %d\n",
+					atomic_read(&priv->wmm_tx_pending[2]));
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"wmm_tx_pending[3] = %d\n",
+					atomic_read(&priv->wmm_tx_pending[3]));
 #endif
-			ptr += sprintf(ptr, "Media state = \"%s\"\n",
-				       ((priv->media_connected == MFALSE) ?
-						"Disconnected" :
-						"Connected"));
-			ptr += sprintf(ptr, "carrier %s\n",
-				       ((netif_carrier_ok(priv->netdev)) ?
-						"on" :
-						"off"));
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"Media state = \"%s\"\n",
+					((priv->media_connected == MFALSE) ?
+						 "Disconnected" :
+						 "Connected"));
+			ptr += snprintf(ptr, MAX_BUF_LEN, "carrier %s\n",
+					((netif_carrier_ok(priv->netdev)) ?
+						 "on" :
+						 "off"));
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 			for (i = 0; i < (int)(priv->netdev->num_tx_queues);
 			     i++) {
-				ptr += sprintf(
-					ptr, "tx queue %d: %s\n", i,
+				ptr += snprintf(
+					ptr, MAX_BUF_LEN, "tx queue %d: %s\n",
+					i,
 					((netif_tx_queue_stopped(
 						 netdev_get_tx_queue(
 							 priv->netdev, i))) ?
@@ -9357,19 +9596,20 @@ static int woal_dump_priv_drv_info(moal_handle *handle, t_u8 *buf)
 						 "started"));
 			}
 #else
-			ptr += sprintf(ptr, "tx queue %s\n",
-				       ((netif_queue_stopped(priv->netdev)) ?
-						"stopped" :
-						"started"));
+			ptr += snprintf(ptr, MAX_BUF_LEN, "tx queue %s\n",
+					((netif_queue_stopped(priv->netdev)) ?
+						 "stopped" :
+						 "started"));
 #endif
-			ptr += sprintf(ptr, "%s: num_tx_timeout = %d\n",
-				       priv->netdev->name,
-				       priv->num_tx_timeout);
+			ptr += snprintf(ptr, MAX_BUF_LEN,
+					"%s: num_tx_timeout = %d\n",
+					priv->netdev->name,
+					priv->num_tx_timeout);
 		}
 	}
 
 	LEAVE();
-	return ptr - (char *)buf;
+	return (int)(ptr - (char *)buf);
 }
 
 /**
@@ -9399,55 +9639,60 @@ static int woal_dump_moal_drv_info(moal_handle *phandle, t_u8 *buf)
 		cardp = (struct usb_card_rec *)phandle->card;
 #endif
 	ptr = (char *)buf;
-	ptr += sprintf(ptr, "------------moal_debug_info-------------\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN,
+			"------------moal_debug_info-------------\n");
 	woal_get_version(phandle, str_buf, sizeof(str_buf) - 1);
-	ptr += sprintf(ptr, "Driver version = %s\n", str_buf);
-	ptr += sprintf(ptr, "main_state = %d\n", phandle->main_state);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "Driver version = %s\n", str_buf);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "main_state = %d\n",
+			phandle->main_state);
 #ifdef USB
 	if (IS_USB(phandle->card_type)) {
-		ptr += sprintf(ptr, "tx_cmd_urb_pending = %d\n",
-			       atomic_read(&cardp->tx_cmd_urb_pending));
-		ptr += sprintf(ptr, "tx_data_urb_pending = %d\n",
-			       atomic_read(&cardp->tx_data_urb_pending));
-		ptr += sprintf(ptr, "tx_data2_urb_pending = %d\n",
-			       atomic_read(&cardp->tx_data2_urb_pending));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "tx_cmd_urb_pending = %d\n",
+				atomic_read(&cardp->tx_cmd_urb_pending));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "tx_data_urb_pending = %d\n",
+				atomic_read(&cardp->tx_data_urb_pending));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "tx_data2_urb_pending = %d\n",
+				atomic_read(&cardp->tx_data2_urb_pending));
 #ifdef USB_CMD_DATA_EP
-		ptr += sprintf(ptr, "rx_cmd_urb_pending = %d\n",
-			       atomic_read(&cardp->rx_cmd_urb_pending));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "rx_cmd_urb_pending = %d\n",
+				atomic_read(&cardp->rx_cmd_urb_pending));
 #endif
-		ptr += sprintf(ptr, "rx_data_urb_pending = %d\n",
-			       atomic_read(&cardp->rx_data_urb_pending));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "rx_data_urb_pending = %d\n",
+				atomic_read(&cardp->rx_data_urb_pending));
 	}
 #endif
-	ptr += sprintf(ptr, "ioctl_pending = %d\n",
-		       atomic_read(&phandle->ioctl_pending));
-	ptr += sprintf(ptr, "tx_pending = %d\n",
-		       atomic_read(&phandle->tx_pending));
-	ptr += sprintf(ptr, "rx_pending = %d\n",
-		       atomic_read(&phandle->rx_pending));
-	ptr += sprintf(ptr, "lock_count = %d\n",
-		       atomic_read(&phandle->lock_count));
-	ptr += sprintf(ptr, "malloc_count = %d\n",
-		       atomic_read(&phandle->malloc_count));
-	ptr += sprintf(ptr, "mbufalloc_count = %d\n",
-		       atomic_read(&phandle->mbufalloc_count));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "ioctl_pending = %d\n",
+			atomic_read(&phandle->ioctl_pending));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_pending = %d\n",
+			atomic_read(&phandle->tx_pending));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "rx_pending = %d\n",
+			atomic_read(&phandle->rx_pending));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "lock_count = %d\n",
+			atomic_read(&phandle->lock_count));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "malloc_count = %d\n",
+			atomic_read(&phandle->malloc_count));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "mbufalloc_count = %d\n",
+			atomic_read(&phandle->mbufalloc_count));
 #ifdef PCIE
 	if (IS_PCIE(phandle->card_type)) {
-		ptr += sprintf(ptr, "malloc_cons_count = %d\n",
-			       atomic_read(&phandle->malloc_cons_count));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "malloc_cons_count = %d\n",
+				atomic_read(&phandle->malloc_cons_count));
 	}
 #endif
-	ptr += sprintf(ptr, "hs_skip_count = %u\n", phandle->hs_skip_count);
-	ptr += sprintf(ptr, "hs_force_count = %u\n", phandle->hs_force_count);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "hs_skip_count = %u\n",
+			phandle->hs_skip_count);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "hs_force_count = %u\n",
+			phandle->hs_force_count);
 
 	ptr += woal_dump_priv_drv_info(phandle, ptr);
-	ptr += sprintf(ptr, "------------moal_debug_info End-------------\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN,
+			"------------moal_debug_info End-------------\n");
 
 	if (phandle->ops.dump_reg_info)
 		ptr += phandle->ops.dump_reg_info(phandle, ptr);
 
 	LEAVE();
-	return ptr - (char *)buf;
+	return (int)(ptr - (char *)buf);
 }
 
 /**
@@ -9483,80 +9728,97 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 		LEAVE();
 		return 0;
 	}
-	ptr += sprintf(ptr, "------------mlan_debug_info-------------\n");
-	ptr += sprintf(ptr, "mlan_processing =%d\n", info->mlan_processing);
-	ptr += sprintf(ptr, "main_lock_flag =%d\n", info->main_lock_flag);
-	ptr += sprintf(ptr, "main_process_cnt =%d\n", info->main_process_cnt);
-	ptr += sprintf(ptr, "delay_task_flag =%d\n", info->delay_task_flag);
-	ptr += sprintf(ptr, "mlan_rx_processing =%d\n",
-		       info->mlan_rx_processing);
-	ptr += sprintf(ptr, "rx_pkts_queued =%d\n", info->rx_pkts_queued);
-	ptr += sprintf(ptr, "tx_pkts_queued =%d\n", info->tx_pkts_queued);
-	ptr += sprintf(ptr, "fw_hang_report = %d\n", info->fw_hang_report);
-	ptr += sprintf(ptr, "num_cmd_timeout = %d\n", info->num_cmd_timeout);
-	ptr += sprintf(ptr, "Timeout cmd id = 0x%x, act = 0x%x\n",
-		       info->timeout_cmd_id, info->timeout_cmd_act);
-	ptr += sprintf(ptr, "last_cmd_index = %d\n", info->last_cmd_index);
+	ptr += snprintf(ptr, MAX_BUF_LEN,
+			"------------mlan_debug_info-------------\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN, "mlan_processing =%d\n",
+			info->mlan_processing);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "main_lock_flag =%d\n",
+			info->main_lock_flag);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "main_process_cnt =%d\n",
+			info->main_process_cnt);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "delay_task_flag =%d\n",
+			info->delay_task_flag);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "mlan_rx_processing =%d\n",
+			info->mlan_rx_processing);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "rx_pkts_queued =%d\n",
+			info->rx_pkts_queued);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_pkts_queued =%d\n",
+			info->tx_pkts_queued);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "fw_hang_report = %d\n",
+			info->fw_hang_report);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cmd_timeout = %d\n",
+			info->num_cmd_timeout);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "Timeout cmd id = 0x%x, act = 0x%x\n",
+			info->timeout_cmd_id, info->timeout_cmd_act);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_cmd_index = %d\n",
+			info->last_cmd_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_id[i]);
-	ptr += sprintf(ptr, "last_cmd_id = %s\n", str);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_cmd_id[i]);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_cmd_id = %s\n", str);
 
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_act[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_cmd_act[i]);
 
-	ptr += sprintf(ptr, "last_cmd_act = %s\n", str);
-	ptr += sprintf(ptr, "last_cmd_resp_index = %d\n",
-		       info->last_cmd_resp_index);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_cmd_act = %s\n", str);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_cmd_resp_index = %d\n",
+			info->last_cmd_resp_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_cmd_resp_id[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ",
+			      info->last_cmd_resp_id[i]);
 
-	ptr += sprintf(ptr, "last_cmd_resp_id = %s\n", str);
-	ptr += sprintf(ptr, "last_event_index = %d\n", info->last_event_index);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_cmd_resp_id = %s\n", str);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_event_index = %d\n",
+			info->last_event_index);
 	for (s = str, i = 0; i < DBG_CMD_NUM; i++)
-		s += sprintf(s, "0x%x ", info->last_event[i]);
+		s += snprintf(s, MAX_BUF_LEN, "0x%x ", info->last_event[i]);
 
-	ptr += sprintf(ptr, "last_event = %s\n", str);
-	ptr += sprintf(ptr, "num_data_h2c_failure = %d\n",
-		       info->num_tx_host_to_card_failure);
-	ptr += sprintf(ptr, "num_cmd_h2c_failure = %d\n",
-		       info->num_cmd_host_to_card_failure);
-	ptr += sprintf(ptr, "num_alloc_buffer_failure = %d\n",
-		       info->num_alloc_buffer_failure);
-	ptr += sprintf(ptr, "num_pkt_dropped = %d\n", info->num_pkt_dropped);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "last_event = %s\n", str);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_data_h2c_failure = %d\n",
+			info->num_tx_host_to_card_failure);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cmd_h2c_failure = %d\n",
+			info->num_cmd_host_to_card_failure);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_alloc_buffer_failure = %d\n",
+			info->num_alloc_buffer_failure);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_pkt_dropped = %d\n",
+			info->num_pkt_dropped);
 #ifdef SDIO
 	if (IS_SD(priv->phandle->card_type)) {
-		ptr += sprintf(ptr, "num_data_c2h_failure = %d\n",
-			       info->num_rx_card_to_host_failure);
-		ptr += sprintf(ptr, "num_cmdevt_c2h_failure = %d\n",
-			       info->num_cmdevt_card_to_host_failure);
-		ptr += sprintf(ptr, "num_int_read_failure = %d\n",
-			       info->num_int_read_failure);
-		ptr += sprintf(ptr, "last_int_status = %d\n",
-			       info->last_int_status);
-		ptr += sprintf(ptr, "mp_rd_bitmap=0x%x curr_rd_port=0x%x\n",
-			       (unsigned int)info->mp_rd_bitmap,
-			       info->curr_rd_port);
-		ptr += sprintf(ptr, "mp_wr_bitmap=0x%x curr_wr_port=0x%x\n",
-			       (unsigned int)info->mp_wr_bitmap,
-			       info->curr_wr_port);
-		ptr += sprintf(ptr, "mp_data_port_mask=0x%x\n",
-			       info->mp_data_port_mask);
-		ptr += sprintf(
-			ptr, "last_recv_rd_bitmap=0x%x mp_invalid_update=%d\n",
+		ptr += snprintf(ptr, MAX_BUF_LEN, "num_data_c2h_failure = %d\n",
+				info->num_rx_card_to_host_failure);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"num_cmdevt_c2h_failure = %d\n",
+				info->num_cmdevt_card_to_host_failure);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "num_int_read_failure = %d\n",
+				info->num_int_read_failure);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "last_int_status = %d\n",
+				info->last_int_status);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"mp_rd_bitmap=0x%x curr_rd_port=0x%x\n",
+				(unsigned int)info->mp_rd_bitmap,
+				info->curr_rd_port);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"mp_wr_bitmap=0x%x curr_wr_port=0x%x\n",
+				(unsigned int)info->mp_wr_bitmap,
+				info->curr_wr_port);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "mp_data_port_mask=0x%x\n",
+				info->mp_data_port_mask);
+		ptr += snprintf(
+			ptr, MAX_BUF_LEN,
+			"last_recv_rd_bitmap=0x%x mp_invalid_update=%d\n",
 			info->last_recv_rd_bitmap, info->mp_invalid_update);
 		mp_aggr_pkt_limit = info->mp_aggr_pkt_limit;
-		ptr += sprintf(ptr,
-			       "last_recv_wr_bitmap=0x%x last_mp_index = %d\n",
-			       info->last_recv_wr_bitmap, info->last_mp_index);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"last_recv_wr_bitmap=0x%x last_mp_index = %d\n",
+				info->last_recv_wr_bitmap, info->last_mp_index);
 		for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
 			for (s = str, j = 0; j < mp_aggr_pkt_limit; j++)
-				s += sprintf(
-					s, "0x%02x ",
+				s += snprintf(
+					s, MAX_BUF_LEN, "0x%02x ",
 					info->last_mp_wr_info
 						[i * mp_aggr_pkt_limit + j]);
 
-			ptr += sprintf(
-				ptr,
+			ptr += snprintf(
+				ptr, MAX_BUF_LEN,
 				"mp_wr_bitmap: 0x%x mp_wr_ports=0x%x len=%d curr_wr_port=0x%x\n%s\n",
 				info->last_mp_wr_bitmap[i],
 				info->last_mp_wr_ports[i],
@@ -9567,75 +9829,95 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 #endif
 #ifdef PCIE
 	if (IS_PCIE(priv->phandle->card_type)) {
-		ptr += sprintf(ptr, "txbd_rdptr=0x%x txbd_wrptr=0x%x\n",
-			       info->txbd_rdptr, info->txbd_wrptr);
-		ptr += sprintf(ptr, "rxbd_rdptr=0x%x rxbd_wrptr=0x%x\n",
-			       info->rxbd_rdptr, info->rxbd_wrptr);
-		ptr += sprintf(ptr, "eventbd_rdptr=0x%x event_wrptr=0x%x\n",
-			       info->eventbd_rdptr, info->eventbd_wrptr);
-		ptr += sprintf(ptr, "last_wr_index:%d\n",
-			       info->txbd_wrptr & (info->txrx_bd_size - 1));
-		ptr += sprintf(ptr, "TxRx BD size:%d\n", info->txrx_bd_size);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"txbd_rdptr=0x%x txbd_wrptr=0x%x\n",
+				info->txbd_rdptr, info->txbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"rxbd_rdptr=0x%x rxbd_wrptr=0x%x\n",
+				info->rxbd_rdptr, info->rxbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"eventbd_rdptr=0x%x event_wrptr=0x%x\n",
+				info->eventbd_rdptr, info->eventbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "last_wr_index:%d\n",
+				info->txbd_wrptr & (info->txrx_bd_size - 1));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "TxRx BD size:%d\n",
+				info->txrx_bd_size);
 	}
 #endif
-	ptr += sprintf(ptr, "num_event_deauth = %d\n", info->num_event_deauth);
-	ptr += sprintf(ptr, "num_event_disassoc = %d\n",
-		       info->num_event_disassoc);
-	ptr += sprintf(ptr, "num_event_link_lost = %d\n",
-		       info->num_event_link_lost);
-	ptr += sprintf(ptr, "num_cmd_deauth = %d\n", info->num_cmd_deauth);
-	ptr += sprintf(ptr, "num_cmd_assoc_success = %d\n",
-		       info->num_cmd_assoc_success);
-	ptr += sprintf(ptr, "num_cmd_assoc_failure = %d\n",
-		       info->num_cmd_assoc_failure);
-	ptr += sprintf(ptr, "num_cons_assoc_failure = %d\n",
-		       info->num_cons_assoc_failure);
-	ptr += sprintf(ptr, "cmd_resp_received = %d\n",
-		       info->cmd_resp_received);
-	ptr += sprintf(ptr, "event_received = %d\n", info->event_received);
-	ptr += sprintf(ptr, "max_tx_buf_size = %d\n", info->max_tx_buf_size);
-	ptr += sprintf(ptr, "tx_buf_size = %d\n", info->tx_buf_size);
-	ptr += sprintf(ptr, "curr_tx_buf_size = %d\n", info->curr_tx_buf_size);
-	ptr += sprintf(ptr, "bypass_pkt_count=%d\n", info->bypass_pkt_count);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_event_deauth = %d\n",
+			info->num_event_deauth);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_event_disassoc = %d\n",
+			info->num_event_disassoc);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_event_link_lost = %d\n",
+			info->num_event_link_lost);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cmd_deauth = %d\n",
+			info->num_cmd_deauth);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cmd_assoc_success = %d\n",
+			info->num_cmd_assoc_success);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cmd_assoc_failure = %d\n",
+			info->num_cmd_assoc_failure);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "num_cons_assoc_failure = %d\n",
+			info->num_cons_assoc_failure);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "cmd_resp_received = %d\n",
+			info->cmd_resp_received);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "event_received = %d\n",
+			info->event_received);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "max_tx_buf_size = %d\n",
+			info->max_tx_buf_size);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_buf_size = %d\n",
+			info->tx_buf_size);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "curr_tx_buf_size = %d\n",
+			info->curr_tx_buf_size);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "bypass_pkt_count=%d\n",
+			info->bypass_pkt_count);
 
-	ptr += sprintf(ptr, "data_sent=%d cmd_sent=%d\n", info->data_sent,
-		       info->cmd_sent);
-	ptr += sprintf(ptr, "data_sent_cnt=%u\n", info->data_sent_cnt);
-	ptr += sprintf(ptr, "ps_mode=%d ps_state=%d\n", info->ps_mode,
-		       info->ps_state);
-	ptr += sprintf(
-		ptr, "wakeup_dev_req=%d wakeup_tries=%d pm_wakeup_timeout=%d\n",
+	ptr += snprintf(ptr, MAX_BUF_LEN, "data_sent=%d cmd_sent=%d\n",
+			info->data_sent, info->cmd_sent);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "data_sent_cnt=%u\n",
+			info->data_sent_cnt);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "ps_mode=%d ps_state=%d\n",
+			info->ps_mode, info->ps_state);
+	ptr += snprintf(
+		ptr, MAX_BUF_LEN,
+		"wakeup_dev_req=%d wakeup_tries=%d pm_wakeup_timeout=%d\n",
 		info->pm_wakeup_card_req, info->pm_wakeup_fw_try,
 		info->pm_wakeup_timeout);
-	ptr += sprintf(ptr, "hs_configured=%d hs_activated=%d\n",
-		       info->is_hs_configured, info->hs_activated);
-	ptr += sprintf(ptr, "pps_uapsd_mode=%d sleep_pd=%d\n",
-		       info->pps_uapsd_mode, info->sleep_pd);
-	ptr += sprintf(ptr, "tx_lock_flag = %d\n", info->tx_lock_flag);
-	ptr += sprintf(ptr, "port_open = %d\n", info->port_open);
-	ptr += sprintf(ptr, "scan_processing = %d\n", info->scan_processing);
-	ptr += sprintf(ptr, "scan_state = %d\n", info->scan_state);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "hs_configured=%d hs_activated=%d\n",
+			info->is_hs_configured, info->hs_activated);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "pps_uapsd_mode=%d sleep_pd=%d\n",
+			info->pps_uapsd_mode, info->sleep_pd);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_lock_flag = %d\n",
+			info->tx_lock_flag);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "port_open = %d\n", info->port_open);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "scan_processing = %d\n",
+			info->scan_processing);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "scan_state = %d\n",
+			info->scan_state);
 
 #ifdef PCIE
 	if (IS_PCIE(priv->phandle->card_type)) {
-		ptr += sprintf(ptr, "txbd: rdptr=0x%x wrptr=0x%x\n",
-			       info->txbd_rdptr, info->txbd_wrptr);
-		ptr += sprintf(ptr, "rxbd: rdptr=0x%x wrptr=0x%x\n",
-			       info->rxbd_rdptr, info->rxbd_wrptr);
-		ptr += sprintf(ptr, "eventbd: rdptr=0x%x wrptr=0x%x\n",
-			       info->eventbd_rdptr, info->eventbd_wrptr);
-		ptr += sprintf(ptr, "TXBD Ring:\n");
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"txbd: rdptr=0x%x wrptr=0x%x\n",
+				info->txbd_rdptr, info->txbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"rxbd: rdptr=0x%x wrptr=0x%x\n",
+				info->rxbd_rdptr, info->rxbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"eventbd: rdptr=0x%x wrptr=0x%x\n",
+				info->eventbd_rdptr, info->eventbd_wrptr);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "TXBD Ring:\n");
 		ptr += woal_save_hex_dump(ROW_SIZE_16, info->txbd_ring_vbase,
 					  info->txbd_ring_size, MTRUE, ptr);
-		ptr += sprintf(ptr, "RXBD Ring:\n");
+		ptr += snprintf(ptr, MAX_BUF_LEN, "RXBD Ring:\n");
 		ptr += woal_save_hex_dump(ROW_SIZE_16, info->rxbd_ring_vbase,
 					  info->rxbd_ring_size, MTRUE, ptr);
-		ptr += sprintf(ptr, "EVTBD Ring:\n");
+		ptr += snprintf(ptr, MAX_BUF_LEN, "EVTBD Ring:\n");
 		ptr += woal_save_hex_dump(ROW_SIZE_16, info->evtbd_ring_vbase,
 					  info->evtbd_ring_size, MTRUE, ptr);
 	}
 #endif
-	ptr += sprintf(ptr, "------------mlan_debug_info End-------------\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN,
+			"------------mlan_debug_info End-------------\n");
 
 	LEAVE();
 	return ptr - (char *)buf;
@@ -9661,30 +9943,32 @@ static int woal_dump_moal_hex(moal_handle *phandle, t_u8 *buf)
 		return 0;
 	}
 
-	ptr += sprintf(ptr, "<--moal_handle-->\n");
-	ptr += sprintf(ptr, "moal_handle=%p, size=%ld(0x%lx)\n", phandle,
-		       (long int)sizeof(*phandle),
-		       (long unsigned int)sizeof(*phandle));
+	ptr += snprintf(ptr, MAX_BUF_LEN, "<--moal_handle-->\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN, "moal_handle=%p, size=%ld(0x%lx)\n",
+			phandle, (long int)sizeof(*phandle),
+			(long unsigned int)sizeof(*phandle));
 	ptr += woal_save_hex_dump(ROW_SIZE_16, phandle, sizeof(*phandle), MTRUE,
 				  ptr);
-	ptr += sprintf(ptr, "<--moal_handle End-->\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN, "<--moal_handle End-->\n");
 
 	for (i = 0; i < phandle->priv_num; i++) {
 		if (!phandle->priv[i])
 			continue;
-		ptr += sprintf(ptr, "<--moal_private(%d) %s-->\n", i,
-			       phandle->priv[i]->netdev->name);
-		ptr += sprintf(ptr, "moal_private=%p, size=%ld(0x%lx)\n",
-			       phandle->priv[i],
-			       (long int)sizeof(*(phandle->priv[i])),
-			       (long unsigned int)sizeof(*(phandle->priv[i])));
+		ptr += snprintf(ptr, MAX_BUF_LEN, "<--moal_private(%d) %s-->\n",
+				i, phandle->priv[i]->netdev->name);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"moal_private=%p, size=%ld(0x%lx)\n",
+				phandle->priv[i],
+				(long int)sizeof(*(phandle->priv[i])),
+				(long unsigned int)sizeof(*(phandle->priv[i])));
 		ptr += woal_save_hex_dump(ROW_SIZE_16, phandle->priv[i],
 					  sizeof(*(phandle->priv[i])), MTRUE,
 					  ptr);
-		ptr += sprintf(ptr, "<--moal_private(%d) End-->\n", i);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"<--moal_private(%d) End-->\n", i);
 	}
 	LEAVE();
-	return ptr - (char *)buf;
+	return (int)(ptr - (char *)buf);
 }
 
 /**
@@ -9715,33 +9999,37 @@ static int woal_dump_mlan_hex(moal_private *priv, t_u8 *buf)
 		return 0;
 	}
 
-	ptr += sprintf(ptr, "<--mlan_adapter-->\n");
-	ptr += sprintf(ptr, "mlan_adapter=%p, size=%d(0x%x)\n",
-		       info->mlan_adapter, info->mlan_adapter_size,
-		       info->mlan_adapter_size);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "<--mlan_adapter-->\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN, "mlan_adapter=%p, size=%d(0x%x)\n",
+			info->mlan_adapter, info->mlan_adapter_size,
+			info->mlan_adapter_size);
 	ptr += woal_save_hex_dump(ROW_SIZE_16, info->mlan_adapter,
 				  info->mlan_adapter_size, MTRUE, ptr);
-	ptr += sprintf(ptr, "<--mlan_adapter End-->\n");
+	ptr += snprintf(ptr, MAX_BUF_LEN, "<--mlan_adapter End-->\n");
 #ifdef SDIO
 	if (IS_SD(priv->phandle->card_type) && info->mpa_buf &&
 	    info->mpa_buf_size) {
-		ptr += sprintf(ptr, "<--mlan_mpa_buf-->\n");
-		ptr += sprintf(ptr, "mlan_mpa_buf=%p, size=%d(0x%x)\n",
-			       info->mpa_buf, info->mpa_buf_size,
-			       info->mpa_buf_size);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "<--mlan_mpa_buf-->\n");
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"mlan_mpa_buf=%p, size=%d(0x%x)\n",
+				info->mpa_buf, info->mpa_buf_size,
+				info->mpa_buf_size);
 		ptr += woal_save_hex_dump(ROW_SIZE_16, info->mpa_buf,
 					  info->mpa_buf_size, MTRUE, ptr);
-		ptr += sprintf(ptr, "<--mlan_mpa_buf End-->\n");
+		ptr += snprintf(ptr, MAX_BUF_LEN, "<--mlan_mpa_buf End-->\n");
 	}
 #endif
 	for (i = 0; i < info->mlan_priv_num; i++) {
-		ptr += sprintf(ptr, "<--mlan_private(%d)-->\n", i);
-		ptr += sprintf(ptr, "mlan_private=%p, size=%d(0x%x)\n",
-			       info->mlan_priv[i], info->mlan_priv_size[i],
-			       info->mlan_priv_size[i]);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "<--mlan_private(%d)-->\n",
+				i);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"mlan_private=%p, size=%d(0x%x)\n",
+				info->mlan_priv[i], info->mlan_priv_size[i],
+				info->mlan_priv_size[i]);
 		ptr += woal_save_hex_dump(ROW_SIZE_16, info->mlan_priv[i],
 					  info->mlan_priv_size[i], MTRUE, ptr);
-		ptr += sprintf(ptr, "<--mlan_private(%d) End-->\n", i);
+		ptr += snprintf(ptr, MAX_BUF_LEN,
+				"<--mlan_private(%d) End-->\n", i);
 	}
 
 	LEAVE();
@@ -10063,8 +10351,8 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 	handle = priv->phandle;
 	memset(country_name, 0, sizeof(country_name));
 	if (handle->params.hw_name)
-		sprintf(country_name, "%s_txpower_XX.bin",
-			handle->params.hw_name);
+		snprintf(country_name, sizeof(country_name),
+			 "%s_txpower_XX.bin", handle->params.hw_name);
 	else
 		memcpy(country_name, "txpower_XX.bin",
 		       strlen("txpower_XX.bin"));
@@ -10073,8 +10361,8 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 	if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE) {
 		memset(country_name, 0, sizeof(country_name));
 		if (handle->params.hw_name)
-			sprintf(country_name, "%s_rgpower_XX.bin",
-				handle->params.hw_name);
+			snprintf(country_name, sizeof(country_name),
+				 "%s_rgpower_XX.bin", handle->params.hw_name);
 		else
 			memcpy(country_name, "rgpower_XX.bin",
 			       strlen("rgpower_XX.bin"));
@@ -10122,8 +10410,8 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country)
 	    (ret == MLAN_STATUS_FILE_ERR)) {
 		memset(country_name, 0, sizeof(country_name));
 		if (handle->params.hw_name)
-			sprintf(country_name, "%s_rgpower_WW.bin",
-				handle->params.hw_name);
+			snprintf(country_name, sizeof(country_name),
+				 "%s_rgpower_WW.bin", handle->params.hw_name);
 		else
 			memcpy(country_name, "rgpower_WW.bin",
 			       strlen("rgpower_WW.bin"));
@@ -10517,7 +10805,7 @@ t_void woal_main_work_queue(struct work_struct *work)
 #endif
 	handle->main_state = MOAL_START_MAIN_PROCESS;
 	/* Call MLAN main process */
-	mlan_main_process(handle->pmlan_adapter);
+	(void)mlan_main_process(handle->pmlan_adapter);
 	handle->main_state = MOAL_END_MAIN_PROCESS;
 
 	LEAVE();
@@ -10961,7 +11249,7 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	}
 	woal_update_firmware_name(handle);
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	wakeup_source_init(&handle->ws, "mwlan");
 #else
 	wake_lock_init(&handle->wake_lock, WAKE_LOCK_SUSPEND, "mwlan");
@@ -11002,7 +11290,7 @@ err_init_fw:
 						 handle->init_wait_q_woken);
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	wakeup_source_trash(&handle->ws);
 #else
 	wake_lock_destroy(&handle->wake_lock);
@@ -11211,7 +11499,7 @@ mlan_status woal_remove_card(void *card)
 	PRINTM(MINFO, "unregister device\n");
 	handle->ops.unregister_dev(handle);
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	wakeup_source_trash(&handle->ws);
 #else
 	wake_lock_destroy(&handle->wake_lock);
@@ -11351,8 +11639,8 @@ exit_sem_err:
 }
 #endif
 
-#ifdef SDIO_MMC
 #define FW_POLL_TRIES 100
+#ifdef SDIO
 
 /**
  *  @brief This function reload fw
@@ -11370,11 +11658,13 @@ static int woal_reset_and_reload_fw(moal_handle *handle, t_u8 mode)
 	t_u8 reset_val = handle->card_info->fw_reset_val;
 
 	ENTER();
+#ifdef SDIO_MMC
 	if (mode == FW_RELOAD_SDIO_HW_RESET) {
 		PRINTM(MCMND, "woal_sdio_reset_fw...\n");
 		woal_sdio_reset_hw(handle);
 		goto reload_fw;
 	}
+#endif
 	mlan_pm_wakeup_card(handle->pmlan_adapter, MTRUE);
 	/** wait SOC fully wake up */
 	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
@@ -11395,11 +11685,10 @@ static int woal_reset_and_reload_fw(moal_handle *handle, t_u8 mode)
 		ret = -EFAULT;
 		goto done;
 	}
-#if defined(SD9098) || defined(SD9097) || defined(SDNW62X) || defined(SD9177)
 	if (IS_SD9098(handle->card_type) || IS_SD9097(handle->card_type) ||
-	    IS_SDNW62X(handle->card_type) || IS_SD9177(handle->card_type))
+	    IS_SDIW62X(handle->card_type) || IS_SD9177(handle->card_type) ||
+	    IS_SDAW693(handle->card_type))
 		handle->ops.write_reg(handle, 0x00, 0x10);
-#endif
 	/* Poll register around 100 ms */
 	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
 		handle->ops.read_reg(handle, reset_reg, &value);
@@ -11424,6 +11713,68 @@ reload_fw:
 		goto done;
 	}
 	PRINTM(MMSG, "FW Reload successfully.");
+done:
+	LEAVE();
+	return ret;
+}
+#endif
+
+#ifdef PCIE
+/**
+ *  @brief This function reload fw for pcie
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *
+ *  @return        0--success, otherwise failure
+ */
+static int woal_pcie_reset_and_reload_fw(moal_handle *handle)
+{
+	int ret = 0, tries = 0;
+	t_u32 value = 1;
+	t_u32 reset_reg = handle->card_info->fw_reset_reg;
+	t_u8 reset_val = handle->card_info->fw_reset_val;
+
+	ENTER();
+	if (!IS_PCIE9098(handle->card_type) &&
+	    !IS_PCIEIW62X(handle->card_type) &&
+	    !IS_PCIEAW693(handle->card_type) &&
+	    !IS_PCIE9097(handle->card_type)) {
+		PRINTM(MERROR, "HW don't support PCIE in-band reset\n");
+		return -EFAULT;
+	}
+
+	mlan_pm_wakeup_card(handle->pmlan_adapter, MTRUE);
+
+	/* Write register to notify FW */
+	if (handle->ops.write_reg(handle, reset_reg, reset_val) !=
+	    MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to write reregister.\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	/* Poll register around 100 ms */
+	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
+		handle->ops.read_reg(handle, reset_reg, &value);
+		if (value == 0)
+			/* FW is ready */
+			break;
+		udelay(1000);
+	}
+
+	if (value) {
+		PRINTM(MERROR, "Failed to poll FW reset register %X=0x%x\n",
+		       reset_reg, value);
+		ret = -EFAULT;
+		goto done;
+	}
+	mlan_pm_wakeup_card(handle->pmlan_adapter, MFALSE);
+	/* Download FW */
+	ret = woal_request_fw(handle);
+	if (ret) {
+		ret = -EFAULT;
+		goto done;
+	}
+	PRINTM(MMSG, "PCIE FW Reload successfully.");
 done:
 	LEAVE();
 	return ret;
@@ -11571,8 +11922,9 @@ static void woal_post_reset(moal_handle *handle)
 #ifdef STA_CFG80211
 	handle->scan_timeout = SCAN_TIMEOUT_25S;
 #endif
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
+	if (priv &&
+	    (MLAN_STATUS_SUCCESS !=
+	     woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info))) {
 		PRINTM(MERROR, "%s: get_fw_info failed \n", __func__);
 	}
 	woal_get_version(handle, str_buf, sizeof(str_buf) - 1);
@@ -11663,7 +12015,12 @@ static void woal_post_reset(moal_handle *handle)
 		}
 
 		if (handle->params.cntry_txpwr && priv)
-			woal_request_country_power_table(priv, country_code);
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_request_country_power_table(priv,
+							     country_code)) {
+				PRINTM(MERROR,
+				       "Failed to get country power table\n");
+			}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		if (handle->params.cntry_txpwr == CNTRY_RGPOWER_MODE)
 			queue_work(handle->evt_workqueue,
@@ -11757,13 +12114,30 @@ int woal_request_fw_reload(moal_handle *phandle, t_u8 mode)
 			}
 		}
 	}
-#ifdef SDIO_MMC
+#ifdef SDIO
 	else if ((mode == FW_RELOAD_SDIO_INBAND_RESET ||
 		  mode == FW_RELOAD_SDIO_HW_RESET) &&
 		 IS_SD(handle->card_type)) {
 		ret = woal_reset_and_reload_fw(handle, mode);
 		if (ret) {
 			PRINTM(MERROR, "woal_reset_and_reload_fw fail\n");
+			goto done;
+		}
+		if (ref_handle) {
+			ret = woal_reload_fw(ref_handle);
+			if (ret) {
+				PRINTM(MERROR, "woal_reload_fw fail\n");
+				goto done;
+			}
+		}
+	}
+#endif
+#ifdef PCIE
+	else if (mode == FW_RELOAD_PCIE_INBAND_RESET &&
+		 IS_PCIE(handle->card_type)) {
+		ret = woal_pcie_reset_and_reload_fw(handle);
+		if (ret) {
+			PRINTM(MERROR, "woal_pcie_reset_and_reload_fw fail\n");
 			goto done;
 		}
 		if (ref_handle) {

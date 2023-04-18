@@ -317,8 +317,7 @@ static mlan_wmm_ac_e wlan_wmm_eval_downgrade_ac(pmlan_private priv,
  *
  *  @return     WMM AC Queue mapping of the IP TOS field
  */
-static INLINE mlan_wmm_ac_e wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter,
-						       t_u32 tos)
+mlan_wmm_ac_e wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter, t_u32 tos)
 {
 	ENTER();
 
@@ -1101,7 +1100,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 			pmadapter->pmoal_handle, &ptr->buf_head, MNULL, MNULL);
 		if (pmbuf) {
 			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf->pdesc, 3);
+				pmadapter->pmoal_handle, pmbuf, 3);
 			if (pmadapter->tp_state_drop_point == 3) {
 				pmbuf = (pmlan_buffer)util_dequeue_list(
 					pmadapter->pmoal_handle, &ptr->buf_head,
@@ -1458,8 +1457,9 @@ t_u8 wlan_get_random_ba_threshold(pmlan_adapter pmadapter)
 	sec = (sec & 0xFFFF) + (sec >> 16);
 	usec = (usec & 0xFFFF) + (usec >> 16);
 
-	ba_threshold = (((sec << 16) + usec) % BA_SETUP_MAX_PACKET_THRESHOLD) +
-		       pmadapter->min_ba_threshold;
+	ba_threshold =
+		(t_u8)((((sec << 16) + usec) % BA_SETUP_MAX_PACKET_THRESHOLD) +
+		       pmadapter->min_ba_threshold);
 	PRINTM(MINFO, "pmadapter->min_ba_threshold = %d\n",
 	       pmadapter->min_ba_threshold);
 	PRINTM(MINFO, "setup BA after %d packets\n", ba_threshold);
@@ -2263,7 +2263,13 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 	ENTER();
 
 	send_wmm_event = MFALSE;
-
+	if (resp_len < (int)sizeof(ptlv_hdr->header)) {
+		PRINTM(MINFO,
+		       "WMM: WMM_GET_STATUS err: cmdresp low length received: %d\n",
+		       resp_len);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	PRINTM(MINFO, "WMM: WMM_GET_STATUS cmdresp received: %d\n", resp_len);
 	HEXDUMP("CMD_RESP: WMM_GET_STATUS", pcurrent, resp_len);
 

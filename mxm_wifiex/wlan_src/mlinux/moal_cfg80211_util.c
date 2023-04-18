@@ -116,6 +116,10 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_wake_reason_report,
 	},
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_rtt_result,
+	}, /*event_id ???*/
 	/**add vendor event here*/
 };
 
@@ -148,6 +152,17 @@ static const struct nla_policy
 		[ATTR_ND_OFFLOAD_CONTROL] = {.type = NLA_U8},
 };
 // clang-format on
+
+static const struct nla_policy woal_rtt_policy[ATTR_RTT_MAX + 1] = {
+	[ATTR_RTT_TARGET_NUM] = {.type = NLA_U8},
+	[ATTR_RTT_TARGET_CONFIG] = {.type = NLA_BINARY},
+	[ATTR_RTT_TARGET_ADDR] = {.type = NLA_STRING, .len = ETH_ALEN},
+	[ATTR_RTT_CHANNEL_INFO] = {.type = NLA_BINARY},
+	[ATTR_RTT_MAX_DUR_SEC] = {.type = NLA_U32},
+	[ATTR_RTT_LCI_INFO] = {.type = NLA_BINARY},
+	[ATTR_RTT_LCR_INFO] = {.type = NLA_BINARY},
+
+};
 
 static const struct nla_policy
 	woal_rssi_monitor_policy[ATTR_RSSI_MONITOR_MAX + 1] = {
@@ -281,6 +296,54 @@ void woal_cfg80211_vendor_event_fw_dump(moal_private *priv)
 				   strlen(CUS_EVT_FW_DUMP));
 }
 #endif
+
+/**
+ * @brief send vendor event to kernel
+ *
+ * @param priv       A pointer to moal_private
+ * @param event    vendor event
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+static struct sk_buff *woal_cfg80211_alloc_vendor_event(moal_private *priv,
+							int event, int len)
+{
+	struct wiphy *wiphy = NULL;
+	struct sk_buff *skb = NULL;
+	int event_id = 0;
+
+	ENTER();
+
+	if (!priv || !priv->wdev || !priv->wdev->wiphy) {
+		PRINTM(MERROR, "Not find this event %d\n", event_id);
+		goto done;
+	}
+	wiphy = priv->wdev->wiphy;
+	PRINTM(MEVENT, "vendor event :0x%x\n", event);
+	event_id = woal_get_event_id(event);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find this event %d\n", event_id);
+		goto done;
+	}
+
+	/**allocate skb*/
+#if KERNEL_VERSION(4, 1, 0) <= CFG80211_VERSION_CODE
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len, event_id,
+					  GFP_ATOMIC);
+#else
+	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_ATOMIC);
+#endif
+
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor event\n");
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return skb;
+}
 
 /**
  * @brief send dfs vendor event to kernel
@@ -734,11 +797,13 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	priv = (moal_private *)woal_get_netdev_priv(dev);
 	handle = priv->phandle;
 	memset(driver_dump_file, 0, sizeof(driver_dump_file));
-	sprintf(driver_dump_file, "/proc/mwlan/");
+	snprintf(driver_dump_file, sizeof(driver_dump_file), "/proc/mwlan/");
 	if (handle->handle_idx)
-		sprintf(driver_dump_file, "drv_dump%d", handle->handle_idx);
+		snprintf(driver_dump_file, sizeof(driver_dump_file),
+			 "drv_dump%d", handle->handle_idx);
 	else
-		sprintf(driver_dump_file, "drv_dump");
+		snprintf(driver_dump_file, sizeof(driver_dump_file),
+			 "drv_dump");
 	PRINTM(MMSG, "driver dump file is %s\n", driver_dump_file);
 	length = sizeof(driver_dump_file);
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, length);
@@ -806,6 +871,8 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 	}
 	if (fw_info.fw_bands & BAND_A)
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
+	if (fw_info.rtt_support)
+		supp_feature_set |= WLAN_FEATURE_D2AP_RTT;
 	if (fw_info.fw_roaming_support)
 		supp_feature_set |= WLAN_FEATURE_CONTROL_ROAMING;
 
@@ -1653,6 +1720,7 @@ int woal_ring_push_data(moal_private *priv, int ring_id,
 
 	if ((ring->wp + w_len) > ring->ring_size ||
 	    (ring->ctrl.written_bytes + w_len) > ring->ring_size) {
+		spin_unlock_irqrestore(&ring->lock, flags);
 		PRINTM(MERROR,
 		       "Ring push buffer overflow: rp=%d  wp=%d, write_bytes=%d\n",
 		       ring->rp, ring->wp, ring->ctrl.written_bytes);
@@ -2339,7 +2407,7 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 				nla_data(iter),
 				MIN(packet_filter_len, nla_len(iter)));
 			pkt_filter->packet_filter_len =
-				MIN(packet_filter_len, nla_len(iter));
+				(t_u8)MIN(packet_filter_len, nla_len(iter));
 			pkt_filter->state = PACKET_FILTER_STATE_START;
 			spin_unlock_irqrestore(&pkt_filter->lock, flags);
 			DBG_HEXDUMP(MDAT_D, "packet_filter_program",
@@ -3283,7 +3351,47 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi)
 done:
 	LEAVE();
 }
-#endif
+
+/**
+ * @brief send driver hang vendor event to kernel
+ *
+ * @param priv          A pointer to moal_private
+ * @param reload_mode   reload mode
+ *
+ * @return      N/A
+ */
+void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode)
+{
+	struct sk_buff *skb = NULL;
+
+	ENTER();
+
+	skb = dev_alloc_skb(NLA_HDRLEN + sizeof(t_u8));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "woal_cfg80211_driver_hang_event: Failed to allocate skb");
+		goto done;
+	}
+
+	if (nla_put_u8(skb, ATTR_FW_RELOAD_MODE, reload_mode)) {
+		PRINTM(MERROR,
+		       "woal_cfg80211_driver_hang_event: nla_put failed!\n");
+		kfree(skb);
+		goto done;
+	}
+
+	PRINTM(MMSG,
+	       "woal_cfg80211_driver_hang_event: Send event_hang with reload mode: %d",
+	       reload_mode);
+	woal_cfg80211_vendor_event(priv, event_hang, (t_u8 *)skb->data,
+				   skb->len);
+
+	kfree(skb);
+done:
+	LEAVE();
+}
+
+#endif // STA_CFG80211
 
 /**
  * @brief vendor command to key_mgmt_set_key
@@ -3771,7 +3879,7 @@ static int woal_cfg80211_subcmd_set_scan_mac_oui(struct wiphy *wiphy,
 	struct net_device *dev = NULL;
 	moal_private *priv = NULL;
 	struct nlattr *tb_vendor[ATTR_WIFI_MAX + 1];
-	t_u8 mac_oui[3];
+	t_u8 mac_oui[3] = {0};
 	int ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -4073,6 +4181,793 @@ static int woal_cfg80211_subcmd_set_dfs_offload(struct wiphy *wiphy,
 
 	LEAVE();
 	return ret;
+}
+
+/**
+ * @brief vendor command to get rtt capability
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_get_capa(struct wiphy *wiphy,
+					     struct wireless_dev *wdev,
+					     const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_handle *handle = priv->phandle;
+	struct sk_buff *skb = NULL;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "CfgVendor: cfg80211_subcmd_rtt_get_capa\n");
+
+	DBG_HEXDUMP(MCMD_D, "input data", (t_u8 *)data, len);
+
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, nla_total_size(sizeof(handle->rtt_capa)) +
+			       VENDOR_REPLY_OVERHEAD);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed in %s\n", __func__);
+		goto done;
+	}
+
+	/* Put the attribute to the skb */
+	nla_put(skb, ATTR_RTT_CAPA, sizeof(handle->rtt_capa),
+		&(handle->rtt_capa));
+
+	PRINTM(MCMND, "NL80211_CMD_VENDOR=0x%x\n", NL80211_CMD_VENDOR);
+	PRINTM(MCMND, "NL80211_ATTR_WIPHY=0x%x\n", NL80211_ATTR_WIPHY);
+	PRINTM(MCMND, "NL80211_ATTR_VENDOR_ID=0x%x\n", NL80211_ATTR_VENDOR_ID);
+	PRINTM(MCMND, "NL80211_ATTR_VENDOR_SUBCMD=0x%x\n",
+	       NL80211_ATTR_VENDOR_SUBCMD);
+	PRINTM(MCMND, "NL80211_ATTR_VENDOR_DATA=0x%x\n",
+	       NL80211_ATTR_VENDOR_DATA);
+	PRINTM(MCMND, "NL80211_ATTR_VENDOR_EVENTS=0x%x\n",
+	       NL80211_ATTR_VENDOR_EVENTS);
+
+	DBG_HEXDUMP(MCMD_D, "output data skb->head", (t_u8 *)skb->head, 50);
+	DBG_HEXDUMP(MCMD_D, "output data skb->data", (t_u8 *)skb->data, 50);
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(err))
+		PRINTM(MERROR, "Vendor Command reply failed err:%d\n", err);
+
+done:
+	LEAVE();
+	return err;
+}
+
+static void woal_dump_rtt_params(wifi_rtt_config_params_t *rtt_params)
+{
+	int i = 0;
+
+	PRINTM(MMSG, "===== Start DUMP RTT Params =====\n");
+	PRINTM(MMSG, "rtt_config_num=%d\n\n", rtt_params->rtt_config_num);
+
+	for (i = 0; i < rtt_params->rtt_config_num; i++) {
+		PRINTM(MMSG, "----------[%d]----------\n", i);
+		PRINTM(MMSG, "rtt_config[%d].addr=" MACSTR "\n", i,
+		       MAC2STR(rtt_params->rtt_config[i].addr));
+		PRINTM(MMSG, "rtt_config[%d].type=%d\n", i,
+		       rtt_params->rtt_config[i].type);
+		PRINTM(MMSG, "rtt_config[%d].peer=%d\n", i,
+		       rtt_params->rtt_config[i].peer);
+		PRINTM(MMSG, "rtt_config[%d].channel=[%d %d %d %d]\n", i,
+		       rtt_params->rtt_config[i].channel.width,
+		       rtt_params->rtt_config[i].channel.center_freq,
+		       rtt_params->rtt_config[i].channel.center_freq0,
+		       rtt_params->rtt_config[i].channel.center_freq1);
+		PRINTM(MMSG, "rtt_config[%d].burst_period=%d\n", i,
+		       rtt_params->rtt_config[i].burst_period);
+		PRINTM(MMSG, "rtt_config[%d].num_burst=%d\n", i,
+		       rtt_params->rtt_config[i].num_burst);
+		PRINTM(MMSG, "rtt_config[%d].num_frames_per_burst=%d\n", i,
+		       rtt_params->rtt_config[i].num_frames_per_burst);
+		PRINTM(MMSG, "rtt_config[%d].num_retries_per_rtt_frame=%d\n", i,
+		       rtt_params->rtt_config[i].num_retries_per_rtt_frame);
+		PRINTM(MMSG, "rtt_config[%d].num_retries_per_ftmr=%d\n", i,
+		       rtt_params->rtt_config[i].num_retries_per_ftmr);
+		PRINTM(MMSG, "rtt_config[%d].LCI_request=%d\n", i,
+		       rtt_params->rtt_config[i].LCI_request);
+		PRINTM(MMSG, "rtt_config[%d].LCR_request=%d\n", i,
+		       rtt_params->rtt_config[i].LCR_request);
+		PRINTM(MMSG, "rtt_config[%d].burst_duration=%d\n", i,
+		       rtt_params->rtt_config[i].burst_duration);
+		PRINTM(MMSG, "rtt_config[%d].preamble=%d\n", i,
+		       rtt_params->rtt_config[i].preamble);
+		PRINTM(MMSG, "rtt_config[%d].bw=%d\n", i,
+		       rtt_params->rtt_config[i].bw);
+		PRINTM(MMSG, "\n");
+	}
+}
+
+/**
+ * @brief vendor command to request rtt range
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
+						  struct wireless_dev *wdev,
+						  const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_handle *handle = priv->phandle;
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
+	t_u8 rtt_config_num = 0;
+	wifi_rtt_config *rtt_config = NULL;
+	t_u8 i = 0, j = 0;
+	wifi_rtt_config_params_t rtt_params;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		err = -EFAULT;
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		goto done;
+	}
+
+	if (!tb[ATTR_RTT_TARGET_NUM] || !tb[ATTR_RTT_TARGET_CONFIG]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_RTT_TARGET_NUM]=%p tb[ATTR_RTT_TARGET_CONFIG]=%p\n",
+		       __func__, tb[ATTR_RTT_TARGET_NUM],
+		       tb[ATTR_RTT_TARGET_CONFIG]);
+		err = -EINVAL;
+		goto done;
+	}
+
+	rtt_config_num = nla_get_u8(tb[ATTR_RTT_TARGET_NUM]);
+
+	if ((rtt_config_num == 0) || ((handle->rtt_params.rtt_config_num +
+				       rtt_config_num) > MAX_RTT_CONFIG_NUM)) {
+		PRINTM(MERROR, "%s: invalid num=%d  num in handle=%d  MAX=%d\n",
+		       __func__, rtt_config_num,
+		       handle->rtt_params.rtt_config_num, MAX_RTT_CONFIG_NUM);
+		err = -EINVAL;
+		goto done;
+	}
+	if (nla_len(tb[ATTR_RTT_TARGET_CONFIG]) !=
+	    sizeof(rtt_params.rtt_config[0]) * rtt_config_num) {
+		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %lu(each)\n",
+		       __func__, nla_len(tb[ATTR_RTT_TARGET_CONFIG]),
+		       rtt_config_num, sizeof(rtt_params.rtt_config[0]));
+		err = -EINVAL;
+		goto done;
+	}
+
+	rtt_config = (wifi_rtt_config *)nla_data(tb[ATTR_RTT_TARGET_CONFIG]);
+	memset(&rtt_params, 0, sizeof(rtt_params));
+	/** Strip the zero mac config */
+	for (i = 0; i < rtt_config_num; i++) {
+		if (!memcmp(rtt_config[i].addr, zero_mac,
+			    sizeof(rtt_config[i].addr)))
+			continue;
+		else {
+			moal_memcpy_ext(
+				handle,
+				&rtt_params
+					 .rtt_config[rtt_params.rtt_config_num],
+				&rtt_config[i],
+				sizeof(rtt_params.rtt_config
+					       [rtt_params.rtt_config_num]),
+				sizeof(wifi_rtt_config));
+			rtt_params.rtt_config_num++;
+		}
+	}
+	if (!rtt_params.rtt_config_num) {
+		PRINTM(MERROR, "%s: no valid mac addr\n", __func__);
+		goto done;
+	}
+	woal_dump_rtt_params(&rtt_params);
+
+	ret = woal_config_rtt(priv, MOAL_IOCTL_WAIT, &rtt_params);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_config_rtt() failed\n", __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+	for (i = 0; i < rtt_params.rtt_config_num; i++) {
+		for (j = 0; j < handle->rtt_params.rtt_config_num; j++) {
+			if (!memcmp(handle->rtt_params.rtt_config[j].addr,
+				    rtt_params.rtt_config[i].addr,
+				    sizeof(handle->rtt_params.rtt_config[j]
+						   .addr)))
+				break;
+		}
+		moal_memcpy_ext(handle, &(handle->rtt_params.rtt_config[j]),
+				&(rtt_params.rtt_config[i]),
+				sizeof(handle->rtt_params.rtt_config[j]),
+				sizeof(wifi_rtt_config));
+		if (j == handle->rtt_params.rtt_config_num)
+			handle->rtt_params.rtt_config_num++;
+	}
+
+	woal_dump_rtt_params(&(handle->rtt_params));
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor command to cancel rtt range
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
+						 struct wireless_dev *wdev,
+						 const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_handle *handle = priv->phandle;
+	t_u8 rtt_config_num = handle->rtt_params.rtt_config_num;
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	t_u32 target_num = 0;
+	t_u8 addr[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH];
+	int i = 0, j = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		goto done;
+	}
+
+	if (!tb[ATTR_RTT_TARGET_NUM] || !tb[ATTR_RTT_TARGET_ADDR]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_RTT_TARGET_NUM]=%p tb[ATTR_RTT_TARGET_ADDR]=%p\n",
+		       __func__, tb[ATTR_RTT_TARGET_NUM],
+		       tb[ATTR_RTT_TARGET_ADDR]);
+		err = -EINVAL;
+		goto done;
+	}
+
+	target_num = nla_get_u8(tb[ATTR_RTT_TARGET_NUM]);
+
+	if ((target_num <= 0 || target_num > MAX_RTT_CONFIG_NUM) ||
+	    (nla_len(tb[ATTR_RTT_TARGET_ADDR]) !=
+	     sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH * target_num)) {
+		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%lu=%d\n",
+		       __func__, target_num, MAX_RTT_CONFIG_NUM, target_num,
+		       sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH,
+		       nla_len(tb[ATTR_RTT_TARGET_ADDR]));
+		err = -EINVAL;
+		goto done;
+	}
+	woal_dump_rtt_params(&(handle->rtt_params));
+
+	moal_memcpy_ext(handle, addr, nla_data(tb[ATTR_RTT_TARGET_ADDR]),
+			nla_len(tb[ATTR_RTT_TARGET_ADDR]), sizeof(addr));
+
+	for (i = 0; i < target_num; i++)
+		PRINTM(MMSG, "cancel[%d].addr=" MACSTR "\n", i,
+		       MAC2STR(addr[i]));
+
+	for (i = 0; i < target_num; i++) {
+		for (j = 0; j < handle->rtt_params.rtt_config_num; j++) {
+			if (!memcmp(addr[i],
+				    handle->rtt_params.rtt_config[j].addr,
+				    sizeof(addr[0]))) {
+				memset(&(handle->rtt_params.rtt_config[j]),
+				       0x00,
+				       sizeof(handle->rtt_params.rtt_config[0]));
+				if ((j + 1) <
+				    handle->rtt_params.rtt_config_num) {
+					memmove(&(handle->rtt_params
+							  .rtt_config[j]),
+						&(handle->rtt_params
+							  .rtt_config[j + 1]),
+						sizeof(handle->rtt_params
+							       .rtt_config[0]) *
+							(handle->rtt_params
+								 .rtt_config_num -
+							 (j + 1)));
+					memset(&(handle->rtt_params.rtt_config
+							 [handle->rtt_params
+								  .rtt_config_num -
+							  1]),
+					       0x00,
+					       sizeof(handle->rtt_params
+							      .rtt_config[0]));
+				}
+				handle->rtt_params.rtt_config_num--;
+				continue;
+			}
+		}
+	}
+
+	if (handle->rtt_params.rtt_config_num >= rtt_config_num) {
+		PRINTM(MERROR, "%s: No matched mac addr in rtt_config\n",
+		       __func__);
+		goto done;
+	}
+
+	ret = woal_cancel_rtt(priv, MOAL_IOCTL_WAIT, target_num, addr);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_cancel_rtt() failed\n", __func__);
+		err = -EFAULT;
+		goto done;
+	}
+	woal_dump_rtt_params(&(handle->rtt_params));
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor event to report RTT Results
+ *
+ * @param priv     A pointer to moal_private
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      mlan_status
+ */
+mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
+					   int len)
+{
+	// moal_handle *handle = priv->phandle;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 *pos = data;
+	t_u32 event_left_len = len;
+	struct sk_buff *skb = NULL;
+	t_u32 vdr_event_len = 0;
+	t_u32 complete = 0;
+	wifi_rtt_result_element *rtt_result_elem = NULL;
+	t_u32 num_results = 0;
+
+	ENTER();
+
+	PRINTM(MEVENT, "Enter %s()\n", __func__);
+
+	vdr_event_len = nla_total_size(sizeof(complete)) +
+			nla_total_size(sizeof(num_results)) +
+			nla_total_size(len) + NLA_ALIGNTO * num_results +
+			VENDOR_REPLY_OVERHEAD;
+	PRINTM(MEVENT, "vdr_event_len = %d\n", vdr_event_len);
+	skb = woal_cfg80211_alloc_vendor_event(priv, event_rtt_result,
+					       vdr_event_len);
+	if (!skb)
+		goto done;
+
+	complete = *pos;
+	nla_put(skb, ATTR_RTT_RESULT_COMPLETE, sizeof(complete), &complete);
+	pos++;
+	event_left_len--;
+
+	while (event_left_len > sizeof(wifi_rtt_result_element)) {
+		rtt_result_elem = (wifi_rtt_result_element *)pos;
+
+		nla_put(skb, ATTR_RTT_RESULT_FULL, rtt_result_elem->len,
+			rtt_result_elem->data);
+		num_results++;
+
+		pos += sizeof(*rtt_result_elem) + rtt_result_elem->len;
+		event_left_len -=
+			sizeof(*rtt_result_elem) + rtt_result_elem->len;
+	}
+
+	nla_put(skb, ATTR_RTT_RESULT_NUM, sizeof(num_results), &num_results);
+
+	DBG_HEXDUMP(MEVT_D, "output data skb->data", (t_u8 *)skb->data,
+		    skb->len);
+	/**send event*/
+	cfg80211_vendor_event(skb, GFP_KERNEL);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief vendor command to get rtt responder info
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int
+woal_cfg80211_subcmd_rtt_get_responder_info(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_rtt_responder rtt_rsp_cfg;
+	struct sk_buff *skb = NULL;
+	wifi_rtt_responder rtt_rsp;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	memset(&rtt_rsp_cfg, 0x00, sizeof(rtt_rsp_cfg));
+	rtt_rsp_cfg.action = RTT_GET_RESPONDER_INFO;
+	ret = woal_rtt_responder_cfg(priv, MOAL_IOCTL_WAIT, &rtt_rsp_cfg);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_rtt_responder_cfg() failed\n",
+		       __func__);
+		err = -EFAULT;
+		goto done;
+	}
+	PRINTM(MCMD_D,
+	       "mlan_rtt_responder from FW: channel=%d bandcfg=%d %d %d %d preamble=%d\n",
+	       rtt_rsp_cfg.u.info.channel, rtt_rsp_cfg.u.info.bandcfg.chanBand,
+	       rtt_rsp_cfg.u.info.bandcfg.chanWidth,
+	       rtt_rsp_cfg.u.info.bandcfg.chan2Offset,
+	       rtt_rsp_cfg.u.info.bandcfg.scanMode,
+	       rtt_rsp_cfg.u.info.preamble);
+
+	memset(&rtt_rsp, 0x00, sizeof(rtt_rsp));
+	woal_bandcfg_to_channel_info(priv, &(rtt_rsp_cfg.u.info.bandcfg),
+				     rtt_rsp_cfg.u.info.channel,
+				     &(rtt_rsp.channel));
+	rtt_rsp.preamble = rtt_rsp_cfg.u.info.preamble;
+	PRINTM(MCMD_D, "wifi_rtt_responder report to HAL:\n");
+	PRINTM(MCMD_D,
+	       "channel: width=%d center_freq=%d center_freq0=%d center_freq1=%d\n",
+	       rtt_rsp.channel.width, rtt_rsp.channel.center_freq,
+	       rtt_rsp.channel.center_freq0, rtt_rsp.channel.center_freq1);
+	PRINTM(MCMD_D, "preamble=%d\n", rtt_rsp.preamble);
+
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, nla_total_size(sizeof(rtt_rsp)) + VENDOR_REPLY_OVERHEAD);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed in %s\n", __func__);
+		goto done;
+	}
+
+	/* Put the attribute to the skb */
+	nla_put(skb, ATTR_RTT_CHANNEL_INFO, sizeof(rtt_rsp.channel),
+		&(rtt_rsp.channel));
+	nla_put(skb, ATTR_RTT_PREAMBLE, sizeof(rtt_rsp.preamble),
+		&(rtt_rsp.preamble));
+	DBG_HEXDUMP(MCMD_D, "output data skb->data", (t_u8 *)skb->data,
+		    skb->len);
+
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(err))
+		PRINTM(MERROR, "Vendor Command reply failed err:%d\n", err);
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor command to enable rtt responder
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_enable_responder(struct wiphy *wiphy,
+						     struct wireless_dev *wdev,
+						     const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	wifi_channel_info *ch_info = NULL;
+	t_u32 max_dur_sec = 0;
+	mlan_rtt_responder rtt_rsp_cfg;
+	wifi_rtt_responder rtt_rsp;
+	struct sk_buff *skb = NULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		err = -EFAULT;
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		goto done;
+	}
+
+	if (!tb[ATTR_RTT_CHANNEL_INFO] || !tb[ATTR_RTT_MAX_DUR_SEC]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_RTT_TARGET_NUM]=%p tb[ATTR_RTT_TARGET_CONFIG]=%p\n",
+		       __func__, tb[ATTR_RTT_CHANNEL_INFO],
+		       tb[ATTR_RTT_MAX_DUR_SEC]);
+		err = -EINVAL;
+		goto done;
+	}
+	ch_info = (wifi_channel_info *)nla_data(tb[ATTR_RTT_CHANNEL_INFO]);
+	max_dur_sec = nla_get_u32(tb[ATTR_RTT_MAX_DUR_SEC]);
+	PRINTM(MCMD_D, "HAL input:\n");
+	PRINTM(MCMD_D,
+	       "wifi_channel_info: width=%d center_freq=%d center_freq0=%d center_freq1=%d\n",
+	       ch_info->width, ch_info->center_freq, ch_info->center_freq0,
+	       ch_info->center_freq1);
+	PRINTM(MCMD_D, "max_dur_sec=%d\n", max_dur_sec);
+
+	memset(&rtt_rsp_cfg, 0x00, sizeof(rtt_rsp_cfg));
+	rtt_rsp_cfg.action = RTT_SET_RESPONDER_ENABLE;
+	rtt_rsp_cfg.u.encfg.channel =
+		ieee80211_frequency_to_channel(ch_info->center_freq);
+	woal_channel_info_to_bandcfg(priv, ch_info,
+				     &(rtt_rsp_cfg.u.encfg.bandcfg));
+	rtt_rsp_cfg.u.encfg.max_dur_sec = max_dur_sec;
+	PRINTM(MCMD_D, "HAL input to rtt_responder_encfg:\n");
+	PRINTM(MCMD_D,
+	       "channel=%d bandcfg=[chanBand=%d chanWidth=%d chan2Offset=%d scanMode=%d]\n",
+	       rtt_rsp_cfg.u.encfg.channel,
+	       rtt_rsp_cfg.u.encfg.bandcfg.chanBand,
+	       rtt_rsp_cfg.u.encfg.bandcfg.chanWidth,
+	       rtt_rsp_cfg.u.encfg.bandcfg.chan2Offset,
+	       rtt_rsp_cfg.u.encfg.bandcfg.scanMode);
+	PRINTM(MCMD_D, "max_dur_sec=%d\n", rtt_rsp_cfg.u.encfg.max_dur_sec);
+	ret = woal_rtt_responder_cfg(priv, MOAL_IOCTL_WAIT, &rtt_rsp_cfg);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_rtt_responder_cfg() failed\n",
+		       __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+	memset(&rtt_rsp, 0x00, sizeof(rtt_rsp));
+	woal_bandcfg_to_channel_info(priv, &(rtt_rsp_cfg.u.info.bandcfg),
+				     rtt_rsp_cfg.u.info.channel,
+				     &(rtt_rsp.channel));
+	rtt_rsp.preamble = rtt_rsp_cfg.u.info.preamble;
+	PRINTM(MCMD_D, "wifi_rtt_responder report to HAL:\n");
+	PRINTM(MCMD_D,
+	       "channel: width=%d center_freq=%d center_freq0=%d center_freq1=%d\n",
+	       rtt_rsp.channel.width, rtt_rsp.channel.center_freq,
+	       rtt_rsp.channel.center_freq0, rtt_rsp.channel.center_freq1);
+	PRINTM(MCMD_D, "preamble=%d\n", rtt_rsp.preamble);
+
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, nla_total_size(sizeof(rtt_rsp)) + VENDOR_REPLY_OVERHEAD);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed in %s\n", __func__);
+		goto done;
+	}
+
+	/* Put the attribute to the skb */
+	nla_put(skb, ATTR_RTT_CHANNEL_INFO, sizeof(rtt_rsp.channel),
+		&(rtt_rsp.channel));
+	nla_put(skb, ATTR_RTT_PREAMBLE, sizeof(rtt_rsp.preamble),
+		&(rtt_rsp.preamble));
+	DBG_HEXDUMP(MCMD_D, "output data skb->data", (t_u8 *)skb->data,
+		    skb->len);
+
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(err))
+		PRINTM(MERROR, "Vendor Command reply failed err:%d\n", err);
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor command to disable rtt responder
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_disable_responder(struct wiphy *wiphy,
+						      struct wireless_dev *wdev,
+						      const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_rtt_responder rtt_rsp_cfg;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	memset(&rtt_rsp_cfg, 0x00, sizeof(rtt_rsp_cfg));
+	rtt_rsp_cfg.action = RTT_SET_RESPONDER_DISABLE;
+	ret = woal_rtt_responder_cfg(priv, MOAL_IOCTL_WAIT, &rtt_rsp_cfg);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_rtt_responder_cfg() failed\n",
+		       __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor command to set rtt lci
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_set_lci(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	mlan_rtt_responder rtt_rsp_cfg;
+	wifi_lci_information *lci_info;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		err = -EFAULT;
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		goto done;
+	}
+
+	if (!tb[ATTR_RTT_LCI_INFO]) {
+		PRINTM(MERROR, "%s: null attr: tb[ATTR_RTT_LCI_INFO]=%p\n",
+		       __func__, tb[ATTR_RTT_LCI_INFO]);
+		err = -EINVAL;
+		goto done;
+	}
+	lci_info = (wifi_lci_information *)nla_data(tb[ATTR_RTT_LCI_INFO]);
+	PRINTM(MCMD_D, "HAL input:\n");
+	PRINTM(MCMD_D,
+	       "wifi_lci_information: latitude=%lu longitude=%lu altitude=%d latitude_unc=%d longitude_unc=%d altitude_unc=%d\n",
+	       lci_info->latitude, lci_info->longitude, lci_info->altitude,
+	       lci_info->latitude_unc, lci_info->longitude_unc,
+	       lci_info->altitude_unc);
+	PRINTM(MCMD_D,
+	       "wifi_lci_information: motion_pattern=%d floor=%d height_above_floor=%d height_unc=%d\n",
+	       lci_info->motion_pattern, lci_info->floor,
+	       lci_info->height_above_floor, lci_info->height_unc);
+
+	memset(&rtt_rsp_cfg, 0x00, sizeof(rtt_rsp_cfg));
+	rtt_rsp_cfg.action = RTT_SET_RESPONDER_LCI;
+	moal_memcpy_ext(priv->phandle, &(rtt_rsp_cfg.u.lci), lci_info,
+			sizeof(rtt_rsp_cfg.u.lci), sizeof(rtt_rsp_cfg.u.lci));
+	ret = woal_rtt_responder_cfg(priv, MOAL_IOCTL_WAIT, &rtt_rsp_cfg);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_rtt_responder_cfg() failed\n",
+		       __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return err;
+}
+
+/**
+ * @brief vendor command to set rtt lcr
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_set_lcr(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	mlan_rtt_responder rtt_rsp_cfg;
+	wifi_lcr_information *lcr_info;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Enter %s()\n", __func__);
+
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		err = -EFAULT;
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		goto done;
+	}
+
+	if (!tb[ATTR_RTT_LCR_INFO]) {
+		PRINTM(MERROR, "%s: null attr: tb[ATTR_RTT_LCR_INFO]=%p\n",
+		       __func__, tb[ATTR_RTT_LCR_INFO]);
+		err = -EINVAL;
+		goto done;
+	}
+	lcr_info = (wifi_lcr_information *)nla_data(tb[ATTR_RTT_LCR_INFO]);
+	PRINTM(MCMD_D, "HAL input:\n");
+	PRINTM(MCMD_D, "wifi_lcr_information: country_code='%c' '%c'\n",
+	       lcr_info->country_code[0], lcr_info->country_code[1]);
+	PRINTM(MCMD_D, "wifi_lci_information: length=%d civic_info=%s\n",
+	       lcr_info->length, lcr_info->civic_info);
+
+	memset(&rtt_rsp_cfg, 0x00, sizeof(rtt_rsp_cfg));
+	rtt_rsp_cfg.action = RTT_SET_RESPONDER_LCR;
+	moal_memcpy_ext(priv->phandle, &(rtt_rsp_cfg.u.lcr), lcr_info,
+			sizeof(rtt_rsp_cfg.u.lcr), sizeof(rtt_rsp_cfg.u.lcr));
+	ret = woal_rtt_responder_cfg(priv, MOAL_IOCTL_WAIT, &rtt_rsp_cfg);
+	if (ret != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "%s: woal_rtt_responder_cfg() failed\n",
+		       __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+done:
+	LEAVE();
+	return err;
 }
 
 #define CSI_DUMP_FILE_MAX 1200000
@@ -4392,11 +5287,11 @@ mlan_status woal_cfg80211_event_csi_dump(moal_private *priv, t_u8 *data,
 	ENTER();
 
 	DBG_HEXDUMP(MCMD_D, "CSI dump data", data, len);
-	sprintf(path_name, "/data");
+	snprintf(path_name, sizeof(path_name), "/data");
 	if (priv->csi_dump_format == 1)
-		sprintf(file_name, "csi_dump.bin");
+		snprintf(file_name, sizeof(file_name), "csi_dump.bin");
 	else
-		sprintf(file_name, "csi_dump.txt");
+		snprintf(file_name, sizeof(file_name), "csi_dump.txt");
 	priv->csi_dump_len += len;
 	if (priv->csi_dump_len > CSI_DUMP_FILE_MAX) {
 		PRINTM(MERROR,
@@ -4598,6 +5493,112 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 #endif
 	},
 
+
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_GET_CAPA,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_get_capa,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_RANGE_REQUEST,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_range_request,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_RANGE_CANCEL,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_range_cancel,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_GET_RESPONDER_INFO,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_get_responder_info,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_ENABLE_RESPONDER,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_enable_responder,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_DISABLE_RESPONDER,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_disable_responder,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_SET_LCI,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_set_lci,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_SET_LCR,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_set_lcr,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+                .policy = woal_rtt_policy,
+                .maxattr = ATTR_RTT_MAX,
+#endif
+	},
 
 	{
 		.info = {

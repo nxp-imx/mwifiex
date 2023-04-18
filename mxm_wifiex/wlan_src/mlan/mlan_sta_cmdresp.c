@@ -888,7 +888,7 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
  */
 static mlan_status wlan_get_power_level(pmlan_private pmpriv, void *pdata_buf)
 {
-	t_u16 length = 0;
+	t_s32 length = 0;
 	t_s8 max_power = -1, min_power = -1;
 	MrvlTypes_Power_Group_t *ppg_tlv = MNULL;
 	Power_Group_t *pg = MNULL;
@@ -907,7 +907,7 @@ static mlan_status wlan_get_power_level(pmlan_private pmpriv, void *pdata_buf)
 			min_power = pg->power_min;
 			length -= sizeof(Power_Group_t);
 		}
-		while (length) {
+		while (length > 0) {
 			pg++;
 			if (max_power < pg->power_max)
 				max_power = pg->power_max;
@@ -2632,20 +2632,22 @@ static mlan_status wlan_ret_sta_config(pmlan_private pmpriv,
 		if (pioctl_buf->req_id == MLAN_IOCTL_BSS) {
 			bss = (mlan_ds_bss *)pioctl_buf->pbuf;
 			if (bss->sub_command == MLAN_OID_BSS_CHAN_INFO) {
+				Band_Config_t *bandcfg =
+					&bss->param.sta_channel.bandcfg;
+
 				tlv_band_channel =
 					(MrvlIEtypes_channel_band_t *)
 						cmdrsp_sta_cfg->tlv_buffer;
-				bss->param.sta_channel.bandcfg =
-					tlv_band_channel->bandcfg;
+				*bandcfg = tlv_band_channel->bandcfg;
 				bss->param.sta_channel.channel =
 					tlv_band_channel->channel;
 				bss->param.sta_channel.is_11n_enabled =
 					IS_11N_ENABLED(pmpriv);
-				if (bss->param.sta_channel.bandcfg.chanWidth ==
-				    CHAN_BW_80MHZ)
+				if (bandcfg->chanWidth == CHAN_BW_80MHZ)
 					bss->param.sta_channel.center_chan =
 						wlan_get_center_freq_idx(
-							pmpriv, BAND_AAC,
+							pmpriv,
+							bandcfg->chanBand,
 							bss->param.sta_channel
 								.channel,
 							CHANNEL_BW_80MHZ);
@@ -2752,6 +2754,8 @@ static mlan_status wlan_ret_auto_tx(pmlan_private pmpriv,
 	MrvlIEtypes_Cloud_Keep_Alive_t *keep_alive_tlv = MNULL;
 	MrvlIEtypes_Keep_Alive_Pkt_t *pkt_tlv = MNULL;
 	mlan_ds_misc_keep_alive *misc_keep_alive = MNULL;
+	MrvlIEtypes_Cloud_Keep_Alive_Rx_t *keep_alive_Rx_tlv = MNULL;
+	mlan_ds_misc_keep_alive_rx *misc_keep_alive_rx = MNULL;
 
 	ENTER();
 
@@ -2824,6 +2828,65 @@ static mlan_status wlan_ret_auto_tx(pmlan_private pmpriv,
 							sizeof(misc_keep_alive
 								       ->packet));
 						misc_keep_alive->pkt_len = len;
+					}
+				}
+			}
+		}
+		if (header->type == TLV_TYPE_CLOUD_KEEP_ALIVE_ACK) {
+			keep_alive_Rx_tlv =
+				(MrvlIEtypes_Cloud_Keep_Alive_Rx_t *)
+					cmdrsp_auto_tx->tlv_buffer;
+			misc_keep_alive_rx = (mlan_ds_misc_keep_alive_rx *)&misc
+						     ->param.keep_alive_rx;
+			misc_keep_alive_rx->mkeep_alive_id =
+				keep_alive_Rx_tlv->keep_alive_id;
+			misc_keep_alive_rx->enable = keep_alive_Rx_tlv->enable;
+			if (((action == HostCmd_ACT_GEN_SET) ||
+			     (action == HostCmd_ACT_GEN_RESET)) &&
+			    !keep_alive_Rx_tlv->enable) {
+				len = len -
+				      sizeof(keep_alive_Rx_tlv->keep_alive_id) -
+				      sizeof(keep_alive_Rx_tlv->enable);
+				if (len > sizeof(MrvlIEtypesHeader_t)) {
+					header = (MrvlIEtypesHeader_t *)
+						keep_alive_Rx_tlv;
+					header->type =
+						wlan_le16_to_cpu(header->type);
+					len = wlan_le16_to_cpu(header->len) -
+					      sizeof(Eth803Hdr_t);
+					if (header->type ==
+					    TLV_TYPE_CLOUD_KEEP_ALIVE_ACK) {
+						memcpy_ext(
+							pmpriv->adapter,
+							misc_keep_alive_rx
+								->dst_mac,
+							keep_alive_Rx_tlv
+								->eth_header
+								.dest_addr,
+							MLAN_MAC_ADDR_LENGTH,
+							sizeof(misc_keep_alive_rx
+								       ->dst_mac));
+						memcpy_ext(
+							pmpriv->adapter,
+							misc_keep_alive_rx
+								->src_mac,
+							keep_alive_Rx_tlv
+								->eth_header
+								.src_addr,
+							MLAN_MAC_ADDR_LENGTH,
+							sizeof(misc_keep_alive
+								       ->src_mac));
+						memcpy_ext(
+							pmpriv->adapter,
+							misc_keep_alive_rx
+								->packet,
+							keep_alive_Rx_tlv
+								->ip_packet,
+							len,
+							sizeof(misc_keep_alive
+								       ->packet));
+						misc_keep_alive_rx->pkt_len =
+							len;
 					}
 				}
 			}
@@ -3094,6 +3157,39 @@ cmd_mfg_done:
 }
 
 /**
+ *  @brief This function handles the command response of TWT_REPORT
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_twt_report(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+				mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	HostCmd_DS_TWT_CFG *twt_recfg = &resp->params.twtcfg;
+
+	ENTER();
+
+	if ((wlan_le16_to_cpu(twt_recfg->action) == HostCmd_ACT_GEN_GET) &&
+	    (wlan_le16_to_cpu(twt_recfg->sub_id) ==
+	     MLAN_11AX_TWT_REPORT_SUBID)) {
+		if (pioctl_buf) {
+			misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+			memcpy_ext(pmpriv->adapter,
+				   &misc_cfg->param.twt_report_info,
+				   &resp->params.twtcfg.param.twt_report,
+				   sizeof(mlan_ds_twt_report),
+				   sizeof(mlan_ds_twt_report));
+		}
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function handles the station command response
  *
  *  @param priv             A pointer to mlan_private structure
@@ -3229,6 +3325,14 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_802_11_LINK_STATS:
 		ret = wlan_ret_get_link_statistic(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS:
+		ret = wlan_ret_802_11_ftm_config_session_params(pmpriv, resp,
+								pioctl_buf);
+		break;
+	case HostCmd_CMD_FTM_CONFIG_RESPONDER:
+		ret = wlan_ret_802_11_ftm_config_responder(pmpriv, resp,
+							   pioctl_buf);
 		break;
 	case HostCmd_CMD_RSSI_INFO_EXT:
 		ret = wlan_ret_802_11_rssi_info_ext(pmpriv, resp, pioctl_buf);
@@ -3536,12 +3640,16 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_range_ext(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_TWT_CFG:
+		ret = wlan_ret_twt_report(pmpriv, resp, pioctl_buf);
 		break;
 	case HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
 		ret = wlan_ret_gpio_tsf_latch(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG:
 		ret = wlan_ret_rxabortcfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_OFDM_DESENSE_CFG:
+		ret = wlan_ret_ofdmdesense_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG_EXT:
 		ret = wlan_ret_rxabortcfg_ext(pmpriv, resp, pioctl_buf);
@@ -3583,6 +3691,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_GET_CH_LOAD:
 		ret = wlan_ret_ch_load(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_CROSS_CHIP_SYNCH:
+		ret = wlan_ret_cross_chip_synch(pmpriv, resp, pioctl_buf);
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",

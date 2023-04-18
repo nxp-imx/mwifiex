@@ -139,12 +139,17 @@ Change log:
 #define SD9097_WLAN_V1_FW_NAME "nxp/sdiw620_wlan_v1.bin"
 #endif /* SD9097 */
 
-#ifdef SDNW62X
-#define SDNW62X_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw62x.bin"
-#define SDUARTNW62X_COMBO_FW_NAME "nxp/sduart_nw62x.bin"
-#define SDSDNW62X_COMBO_FW_NAME "sdsd_nw62x.bin"
-#define SDNW62X_DEFAULT_WLAN_FW_NAME "nxp/sd_nw62x.bin"
-#endif /* SDNW62X */
+#ifdef SDIW62X
+#define SDIW62X_DEFAULT_COMBO_FW_NAME "nxp/sdsd_iw62x.bin"
+#define SDUARTIW62X_COMBO_FW_NAME "nxp/sduart_iw62x.bin"
+#define SDSDIW62X_COMBO_FW_NAME "sdsd_iw62x.bin"
+#define SDIW62X_DEFAULT_WLAN_FW_NAME "nxp/sd_iw62x.bin"
+#endif /* SDIW62X */
+
+#define SDAW693_DEFAULT_COMBO_FW_NAME "nxp/sdsd_aw693.bin"
+#define SDUARTAW693_COMBO_FW_NAME "nxp/sduart_aw693.bin"
+#define SDSDAW693_COMBO_FW_NAME "sdsd_aw693.bin"
+#define SDAW693_DEFAULT_WLAN_FW_NAME "nxp/sd_aw693.bin"
 
 #ifdef SD9177
 #define SD9177_A0 0x00

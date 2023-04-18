@@ -180,6 +180,8 @@ void wlan_wmm_setup_ac_downgrade(pmlan_private priv);
 /** select WMM queue */
 t_u8 wlan_wmm_select_queue(mlan_private *pmpriv, t_u8 tid);
 t_void wlan_wmm_delete_peer_ralist(pmlan_private priv, t_u8 *mac);
+/** Convert the IP TOS to an WMM AC Queue assignment */
+mlan_wmm_ac_e wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter, t_u32 tos);
 
 #ifdef STA_SUPPORT
 /*

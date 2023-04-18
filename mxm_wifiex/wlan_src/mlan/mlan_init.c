@@ -317,6 +317,20 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+	if (pmadapter->callbacks.moal_vmalloc &&
+	    pmadapter->callbacks.moal_vfree)
+		ret = pmadapter->callbacks.moal_vmalloc(
+			pmadapter->pmoal_handle, buf_size,
+			(t_u8 **)&pmadapter->pold_chan_stats);
+	else
+		ret = pmadapter->callbacks.moal_malloc(
+			pmadapter->pmoal_handle, buf_size, MLAN_MEM_DEF,
+			(t_u8 **)&pmadapter->pold_chan_stats);
+	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->pold_chan_stats) {
+		PRINTM(MERROR, "Failed to allocate old channel statistics\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 #endif
 
 	/* Allocate command buffer */
@@ -967,13 +981,11 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 				EVT_RW_PTR_ROLLOVER_IND;
 		}
 #endif
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			pmadapter->pcard_pcie->rxbd_wrptr =
 				pmadapter->pcard_pcie->txrx_bd_size;
 			pmadapter->pcard_pcie->evtbd_wrptr = MLAN_MAX_EVT_BD;
 		}
-#endif
 	}
 #endif
 	LEAVE();
@@ -1763,6 +1775,15 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 					(t_u8 *)pmadapter->pchan_stats);
 		pmadapter->pchan_stats = MNULL;
 	}
+	if (pmadapter->pold_chan_stats) {
+		if (pcb->moal_vmalloc && pcb->moal_vfree)
+			pcb->moal_vfree(pmadapter->pmoal_handle,
+					(t_u8 *)pmadapter->pold_chan_stats);
+		else
+			pcb->moal_mfree(pmadapter->pmoal_handle,
+					(t_u8 *)pmadapter->pold_chan_stats);
+		pmadapter->pold_chan_stats = MNULL;
+	}
 	if (pmadapter->bcn_buf) {
 		if (pcb->moal_vmalloc && pcb->moal_vfree)
 			pcb->moal_vfree(pmadapter->pmoal_handle,
@@ -2055,11 +2076,16 @@ mlan_status wlan_init_fw_complete(pmlan_adapter pmadapter)
 	/* Reconfigure wmm parameter*/
 	if (status == MLAN_STATUS_SUCCESS) {
 		pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA);
-		if (pmpriv)
+		if (pmpriv) {
 			status = wlan_prepare_cmd(pmpriv,
 						  HostCmd_CMD_WMM_PARAM_CONFIG,
 						  HostCmd_ACT_GEN_SET, 0, MNULL,
 						  &pmadapter->ac_params);
+			if (status != MLAN_STATUS_SUCCESS)
+				PRINTM(MERROR,
+				       "ERR: wlan_prepare_cmd returned status=0x%x\n",
+				       status);
+		}
 	}
 	/* Invoke callback */
 	ret = pcb->moal_init_fw_complete(pmadapter->pmoal_handle, status);

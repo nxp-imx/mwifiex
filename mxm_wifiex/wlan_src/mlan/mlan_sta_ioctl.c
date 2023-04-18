@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -428,6 +428,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 			pmadapter->getlog_enable;
 		pget_info->param.fw_info.hw_dev_mcs_support =
 			pmadapter->hw_dev_mcs_support;
+		pget_info->param.fw_info.hw_mpdu_density =
+			pmadapter->hw_mpdu_density;
 		pget_info->param.fw_info.hw_dot_11n_dev_cap =
 			pmadapter->hw_dot_11n_dev_cap;
 		pget_info->param.fw_info.usr_dev_mcs_support =
@@ -467,6 +469,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 									0x00;
 		pget_info->param.fw_info.fw_beacon_prot =
 			IS_FW_SUPPORT_BEACON_PROT(pmadapter) ? 0x01 : 0x00;
+		pget_info->param.fw_info.rtt_support =
+			IS_FW_SUPPORT_RTT(pmadapter) ? 0x01 : 0x00;
 		break;
 	case MLAN_OID_GET_BSS_INFO:
 		status = wlan_get_info_bss_info(pmadapter, pioctl_req);
@@ -1356,7 +1360,6 @@ static mlan_status wlan_query_passphrase(mlan_private *priv,
 		LEAVE();
 		return ret;
 	}
-	memset(pmadapter, sec, 0, sizeof(mlan_ds_sec_cfg));
 	sec_pp = (mlan_ds_passphrase *)&sec->param.passphrase;
 	sec_pp->psk_type = MLAN_PSK_QUERY;
 	if (ssid_bssid->ssid.ssid_len == 0) {
@@ -1772,7 +1775,6 @@ static mlan_status wlan_power_ioctl_set_power(pmlan_adapter pmadapter,
 		ret = MLAN_STATUS_FAILURE;
 		goto exit;
 	}
-	memset(pmadapter, buf, 0, MRVDRV_SIZE_OF_CMD_BUFFER);
 	txp_cfg = (HostCmd_DS_TXPWR_CFG *)buf;
 	txp_cfg->action = HostCmd_ACT_GEN_SET;
 	if (!power->param.power_cfg.is_power_auto) {
@@ -1867,7 +1869,6 @@ static mlan_status wlan_power_ioctl_set_power_ext(pmlan_adapter pmadapter,
 		ret = MLAN_STATUS_FAILURE;
 		goto exit;
 	}
-	memset(pmadapter, buf, 0, MRVDRV_SIZE_OF_CMD_BUFFER);
 	txp_cfg = (HostCmd_DS_TXPWR_CFG *)buf;
 	txp_cfg->action = HostCmd_ACT_GEN_SET;
 	pwr_grp = &power->param.power_ext.power_group[0];
@@ -5008,6 +5009,48 @@ static mlan_status wlan_misc_cloud_keep_alive(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief cloud keep alive rx
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status wlan_misc_cloud_keep_alive_rx(pmlan_adapter pmadapter,
+						 mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else if (pioctl_req->action == MLAN_ACT_GET) {
+		cmd_action = HostCmd_ACT_GEN_GET;
+	} else if (pioctl_req->action == MLAN_ACT_RESET) {
+		cmd_action = HostCmd_ACT_GEN_RESET;
+	} else {
+		cmd_action = HostCmd_ACT_GEN_REMOVE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_AUTO_TX, cmd_action,
+			       OID_CLOUD_KEEP_ALIVE_ACK, (t_void *)pioctl_req,
+			       &misc->param.keep_alive_rx);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Miscellaneous configuration handler
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -5224,6 +5267,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_GET_TSF:
 		status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_CROSS_CHIP_SYNCH:
+		status =
+			wlan_misc_ioctl_cross_chip_synch(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_ROAM_OFFLOAD:
 		status = wlan_misc_roam_offload(pmadapter, pioctl_req);
 		break;
@@ -5235,6 +5282,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_CLOUD_KEEP_ALIVE:
 		status = wlan_misc_cloud_keep_alive(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_CLOUD_KEEP_ALIVE_RX:
+		status = wlan_misc_cloud_keep_alive_rx(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_DYN_BW:
 		status = wlan_misc_ioctl_dyn_bw(pmadapter, pioctl_req);
@@ -5250,6 +5300,15 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_DMCS_CONFIG:
 		status = wlan_misc_dmcs_config(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_CONFIG_RTT:
+		status = wlan_config_rtt(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_CANCEL_RTT:
+		status = wlan_cancel_rtt(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_RTT_RESPONDER_CFG:
+		status = wlan_rtt_responder_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_GET_TX_RX_HISTOGRAM:
 		status = wlan_get_tx_rx_histogram(pmadapter, pioctl_req);
@@ -5282,6 +5341,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_RX_ABORT_CFG:
 		status = wlan_misc_ioctl_rxabortcfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_OFDM_DESENSE_CFG:
+		status = wlan_misc_ioctl_ofdmdesense_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_RX_ABORT_CFG_EXT:
 		status = wlan_misc_ioctl_rxabortcfg_ext(pmadapter, pioctl_req);
@@ -5318,6 +5380,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_RANGE_EXT:
 		status = wlan_misc_ioctl_range_ext(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_11AX_TWT_CFG:
+		status = wlan_misc_ioctl_twt_report(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_TP_STATE:
 		status = wlan_misc_ioctl_tp_state(pmadapter, pioctl_req);
@@ -5527,10 +5592,20 @@ start_config:
 				pioctl_req->data_read_written =
 					sizeof(mlan_scan_resp) +
 					MLAN_SUB_COMMAND_SIZE;
-				pscan->param.scan_resp.pchan_stats =
-					(t_u8 *)pmadapter->pchan_stats;
-				pscan->param.scan_resp.num_in_chan_stats =
-					pmadapter->num_in_chan_stats;
+				if (pmadapter->scan_processing) {
+					pscan->param.scan_resp.pchan_stats =
+						(t_u8 *)pmadapter
+							->pold_chan_stats;
+					pscan->param.scan_resp
+						.num_in_chan_stats =
+						pmadapter->old_idx_chan_stats;
+				} else {
+					pscan->param.scan_resp.pchan_stats =
+						(t_u8 *)pmadapter->pchan_stats;
+					pscan->param.scan_resp
+						.num_in_chan_stats =
+						pmadapter->idx_chan_stats;
+				}
 			}
 		}
 	}

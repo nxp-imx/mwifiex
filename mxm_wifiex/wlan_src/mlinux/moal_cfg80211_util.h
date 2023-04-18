@@ -620,6 +620,15 @@ enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
 
+enum ATTR_FW_RELOAD {
+	ATTR_FW_RELOAD_INVALID = 0,
+	ATTR_FW_RELOAD_MODE = 1,
+	ATTR_FW_RELOAD_AFTER_LAST,
+	ATTR_FW_RELOAD_MAX = ATTR_FW_RELOAD_AFTER_LAST - 1,
+};
+
+void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode);
+
 /**vendor event*/
 enum vendor_event {
 	event_hang = 0,
@@ -628,6 +637,7 @@ enum vendor_event {
 	event_fw_reset_failure = 3,
 	event_fw_reset_start = 4,
 	event_rssi_monitor = 0x1501,
+	event_rtt_result = 0x07,
 	event_set_key_mgmt_offload = 0x10001,
 	event_fw_roam_success = 0x10002,
 	event_cloud_keep_alive = 0x10003,
@@ -700,6 +710,14 @@ enum vendor_sub_command {
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,
+	SUBCMD_RTT_GET_CAPA = 0x1100,
+	SUBCMD_RTT_RANGE_REQUEST,
+	SUBCMD_RTT_RANGE_CANCEL,
+	SUBCMD_RTT_GET_RESPONDER_INFO,
+	SUBCMD_RTT_ENABLE_RESPONDER,
+	SUBCMD_RTT_DISABLE_RESPONDER,
+	SUBCMD_RTT_SET_LCI,
+	SUBCMD_RTT_SET_LCR,
 	sub_cmd_link_statistic_set = 0x1200,
 	sub_cmd_link_statistic_get = 0x1201,
 	sub_cmd_link_statistic_clr = 0x1202,
@@ -827,6 +845,29 @@ enum mrvl_wlan_vendor_attr_fw_roaming {
 	MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX =
 		MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_AFTER_LAST - 1
 };
+
+enum attr_rtt {
+	ATTR_RTT_INVALID = 0,
+	ATTR_RTT_CAPA,
+	ATTR_RTT_TARGET_NUM,
+	ATTR_RTT_TARGET_CONFIG,
+	ATTR_RTT_TARGET_ADDR,
+	ATTR_RTT_RESULT_COMPLETE,
+	ATTR_RTT_RESULT_NUM,
+	ATTR_RTT_RESULT_FULL,
+	ATTR_RTT_CHANNEL_INFO,
+	ATTR_RTT_MAX_DUR_SEC,
+	ATTR_RTT_PREAMBLE,
+	ATTR_RTT_LCI_INFO,
+	ATTR_RTT_LCR_INFO,
+
+	/* keep last */
+	ATTR_RTT_AFTER_LAST,
+	ATTR_RTT_MAX = ATTR_RTT_AFTER_LAST - 1
+};
+
+mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
+					   int len);
 
 enum attr_csi {
 	ATTR_CSI_INVALID = 0,
