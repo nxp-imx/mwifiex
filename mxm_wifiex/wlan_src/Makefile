@@ -665,7 +665,7 @@ appsbuild:
 		mkdir $(BINDIR); \
 	fi
 
-	cp -f README_MLAN $(BINDIR)
+	cp -f README $(BINDIR)
 	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)
@@ -684,7 +684,7 @@ build:		echo default
 	cp -rpf script/load $(BINDIR)/
 	cp -rpf script/unload $(BINDIR)/
 
-	cp -f README_MLAN $(BINDIR)
+	cp -f README $(BINDIR)
 	cp -rf mapp/mlanconfig/config $(BINDIR)
 
 ifneq ($(APPDIR),)

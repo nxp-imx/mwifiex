@@ -553,7 +553,7 @@ static mlan_status parse_line_read_card_info(t_u8 *line, char **type,
 	*p = '\0';
 
 	p = strstr(line, "_");
-	if ((p != NULL) && ((p + 1) != NULL)) {
+	if (p != NULL) {
 		*p++ = '\0';
 		*if_id = p;
 	} else {

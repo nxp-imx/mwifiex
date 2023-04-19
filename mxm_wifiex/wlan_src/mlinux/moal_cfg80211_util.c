@@ -4348,9 +4348,9 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 	}
 	if (nla_len(tb[ATTR_RTT_TARGET_CONFIG]) !=
 	    sizeof(rtt_params.rtt_config[0]) * rtt_config_num) {
-		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %lu(each)\n",
+		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %u(each)\n",
 		       __func__, nla_len(tb[ATTR_RTT_TARGET_CONFIG]),
-		       rtt_config_num, sizeof(rtt_params.rtt_config[0]));
+		       rtt_config_num, (t_u32)sizeof(rtt_params.rtt_config[0]));
 		err = -EINVAL;
 		goto done;
 	}
@@ -4463,9 +4463,9 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	if ((target_num <= 0 || target_num > MAX_RTT_CONFIG_NUM) ||
 	    (nla_len(tb[ATTR_RTT_TARGET_ADDR]) !=
 	     sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH * target_num)) {
-		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%lu=%d\n",
+		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%u=%d\n",
 		       __func__, target_num, MAX_RTT_CONFIG_NUM, target_num,
-		       sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH,
+		       (t_u32)(sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH),
 		       nla_len(tb[ATTR_RTT_TARGET_ADDR]));
 		err = -EINVAL;
 		goto done;
