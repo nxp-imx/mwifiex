@@ -432,7 +432,7 @@ static int woal_uap_band_steer(struct net_device *dev, struct ifreq *req)
 	}
 	DBG_HEXDUMP(MCMD_D, "band_steer_para", (t_u8 *)&param, sizeof(param));
 
-	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_band_steer_cfg));
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
 	if (ioctl_req == NULL) {
 		LEAVE();
 		return -ENOMEM;
@@ -508,8 +508,7 @@ static int woal_uap_beacon_stuck(struct net_device *dev, struct ifreq *req)
 	DBG_HEXDUMP(MCMD_D, "beacon_stuck_detect_para", (t_u8 *)&param,
 		    sizeof(param));
 
-	ioctl_req = woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_beacon_stuck_param_cfg));
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
 	if (ioctl_req == NULL) {
 		LEAVE();
 		return -ENOMEM;
@@ -918,7 +917,7 @@ static int woal_uap_domain_info(struct net_device *dev, struct ifreq *req)
 	DBG_HEXDUMP(MCMD_D, "domain_info_para", (t_u8 *)&param, sizeof(param));
 	if (param.action) {
 		/* get tlv header */
-		if (copy_from_user(tlv, req->ifr_data + sizeof(param),
+		if (copy_from_user(&tlv[0], req->ifr_data + sizeof(param),
 				   TLV_HEADER_LEN)) {
 			PRINTM(MERROR, "Copy from user failed\n");
 			ret = -EFAULT;
@@ -1550,7 +1549,12 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 	    (hs_cfg.conditions != HOST_SLEEP_CFG_CANCEL ||
 	     invoke_hostcmd == MFALSE)) {
 		memset(&bss_info, 0, sizeof(bss_info));
-		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+			PRINTM(MERROR, "ERR: failed in getting bss info\n");
+			ret = -EFAULT;
+			goto done;
+		}
 		if (bss_info.is_hs_configured) {
 			PRINTM(MERROR, "HS already configured\n");
 			ret = -EFAULT;
@@ -1561,8 +1565,12 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 	if (hs_cfg.flags & HS_CFG_FLAG_SET) {
 		action = MLAN_ACT_SET;
 		if (hs_cfg.flags != HS_CFG_FLAG_ALL) {
-			woal_set_get_hs_params(priv, MLAN_ACT_GET,
-					       MOAL_IOCTL_WAIT, &hscfg);
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_get_hs_params(priv, MLAN_ACT_GET,
+						   MOAL_IOCTL_WAIT, &hscfg)) {
+				PRINTM(MERROR,
+				       "Unable to get HS Configuration\n");
+			}
 		}
 		if (hs_cfg.flags & HS_CFG_FLAG_CONDITION)
 			hscfg.conditions = hs_cfg.conditions;
@@ -1919,7 +1927,8 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 		radio->param.ant_cfg.rx_antenna = antenna_config.rx_mode;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
-		    IS_CARD9097(priv->phandle->card_type)) {
+		    IS_CARD9097(priv->phandle->card_type) ||
+		    IS_CARDIW62X(priv->phandle->card_type)) {
 			if (IS_STA_CFG80211(
 				    priv->phandle->params.cfg80211_wext))
 				woal_cfg80211_notify_antcfg(
@@ -2103,27 +2112,8 @@ int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
-#ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
-#endif
-#endif
 
 	ENTER();
-#ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	if (action == MLAN_ACT_GET) {
-		if (IS_UAP_CFG80211(cfg80211_wext)) {
-			ret = woal_get_wiphy_chan_dfs_state(
-				priv->phandle->wiphy, ch_dfs_state);
-			if (!ret) {
-				LEAVE();
-				return ret;
-			}
-		}
-	}
-#endif
-#endif
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
 	if (req == NULL) {
 		ret = -ENOMEM;
@@ -2223,8 +2213,40 @@ static int woal_uap_get_dfs_chan(t_u8 pri_chan, t_u8 bw,
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 /**
+ * @brief update channel dfs state in mlan module
+ *
+ * @param channel         given radar channel
+ * @param dfs_state       dfs_state
+ *
+ * @return                N/A
+ */
+void woal_set_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
+{
+	int index;
+	mlan_ds_11h_chan_dfs_state ch_dfs_state;
+	moal_private *priv;
+	memset(&ch_dfs_state, 0, sizeof(ch_dfs_state));
+	ch_dfs_state.channel = channel;
+	ch_dfs_state.dfs_state = dfs_state;
+	for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
+		if (m_handle[index]) {
+			priv = woal_get_priv(m_handle[index],
+					     MLAN_BSS_ROLE_UAP);
+			if (priv) {
+				if (woal_11h_chan_dfs_state(priv, MLAN_ACT_SET,
+							    &ch_dfs_state))
+					PRINTM(MERROR,
+					       "Set DFS state for chan:%d failed\n",
+					       ch_dfs_state.channel);
+			}
+		}
+	}
+}
+
+/**
  * @brief update channel dfs state to all wiphy
  *
+ * @param priv     Pointer to the moal_private driver data struct
  * @param channel         given radar channel
  * @param bandwidth       channel's bandwidth
  * @param dfs_state       dfs_state
@@ -2247,8 +2269,61 @@ void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
 						      dfs_state);
 		}
 	}
+	for (i = 0; i < n_chan; i++) {
+		woal_set_channel_dfs_state(ch_dfs_state[i].channel, dfs_state);
+	}
 	LEAVE();
 	return;
+}
+
+/**
+ * @brief reset uap channel dfs_state to DFS_USABLE
+ *
+ * @param priv     Pointer to the moal_private driver data struct
+ *
+ * @return                N/A
+ */
+void woal_update_uap_channel_dfs_state(moal_private *priv)
+{
+	mlan_ds_11h_chan_dfs_state ch_dfs_state;
+	t_u8 channel;
+	t_u8 bandwidth;
+	ENTER();
+	if (woal_is_etsi_country(priv->phandle->country_code)) {
+		LEAVE();
+		return;
+	}
+	if (priv->bss_role == MLAN_BSS_ROLE_UAP && priv->bss_started &&
+	    priv->uap_host_based) {
+		channel = priv->chan.chan->hw_value;
+		memset(&ch_dfs_state, 0, sizeof(ch_dfs_state));
+		ch_dfs_state.channel = channel;
+		if (woal_11h_chan_dfs_state(priv, MLAN_ACT_GET,
+					    &ch_dfs_state)) {
+			PRINTM(MERROR, "%s: woal_11h_chan_dfs_state failed \n",
+			       __func__);
+			LEAVE();
+			return;
+		}
+
+		if (ch_dfs_state.dfs_required &&
+		    ch_dfs_state.dfs_state == DFS_AVAILABLE) {
+			switch (priv->chan.width) {
+			case NL80211_CHAN_WIDTH_40:
+				bandwidth = CHAN_BW_40MHZ;
+				break;
+			case NL80211_CHAN_WIDTH_80:
+				bandwidth = CHAN_BW_80MHZ;
+				break;
+			default:
+				bandwidth = CHAN_BW_20MHZ;
+				break;
+			}
+			woal_update_channels_dfs_state(priv, channel, bandwidth,
+						       DFS_USABLE);
+		}
+	}
+	LEAVE();
 }
 #endif
 #endif
@@ -2713,7 +2788,12 @@ static int woal_uap_radio_ctl(struct net_device *dev, struct ifreq *req)
 	} else {
 		/* Get radio status */
 		memset(&bss_info, 0, sizeof(bss_info));
-		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+			PRINTM(MERROR, "ERR: failed in getting bss info\n");
+			ret = -EFAULT;
+			goto done;
+		}
 
 		data[1] = bss_info.radio_on;
 		if (copy_to_user(req->ifr_data, data, sizeof(data))) {
@@ -3160,7 +3240,8 @@ static int woal_uap_get_sta_list_ioctl(struct net_device *dev,
 
 	/* Allocate an IOCTL request buffer */
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
-		sizeof(mlan_ds_get_info));
+		sizeof(mlan_ds_get_info) +
+		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 	if (ioctl_req == NULL) {
 		ret = -ENOMEM;
 		goto done;

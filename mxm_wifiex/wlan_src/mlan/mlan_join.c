@@ -309,12 +309,13 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 	PRINTM(MINFO, "Tx DataRate is set to 0x%X\n", pmpriv->data_rate);
 
 	if (!pmpriv->is_data_rate_auto) {
-		while (*ptr) {
+		while (rate1_size && *ptr) {
 			if ((*ptr & 0x7f) == pmpriv->data_rate) {
 				ret = MLAN_STATUS_SUCCESS;
 				goto done;
 			}
 			ptr++;
+			rate1_size--;
 		}
 		PRINTM(MMSG,
 		       "Previously set fixed data rate %#x is not "
@@ -1168,8 +1169,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			psae_pwe_mode_tlv = (MrvlIEtypes_SAE_PWE_Mode_t *)pos;
 			psae_pwe_mode_tlv->header.type = wlan_cpu_to_le16(
 				TLV_TYPE_WPA3_SAE_PWE_DERIVATION_MODE);
-			psae_pwe_mode_tlv->header.len =
-				sizeof(psae_pwe_mode_tlv->pwe);
+			psae_pwe_mode_tlv->header.len = wlan_cpu_to_le16(
+				sizeof(psae_pwe_mode_tlv->pwe));
 			psae_pwe_mode_tlv->pwe[0] =
 				pbss_desc->prsnx_ie->data[0];
 			pos += sizeof(psae_pwe_mode_tlv->header) +
@@ -1254,6 +1255,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			psecurity_cfg_ie->header.len = sizeof(t_u8);
 			pos += sizeof(psecurity_cfg_ie->header) +
 			       psecurity_cfg_ie->header.len;
+			psecurity_cfg_ie->header.len =
+				wlan_cpu_to_le16(psecurity_cfg_ie->header.len);
 		}
 #ifdef DRV_EMBEDDED_SUPPLICANT
 		else if (supplicantIsEnabled(pmpriv->psapriv)) {
@@ -1462,18 +1465,20 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		host_mlme_tlv = (MrvlIEtypes_HostMlme_t *)pos;
 		host_mlme_tlv->header.type =
 			wlan_cpu_to_le16(TLV_TYPE_HOST_MLME);
-		host_mlme_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(host_mlme_tlv->host_mlme));
+		host_mlme_tlv->header.len = sizeof(host_mlme_tlv->host_mlme);
 		host_mlme_tlv->host_mlme = MTRUE;
 		pos += sizeof(host_mlme_tlv->header) +
 		       host_mlme_tlv->header.len;
+		host_mlme_tlv->header.len =
+			wlan_cpu_to_le16(host_mlme_tlv->header.len);
 	}
 	if (memcmp(pmadapter, &pmpriv->curr_bss_params.prev_bssid, zero_mac,
 		   MLAN_MAC_ADDR_LENGTH)) {
 		prev_bssid_tlv = (MrvlIEtypes_PrevBssid_t *)pos;
 		prev_bssid_tlv->header.type =
 			wlan_cpu_to_le16(TLV_TYPE_PREV_BSSID);
-		prev_bssid_tlv->header.len = MLAN_MAC_ADDR_LENGTH;
+		prev_bssid_tlv->header.len =
+			wlan_cpu_to_le16(MLAN_MAC_ADDR_LENGTH);
 		memcpy_ext(pmadapter, prev_bssid_tlv->prev_bssid,
 			   &pmpriv->curr_bss_params.prev_bssid,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
@@ -1510,6 +1515,9 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 	if (pmpriv->config_bands == BAND_B)
 		SHORT_SLOT_TIME_DISABLED(tmp_cap);
+
+	if (pmpriv->adapter->pcard_info->support_11mc)
+		RADIO_MEASUREMENT_ENABLED(tmp_cap);
 
 	tmp_cap &= CAPINFO_MASK;
 	PRINTM(MINFO, "ASSOC_CMD: tmp_cap=%4X CAPINFO_MASK=%4lX\n", tmp_cap,

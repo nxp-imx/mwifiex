@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -297,11 +297,14 @@ typedef struct _chan_stats {
 #define PRIV_CMD_STATS "stats"
 #define PRIV_CMD_CH_LOAD "getchload"
 #define PRIV_CMD_CH_LOAD_RESULTS "getloadresults"
+#define PRIV_CMD_CROSS_CHIP_SYNCH "crosssynch"
 
 #define PRIV_CMD_ARB_CFG "arb"
 
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
+/**Private command to configure static OFDM DESENSE config */
+#define PRIV_CMD_OFDM_DESENSE_CFG "ofdm_desense_cfg"
 /**Private command to configure dynamic rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG_EXT "rx_abort_cfg_ext"
 #define TX_AMPDU_RTS_CTS 0
@@ -390,6 +393,8 @@ typedef struct _ssu_params_cfg {
 #define PRIV_CMD_TWT_SETUP "twt_setup"
 /** Private command: TWT Teardown Cfg */
 #define PRIV_CMD_TWT_TEARDOWN "twt_teardown"
+/** Private command: TWT report Cfg */
+#define PRIV_CMD_TWT_REPORT "twt_report"
 
 #define PRIV_CMD_LPM "lpm"
 
@@ -684,6 +689,26 @@ typedef struct _cloud_keep_alive {
 	/** packet content */
 	t_u8 pkt[255];
 } __ATTRIB_PACK__ cloud_keep_alive;
+/** cloud keep alive parameters */
+#define PRIV_CMD_CLOUD_KEEP_ALIVE_RX "cloud_keep_alive_rx"
+typedef struct _cloud_keep_alive_rx {
+	/** id */
+	t_u8 mkeep_alive_id;
+	/** enable/disable of this id */
+	t_u8 enable;
+	/** enable/disable reset*/
+	t_u8 reset;
+	/** Reserved */
+	t_u8 reserved;
+	/** Destination MAC address */
+	t_u8 dst_mac[ETH_ALEN];
+	/** Source MAC address */
+	t_u8 src_mac[ETH_ALEN];
+	/** packet length */
+	t_u8 pkt_len;
+	/** packet content */
+	t_u8 pkt[100];
+} __ATTRIB_PACK__ cloud_keep_alive_rx;
 
 #define TLV_TYPE_PER_PKT_CFG 0x0001
 #define TX_PKT_CTRL MBIT(0)

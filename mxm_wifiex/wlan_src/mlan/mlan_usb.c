@@ -44,6 +44,7 @@ static const struct _mlan_card_info mlan_card_info_usb8801 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
 };
 #endif
 #ifdef USB8897
@@ -52,6 +53,7 @@ static const struct _mlan_card_info mlan_card_info_usb8897 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 0,
 };
 #endif
 
@@ -61,6 +63,7 @@ static const struct _mlan_card_info mlan_card_info_usb8997 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -70,6 +73,7 @@ static const struct _mlan_card_info mlan_card_info_usb8978 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -80,6 +84,7 @@ static const struct _mlan_card_info mlan_card_info_usb9098 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -90,16 +95,18 @@ static const struct _mlan_card_info mlan_card_info_usb9097 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
-#ifdef USBNW62X
-static const struct _mlan_card_info mlan_card_info_usbNW62X = {
+#ifdef USBIW62X
+static const struct _mlan_card_info mlan_card_info_usbIW62X = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v16_fw_api = 1,
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -255,8 +262,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 	if (IS_USB9097(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
-#if defined(USBNW62X)
-	if (IS_USBNW62X(pmadapter->card_type))
+#if defined(USBIW62X)
+	if (IS_USBIW62X(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
 
@@ -480,10 +487,11 @@ static int wlan_usb_deaggr_rx_num_pkts(pmlan_adapter pmadapter, t_u8 *pdata,
 static inline t_u32 usb_tx_aggr_pad_len(t_u32 len,
 					usb_tx_aggr_params *pusb_tx_aggr)
 {
-	return (len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
-		       (len + (pusb_tx_aggr->aggr_ctrl.aggr_align -
-			       (len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
-		       len;
+	return (t_u32)(
+		(len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
+			(len + (pusb_tx_aggr->aggr_ctrl.aggr_align -
+				(len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
+			len);
 }
 
 /**
@@ -798,9 +806,9 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_usb9097;
 		break;
 #endif
-#ifdef USBNW62X
-	case CARD_TYPE_USBNW62X:
-		pmadapter->pcard_info = &mlan_card_info_usbNW62X;
+#ifdef USBIW62X
+	case CARD_TYPE_USBIW62X:
+		pmadapter->pcard_info = &mlan_card_info_usbIW62X;
 		break;
 #endif
 	default:
@@ -1297,7 +1305,7 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		return MLAN_STATUS_FAILURE;
 	}
 	if (type == MLAN_TYPE_CMD
-#if (defined(USB9098) || defined(USB9097) || defined(USBNW62X))
+#if (defined(USB9098) || defined(USB9097) || defined(USBIW62X))
 	    || type == MLAN_TYPE_VDLL
 #endif
 	) {

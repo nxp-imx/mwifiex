@@ -47,17 +47,20 @@ Change log:
 #define PCIE_DEVICE_ID_88W9097 (0x2b56)
 #endif
 
-#ifdef PCIE9098
 /** PCIE device ID for 9098 card FN0 */
 #define PCIE_DEVICE_ID_88W9098P_FN0 (0x2b43)
 /** PCIE device ID for 9098 card FN1 */
 #define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
+
+#ifdef PCIEIW62X
+/** PCIE device ID for IW62X card FN0 */
+#define PCIE_DEVICE_ID_88WIW62X (0x3000)
 #endif
 
-#ifdef PCIENW62X
-/** PCIE device ID for NW62X card FN0 */
-#define PCIE_DEVICE_ID_88WNW62X (0x3000)
-#endif
+/** PCIE device ID for AW693 card FN0 */
+#define PCIE_DEVICE_ID_88WAW693_FN0 (0x3003)
+/** PCIE device ID for AW693 card FN1 */
+#define PCIE_DEVICE_ID_88WAW693_FN1 (0x3004)
 
 #include <linux/version.h>
 #include <linux/pci.h>
@@ -83,6 +86,10 @@ Change log:
 #define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcie8897_uapsta.bin"
 #define PCIE8897_DEFAULT_WLAN_FW_NAME "nxp/pcie8897_wlan.bin"
 #endif /* PCIE8897*/
+
+#define PCIEUARTAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartAW693_combo.bin"
+#define PCIEAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieAW693_wlan.bin"
+#define PCIEAW693_DEFAULT_WLAN_FW_NAME "nxp/pcieAW693_wlan.bin"
 
 #ifdef PCIE9098
 #define PCIE9098_Z1Z2 0x00
@@ -113,18 +120,14 @@ Change log:
 #define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
-#ifdef PCIENW62X
-#define PCIENW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
-#define PCIEUARTNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartnw62x_combo.bin"
-#define PCIEUSBNW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbnw62x_combo.bin"
-#define PCIENW62X_DEFAULT_WLAN_FW_NAME "nxp/pcienw62x_wlan.bin"
-#endif /* PCIENW62X */
+#ifdef PCIEIW62X
+#define PCIEIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw62x_combo.bin"
+#define PCIEUARTIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw62x_combo.bin"
+#define PCIEUSBIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw62x_combo.bin"
+#define PCIEIW62X_DEFAULT_WLAN_FW_NAME "nxp/pcieiw62x_wlan.bin"
+#endif /* PCIEIW62X */
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 #define PCIE_NUM_MSIX_VECTORS 32
-#else
-#define PCIE_NUM_MSIX_VECTORS 4
-#endif
 
 typedef struct _msix_context {
 	/** pci_dev structure pointer */

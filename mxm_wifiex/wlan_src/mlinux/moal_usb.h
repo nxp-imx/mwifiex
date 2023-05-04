@@ -89,14 +89,14 @@ Change Log:
 #define USB9097_PID_2 0x2061
 #endif /* USB9097 */
 
-#ifdef USBNW62X
+#ifdef USBIW62X
 /** USB VID 1 */
-#define USBNW62X_VID_1 0x0471
+#define USBIW62X_VID_1 0x0471
 /** USB PID 1 */
-#define USBNW62X_PID_1 0x020E
+#define USBIW62X_PID_1 0x020E
 /** USB PID 2 */
-#define USBNW62X_PID_2 0x020F
-#endif /* USBNW62X */
+#define USBIW62X_PID_2 0x020F
+#endif /* USBIW62X */
 
 /** Boot state: FW download */
 #define USB_FW_DNLD 1
@@ -110,7 +110,7 @@ Change Log:
 #define MVUSB_RX_DATA_URB 6
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USB8801) || defined(USBNW62X)
+	defined(USB8978) || defined(USB8801) || defined(USBIW62X)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -120,6 +120,7 @@ Change Log:
 #define EXTEND_HDR (0xAB950000)
 #define EXTEND_V1 (0x00000001)
 #define EXTEND_V2 (0x00000002)
+#define EXTEND_V3 (0x00000003)
 #ifdef USB8801
 #define USB8801_DEFAULT_WLAN_FW_NAME "nxp/usb8801_uapsta.bin"
 #endif /* USB8801 */
@@ -171,12 +172,12 @@ Change Log:
 #define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
 #endif /* USB9097 */
 
-#ifdef USBNW62X
-#define USBNW62X_DEFAULT_COMBO_FW_NAME "nxp/usbusbnw62x_combo.bin"
-#define USBUARTNW62X_COMBO_FW_NAME "nxp/usbuartnw62x_combo.bin"
-#define USBUSBNW62X_COMBO_FW_NAME "nxp/usbusbnw62x_combo.bin"
-#define USBNW62X_DEFAULT_WLAN_FW_NAME "nxp/usbnw62x_wlan.bin"
-#endif /* USBNW62X */
+#ifdef USBIW62X
+#define USBIW62X_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw62x_combo.bin"
+#define USBUARTIW62X_COMBO_FW_NAME "nxp/usbuartiw62x_combo.bin"
+#define USBUSBIW62X_COMBO_FW_NAME "nxp/usbusbiw62x_combo.bin"
+#define USBIW62X_DEFAULT_WLAN_FW_NAME "nxp/usbiw62x_wlan.bin"
+#endif /* USBIW62X */
 
 /** urb context */
 typedef struct _urb_context {

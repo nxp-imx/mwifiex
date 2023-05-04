@@ -116,10 +116,26 @@ static const struct pci_device_id wlan_ids[] = {
 		0,
 	},
 #endif
-#ifdef PCIENW62X
 	{
 		PCIE_VENDOR_ID_NXP,
-		PCIE_DEVICE_ID_88WNW62X,
+		PCIE_DEVICE_ID_88WAW693_FN0,
+		PCI_ANY_ID,
+		PCI_ANY_ID,
+		0,
+		0,
+	},
+	{
+		PCIE_VENDOR_ID_NXP,
+		PCIE_DEVICE_ID_88WAW693_FN1,
+		PCI_ANY_ID,
+		PCI_ANY_ID,
+		0,
+		0,
+	},
+#ifdef PCIEIW62X
+	{
+		PCIE_VENDOR_ID_NXP,
+		PCIE_DEVICE_ID_88WIW62X,
 		PCI_ANY_ID,
 		PCI_ANY_ID,
 		0,
@@ -132,6 +148,8 @@ static const struct pci_device_id wlan_ids[] = {
 /* moal interface ops */
 static moal_if_ops pcie_ops;
 
+MODULE_DEVICE_TABLE(pci, wlan_ids);
+
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -141,11 +159,8 @@ static moal_if_ops pcie_ops;
 ********************************************************/
 
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
-#if defined(PCIE8897) || defined(PCIE8997) || defined(PCIE9098) ||             \
-	defined(PCIE9097) || defined(PCIENW62X)
 static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 					   t_u8 resetflag);
-#endif
 
 /**  @brief This function updates the card types
  *
@@ -213,15 +228,27 @@ static t_u16 woal_update_card_type(t_void *card)
 					strlen(KERN_VERSION));
 	}
 #endif
-#ifdef PCIENW62X
-	if (cardp_pcie->dev->device == PCIE_DEVICE_ID_88WNW62X) {
-		card_type = CARD_TYPE_PCIENW62X;
-		moal_memcpy_ext(NULL, driver_version, CARD_PCIENW62X,
-				strlen(CARD_PCIENW62X), strlen(driver_version));
+	if (cardp_pcie->dev->device == PCIE_DEVICE_ID_88WAW693_FN0 ||
+	    cardp_pcie->dev->device == PCIE_DEVICE_ID_88WAW693_FN1) {
+		card_type = CARD_TYPE_PCIEAW693;
+		moal_memcpy_ext(NULL, driver_version, CARD_PCIEAW693,
+				strlen(CARD_PCIEAW693), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
 				V17, strlen(V17),
+				strlen(driver_version) - strlen(INTF_CARDTYPE) -
+					strlen(KERN_VERSION));
+	}
+#ifdef PCIEIW62X
+	if (cardp_pcie->dev->device == PCIE_DEVICE_ID_88WIW62X) {
+		card_type = CARD_TYPE_PCIEIW62X;
+		moal_memcpy_ext(NULL, driver_version, CARD_PCIEIW62X,
+				strlen(CARD_PCIEIW62X), strlen(driver_version));
+		moal_memcpy_ext(NULL,
+				driver_version + strlen(INTF_CARDTYPE) +
+					strlen(KERN_VERSION),
+				V18, strlen(V18),
 				strlen(driver_version) - strlen(INTF_CARDTYPE) -
 					strlen(KERN_VERSION));
 	}
@@ -273,7 +300,8 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 
 	if (!IS_PCIE8997(handle->card_type) &&
 	    !IS_PCIE9097(handle->card_type) &&
-	    !IS_PCIENW62X(handle->card_type) &&
+	    !IS_PCIEIW62X(handle->card_type) &&
+	    !IS_PCIEAW693(handle->card_type) &&
 	    !IS_PCIE9098(handle->card_type)) {
 		LEAVE();
 		return status;
@@ -359,11 +387,10 @@ perform_init:
 		goto err_init_fw;
 	}
 
-#ifdef PCIE9098
-	if (card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1)
+	if ((card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1) ||
+	    (card->dev->device == PCIE_DEVICE_ID_88WAW693_FN1))
 		mlan_set_int_mode(handle->pmlan_adapter, pcie_int_mode, 1);
 	else
-#endif
 		/* Update pcie_int_mode in mlan adapter */
 		mlan_set_int_mode(handle->pmlan_adapter,
 				  handle->params.pcie_int_mode, 0);
@@ -404,7 +431,7 @@ err_init_fw:
 						 handle->init_wait_q_woken);
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	wakeup_source_trash(&handle->ws);
 #else
 	wake_lock_destroy(&handle->wake_lock);
@@ -573,14 +600,12 @@ static void woal_pcie_shutdown(struct pci_dev *dev)
 	handle = card->handle;
 	if (handle->second_mac)
 		goto done;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
-	if (IS_PCIE9098(handle->card_type) || IS_PCIENW62X(handle->card_type) ||
-	    IS_PCIE9097(handle->card_type)) {
+	if (IS_PCIE9098(handle->card_type) || IS_PCIEIW62X(handle->card_type) ||
+	    IS_PCIEAW693(handle->card_type) || IS_PCIE9097(handle->card_type)) {
 		if (RDWR_STATUS_FAILURE !=
 		    woal_pcie_rdwr_firmware(handle, 0, 1))
 			PRINTM(MMSG, "wlan: start in-bound IR...\n");
 	}
-#endif
 done:
 	handle->surprise_removed = MTRUE;
 	pci_disable_device(dev);
@@ -1380,7 +1405,7 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 				break;
 		}
 		// follow through
-		fallthrough;
+
 		/* fall through */
 	case PCIE_INT_MODE_MSI:
 		pcie_int_mode = PCIE_INT_MODE_MSI;
@@ -1397,7 +1422,7 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 			}
 		}
 		// follow through
-		fallthrough;
+
 		/* fall through */
 	case PCIE_INT_MODE_LEGACY:
 		pcie_int_mode = PCIE_INT_MODE_LEGACY;
@@ -1418,11 +1443,10 @@ static mlan_status woal_pcie_register_dev(moal_handle *handle)
 		break;
 	}
 
-#ifdef PCIE9098
-	if (card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1)
+	if ((card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1) ||
+	    (card->dev->device == PCIE_DEVICE_ID_88WAW693_FN1))
 		mlan_set_int_mode(handle->pmlan_adapter, pcie_int_mode, 1);
 	else
-#endif
 		mlan_set_int_mode(handle->pmlan_adapter, pcie_int_mode, 0);
 
 done:
@@ -1545,24 +1569,20 @@ void woal_pcie_bus_unregister(void)
 	LEAVE();
 }
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 #define PCIE9098_DUMP_CTRL_REG 0x1C94
 #define PCIE9098_DUMP_START_REG 0x1C98
 #define PCIE9098_DUMP_END_REG 0x1C9F
-#endif
 #if defined(PCIE8897) || defined(PCIE8997)
 #define DEBUG_DUMP_CTRL_REG 0xCF4
 #define DEBUG_DUMP_START_REG 0xCF8
 #define DEBUG_DUMP_END_REG 0xCFF
 #endif
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 #define PCIE9098_SCRATCH_12_REG 0x1C90
 #define PCIE9098_SCRATCH_14_REG 0x1C98
 #define PCIE9098_SCRATCH_15_REG 0x1C9C
 #define PCIE9098_DUMP_REG_START 0x1C20
 #define PCIE9098_DUMP_REG_END 0x1C9C
-#endif
 
 #if defined(PCIE8997) || defined(PCIE8897)
 #define PCIE_SCRATCH_12_REG 0x0CF0;
@@ -1592,11 +1612,9 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 	t_u32 dump_end_reg = 0;
 	t_u32 scratch_14_reg = 0;
 	t_u32 scratch_15_reg = 0;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	/* Tx/Rx/Event AMDA start address */
 	t_u32 adma_reg_table[] = {0x10000, 0x10800, 0x10880, 0x11000, 0x11080};
 	t_u8 j;
-#endif
 	ENTER();
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
 	drv_ptr += sprintf(drv_ptr,
@@ -1620,9 +1638,9 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 	}
 #endif
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		reg = PCIE9098_SCRATCH_12_REG;
 		dump_start_reg = PCIE9098_DUMP_REG_START;
@@ -1630,7 +1648,6 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		scratch_14_reg = PCIE9098_SCRATCH_14_REG;
 		scratch_15_reg = PCIE9098_SCRATCH_15_REG;
 	}
-#endif
 
 	woal_pcie_read_reg(phandle, reg, &value);
 	drv_ptr += sprintf(drv_ptr, "reg:0x%x value=0x%x\n", reg, value);
@@ -1664,9 +1681,9 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		}
 		i++;
 	}
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		drv_ptr += sprintf(
 			drv_ptr,
@@ -1687,7 +1704,8 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		drv_ptr += sprintf(drv_ptr, "%s\n", buf);
 	}
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		drv_ptr += sprintf(drv_ptr,
 				   "ADMA Tx/Rx/Event/Cmd/CmdResp registers:\n");
@@ -1714,7 +1732,6 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 			drv_ptr += sprintf(drv_ptr, "%s\n", buf);
 		}
 	}
-#endif
 	drv_ptr += sprintf(drv_ptr,
 			   "-----------PCIe Registers dump End-----------\n");
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
@@ -1741,11 +1758,9 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 	t_u32 dump_end_reg = 0;
 	t_u32 scratch_14_reg = 0;
 	t_u32 scratch_15_reg = 0;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	/* Tx/Rx/Event AMDA start address */
 	t_u32 adma_reg_table[] = {0x10000, 0x10800, 0x10880, 0x11000, 0x11080};
 	t_u8 j;
-#endif
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
 	PRINTM(MMSG, "Config Space Registers:\n");
 	for (i = 0; i < ARRAY_SIZE(config_reg_table); i++) {
@@ -1765,9 +1780,9 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 	}
 #endif
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		reg = PCIE9098_SCRATCH_12_REG;
 		dump_start_reg = PCIE9098_DUMP_START_REG;
@@ -1775,7 +1790,6 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		scratch_14_reg = PCIE9098_SCRATCH_14_REG;
 		scratch_15_reg = PCIE9098_SCRATCH_15_REG;
 	}
-#endif
 	woal_pcie_read_reg(phandle, reg, &value);
 	PRINTM(MERROR, "reg:0x%x value=0x%x\n", reg, value);
 	for (i = 0; i < 2; i++) {
@@ -1804,9 +1818,9 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		}
 		i++;
 	}
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		PRINTM(MMSG, "PCIE registers from offset 0x1c20 to 0x1c9c:\n");
 		memset(buf, 0, sizeof(buf));
@@ -1825,7 +1839,8 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		PRINTM(MMSG, "%s\n", buf);
 	}
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		PRINTM(MMSG, "ADMA Tx/Rx/Event/Cmd/CmdResp registers:\n");
 		for (j = 0; j < ARRAY_SIZE(adma_reg_table); j++) {
@@ -1849,7 +1864,6 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 			PRINTM(MMSG, "%s\n", buf);
 		}
 	}
-#endif
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 }
 
@@ -1892,18 +1906,12 @@ static memory_type_mapping mem_type_mapping_tbl_8897[] = {
 };
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIENW62X)
 #define DEBUG_HOST_READY_8997 0xCC
 #define DEBUG_HOST_EVENT_READY 0xAA
 #define DEBUG_HOST_RESET_READY 0x99
 static memory_type_mapping mem_type_mapping_tbl_8997 = {"DUMP", NULL, NULL,
 							0xDD, 0x00};
 
-#endif
-
-#if defined(PCIE8897) || defined(PCIE8997) || defined(PCIE9098) ||             \
-	defined(PCIE9097) || defined(PCIENW62X)
 /**
  *  @brief This function reads data by 8 bit from card register
  *
@@ -1953,9 +1961,9 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 	}
 #endif
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		if (phandle->event_fw_dump)
 			debug_host_ready = DEBUG_HOST_EVENT_READY;
@@ -1965,7 +1973,6 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 			debug_host_ready = DEBUG_HOST_RESET_READY;
 		dump_ctrl_reg = PCIE9098_DUMP_CTRL_REG;
 	}
-#endif
 
 	ret = woal_pcie_write_reg(phandle, dump_ctrl_reg, debug_host_ready);
 	if (ret) {
@@ -1973,14 +1980,13 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 		       dump_ctrl_reg, debug_host_ready);
 		return RDWR_STATUS_FAILURE;
 	}
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		if (phandle->event_fw_dump || resetflag)
 			return RDWR_STATUS_SUCCESS;
 	}
-#endif
 	ret = woal_pcie_read_reg(phandle, dump_ctrl_reg, &reg_data);
 	if (ret) {
 		PRINTM(MERROR, "PCIE Read DEBUG_DUMP_CTRL_REG 0x%x fail\n",
@@ -2023,7 +2029,6 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 	}
 	return RDWR_STATUS_SUCCESS;
 }
-#endif
 
 #ifdef PCIE8897
 /**
@@ -2185,8 +2190,6 @@ done:
 }
 #endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIENW62X)
 /**
  *  @brief This function dump firmware memory to file
  *
@@ -2214,9 +2217,9 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
 	}
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		if (phandle->event_fw_dump) {
 			if (RDWR_STATUS_FAILURE !=
@@ -2227,7 +2230,6 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 			}
 		}
 	}
-#endif
 
 	/* start dump fw memory	*/
 	moal_get_system_time(phandle, &sec, &usec);
@@ -2237,14 +2239,13 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 	if (RDWR_STATUS_FAILURE ==
 	    woal_pcie_rdwr_firmware(phandle, doneflag, 0))
 		goto done;
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 	if (IS_PCIE9098(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		dump_start_reg = PCIE9098_DUMP_START_REG;
 		dump_end_reg = PCIE9098_DUMP_END_REG;
 	}
-#endif
 #ifdef PCIE8997
 	if (IS_PCIE8997(phandle->card_type)) {
 		dump_start_reg = DEBUG_DUMP_START_REG;
@@ -2351,7 +2352,6 @@ done:
 
 	return;
 }
-#endif
 
 /**
  *  @brief This function check if this is second mac
@@ -2362,26 +2362,28 @@ done:
  */
 static t_u8 woal_pcie_is_second_mac(moal_handle *handle)
 {
-#ifdef PCIE9098
 	pcie_service_card *card = (pcie_service_card *)handle->card;
-	if (card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1)
+	if ((card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1) ||
+	    (card->dev->device == PCIE_DEVICE_ID_88WAW693_FN1))
 		return MTRUE;
-#endif
 	return MFALSE;
 }
 
 static void woal_pcie_dump_fw_info(moal_handle *phandle)
 {
+	if (phandle->fw_dump_buf) {
+		PRINTM(MERROR, "FW dump already exist\n");
+		return;
+	}
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
 	phandle->fw_dump = MTRUE;
 #ifdef PCIE8897
 	if (IS_PCIE8897(phandle->card_type))
 		woal_pcie_dump_fw_info_v1(phandle);
 #endif
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIENW62X)
 	if (IS_PCIE8997(phandle->card_type) ||
-	    IS_PCIENW62X(phandle->card_type) ||
+	    IS_PCIEAW693(phandle->card_type) ||
+	    IS_PCIEIW62X(phandle->card_type) ||
 	    IS_PCIE9098(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
 		woal_pcie_dump_fw_info_v2(phandle);
@@ -2393,7 +2395,6 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 			return;
 		}
 	}
-#endif
 	phandle->fw_dump = MFALSE;
 	if (!phandle->priv_num)
 		return;
@@ -2407,23 +2408,19 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#ifdef PCIE9098
 	pcie_service_card *card = (pcie_service_card *)handle->card;
 	moal_handle *ref_handle = NULL;
-#endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIENW62X)
 	t_u32 rev_id_reg = handle->card_info->rev_id_reg;
 	t_u32 revision_id = 0;
-#endif
 
-#if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097) ||             \
-	defined(PCIENW62X)
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 strap = 0;
 	t_u32 magic = 0;
+#ifdef PCIEIW62X
+	t_u32 boot_mode_reg = handle->card_info->boot_mode_reg;
+	t_u32 boot_mode;
 #endif
 
 	ENTER();
@@ -2577,24 +2574,56 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 		}
 	}
 #endif
-#ifdef PCIENW62X
-	if (IS_PCIENW62X(handle->card_type)) {
+	if (IS_PCIEAW693(handle->card_type)) {
+		if (card->dev->device == PCIE_DEVICE_ID_88WAW693_FN0) {
+			woal_pcie_read_reg(handle, rev_id_reg, &revision_id);
+			woal_pcie_read_reg(handle, host_strap_reg, &strap);
+			woal_pcie_read_reg(handle, magic_reg, &magic);
+			revision_id &= 0xff;
+			strap &= 0x7;
+			magic &= 0xff;
+			PRINTM(MCMND,
+			       "magic=0x%x, strap=0x%x, revision_id=0x%x\n",
+			       magic, strap, revision_id);
+			if (magic == CHIP_MAGIC_VALUE) {
+				if (strap == CARD_TYPE_PCIE_UART)
+					strcpy(handle->card_info->fw_name,
+					       PCIEUARTAW693_DEFAULT_COMBO_FW_NAME);
+				else
+					strcpy(handle->card_info->fw_name,
+					       PCIEAW693_DEFAULT_COMBO_FW_NAME);
+			}
+		} else {
+			ref_handle = (moal_handle *)handle->pref_mac;
+			if (ref_handle) {
+				strcpy(handle->card_info->fw_name,
+				       ref_handle->card_info->fw_name);
+				strcpy(handle->card_info->fw_name_wlan,
+				       ref_handle->card_info->fw_name_wlan);
+			}
+		}
+	}
+#ifdef PCIEIW62X
+	if (IS_PCIEIW62X(handle->card_type)) {
 		woal_pcie_read_reg(handle, rev_id_reg, &revision_id);
 		woal_pcie_read_reg(handle, host_strap_reg, &strap);
 		woal_pcie_read_reg(handle, magic_reg, &magic);
+		woal_pcie_read_reg(handle, boot_mode_reg, &boot_mode);
 		revision_id &= 0xff;
 		strap &= 0x7;
 		magic &= 0xff;
-		PRINTM(MCMND, "magic=0x%x, strap=0x%x, revision_id=0x%x\n",
-		       magic, strap, revision_id);
-		if (magic == CHIP_MAGIC_VALUE) {
-			if (strap == CARD_TYPE_PCIE_UART)
-				strcpy(handle->card_info->fw_name,
-				       PCIEUARTNW62X_DEFAULT_COMBO_FW_NAME);
-			else
-				strcpy(handle->card_info->fw_name,
-				       PCIEUSBNW62X_DEFAULT_COMBO_FW_NAME);
-		}
+		boot_mode &= 0x03;
+		PRINTM(MCMND,
+		       "magic=0x%x boot_mode=0x%x, strap=0x%x, revision_id=0x%x\n",
+		       magic, boot_mode, strap, revision_id);
+		if (boot_mode == 0x03)
+			PRINTM(MMSG, "wlan: PCIE-IW62X in secure-boot mode\n");
+		if (strap == CARD_TYPE_PCIE_UART)
+			strcpy(handle->card_info->fw_name,
+			       PCIEUARTIW62X_DEFAULT_COMBO_FW_NAME);
+		else
+			strcpy(handle->card_info->fw_name,
+			       PCIEUSBIW62X_DEFAULT_COMBO_FW_NAME);
 	}
 #endif
 done:

@@ -3,7 +3,7 @@
  *  @brief This file contains SDIO specific code
  *
  *
- *  Copyright 2008-2021, 2023 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -107,6 +107,7 @@ static const struct _mlan_card_info mlan_card_info_sd8887 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
 };
 #endif
 
@@ -147,6 +148,7 @@ static const struct _mlan_card_info mlan_card_info_sd8801 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
 };
 #endif
 
@@ -217,12 +219,10 @@ static const struct _mlan_card_info mlan_card_info_sd8897 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 0,
 };
 #endif
 
-#if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SDNW62X) ||              \
-	defined(SD8978) || defined(SD9177)
 static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.start_rd_port = 0,
 	.start_wr_port = 0,
@@ -289,7 +289,6 @@ static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.fw_dnld_status_1_reg = 0xE9,
 	.winner_check_reg = 0xFC,
 };
-#endif
 
 #ifdef SD8997
 static const struct _mlan_card_info mlan_card_info_sd8997 = {
@@ -297,6 +296,7 @@ static const struct _mlan_card_info mlan_card_info_sd8997 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -307,18 +307,29 @@ static const struct _mlan_card_info mlan_card_info_sd9097 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
-#ifdef SDNW62X
-static const struct _mlan_card_info mlan_card_info_sdnw62x = {
+#ifdef SDIW62X
+static const struct _mlan_card_info mlan_card_info_sdiw62x = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v16_fw_api = 1,
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
+
+static const struct _mlan_card_info mlan_card_info_sdaw693 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
 
 #ifdef SD9098
 static const struct _mlan_card_info mlan_card_info_sd9098 = {
@@ -327,6 +338,7 @@ static const struct _mlan_card_info mlan_card_info_sd9098 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 #ifdef SD9177
@@ -336,6 +348,7 @@ static const struct _mlan_card_info mlan_card_info_sd9177 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
 };
 #endif
 
@@ -345,6 +358,7 @@ static const struct _mlan_card_info mlan_card_info_sd8977 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
 };
 #endif
 
@@ -354,6 +368,7 @@ static const struct _mlan_card_info mlan_card_info_sd8987 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 0,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
 };
 #endif
 
@@ -976,7 +991,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 	t_u8 *firmware = fw;
 	t_u32 firmwarelen = fw_len;
 	t_u32 offset = 0;
-	t_u32 base0 = 0, base1;
+	t_u32 base0 = 0, base1 = 0;
 	t_void *tmpfwbuf = MNULL;
 	t_u32 tmpfwbufsz;
 	t_u8 *fwbuf;
@@ -1015,7 +1030,6 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	memset(pmadapter, tmpfwbuf, 0, tmpfwbufsz);
 	/* Ensure 8-byte aligned firmware buffer */
 	fwbuf = (t_u8 *)ALIGN_ADDR(tmpfwbuf, DMA_ALIGNMENT);
 #if defined(SD9098)
@@ -1035,11 +1049,10 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			check_fw_status = MTRUE;
 	}
 #endif
-#if defined(SD9097) || defined(SD9177) || defined(SDNW62X)
 	if (IS_SD9097(pmadapter->card_type) ||
-	    IS_SDNW62X(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
+	    IS_SDIW62X(pmadapter->card_type) ||
+	    IS_SDAW693(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
 		check_fw_status = MTRUE;
-#endif
 
 	/* Perform firmware data transfer */
 	do {
@@ -1163,7 +1176,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			 * for last block */
 			if (firmwarelen && firmwarelen - offset < txlen)
 				txlen = firmwarelen - offset;
-			PRINTM(MINFO, ".");
+			PRINTM(MINFO, ".\n");
 
 			tx_blocks = (txlen + MLAN_SDIO_BLOCK_SIZE_FW_DNLD - 1) /
 				    MLAN_SDIO_BLOCK_SIZE_FW_DNLD;
@@ -1334,7 +1347,7 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 
 	case MLAN_TYPE_CMD:
 		PRINTM(MINFO, "--- Rx: Cmd Response ---\n");
-		if (pmadapter->cmd_sent)
+		if (pmadapter->cmd_sent && !pmadapter->vdll_ctrl.vdll_len)
 			pmadapter->cmd_sent = MFALSE;
 		/* take care of curr_cmd = NULL case */
 		if (!pmadapter->curr_cmd) {
@@ -2419,12 +2432,16 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_sd9097;
 		break;
 #endif
-#ifdef SDNW62X
-	case CARD_TYPE_SDNW62X:
+#ifdef SDIW62X
+	case CARD_TYPE_SDIW62X:
 		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
-		pmadapter->pcard_info = &mlan_card_info_sdnw62x;
+		pmadapter->pcard_info = &mlan_card_info_sdiw62x;
 		break;
 #endif
+	case CARD_TYPE_SDAW693:
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_info = &mlan_card_info_sdaw693;
+		break;
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
 		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
@@ -3037,7 +3054,6 @@ exit:
 	return ret;
 }
 
-#if (defined(SD9098) || defined(SD9097) || defined(SDNW62X) || defined(SD9177))
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -3079,7 +3095,6 @@ static mlan_status wlan_sdio_send_vdll(mlan_adapter *pmadapter,
 	LEAVE();
 	return ret;
 }
-#endif
 
 /**
  *  @brief This function sends data to the card.
@@ -3098,10 +3113,8 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
-#if (defined(SD9098) || defined(SD9097) || defined(SDNW62X) || defined(SD9177))
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
-#endif
 	ret = wlan_sdio_host_to_card(pmadapter, type, pmbuf, tx_param);
 
 	if (type == MLAN_TYPE_DATA && ret == MLAN_STATUS_FAILURE)
@@ -3397,7 +3410,10 @@ static mlan_status wlan_pm_sdio_wakeup_card(pmlan_adapter pmadapter,
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
-	PRINTM(MEVENT, "Wakeup device...\n");
+	if (pmadapter->second_mac)
+		PRINTM(MEVENT, "#2 Wakeup device...\n");
+	else
+		PRINTM(MEVENT, "Wakeup device...\n");
 	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
 						  &pmadapter->pm_wakeup_in_secs,
 						  &age_ts_usec);
@@ -3560,9 +3576,6 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-#if defined(SD8997) || defined(SD8977) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SDNW62X) ||              \
-	defined(SD8978) || defined(SD9177)
 	if (MFALSE
 #ifdef SD8997
 	    || IS_SD8997(pmadapter->card_type)
@@ -3582,9 +3595,10 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 #ifdef SD9097
 	    || IS_SD9097(pmadapter->card_type)
 #endif
-#ifdef SDNW62X
-	    || IS_SDNW62X(pmadapter->card_type)
+#ifdef SDIW62X
+	    || IS_SDIW62X(pmadapter->card_type)
 #endif
+	    || IS_SDAW693(pmadapter->card_type)
 #ifdef SD9177
 	    || IS_SD9177(pmadapter->card_type)
 #endif
@@ -3595,7 +3609,6 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 				    HOST_TO_CARD_EVENT_REG,
 				    value | HOST_POWER_UP);
 	}
-#endif
 	/* Poll register around 100 ms */
 	for (tries = 0; tries < MAX_POLL_TRIES; ++tries) {
 		pcb->moal_read_reg(pmadapter->pmoal_handle, reset_reg, &value);

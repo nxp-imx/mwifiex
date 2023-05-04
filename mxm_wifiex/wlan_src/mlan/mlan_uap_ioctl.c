@@ -2095,6 +2095,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				pmadapter->getlog_enable;
 			pget_info->param.fw_info.hw_dev_mcs_support =
 				pmadapter->hw_dev_mcs_support;
+			pget_info->param.fw_info.hw_mpdu_density =
+				pmadapter->hw_mpdu_density;
 			pget_info->param.fw_info.hw_dot_11n_dev_cap =
 				pmadapter->hw_dot_11n_dev_cap;
 			pget_info->param.fw_info.usr_dev_mcs_support =
@@ -2242,6 +2244,10 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 								 pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_TSF)
 			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_CROSS_CHIP_SYNCH) {
+			status = wlan_misc_ioctl_cross_chip_synch(pmadapter,
+								  pioctl_req);
+		}
 		if (misc->sub_command == MLAN_OID_MISC_GET_CHAN_REGION_CFG)
 			status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_OPER_CLASS_CHECK)
@@ -2264,6 +2270,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_RX_ABORT_CFG)
 			status = wlan_misc_ioctl_rxabortcfg(pmadapter,
 							    pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_OFDM_DESENSE_CFG)
+			status = wlan_misc_ioctl_ofdmdesense_cfg(pmadapter,
+								 pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RX_ABORT_CFG_EXT)
 			status = wlan_misc_ioctl_rxabortcfg_ext(pmadapter,
 								pioctl_req);
@@ -2285,6 +2294,12 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_misc_robustcoex(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_DMCS_CONFIG)
 			status = wlan_misc_dmcs_config(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_CONFIG_RTT)
+			status = wlan_config_rtt(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_CANCEL_RTT)
+			status = wlan_cancel_rtt(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_RTT_RESPONDER_CFG)
+			status = wlan_rtt_responder_cfg(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_TX_RX_HISTOGRAM)
 			status =
 				wlan_get_tx_rx_histogram(pmadapter, pioctl_req);

@@ -105,7 +105,7 @@ Change log:
 #include <linux/firmware.h>
 
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 #include <linux/pm_wakeup.h>
 #include <linux/device.h>
 #else
@@ -160,7 +160,7 @@ Change log:
 
 #if defined(IMX_SUPPORT)
 #if defined(IMX_ANDROID)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1
 #endif
@@ -277,6 +277,9 @@ typedef t_u8 BOOLEAN;
 #define CARD_TYPE_PCIE_USB 7
 /** card type SD9177_UART */
 #define CARD_TYPE_SD9177_UART 1 // As per datasheet/SoC design
+
+/* Max buffer size */
+#define MAX_BUF_LEN 512
 
 /** Driver version */
 extern char driver_version[];
@@ -423,7 +426,6 @@ static inline void woal_timer_handler(unsigned long fcontext)
 		mod_timer(&timer->tl,
 			  jiffies + ((timer->time_period * HZ) / 1000));
 	} else {
-		timer->timer_is_canceled = MTRUE;
 		timer->time_period = 0;
 	}
 }
@@ -848,6 +850,8 @@ typedef enum {
 #define CUS_EVT_RADAR_DETECTED "EVENT=RADAR_DETECTED"
 /** Custom event : CAC finished */
 #define CUS_EVT_CAC_FINISHED "EVENT=CAC_FINISHED"
+/** Custom event : CAC start */
+#define CUS_EVT_CAC_START "EVENT=CAC_START"
 #ifdef UAP_SUPPORT
 void woal_move_to_next_channel(moal_private *priv);
 void woal_chan_event(moal_private *priv, t_u8 type, t_u8 channel, t_u8 radar);
@@ -1445,6 +1449,10 @@ struct _moal_private {
 	t_u8 target_chan;
 	/** backup channel */
 	t_u8 backup_chan;
+	/** channel mode for channel switch */
+	t_u8 chan_mode;
+	/** number of csa for channel switch */
+	t_u8 chan_num_pkts;
 	/** uAP skip CAC*/
 	BOOLEAN skip_cac;
 	/** tx block flag */
@@ -1828,6 +1836,8 @@ typedef struct _card_info {
 	t_u32 host_strap_reg;
 	/* Chip Magic Register */
 	t_u32 magic_reg;
+	/** Chip boot mode reg */
+	t_u32 boot_mode_reg;
 	/* FW Name */
 	char fw_name[FW_NAMW_MAX_LEN];
 	char fw_name_wlan[FW_NAMW_MAX_LEN];
@@ -1841,10 +1851,12 @@ typedef struct _card_info {
 	t_u8 scratch_reg;
 	t_u8 func1_reg_start;
 	t_u8 func1_reg_end;
-	t_u32 fw_reset_reg;
-	t_u8 fw_reset_val;
 	t_u32 slew_rate_reg;
 	t_u8 slew_rate_bit_offset;
+#endif
+#if defined(SDIO) || defined(PCIE)
+	t_u32 fw_reset_reg;
+	t_u8 fw_reset_val;
 #endif
 	t_u8 sniffer_support;
 	t_u8 per_pkt_cfg_support;
@@ -1881,6 +1893,10 @@ struct channel_field {
 #define RX_BW_20L 2
 #define RX_BW_20U 3
 #define RX_BW_80 4
+#define RX_HE_BW_20 0
+#define RX_HE_BW_40 1
+#define RX_HE_BW_80 2
+#define RX_HE_BW_160 3
 /** mcs_field.flags
 The flags field is any combination of the following:
 0x03    bandwidth - 0: 20, 1: 40, 2: 20L, 3: 20U
@@ -1943,6 +1959,165 @@ struct vht_field {
 	t_u16 partial_aid;
 } __packed;
 
+#define HE_BSS_COLOR_KNOWN 0x0002
+#define HE_BEAM_CHANGE_KNOWN 0x0004
+#define HE_UL_DL_KNOWN 0x0008
+#define HE_MCS_KNOWN 0x0020
+#define HE_DCM_KNOWN 0x0040
+#define HE_CODING_KNOWN 0x0080
+#define HE_BW_KNOWN 0x4000
+#define HE_DATA_GI_KNOWN 0x0002
+#define HE_MU_DATA 0x0002
+#define HE_CODING_LDPC_USER0 0x2000
+/** he_field - COCO */
+struct he_field {
+	t_u8 pad;
+	t_u16 data1;
+	t_u16 data2;
+	t_u16 data3;
+	t_u16 data4;
+	t_u16 data5;
+	t_u16 data6;
+} __packed;
+
+extern t_u8 ru_signal[16][9];
+extern t_u8 ru_signal_106[14][9];
+extern t_u8 ru_signal_52[9];
+
+#define MLAN_20_BIT_CH1P 0xC0000000
+#define MLAN_20_BIT_CH1S 0x0000003F
+#define MLAN_20_BIT_CH2 0x007F8000
+#define MLAN_80_CENTER_RU 0x00004000
+#define MLAN_160_CENTER_RU 0x40000000
+#define MLAN_20_BIT_CH3 0x00003FC0
+#define MLAN_20_BIT_CH4 0x7F800000
+#define MLAN_BIT_160_CH3 0x003FC000
+#define MLAN_BIT_160_CH4 0x03FC0000
+
+#define MLAN_DECODE_RU_SIGNALING_CH1(out, x, y)                                \
+	{                                                                      \
+		x = (((x << 8) & MLAN_20_BIT_CH1P)) >> 30;                     \
+		out = x | ((y & MLAN_20_BIT_CH1S) << 2);                       \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH3(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH3) >> 6);                            \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH2(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH2) >> 15);                           \
+	}
+
+#define MLAN_DECODE_RU_SIGNALING_CH4(out, x, y)                                \
+	{                                                                      \
+		out = ((y & MLAN_20_BIT_CH4) >> 23);                           \
+	}
+
+#define MLAN_DECODING_160_RU_CH3(out, x, y)                                    \
+	{                                                                      \
+		out = ((y & MLAN_BIT_160_CH3) >> 5);                           \
+	}
+
+#define MLAN_DECODING_160_RU_CH4(out, x, y)                                    \
+	{                                                                      \
+		out = ((y & MLAN_BIT_160_CH4) >> 22);                          \
+	}
+
+#define RU_SIGNAL_52_TONE 112
+#define TONE_MAX_USERS_52 4
+#define TONE_MAX_USERS_242 3
+#define RU_SIGNAL_26_TONE 0
+#define TONE_MAX_USERS_26 8
+#define RU_26_TONE_LIMIT 15
+#define RU_TONE_LIMIT 96
+#define RU_80_106_TONE 128
+#define RU_40_242_TONE 192
+#define RU_80_484_TONE 200
+#define RU_160_996_TONE 208
+#define RU_TONE_26 4
+#define RU_TONE_52 5
+#define RU_TONE_106 6
+#define RU_TONE_242 7
+#define RU_TONE_484 8
+#define RU_TONE_996 9
+
+#define MLAN_DECODE_RU_TONE(x, y, tone)                                           \
+	{                                                                         \
+		if ((x == RU_SIGNAL_52_TONE)) {                                   \
+			if (((y + 1) <= TONE_MAX_USERS_52)) {                     \
+				tone = RU_TONE_52;                                \
+			} else {                                                  \
+				y = (y + 1) - TONE_MAX_USERS_52;                  \
+			}                                                         \
+		} else if (x == RU_SIGNAL_26_TONE) {                              \
+			if ((y + 1) <= TONE_MAX_USERS_26) {                       \
+				tone = RU_TONE_26;                                \
+			} else {                                                  \
+				y = (y + 1) - TONE_MAX_USERS_26;                  \
+			}                                                         \
+		} else if (x <= RU_TONE_LIMIT) {                                  \
+			t_u32 ru_arr_idx;                                         \
+			ru_arr_idx = x > RU_26_TONE_LIMIT ? 1 : 0;                \
+			if ((y + 1) > (ru_arr_idx ? ru_signal_106[x / 8][8] :     \
+						    ru_signal[x][8])) {           \
+				y = (y + 1) -                                     \
+				    (ru_arr_idx ? ru_signal_106[x / 8][8] :       \
+						  ru_signal[x][8]);               \
+			} else {                                                  \
+				t_u32 ind = 0;                                    \
+				t_u32 idx = 0;                                    \
+				while (ind < 8) {                                 \
+					t_u32 tn =                                \
+						ru_arr_idx ?                      \
+							ru_signal_106[x / 8]      \
+								     [7 - ind] :  \
+							ru_signal[x][7 - ind];    \
+					ind++;                                    \
+					if (tn == 0x1 || tn == 0x0 ||             \
+					    tn == 0x2) {                          \
+						if (idx == y) {                   \
+							tone = tn ? (tn ==        \
+								     2) ?         \
+								    RU_TONE_106 : \
+								    RU_TONE_52 :  \
+								    RU_TONE_26;   \
+							break;                    \
+						} else {                          \
+							idx++;                    \
+						}                                 \
+					}                                         \
+				}                                                 \
+			}                                                         \
+		} else if (x == RU_80_106_TONE) {                                 \
+			if ((y + 1) > TONE_MAX_USERS_242) {                       \
+				y = (y + 1) - TONE_MAX_USERS_242;                 \
+			} else {                                                  \
+				tone = (y == 2) ? RU_TONE_106 :                   \
+						  (y == 1) ? 0 : RU_TONE_106;     \
+			}                                                         \
+		} else if (x == RU_40_242_TONE) {                                 \
+			if (!y) {                                                 \
+				tone = RU_TONE_242;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		} else if (x == RU_80_484_TONE) {                                 \
+			if (!y) {                                                 \
+				tone = RU_TONE_484;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		} else if (x == RU_160_996_TONE) {                                \
+			if (!y) {                                                 \
+				tone = RU_TONE_996;                               \
+			} else {                                                  \
+				y--;                                              \
+			}                                                         \
+		}                                                                 \
+	}
+
 /** radiotap_body.flags */
 #define RADIOTAP_FLAGS_DURING_CFG 0x01
 #define RADIOTAP_FLAGS_SHORT_PREAMBLE 0x02
@@ -1975,6 +2150,8 @@ struct radiotap_body {
 		struct mcs_field mcs;
 		/** vht field */
 		struct vht_field vht;
+		/** he field */
+		struct he_field he;
 	} u;
 } __packed;
 
@@ -2076,6 +2253,7 @@ typedef struct _monitor_iface {
 #endif
 
 #define MAX_KEEP_ALIVE_ID 4
+#define MAX_KEEP_ALIVE_RX_ID 4
 
 /** Operation data structure for MOAL bus interfaces */
 typedef struct _moal_if_ops {
@@ -2161,6 +2339,9 @@ typedef struct _moal_mod_para {
 	int rf_test_mode;
 	char *hw_name;
 	int drv_mode;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	int mon_filter;
+#endif
 #ifdef DEBUG_LEVEL1
 	int drvdbg;
 #endif
@@ -2240,12 +2421,15 @@ typedef struct _moal_mod_para {
 	t_u8 mcs32;
 
 #if defined(CONFIG_RPS)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	/* rps module param */
 	int rps;
 #endif
 #endif
 	int keep_previous_scan;
+	int auto_11ax;
+	/** hs_auto_arp setting */
+	int hs_auto_arp;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -2256,7 +2440,7 @@ void woal_set_tp_state(moal_private *priv);
 #define RX_DROP_P3 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 2)
 #define RX_DROP_P4 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 3)
 #define RX_DROP_P5 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 4)
-#define TXRX_MAX_SAMPLE 60
+#define TXRX_MAX_SAMPLE 50
 #define RX_TIME_PKT (MAX_TP_ACCOUNT_DROP_POINT_NUM + 5)
 #define TX_TIME_PKT (MAX_TP_ACCOUNT_DROP_POINT_NUM + 6)
 
@@ -2281,6 +2465,8 @@ typedef struct _moal_tp_acnt_t {
 	unsigned long tx_xmit_skb_realloc_cnt;
 	unsigned long tx_stop_queue_cnt;
 	unsigned long tx_delay_driver[TXRX_MAX_SAMPLE];
+	/* drop_point1 to drop_point3 time */
+	unsigned long tx_delay1_driver[TXRX_MAX_SAMPLE];
 
 	/** RX accounting */
 	unsigned long rx_packets[MAX_TP_ACCOUNT_DROP_POINT_NUM];
@@ -2463,6 +2649,10 @@ struct _moal_handle {
 	/** Bitmap for re-association on/off */
 	t_u8 reassoc_on;
 #endif /* REASSOCIATION */
+	/** RTT capability */
+	wifi_rtt_capabilities rtt_capa;
+	/** RTT config */
+	wifi_rtt_config_params_t rtt_params;
 	/** Driver workqueue */
 	struct workqueue_struct *workqueue;
 	/** main work */
@@ -2612,6 +2802,8 @@ struct _moal_handle {
 	struct semaphore async_sem;
 	/** scan channel gap */
 	t_u16 scan_chan_gap;
+	/** flag to check if specific scan time set by scancfg */
+	t_u8 user_scan_cfg;
 #ifdef STA_CFG80211
 	/** CFG80211 scan request description */
 	struct cfg80211_scan_request *scan_request;
@@ -2680,7 +2872,7 @@ struct _moal_handle {
 	t_s8 driver_version[MLAN_MAX_VER_STR_LEN];
 	char *fwdump_fname;
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	struct wakeup_source ws;
 #else
 	struct wake_lock wake_lock;
@@ -2696,6 +2888,7 @@ struct _moal_handle {
 #endif
 #endif
 	mlan_ds_misc_keep_alive keep_alive[MAX_KEEP_ALIVE_ID];
+	mlan_ds_misc_keep_alive_rx keep_alive_rx[MAX_KEEP_ALIVE_RX_ID];
 	struct net_device napi_dev;
 	struct napi_struct napi_rx;
 	/* bus interface operations */
@@ -3338,7 +3531,7 @@ pmlan_ioctl_req woal_alloc_mlan_ioctl_req(int size);
 /** Free buffer */
 void woal_free_mlan_buffer(moal_handle *handle, pmlan_buffer pmbuf);
 /** Get private structure of a BSS by index */
-moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u8 bss_index);
+moal_private *woal_bss_index_to_priv(moal_handle *handle, t_u32 bss_index);
 /* Functions in init module */
 /** init module parameters */
 mlan_status woal_init_module_param(moal_handle *handle);
@@ -3653,6 +3846,8 @@ mlan_status woal_reset_intf(moal_private *priv, t_u8 wait_option, int all_intf);
 #define MGMT_MASK_ASSOC_RESP_QOS_MAP 0x4000
 #define MGMT_MASK_BEACON_WPS_P2P 0x8000
 #define MLAN_CUSTOM_IE_DELETE_MASK 0x0
+#define MLAN_CUSTOM_IE_NEW_MASK 0x8000
+
 /** common ioctl for uap, station */
 int woal_custom_ie_ioctl(struct net_device *dev, struct ifreq *req);
 #ifdef UAP_SUPPORT
@@ -3890,6 +4085,27 @@ int woal_priv_save_cloud_keep_alive_params(
 	moal_private *priv, t_u8 mkeep_alive_id, t_u8 enable, t_u16 ether_type,
 	t_u8 *ip_pkt, t_u16 ip_pkt_len, t_u8 *src_mac, t_u8 *dst_mac,
 	t_u32 period_msec, t_u32 retry_interval, t_u8 retry_cnt);
+int woal_start_mkeep_alive_rx(moal_private *priv, t_u8 mkeep_alive_id,
+			      t_u8 *ip_pkt, t_u16 ip_pkt_len, t_u8 *src_mac,
+			      t_u8 *dst_mac);
+int woal_stop_mkeep_alive_rx(moal_private *priv, t_u8 mkeep_alive_id,
+			     t_u8 reset, t_u8 *ip_pkt, t_u8 *pkt_len);
+int woal_priv_save_cloud_keep_alive_params_rx(moal_private *priv,
+					      t_u8 mkeep_alive_id, t_u8 enable,
+					      t_u16 ether_type, t_u8 *ip_pkt,
+					      t_u16 ip_pkt_len, t_u8 *src_mac,
+					      t_u8 *dst_mac);
+void woal_channel_info_to_bandcfg(moal_private *priv,
+				  wifi_channel_info *ch_info,
+				  Band_Config_t *bandcfg);
+void woal_bandcfg_to_channel_info(moal_private *priv, Band_Config_t *bandcfg,
+				  t_u8 channel, wifi_channel_info *ch_info);
+mlan_status woal_config_rtt(moal_private *priv, t_u8 wait_option,
+			    wifi_rtt_config_params_t *rtt_params);
+mlan_status woal_cancel_rtt(moal_private *priv, t_u8 wait_option,
+			    t_u32 addr_num, t_u8 addr[][MLAN_MAC_ADDR_LENGTH]);
+mlan_status woal_rtt_responder_cfg(moal_private *priv, t_u8 wait_option,
+				   mlan_rtt_responder *rtt_rsp_cfg);
 #ifdef UAP_SUPPORT
 mlan_status woal_set_wacp_mode(moal_private *priv, t_u8 wait_option);
 #endif

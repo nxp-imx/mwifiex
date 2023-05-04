@@ -35,7 +35,7 @@ extern struct semaphore AddRemoveCardSem;
 ********************************************************/
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBNW62X)
+	defined(USB8978) || defined(USBIW62X)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -95,10 +95,10 @@ static struct usb_device_id woal_usb_table[] = {
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
-#ifdef USBNW62X
-	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_1,
+#ifdef USBIW62X
+	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_1,
 			"NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_2,
+	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_2,
 			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
@@ -128,8 +128,8 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 #ifdef USB9097
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
-#ifdef USBNW62X
-	{NXP_USB_DEVICE(USBNW62X_VID_1, USBNW62X_PID_2,
+#ifdef USBIW62X
+	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_2,
 			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
@@ -497,19 +497,20 @@ rx_ret:
 ********************************************************/
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBNW62X)
+	defined(USB8978) || defined(USBIW62X)
 /**
  *  @brief  Check chip revision
  *
  *  @param handle        A pointer to moal_handle structure
  *  @param usb_chip_rev  A pointer to usb_chip_rev variable
  *  @param usb_strap     A pointer to usb_strap
+ *  @param boot_mode     A pointer to boot_mode
  *
  *  @return 	   	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_check_chip_revision(moal_handle *handle,
 					    t_u32 *usb_chip_rev,
-					    t_u32 *usb_strap)
+					    t_u32 *usb_strap, t_u32 *boot_mode)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_buffer mbuf;
@@ -582,7 +583,7 @@ static mlan_status woal_check_chip_revision(moal_handle *handle,
 	ack_pkt.strap = woal_le32_to_cpu(ack_pkt.strap);
 
 	if ((ack_pkt.extend & 0xffff0000) == EXTEND_HDR) {
-		extend_ver = ack_pkt.extend & 0x0000ffff;
+		extend_ver = ack_pkt.extend & 0x000000ff;
 		*usb_chip_rev = ack_pkt.chip_rev & 0x000000ff;
 		if (extend_ver >= EXTEND_V2) {
 			PRINTM(MINFO, "chip_rev=0x%x, strap=0x%x\n",
@@ -590,6 +591,8 @@ static mlan_status woal_check_chip_revision(moal_handle *handle,
 			*usb_strap = ack_pkt.strap & 0x7;
 		} else
 			PRINTM(MINFO, "chip_rev=0x%x\n", *usb_chip_rev);
+		if (extend_ver >= EXTEND_V3)
+			*boot_mode = (ack_pkt.extend & 0x0000ff00) >> 8;
 	}
 cleanup:
 	kfree(recv_buff);
@@ -807,18 +810,18 @@ static t_u16 woal_update_card_type(t_void *card)
 					strlen(KERN_VERSION));
 	}
 #endif
-#ifdef USBNW62X
+#ifdef USBIW62X
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USBNW62X_PID_1 ||
+		    (__force __le16)USBIW62X_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USBNW62X_PID_2) {
-		card_type = CARD_TYPE_USBNW62X;
-		moal_memcpy_ext(NULL, driver_version, CARD_USBNW62X,
-				strlen(CARD_USBNW62X), strlen(driver_version));
+		    (__force __le16)USBIW62X_PID_2) {
+		card_type = CARD_TYPE_USBIW62X;
+		moal_memcpy_ext(NULL, driver_version, CARD_USBIW62X,
+				strlen(CARD_USBIW62X), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
-				V17, strlen(V17),
+				V18, strlen(V18),
 				strlen(driver_version) - strlen(INTF_CARDTYPE) -
 					strlen(KERN_VERSION));
 	}
@@ -890,9 +893,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_1:
 #endif /* USB9097 */
-#ifdef USBNW62X
-			case (__force __le16)USBNW62X_PID_1:
-#endif /* USBNW62X */
+#ifdef USBIW62X
+			case (__force __le16)USBIW62X_PID_1:
+#endif /* USBIW62X */
 
 				/* If skip FW is set, we must return error so
 				 * the next driver can download the FW */
@@ -920,9 +923,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_2:
 #endif /* USB9097 */
-#ifdef USBNW62X
-			case (__force __le16)USBNW62X_PID_2:
-#endif /* USBNW62X */
+#ifdef USBIW62X
+			case (__force __le16)USBIW62X_PID_2:
+#endif /* USBIW62X */
 
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
@@ -2040,9 +2043,10 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBNW62X)
+	defined(USB8978) || defined(USBIW62X)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
+	t_u32 boot_mode = 0;
 #endif
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
 #if defined(USB9098)
@@ -2060,8 +2064,9 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #endif
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBNW62X)
-	ret = woal_check_chip_revision(handle, &revision_id, &strap);
+	defined(USB8978) || defined(USBIW62X)
+	ret = woal_check_chip_revision(handle, &revision_id, &strap,
+				       &boot_mode);
 	if (ret != MLAN_STATUS_SUCCESS) {
 		PRINTM(MFATAL, "Chip revision check failure!\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -2073,22 +2078,26 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #ifdef USB8997
 	if (IS_USB8997(handle->card_type)) {
 		if (strap == CARD_TYPE_USB_UART)
-			strcpy(handle->card_info->fw_name,
-			       USBUART8997_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUART8997_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 		else if (strap != 0)
-			strcpy(handle->card_info->fw_name,
-			       USBUSB8997_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUSB8997_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 	}
 #endif
 
 #ifdef USB8978
 	if (IS_USB8978(handle->card_type)) {
 		if (strap == CARD_TYPE_USB_UART)
-			strcpy(handle->card_info->fw_name,
-			       USBUART8978_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUART8978_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 		else if (strap != 0)
-			strcpy(handle->card_info->fw_name,
-			       USBUSB8978_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUSB8978_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 	}
 #endif
 
@@ -2097,10 +2106,12 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		if (cardp->second_mac) {
 			ref_handle = (moal_handle *)handle->pref_mac;
 			if (ref_handle) {
-				strcpy(handle->card_info->fw_name,
-				       ref_handle->card_info->fw_name);
-				strcpy(handle->card_info->fw_name_wlan,
-				       ref_handle->card_info->fw_name_wlan);
+				strncpy(handle->card_info->fw_name,
+					ref_handle->card_info->fw_name,
+					FW_NAMW_MAX_LEN);
+				strncpy(handle->card_info->fw_name_wlan,
+					ref_handle->card_info->fw_name_wlan,
+					FW_NAMW_MAX_LEN);
 			}
 			goto done;
 		}
@@ -2108,28 +2119,32 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9098_Z1Z2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9098_DEFAULT_COMBO_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9098_DEFAULT_COMBO_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9098_DEFAULT_COMBO_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9098_DEFAULT_COMBO_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9098_DEFAULT_WLAN_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9098_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case USB9098_A0:
 		case USB9098_A1:
 		case USB9098_A2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9098_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9098_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9098_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9098_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9098_WLAN_V1_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9098_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
 	}
@@ -2141,26 +2156,30 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9097_B1:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9097_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9097_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9097_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9097_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9097_WLAN_V1_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9097_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
 	}
 #endif
-#ifdef USBNW62X
-	if (IS_USBNW62X(handle->card_type)) {
+#ifdef USBIW62X
+	if (IS_USBIW62X(handle->card_type)) {
+		if (boot_mode == 0x03)
+			PRINTM(MMSG, "wlan: USB-IW62X in secure-boot mode\n");
 		if (strap == CARD_TYPE_USB_UART)
-			strcpy(handle->card_info->fw_name,
-			       USBUARTNW62X_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUARTIW62X_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 		else
-			strcpy(handle->card_info->fw_name,
-			       USBUSBNW62X_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUSBIW62X_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 	}
 #endif
 

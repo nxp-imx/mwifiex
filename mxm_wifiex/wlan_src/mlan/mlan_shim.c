@@ -441,6 +441,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
 	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
+	pmadapter->second_mac = pmdevice->second_mac;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
@@ -1386,7 +1387,8 @@ process_start:
 
 exit_main_proc:
 	if (pmadapter->hw_status == WlanHardwareStatusClosing)
-		mlan_shutdown_fw(pmadapter);
+		if (MLAN_STATUS_SUCCESS != mlan_shutdown_fw(pmadapter))
+			PRINTM(MERROR, "ERR:mlan_shutdown_fw failed\n");
 	LEAVE();
 	return ret;
 }
@@ -1486,11 +1488,6 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 	if (pioctl_req == MNULL) {
 		PRINTM(MMSG, "Cancel all pending cmd!\n");
 		wlan_cancel_all_pending_cmd(pmadapter, MFALSE);
-		goto exit;
-	}
-	if (pioctl_req->action == MLAN_ACT_CANCEL) {
-		wlan_cancel_pending_ioctl(pmadapter, pioctl_req);
-		ret = MLAN_STATUS_SUCCESS;
 		goto exit;
 	}
 	pmpriv = pmadapter->priv[pioctl_req->bss_index];

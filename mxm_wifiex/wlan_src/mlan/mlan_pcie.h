@@ -169,8 +169,12 @@ Change log:
 #define ADMA_BD_FLAG_DST_HOST MBIT(4)
 /** ADMA MIN PKT SIZE */
 #define ADMA_MIN_PKT_SIZE 128
+/** ADMA MIN PKT SIZE 32 */
+#define ADMA_MIN_PKT_SIZE_32 32
 /** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
 #define ADMA_ALIGN_SIZE 8
+/** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
+#define ADMA_ALIGN_SIZE_1 1
 /** ADMA RW_PTR wrap mask */
 #define ADMA_RW_PTR_WRAP_MASK 0x00001FFF
 /** ADMA MSIX DOORBEEL DATA */
@@ -182,7 +186,6 @@ Change log:
 /** PF start bit */
 #define ADMA_MSIX_PF_BIT 24
 
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIENW62X)
 /** PCIE9098 dev_id/vendor id reg */
 #define PCIE9098_DEV_ID_REG 0x0000
 /** PCIE revision ID register */
@@ -319,7 +322,6 @@ Change log:
 #define PCIE9098_HOST_INTR_SEL_MASK                                            \
 	(PCIE9098_HOST_INTR_DNLD_DONE | PCIE9098_HOST_INTR_UPLD_RDY |          \
 	 PCIE9098_HOST_INTR_CMD_DONE | PCIE9098_HOST_INTR_EVENT_RDY)
-#endif
 
 #if defined(PCIE8997) || defined(PCIE8897)
 /* PCIE INTERNAL REGISTERS */
