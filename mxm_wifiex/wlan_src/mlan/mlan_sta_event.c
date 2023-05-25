@@ -405,6 +405,7 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	priv->rxpd_rate_info = 0;
 	priv->max_amsdu = 0;
 	priv->amsdu_disable = MFALSE;
+	priv->multi_ap_flag = 0;
 	wlan_coex_ampdu_rxwinsize(pmadapter);
 
 	priv->sec_info.ewpa_enabled = MFALSE;

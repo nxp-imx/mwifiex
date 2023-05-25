@@ -1051,6 +1051,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
 	MrvlIEtypes_PrevBssid_t *prev_bssid_tlv = MNULL;
 	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
+	MrvlIEtypes_MultiAp_t *multi_ap_tlv = MNULL;
 
 	ENTER();
 
@@ -1487,6 +1488,18 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		pos += sizeof(prev_bssid_tlv->header) + MLAN_MAC_ADDR_LENGTH;
 	}
 
+	if (pmpriv->multi_ap_flag) {
+		multi_ap_tlv = (MrvlIEtypes_MultiAp_t *)pos;
+		multi_ap_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_MULTI_AP);
+		multi_ap_tlv->header.len = sizeof(multi_ap_tlv->flag);
+		multi_ap_tlv->flag = pmpriv->multi_ap_flag;
+		PRINTM(MINFO, " TLV multi_ap_flag : 0x%x\n",
+		       multi_ap_tlv->flag);
+		pos += sizeof(multi_ap_tlv->header) + multi_ap_tlv->header.len;
+		multi_ap_tlv->header.len =
+			wlan_cpu_to_le16(sizeof(multi_ap_tlv->flag));
+	}
+
 	if (wlan_11d_create_dnld_countryinfo(pmpriv, pbss_desc->bss_band)) {
 		PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -1702,6 +1715,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	/* Send a Media Connected event, according to the Spec */
 	pmpriv->media_connected = MTRUE;
+	pmpriv->multi_ap_flag = 0;
 	pmpriv->adapter->pps_uapsd_mode = MFALSE;
 	pmpriv->adapter->tx_lock_flag = MFALSE;
 	pmpriv->adapter->delay_null_pkt = MFALSE;

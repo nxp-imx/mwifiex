@@ -3515,6 +3515,32 @@ mlan_status wlan_misc_hotspot_cfg(pmlan_adapter pmadapter,
 	return ret;
 }
 
+/**
+ *  @brief Set multi ap flag
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status wlan_misc_multi_ap_cfg(pmlan_adapter pmadapter,
+				   pmlan_ioctl_req pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (MLAN_ACT_GET == pioctl_req->action)
+		misc->param.multi_ap_flag = pmpriv->multi_ap_flag;
+	else if (MLAN_ACT_SET == pioctl_req->action)
+		pmpriv->multi_ap_flag = misc->param.multi_ap_flag;
+
+	LEAVE();
+	return ret;
+}
+
 #ifdef STA_SUPPORT
 /**
  *  @brief This function check if we should enable beacon protection support

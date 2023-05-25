@@ -334,6 +334,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /**TLV type : Host MLME Flag*/
 #define TLV_TYPE_HOST_MLME (PROPRIETARY_TLV_BASE_ID + 307)
 
+/** TLV type: MULTI AP Flag */
+#define TLV_TYPE_MULTI_AP (PROPRIETARY_TLV_BASE_ID + 326)
+
 /** TLV type : AP wacp mode */
 #define TLV_TYPE_UAP_WACP_MODE (PROPRIETARY_TLV_BASE_ID + 0x147) /* 0x0247 */
 
@@ -2168,6 +2171,8 @@ typedef enum _ENH_PS_MODES {
 /** TDLS off channel */
 #define TDLS_OFF_CHANNEL 1
 
+#define RXPD_FLAG_PKT_EASYMESH MBIT(4)
+
 /** structure for channel switch result from TDLS FW */
 typedef MLAN_PACK_START struct _chan_switch_result {
 	/** current channel, 0 - base channel, 1 - off channel*/
@@ -2284,6 +2289,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 
 /** Bit mask for TxPD flags field for Tx status report */
 #define MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS MBIT(5)
+
+/** Bit mask for TxPD flags field for EASYMESH */
+#define MRVDRV_TxPD_FLAGS_EASYMESH MBIT(7)
 
 /** Packet type: 802.11 */
 #define PKT_TYPE_802DOT11 0x05
@@ -2424,6 +2432,9 @@ typedef MLAN_PACK_START struct _TxPD {
 	t_u8 reserved;
 	/** Tx Control */
 	t_u32 tx_control_1;
+	/** ra mac address */
+	t_u8 ra_mac[6];
+	t_u8 reserved3[2];
 } MLAN_PACK_END TxPD, *PTxPD;
 
 /** RxPD Descriptor */
@@ -2469,6 +2480,8 @@ typedef MLAN_PACK_START struct _RxPD {
 
 	/** Reserved */
 	t_u8 reserved3[8];
+	t_u8 ta_mac[6];
+	t_u8 reserved4[2];
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
@@ -2773,6 +2786,14 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_HostMlme_t {
 	/** Authentication type */
 	t_u8 host_mlme;
 } MLAN_PACK_END MrvlIEtypes_HostMlme_t;
+
+/** MrvlIEtypes_MultiAp_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_MultiAp_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Multi AP flag */
+	t_u8 flag;
+} MLAN_PACK_END MrvlIEtypes_MultiAp_t;
 
 /** MrvlIEtypes_NumProbes_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_NumProbes_t {

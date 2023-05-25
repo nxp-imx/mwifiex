@@ -52,9 +52,12 @@ CONFIG_PCIE9097=n
 CONFIG_SD9098=y
 CONFIG_USB9098=n
 CONFIG_PCIE9098=y
-CONFIG_SDNW62X=n
-CONFIG_PCIENW62X=n
-CONFIG_USBNW62X=n
+CONFIG_SDIW62X=n
+CONFIG_SDAW693=n
+CONFIG_PCIEIW62X=n
+CONFIG_USBIW62X=n
+CONFIG_PCIEAW693=n
+
 
 
 # Debug Option
@@ -273,9 +276,13 @@ ifeq ($(CONFIG_SD9097),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9097
 endif
-ifeq ($(CONFIG_SDNW62X),y)
+ifeq ($(CONFIG_SDIW62X),y)
 	CONFIG_SDIO=y
-	ccflags-y += -DSDNW62X
+	ccflags-y += -DSDIW62X
+endif
+ifeq ($(CONFIG_SDAW693),y)
+	CONFIG_SDIO=y
+	ccflags-y += -DSDAW693
 endif
 ifeq ($(CONFIG_SD9177),y)
 	CONFIG_SDIO=y
@@ -309,9 +316,9 @@ ifeq ($(CONFIG_USB9097),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSB9097
 endif
-ifeq ($(CONFIG_USBNW62X),y)
+ifeq ($(CONFIG_USBIW62X),y)
 	CONFIG_MUSB=y
-	ccflags-y += -DUSBNW62X
+	ccflags-y += -DUSBIW62X
 endif
 ifeq ($(CONFIG_USB9098),y)
 	CONFIG_MUSB=y
@@ -333,10 +340,16 @@ ifeq ($(CONFIG_PCIE9098),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIE9098
 endif
-ifeq ($(CONFIG_PCIENW62X),y)
+ifeq ($(CONFIG_PCIEIW62X),y)
 	CONFIG_PCIE=y
-	ccflags-y += -DPCIENW62X
+	ccflags-y += -DPCIEIW62X
 endif
+#ifdef PCIEAW693_OPT
+ifeq ($(CONFIG_PCIEAW693),y)
+	CONFIG_PCIE=y
+	ccflags-y += -DPCIEAW693
+endif
+#endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
 	ccflags-y += -DSDIO_MMC

@@ -7609,6 +7609,48 @@ done:
 	return status;
 }
 
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+/**
+ * @brief Set multi ap flag to mlan layer
+ *
+ * @param priv		A pointer to moal_private structure
+ * @param wait_option	wait_option of ioctl
+ * @param flag	    multi ap flag
+ *
+ * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
+ */
+mlan_status woal_multi_ap_cfg(moal_private *priv, t_u8 wait_option, t_u8 flag)
+{
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->param.multi_ap_flag = flag;
+	cfg->sub_command = MLAN_OID_MISC_MULTI_AP_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status != MLAN_STATUS_SUCCESS)
+		goto done;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}
+#endif
+
 /**
  *  @brief Set hotspot configuration value to mlan layer
  *
