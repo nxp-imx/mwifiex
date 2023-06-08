@@ -618,6 +618,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	priv->hotspot_cfg = 0;
 
 	priv->intf_hr_len = pmadapter->ops.intf_header_len;
+	priv->multi_ap_flag = 0;
 	memset(pmadapter, &priv->chan_rep_req, 0, sizeof(priv->chan_rep_req));
 #ifdef USB
 	if (IS_USB(pmadapter->card_type)) {

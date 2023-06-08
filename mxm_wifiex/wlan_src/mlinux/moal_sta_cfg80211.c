@@ -103,7 +103,8 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef);
@@ -907,6 +908,9 @@ static int woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie,
 	t_u8 wps_oui[] = {0x00, 0x50, 0xf2, 0x04};
 	t_u8 hs20_oui[] = {0x50, 0x6f, 0x9a, 0x10};
 
+	t_u8 multiap_oui[] = {0x50, 0x6f, 0x9a, 0x1b};
+	t_u8 multiap_flag = 0;
+
 	while (bytes_left >= 2) {
 		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
 		element_len = *((t_u8 *)pcurrent_ptr + 1);
@@ -938,6 +942,21 @@ static int woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie,
 				if (woal_wps_cfg(priv, MTRUE)) {
 					PRINTM(MERROR,
 					       "%s: Enable WPS session failed\n",
+					       __func__);
+					ret = -EFAULT;
+					goto done;
+				}
+			}
+
+			if (!memcmp(pvendor_ie->vend_hdr.oui, multiap_oui,
+				    sizeof(pvendor_ie->vend_hdr.oui)) &&
+			    (pvendor_ie->vend_hdr.oui_type == multiap_oui[3])) {
+				multiap_flag = pvendor_ie->data[0];
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_multi_ap_cfg(priv, wait_option,
+						      multiap_flag)) {
+					PRINTM(MERROR,
+					       "%s: failed to configure multi ap\n",
 					       __func__);
 					ret = -EFAULT;
 					goto done;
@@ -5490,7 +5509,8 @@ static int woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MMSG, " Already disconnected\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 		if (priv->wdev->connected &&
 #else
 		if (priv->wdev->current_bss &&
@@ -5820,7 +5840,8 @@ done:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int woal_cfg80211_get_channel(struct wiphy *wiphy,
 				     struct wireless_dev *wdev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 				     unsigned int link_id,
 #endif
 				     struct cfg80211_chan_def *chandef)
@@ -8593,8 +8614,41 @@ static int woal_cfg80211_change_station(struct wiphy *wiphy,
 					struct station_parameters *params)
 {
 	int ret = 0;
+#ifdef UAP_SUPPORT
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_private *vlan_priv = NULL;
+	station_node *sta_node = NULL;
+	int i = 0;
+#endif
 
 	ENTER();
+#ifdef UAP_SUPPORT
+	/** Bind the station to uap virtual interface and
+	save the station info in moal_private */
+	if (params->vlan) {
+		if (params->vlan->ieee80211_ptr &&
+		    params->vlan->ieee80211_ptr->iftype ==
+			    NL80211_IFTYPE_AP_VLAN) {
+			vlan_priv = (moal_private *)woal_get_netdev_priv(
+				params->vlan);
+			for (i = 0; i < MAX_STA_COUNT; i++) {
+				sta_node = priv->vlan_sta_list[i];
+				if (sta_node &&
+				    !moal_memcmp(priv->phandle,
+						 sta_node->peer_mac, mac,
+						 MLAN_MAC_ADDR_LENGTH)) {
+					PRINTM(MCMND,
+					       "wlan: Easymesh change station aid=%d\n",
+					       sta_node->aid);
+					sta_node->netdev = params->vlan;
+					sta_node->is_valid = MTRUE;
+					vlan_priv->vlan_sta_ptr = sta_node;
+					break;
+				}
+			}
+		}
+	}
+#endif
 	/**do nothing*/
 
 	LEAVE();
@@ -8625,12 +8679,29 @@ static int woal_cfg80211_add_station(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	station_node *sta_node = NULL;
 
 	ENTER();
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 #ifdef UAP_SUPPORT
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
 	    (priv->bss_role == MLAN_BSS_ROLE_UAP)) {
+		sta_node = kmalloc(sizeof(station_node), GFP_KERNEL);
+		if (!sta_node) {
+			PRINTM(MERROR,
+			       "Failed to alloc memory for station node\n");
+			LEAVE();
+			return -ENOMEM;
+		}
+		memset(sta_node, 0, sizeof(*sta_node));
+		moal_memcpy_ext(priv->phandle, sta_node->peer_mac, mac,
+				MLAN_MAC_ADDR_LENGTH, ETH_ALEN);
+		sta_node->netdev = dev;
+		sta_node->aid = params->aid;
+		sta_node->is_valid = MFALSE;
+		/** AID should start from 1 to MAX_STA_COUNT */
+		priv->vlan_sta_list[(params->aid - 1) % MAX_STA_COUNT] =
+			sta_node;
 		ret = woal_cfg80211_uap_add_station(wiphy, dev, (u8 *)mac,
 						    params);
 		LEAVE();
@@ -8749,7 +8820,8 @@ int woal_cfg80211_update_ft_ies(struct wiphy *wiphy, struct net_device *dev,
 			passoc_rsp = (IEEEtypes_AssocRsp_t *)
 					     assoc_rsp->assoc_resp_buf;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13 ||   \
+     IMX_ANDROID_12_BACKPORT)
 			roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 			roam_info.bssid = priv->cfg_bssid;
@@ -9221,7 +9293,8 @@ void woal_start_roaming(moal_private *priv)
 		}
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || IMX_ANDROID_13 ||   \
+     IMX_ANDROID_12_BACKPORT)
 		roam_info.links[0].bssid = priv->cfg_bssid;
 #else
 		roam_info.bssid = priv->cfg_bssid;
@@ -10034,8 +10107,9 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	wiphy->max_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_scan_ie_len = MAX_IE_SIZE;
 	wiphy->interface_modes = 0;
-	wiphy->interface_modes =
-		MBIT(NL80211_IFTYPE_STATION) | MBIT(NL80211_IFTYPE_AP);
+	wiphy->interface_modes = MBIT(NL80211_IFTYPE_STATION) |
+				 MBIT(NL80211_IFTYPE_AP_VLAN) |
+				 MBIT(NL80211_IFTYPE_AP);
 	wiphy->interface_modes |= MBIT(NL80211_IFTYPE_MONITOR);
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -10197,6 +10271,8 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 		wiphy->features |= NL80211_FEATURE_SAE;
 #endif
+	wiphy->flags |= WIPHY_FLAG_4ADDR_AP;
+	wiphy->flags |= WIPHY_FLAG_4ADDR_STATION;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	wiphy->features |= NL80211_FEATURE_NEED_OBSS_SCAN;
 #endif

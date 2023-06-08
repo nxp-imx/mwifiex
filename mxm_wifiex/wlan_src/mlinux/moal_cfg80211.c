@@ -228,6 +228,14 @@ struct ieee80211_channel *woal_get_ieee80211_channel(moal_private *priv,
  */
 int woal_get_active_intf_freq(moal_private *priv)
 {
+#ifdef WIFI_DIRECT_SUPPORT
+#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
+	moal_private *pmpriv = NULL;
+	moal_handle *handle = priv->phandle;
+	int i;
+#endif
+#endif
+
 #ifdef UAP_SUPPORT
 	if (priv->bss_role == MLAN_BSS_ROLE_UAP && priv->bss_started &&
 	    priv->uap_host_based) {
@@ -242,6 +250,33 @@ int woal_get_active_intf_freq(moal_private *priv)
 		return priv->conn_chan.center_freq;
 	}
 #endif
+
+#ifdef WIFI_DIRECT_SUPPORT
+#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
+	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i] &&
+			    handle->priv[i]->bss_type ==
+				    MLAN_BSS_TYPE_WIFIDIRECT) {
+				pmpriv = handle->priv[i];
+				if (pmpriv->bss_role == MLAN_BSS_ROLE_STA &&
+				    pmpriv->media_connected == MTRUE &&
+				    pmpriv->sme_current.ssid_len) {
+					return pmpriv->conn_chan.center_freq;
+				}
+				if (pmpriv->bss_role == MLAN_BSS_ROLE_UAP &&
+				    pmpriv->bss_started &&
+				    pmpriv->uap_host_based) {
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+					return pmpriv->chan.chan->center_freq;
+#endif
+				}
+			}
+		}
+	}
+#endif
+#endif
+
 	return 0;
 }
 
@@ -1238,7 +1273,8 @@ int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 #endif /* WIFI_DIRECT_SUPPORT */
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 			woal_cfg80211_del_beacon(wiphy, dev, 0);
 #else
 			woal_cfg80211_del_beacon(wiphy, dev);
@@ -2235,7 +2271,8 @@ done:
  * @return                0 -- success, otherwise fail
  */
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 				   unsigned int link_id,
 #endif
 				   const u8 *peer,
@@ -5046,7 +5083,8 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0, 0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && IMX_ANDROID_13))
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0, 0);
-#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                  \
+       IMX_ANDROID_13 || IMX_ANDROID_12_BACKPORT)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0);
 #else
 		cfg80211_ch_switch_notify(priv->netdev, &chandef);

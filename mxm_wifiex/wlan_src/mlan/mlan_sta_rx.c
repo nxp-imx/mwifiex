@@ -741,6 +741,13 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		       rxpd_rate_info_orig, prx_pd->rate_info);
 	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
+	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
+		PRINTM_NETINTF(MDAT_D, priv);
+		PRINTM(MDAT_D, "Easymesh flags : 0x%x\n", prx_pd->flags);
+		ret = wlan_check_easymesh_pkt(priv, pmbuf, prx_pd);
+		if (ret != MLAN_STATUS_SUCCESS)
+			goto done;
+	}
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) !=

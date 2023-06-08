@@ -588,6 +588,12 @@ mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
 				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
 
+#if defined(UAP_CFG80211)
+#if defined(STA_WEXT) || defined(UAP_WEXT)
+int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq);
+#endif
+#endif
+
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 			     IEEEtypes_VHTCap_t *vhtcap_ie);
 int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,

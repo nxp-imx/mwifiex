@@ -66,6 +66,10 @@
 
 #define MRVL_PKT_TYPE_MGMT_FRAME 0xE5
 
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+#define MRVL_PKT_TYPE_MGMT_EASYMESH 0xCF
+#endif
+
 mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 				  t_u32 cipher, const t_u8 *key, int key_len,
 				  const t_u8 *seq, int seq_len, t_u8 key_index,
@@ -161,7 +165,8 @@ int woal_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 				   unsigned int link_id,
 #endif
 				   const u8 *peer,
@@ -440,7 +445,8 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct beacon_parameters *params);
 #endif
 
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     unsigned int link_id);
 #else
