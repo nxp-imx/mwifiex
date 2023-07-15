@@ -398,6 +398,7 @@ void wlan_11n_send_delba_to_peer(mlan_private *priv, t_u8 *ra)
 			    MLAN_MAC_ADDR_LENGTH)) {
 			PRINTM(MIOCTL, "Tx:Send delba to tid=%d, " MACSTR "\n",
 			       ptx_tbl->tid, MAC2STR(ptx_tbl->ra));
+			ptx_tbl->ba_status = BA_STREAM_SENT_DELBA;
 			wlan_send_delba(priv, MNULL, ptx_tbl->tid, ptx_tbl->ra,
 					1);
 		}
@@ -469,6 +470,7 @@ static void wlan_11n_update_addba_request(mlan_private *priv)
 	}
 
 	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
+		ptx_tbl->ba_status = BA_STREAM_SETUP_SENT_ADDBA;
 		wlan_send_addba(priv, ptx_tbl->tid, ptx_tbl->ra);
 		ptx_tbl = ptx_tbl->pnext;
 	}
@@ -759,6 +761,8 @@ static mlan_status wlan_send_delba_to_entry_in_txbastream_tbl(
 			     !memcmp(pmadapter, peer_address,
 				     tx_ba_stream_tbl_ptr->ra,
 				     MLAN_MAC_ADDR_LENGTH))) {
+				tx_ba_stream_tbl_ptr->ba_status =
+					BA_STREAM_SENT_DELBA;
 				if (last_tx_ba_to_delete &&
 				    (tx_ba_stream_tbl_ptr ==
 				     last_tx_ba_to_delete))
@@ -1022,6 +1026,8 @@ static void wlan_send_delba_txbastream_tbl(pmlan_private priv, t_u8 tid)
 				PRINTM(MIOCTL,
 				       "Tx:Send delba to tid=%d, " MACSTR "\n",
 				       tid, MAC2STR(tx_ba_stream_tbl_ptr->ra));
+				tx_ba_stream_tbl_ptr->ba_status =
+					BA_STREAM_SENT_DELBA;
 				wlan_release_ralist_lock(priv);
 				wlan_send_delba(priv, MNULL,
 						tx_ba_stream_tbl_ptr->tid,
@@ -1531,7 +1537,7 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDIW62X(pmadapter->card_type) ||
+	    IS_CARDIW624(pmadapter->card_type) ||
 	    IS_CARD9097(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
@@ -1604,7 +1610,7 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
 	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDIW62X(pmadapter->card_type) ||
+	    IS_CARDIW624(pmadapter->card_type) ||
 	    IS_CARD9097(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
@@ -1754,8 +1760,12 @@ mlan_status wlan_ret_11n_delba(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		ptx_ba_tbl = wlan_11n_get_txbastream_status(
 			priv, BA_STREAM_SETUP_INPROGRESS);
 		wlan_release_ralist_lock(priv);
-		if (ptx_ba_tbl)
+		if (ptx_ba_tbl) {
+			/* mark this txba stream as waiting addba resp, in case
+			 * we send duplicate addba req command */
+			ptx_ba_tbl->ba_status = BA_STREAM_SETUP_SENT_ADDBA;
 			wlan_send_addba(priv, ptx_ba_tbl->tid, ptx_ba_tbl->ra);
+		}
 	} else { /*
 		  * In case of failure, recreate
 		  * the deleted stream in case
@@ -1763,11 +1773,11 @@ mlan_status wlan_ret_11n_delba(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		  */
 		if (INITIATOR_BIT(pdel_ba->del_ba_param_set)) {
 			wlan_request_ralist_lock(priv);
-			if (!wlan_11n_get_txbastream_tbl(
-				    priv, tid, pdel_ba->peer_mac_addr, MFALSE))
-				wlan_11n_create_txbastream_tbl(
-					priv, pdel_ba->peer_mac_addr, tid,
-					BA_STREAM_SETUP_INPROGRESS);
+			wlan_11n_set_txbastream_status(priv, tid,
+						       pdel_ba->peer_mac_addr,
+						       BA_STREAM_SETUP_COMPLETE,
+						       MFALSE);
+
 			ptx_ba_tbl = wlan_11n_get_txbastream_status(
 				priv, BA_STREAM_SETUP_INPROGRESS);
 			wlan_release_ralist_lock(priv);
@@ -1866,12 +1876,27 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 				BA_STREAM_NOT_ALLOWED;
 
 		} else {
+			t_u8 event_buf[256];
+			mlan_event *pevent = (mlan_event *)event_buf;
+			addba_timeout_event *evtbuf =
+				(addba_timeout_event *)pevent->event_buf;
 			if (ra_list) {
 				ra_list->packet_count = 0;
 				ra_list->ba_packet_threshold =
 					wlan_get_random_ba_threshold(
 						priv->adapter);
 			}
+			memset(priv->adapter, event_buf, 0x00,
+			       sizeof(event_buf));
+			pevent->bss_index = priv->bss_index;
+			pevent->event_id = MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT;
+			pevent->event_len = sizeof(addba_timeout_event);
+			memcpy_ext(priv->adapter, evtbuf->peer_mac_addr,
+				   padd_ba_rsp->peer_mac_addr,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+			evtbuf->tid = tid;
+			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT,
+					pevent);
 		}
 	}
 
@@ -2871,6 +2896,58 @@ TxBAStreamTbl *wlan_11n_get_txbastream_tbl(mlan_private *priv, int tid,
 }
 
 /**
+ *  @brief This function will set ba_status txbastream entry with
+ *       given RA/TID.
+ *
+ *  @param priv      A pointer to mlan_private
+ *  @param ra        RA to find in txbastream
+ *  @param tid       TID to find in txbastream
+ *  @param ba_status BA stream status
+ *
+ *  @return          N/A
+ */
+void wlan_11n_set_txbastream_status(mlan_private *priv, int tid, t_u8 *ra,
+				    baStatus_e ba_status, int lock)
+{
+	TxBAStreamTbl *ptx_tbl;
+	pmlan_adapter pmadapter = priv->adapter;
+
+	ENTER();
+
+	if (lock)
+		wlan_request_ralist_lock(priv);
+	ptx_tbl = (TxBAStreamTbl *)util_peek_list(pmadapter->pmoal_handle,
+						  &priv->tx_ba_stream_tbl_ptr,
+						  MNULL, MNULL);
+	if (!ptx_tbl) {
+		if (lock)
+			wlan_release_ralist_lock(priv);
+		LEAVE();
+		return;
+	}
+
+	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
+		PRINTM(MDAT_D, "get_txbastream_tbl TID %d\n", ptx_tbl->tid);
+		DBG_HEXDUMP(MDAT_D, "RA", ptx_tbl->ra, MLAN_MAC_ADDR_LENGTH);
+
+		if ((!memcmp(pmadapter, ptx_tbl->ra, ra,
+			     MLAN_MAC_ADDR_LENGTH)) &&
+		    (ptx_tbl->tid == tid)) {
+			ptx_tbl->ba_status = ba_status;
+			if (lock)
+				wlan_release_ralist_lock(priv);
+			LEAVE();
+			return;
+		}
+		ptx_tbl = ptx_tbl->pnext;
+	}
+	if (lock)
+		wlan_release_ralist_lock(priv);
+	LEAVE();
+	return;
+}
+
+/**
  *  @brief This function will create a entry in tx ba stream table for the
  *          given RA/TID.
  *
@@ -2939,8 +3016,8 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 
 	ENTER();
 
-	PRINTM(MCMND, "Send addba: TID %d\n", tid);
-	DBG_HEXDUMP(MCMD_D, "Send addba RA", peer_mac, MLAN_MAC_ADDR_LENGTH);
+	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
+	       MAC2STR(peer_mac));
 
 	add_ba_req.block_ack_param_set = (t_u16)(
 		(tid << BLOCKACKPARAM_TID_POS) |
@@ -2987,6 +3064,9 @@ int wlan_send_delba(mlan_private *priv, pmlan_ioctl_req pioctl_req, int tid,
 	mlan_status ret;
 
 	ENTER();
+
+	PRINTM(MCMND, "Send delba: TID %d initiator=%d, " MACSTR "\n", tid,
+	       initiator, MAC2STR(peer_mac));
 
 	memset(priv->adapter, &delba, 0, sizeof(delba));
 	delba.del_ba_param_set = (tid << DELBA_TID_POS);

@@ -426,7 +426,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	phecap->type = wlan_cpu_to_le16(phecap->type);
 	phecap->len = wlan_cpu_to_le16(phecap->len);
 	if (IS_CARD9098(pmpriv->adapter->card_type) ||
-	    IS_CARDIW62X(pmpriv->adapter->card_type) ||
+	    IS_CARDIW624(pmpriv->adapter->card_type) ||
 	    IS_CARD9097(pmpriv->adapter->card_type)) {
 		if (pbss_desc->bss_band & band_selected) {
 			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
@@ -892,6 +892,10 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		(mlan_ds_11ax_txomi_cmd *)&ds_11ax_cmd->param;
 	mlan_ds_11ax_toltime_cmd *toltime_cmd =
 		(mlan_ds_11ax_toltime_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_set_bsrp_cmd *set_bsrp_cmd =
+		(mlan_ds_11ax_set_bsrp_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_llde_cmd *llde_cmd =
+		(mlan_ds_11ax_llde_cmd *)&ds_11ax_cmd->param;
 	MrvlIEtypes_Data_t *tlv = MNULL;
 
 	ENTER();
@@ -933,6 +937,16 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		memcpy_ext(pmadapter, axcmd->val, &toltime_cmd->tol_time,
 			   sizeof(t_u32), sizeof(t_u32));
 		cmd->size += sizeof(t_u32);
+		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		axcmd->val[0] = set_bsrp_cmd->value;
+		cmd->size += sizeof(t_u8);
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, axcmd->val, &llde_cmd->llde,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_llde_cmd);
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", ds_11ax_cmd->sub_id);
@@ -1009,6 +1023,14 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.toltime_cfg.tol_time,
 			   axcmd->val, sizeof(t_u32), sizeof(t_u32));
+		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		cfg->param.setbsrp_cfg.value = *axcmd->val;
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, &cfg->param.llde_cfg.llde, axcmd->val,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", axcmd->sub_id);

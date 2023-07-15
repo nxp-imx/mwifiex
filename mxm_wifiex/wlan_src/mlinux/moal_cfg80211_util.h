@@ -612,6 +612,7 @@ typedef enum wifi_attr {
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX = 8,
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE = 9,
 	ATTR_GET_CONCURRENCY_MATRIX_SET = 10,
+	ATTR_SCAN_BAND_SET = 11,
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
@@ -707,6 +708,7 @@ enum vendor_sub_command {
 	sub_cmd_stop_keep_alive = 0x0004,
 	sub_cmd_dfs_capability = 0x0005,
 	sub_cmd_set_scan_mac_oui = 0x0007,
+	sub_cmd_set_scan_band = 0x0008,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,

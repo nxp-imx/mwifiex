@@ -34,9 +34,6 @@ Change log:
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
 #include "mlan_11ax.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 		Local Variables
@@ -510,9 +507,6 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	t_u8 appletalk_aarp_type[2] = {0x80, 0xf3};
 	t_u8 ipx_snap_type[2] = {0x81, 0x37};
 	t_u8 tdls_action_type[2] = {0x89, 0x0d};
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	t_u8 eapol_type[2] = {0x88, 0x8e};
-#endif
 	t_u8 ext_rate_info = 0;
 
 	ENTER();
@@ -632,23 +626,6 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		}
 	}
 
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	if (supplicantIsEnabled(priv->psapriv) &&
-	    (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len, eapol_type,
-		     sizeof(eapol_type)))) {
-		// BML_SET_OFFSET(bufDesc, offset);
-		if (ProcessEAPoLPkt(priv->psapriv, pmbuf)) {
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-			ret = MLAN_STATUS_SUCCESS;
-			PRINTM(MMSG,
-			       "host supplicant eapol pkt process done.\n");
-
-			LEAVE();
-			return ret;
-		}
-	}
-#endif
-
 mon_process:
 	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
 		// Use some rxpd space to save rxpd info for radiotap header
@@ -711,7 +688,8 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	wlan_802_11_header *pwlan_hdr;
 	IEEEtypes_FrameCtl_t *frmctl;
 	pmlan_buffer pmbuf2 = MNULL;
-	mlan_802_11_mac_addr src_addr, dest_addr;
+	mlan_802_11_mac_addr dest_addr = {0x00};
+	mlan_802_11_mac_addr src_addr = {0x00};
 	t_u16 hdr_len;
 	t_u8 snap_eth_hdr[5] = {0xaa, 0xaa, 0x03, 0x00, 0x00};
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
@@ -741,13 +719,6 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		       rxpd_rate_info_orig, prx_pd->rate_info);
 	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
-	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
-		PRINTM_NETINTF(MDAT_D, priv);
-		PRINTM(MDAT_D, "Easymesh flags : 0x%x\n", prx_pd->flags);
-		ret = wlan_check_easymesh_pkt(priv, pmbuf, prx_pd);
-		if (ret != MLAN_STATUS_SUCCESS)
-			goto done;
-	}
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) !=

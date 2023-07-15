@@ -87,6 +87,10 @@ void wlan_11n_deleteall_txbastream_tbl(mlan_private *priv);
 /** Get Tx BA stream table */
 TxBAStreamTbl *wlan_11n_get_txbastream_tbl(mlan_private *priv, int tid,
 					   t_u8 *ra, int lock);
+/** Set Tx BA stream table  BA status */
+void wlan_11n_set_txbastream_status(mlan_private *priv, int tid, t_u8 *ra,
+				    baStatus_e ba_status, int lock);
+
 /** Create Tx BA stream table */
 void wlan_11n_create_txbastream_tbl(mlan_private *priv, t_u8 *ra, int tid,
 				    baStatus_e ba_status);
@@ -376,14 +380,14 @@ static INLINE t_u8 wlan_find_stream_to_delete(mlan_private *priv,
 	tid = priv->aggr_prio_tbl[ptr_tid].ampdu_user;
 
 	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
-		if (tid > priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user) {
+		if ((ptx_tbl->ba_status == BA_STREAM_SETUP_COMPLETE) &&
+		    (tid > priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user)) {
 			tid = priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user;
 			*ptid = ptx_tbl->tid;
 			memcpy_ext(priv->adapter, ra, ptx_tbl->ra,
 				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			ret = MTRUE;
 		}
-
 		ptx_tbl = ptx_tbl->pnext;
 	}
 	LEAVE();

@@ -95,10 +95,6 @@ mlan_status moal_init_lock(t_void *pmoal, t_void **pplock);
 mlan_status moal_free_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock);
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-mlan_status moal_wait_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-mlan_status moal_notify_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-#endif
 t_void moal_print(t_void *pmoal, t_u32 level, char *pformat, IN...);
 t_void moal_print_netintf(t_void *pmoal, t_u32 bss_index, t_u32 level);
 t_void moal_assert(t_void *pmoal, t_u32 cond);

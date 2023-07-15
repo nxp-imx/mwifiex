@@ -39,9 +39,6 @@ Change log:
 #include "mlan_11ac.h"
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 /********************************************************
 			Local Constants
 ********************************************************/
@@ -1041,9 +1038,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	t_u32 rates_size;
 	t_u16 tmp_cap;
 	t_u8 *pos;
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	void *rsn_wpa_ie_tmp = MNULL;
-#endif
 	t_u8 ft_akm = 0;
 	t_u8 oper_class;
 	t_u8 oper_class_flag = MFALSE;
@@ -1051,7 +1045,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
 	MrvlIEtypes_PrevBssid_t *prev_bssid_tlv = MNULL;
 	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
-	MrvlIEtypes_MultiAp_t *multi_ap_tlv = MNULL;
 
 	ENTER();
 
@@ -1258,25 +1251,11 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			       psecurity_cfg_ie->header.len;
 			psecurity_cfg_ie->header.len =
 				wlan_cpu_to_le16(psecurity_cfg_ie->header.len);
-		}
-#ifdef DRV_EMBEDDED_SUPPLICANT
-		else if (supplicantIsEnabled(pmpriv->psapriv)) {
-			supplicantClrEncryptKey(pmpriv->psapriv);
-
-			if (pbss_desc->prsn_ie)
-				rsn_wpa_ie_tmp = pbss_desc->prsn_ie;
-			else if (pbss_desc->pwpa_ie)
-				rsn_wpa_ie_tmp = pbss_desc->pwpa_ie;
-			prsn_ie_tlv = (MrvlIEtypes_RsnParamSet_t *)pos;
-			pos += supplicantFormatRsnWpaTlv(
-				pmpriv->psapriv, rsn_wpa_ie_tmp, prsn_ie_tlv);
-		}
-#endif
-		else if (pmpriv->sec_info.ewpa_enabled ||
-			 (pbss_desc->owe_transition_mode ==
-			  OWE_TRANS_MODE_OWE) ||
-			 (pmpriv->sec_info.authentication_mode ==
-			  MLAN_AUTH_MODE_OWE)) {
+		} else if (pmpriv->sec_info.ewpa_enabled ||
+			   (pbss_desc->owe_transition_mode ==
+			    OWE_TRANS_MODE_OWE) ||
+			   (pmpriv->sec_info.authentication_mode ==
+			    MLAN_AUTH_MODE_OWE)) {
 			prsn_ie_tlv = (MrvlIEtypes_RsnParamSet_t *)pos;
 			if (pbss_desc->pwpa_ie) {
 				prsn_ie_tlv->header.type =
@@ -1448,6 +1427,13 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc))
 		wlan_cmd_append_11ax_tlv(pmpriv, pbss_desc, &pos);
 
+	if ((!pbss_desc->disable_11n) &&
+	    (ISSUPP_11NENABLED(pmadapter->fw_cap_info) ||
+	     ISSUPP_11ACENABLED(pmadapter->fw_cap_info) ||
+	     IS_FW_SUPPORT_11AX(pmadapter))) {
+		PRINTM(MCMND, "STBC NOT supported, Will be disabled\n");
+	}
+
 	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie);
 	if (pmpriv->sec_info.wapi_enabled && pmpriv->wapi_ie_len)
 		wlan_cmd_append_wapi_ie(pmpriv, &pos);
@@ -1486,18 +1472,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		PRINTM(MCMND, "ASSOCIATE: PREV_BSSID = " MACSTR "\n",
 		       MAC2STR(pmpriv->curr_bss_params.prev_bssid));
 		pos += sizeof(prev_bssid_tlv->header) + MLAN_MAC_ADDR_LENGTH;
-	}
-
-	if (pmpriv->multi_ap_flag) {
-		multi_ap_tlv = (MrvlIEtypes_MultiAp_t *)pos;
-		multi_ap_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_MULTI_AP);
-		multi_ap_tlv->header.len = sizeof(multi_ap_tlv->flag);
-		multi_ap_tlv->flag = pmpriv->multi_ap_flag;
-		PRINTM(MINFO, " TLV multi_ap_flag : 0x%x\n",
-		       multi_ap_tlv->flag);
-		pos += sizeof(multi_ap_tlv->header) + multi_ap_tlv->header.len;
-		multi_ap_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(multi_ap_tlv->flag));
 	}
 
 	if (wlan_11d_create_dnld_countryinfo(pmpriv, pbss_desc->bss_band)) {
@@ -1715,7 +1689,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	/* Send a Media Connected event, according to the Spec */
 	pmpriv->media_connected = MTRUE;
-	pmpriv->multi_ap_flag = 0;
 	pmpriv->adapter->pps_uapsd_mode = MFALSE;
 	pmpriv->adapter->tx_lock_flag = MFALSE;
 	pmpriv->adapter->delay_null_pkt = MFALSE;
@@ -1857,11 +1830,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	if (!pmpriv->sec_info.wpa_enabled && !pmpriv->sec_info.wpa2_enabled &&
 	    !pmpriv->sec_info.ewpa_enabled && !pmpriv->sec_info.wapi_enabled &&
-	    !pmpriv->wps.session_enable && !pmpriv->sec_info.osen_enabled
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	    && !supplicantIsEnabled(pmpriv->psapriv)
-#endif
-	) {
+	    !pmpriv->wps.session_enable && !pmpriv->sec_info.osen_enabled) {
 		/* We are in Open/WEP mode, open port immediately */
 		if (pmpriv->port_ctrl_mode == MTRUE) {
 			pmpriv->port_open = MTRUE;
@@ -1870,21 +1839,8 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	}
 	if (pmpriv->sec_info.wpa_enabled || pmpriv->sec_info.wpa2_enabled ||
 	    pmpriv->sec_info.ewpa_enabled || pmpriv->sec_info.wapi_enabled ||
-	    pmpriv->wps.session_enable || pmpriv->sec_info.osen_enabled
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	    || (supplicantIsEnabled(pmpriv->psapriv))
-#endif
-	)
+	    pmpriv->wps.session_enable || pmpriv->sec_info.osen_enabled)
 		pmpriv->adapter->scan_block = MTRUE;
-
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	supplicantInitSession(
-		pmpriv->psapriv,
-		(t_u8 *)&pmpriv->curr_bss_params.bss_descriptor.ssid.ssid,
-		pmpriv->curr_bss_params.bss_descriptor.ssid.ssid_len,
-		(t_u8 *)&pmpriv->curr_bss_params.bss_descriptor.mac_address,
-		(t_u8 *)&pmpriv->curr_addr);
-#endif
 
 	pevent = (mlan_event *)event_buf;
 	memset(pmadapter, event_buf, 0, sizeof(event_buf));

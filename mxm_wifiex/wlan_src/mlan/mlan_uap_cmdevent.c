@@ -40,9 +40,6 @@ Change log:
 #include "mlan_11h.h"
 #include "mlan_11ac.h"
 #include "mlan_11ax.h"
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-#include "authenticator_api.h"
-#endif
 #ifdef PCIE
 #include "mlan_pcie.h"
 #endif /* PCIE */
@@ -210,13 +207,9 @@ static mlan_status uap_process_cmdresp_error(mlan_private *pmpriv,
 	 */
 	switch (resp->command) {
 #ifdef SDIO
-	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
-		pmadapter->pcard_sd->sdio_rx_aggr_enable = MFALSE;
-		PRINTM(MMSG, "FW don't support SDIO single port rx aggr\n");
-		break;
 #endif
 
-	case HOST_CMD_APCMD_SYS_CONFIGURE: {
+	case HostCmd_CMD_APCMD_SYS_CONFIGURE: {
 		HostCmd_DS_SYS_CONFIG *sys_config =
 			(HostCmd_DS_SYS_CONFIG *)&resp->params.sys_config;
 		t_u16 resp_len = 0, travel_len = 0, index;
@@ -298,10 +291,14 @@ static mlan_status uap_process_cmdresp_error(mlan_private *pmpriv,
 		ret = MLAN_STATUS_SUCCESS;
 		PRINTM(MCMND, "FW don't support chan region cfg command!\n");
 		break;
-#if defined(DRV_EMBEDDED_AUTHENTICATOR)
-	case HostCmd_CMD_CRYPTO:
-		PRINTM(MCMND, "crypto cmd result=0x%x!\n", resp->result);
-		ret = wlan_ret_crypto(pmpriv, resp, pioctl_buf);
+	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
+		if (resp->result == HostCmd_RESULT_BUSY)
+			pmadapter->dbg.num_remain_chan_err++;
+		break;
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_802_11_SCAN_EXT:
+		if (resp->result == HostCmd_RESULT_BUSY)
+			pmadapter->dbg.num_scan_err++;
 		break;
 #endif
 	default:
@@ -708,7 +705,6 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 	MrvlIETypes_HTCap_t *tlv_htcap = MNULL;
 	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter = MNULL;
 	MrvlIEtypes_preamble_t *tlv_preamble = MNULL;
-	MrvlIEtypes_MultiAp_t *tlv_multi_ap = MNULL;
 
 	t_u32 cmd_size = 0;
 	t_u8 zero_mac[] = {0, 0, 0, 0, 0, 0};
@@ -724,7 +720,7 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 
 	bss = (mlan_ds_bss *)pioctl_buf->pbuf;
 
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_SYS_CONFIGURE);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_SYS_CONFIGURE);
 	sys_config->action = wlan_cpu_to_le16(cmd_action);
 	cmd_size = sizeof(HostCmd_DS_SYS_CONFIG) - 1 + S_DS_GEN;
 
@@ -966,67 +962,60 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		tlv += sizeof(MrvlIEtypes_retry_limit_t);
 	}
 
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	if (IS_FW_SUPPORT_AUTHENTICATOR(pmpriv->adapter)) {
-#endif
-		if (bss->param.bss_config.pairwise_update_timeout <
-		    (MAX_VALID_DWORD)) {
-			tlv_pairwise_timeout =
-				(MrvlIEtypes_eapol_pwk_hsk_timeout_t *)tlv;
-			tlv_pairwise_timeout->header.type = wlan_cpu_to_le16(
-				TLV_TYPE_UAP_EAPOL_PWK_HSK_TIMEOUT);
-			tlv_pairwise_timeout->header.len =
-				wlan_cpu_to_le16(sizeof(t_u32));
-			tlv_pairwise_timeout
-				->pairwise_update_timeout = wlan_cpu_to_le32(
+	if (bss->param.bss_config.pairwise_update_timeout < (MAX_VALID_DWORD)) {
+		tlv_pairwise_timeout =
+			(MrvlIEtypes_eapol_pwk_hsk_timeout_t *)tlv;
+		tlv_pairwise_timeout->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_UAP_EAPOL_PWK_HSK_TIMEOUT);
+		tlv_pairwise_timeout->header.len =
+			wlan_cpu_to_le16(sizeof(t_u32));
+		tlv_pairwise_timeout->pairwise_update_timeout =
+			wlan_cpu_to_le32(
 				bss->param.bss_config.pairwise_update_timeout);
-			cmd_size += sizeof(MrvlIEtypes_eapol_pwk_hsk_timeout_t);
-			tlv += sizeof(MrvlIEtypes_eapol_pwk_hsk_timeout_t);
-		}
-
-		if (bss->param.bss_config.pwk_retries < (MAX_VALID_DWORD)) {
-			tlv_pairwise_retries =
-				(MrvlIEtypes_eapol_pwk_hsk_retries_t *)tlv;
-			tlv_pairwise_retries->header.type = wlan_cpu_to_le16(
-				TLV_TYPE_UAP_EAPOL_PWK_HSK_RETRIES);
-			tlv_pairwise_retries->header.len =
-				wlan_cpu_to_le16(sizeof(t_u32));
-			tlv_pairwise_retries->pwk_retries = wlan_cpu_to_le32(
-				bss->param.bss_config.pwk_retries);
-			cmd_size += sizeof(MrvlIEtypes_eapol_pwk_hsk_retries_t);
-			tlv += sizeof(MrvlIEtypes_eapol_pwk_hsk_retries_t);
-		}
-
-		if (bss->param.bss_config.groupwise_update_timeout <
-		    (MAX_VALID_DWORD)) {
-			tlv_groupwise_timeout =
-				(MrvlIEtypes_eapol_gwk_hsk_timeout_t *)tlv;
-			tlv_groupwise_timeout->header.type = wlan_cpu_to_le16(
-				TLV_TYPE_UAP_EAPOL_GWK_HSK_TIMEOUT);
-			tlv_groupwise_timeout->header.len =
-				wlan_cpu_to_le16(sizeof(t_u32));
-			tlv_groupwise_timeout
-				->groupwise_update_timeout = wlan_cpu_to_le32(
-				bss->param.bss_config.groupwise_update_timeout);
-			cmd_size += sizeof(MrvlIEtypes_eapol_gwk_hsk_timeout_t);
-			tlv += sizeof(MrvlIEtypes_eapol_gwk_hsk_timeout_t);
-		}
-
-		if (bss->param.bss_config.gwk_retries < (MAX_VALID_DWORD)) {
-			tlv_groupwise_retries =
-				(MrvlIEtypes_eapol_gwk_hsk_retries_t *)tlv;
-			tlv_groupwise_retries->header.type = wlan_cpu_to_le16(
-				TLV_TYPE_UAP_EAPOL_GWK_HSK_RETRIES);
-			tlv_groupwise_retries->header.len =
-				wlan_cpu_to_le16(sizeof(t_u32));
-			tlv_groupwise_retries->gwk_retries = wlan_cpu_to_le32(
-				bss->param.bss_config.gwk_retries);
-			cmd_size += sizeof(MrvlIEtypes_eapol_gwk_hsk_retries_t);
-			tlv += sizeof(MrvlIEtypes_eapol_gwk_hsk_retries_t);
-		}
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
+		cmd_size += sizeof(MrvlIEtypes_eapol_pwk_hsk_timeout_t);
+		tlv += sizeof(MrvlIEtypes_eapol_pwk_hsk_timeout_t);
 	}
-#endif
+
+	if (bss->param.bss_config.pwk_retries < (MAX_VALID_DWORD)) {
+		tlv_pairwise_retries =
+			(MrvlIEtypes_eapol_pwk_hsk_retries_t *)tlv;
+		tlv_pairwise_retries->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_UAP_EAPOL_PWK_HSK_RETRIES);
+		tlv_pairwise_retries->header.len =
+			wlan_cpu_to_le16(sizeof(t_u32));
+		tlv_pairwise_retries->pwk_retries =
+			wlan_cpu_to_le32(bss->param.bss_config.pwk_retries);
+		cmd_size += sizeof(MrvlIEtypes_eapol_pwk_hsk_retries_t);
+		tlv += sizeof(MrvlIEtypes_eapol_pwk_hsk_retries_t);
+	}
+
+	if (bss->param.bss_config.groupwise_update_timeout <
+	    (MAX_VALID_DWORD)) {
+		tlv_groupwise_timeout =
+			(MrvlIEtypes_eapol_gwk_hsk_timeout_t *)tlv;
+		tlv_groupwise_timeout->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_UAP_EAPOL_GWK_HSK_TIMEOUT);
+		tlv_groupwise_timeout->header.len =
+			wlan_cpu_to_le16(sizeof(t_u32));
+		tlv_groupwise_timeout->groupwise_update_timeout =
+			wlan_cpu_to_le32(
+				bss->param.bss_config.groupwise_update_timeout);
+		cmd_size += sizeof(MrvlIEtypes_eapol_gwk_hsk_timeout_t);
+		tlv += sizeof(MrvlIEtypes_eapol_gwk_hsk_timeout_t);
+	}
+
+	if (bss->param.bss_config.gwk_retries < (MAX_VALID_DWORD)) {
+		tlv_groupwise_retries =
+			(MrvlIEtypes_eapol_gwk_hsk_retries_t *)tlv;
+		tlv_groupwise_retries->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_UAP_EAPOL_GWK_HSK_RETRIES);
+		tlv_groupwise_retries->header.len =
+			wlan_cpu_to_le16(sizeof(t_u32));
+		tlv_groupwise_retries->gwk_retries =
+			wlan_cpu_to_le32(bss->param.bss_config.gwk_retries);
+		cmd_size += sizeof(MrvlIEtypes_eapol_gwk_hsk_retries_t);
+		tlv += sizeof(MrvlIEtypes_eapol_gwk_hsk_retries_t);
+	}
 	if ((bss->param.bss_config.filter.filter_mode <=
 	     MAC_FILTER_MODE_BLOCK_MAC) &&
 	    (bss->param.bss_config.filter.mac_count <= MAX_MAC_FILTER_NUM)) {
@@ -1100,6 +1089,10 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		tlv_auth_type->header.len =
 			wlan_cpu_to_le16(sizeof(MrvlIEtypes_auth_type_t) -
 					 sizeof(MrvlIEtypesHeader_t));
+		tlv_auth_type->PWE_derivation =
+			bss->param.bss_config.pwe_derivation;
+		tlv_auth_type->transition_disable =
+			bss->param.bss_config.transition_disable;
 		tlv_auth_type->auth_type =
 			(t_u8)bss->param.bss_config.auth_mode;
 		cmd_size += sizeof(MrvlIEtypes_auth_type_t);
@@ -1190,49 +1183,34 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 			tlv += sizeof(MrvlIEtypes_rsn_replay_prot_t);
 		}
 
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		if (IS_FW_SUPPORT_AUTHENTICATOR(pmpriv->adapter)) {
-#endif
-			if (bss->param.bss_config.wpa_cfg.length) {
-				tlv_passphrase =
-					(MrvlIEtypes_passphrase_t *)tlv;
-				tlv_passphrase->header.type = wlan_cpu_to_le16(
-					TLV_TYPE_UAP_WPA_PASSPHRASE);
-				tlv_passphrase->header
-					.len = (t_u16)wlan_cpu_to_le16(
-					bss->param.bss_config.wpa_cfg.length);
-				memcpy_ext(
-					pmpriv->adapter,
-					tlv_passphrase->passphrase,
-					bss->param.bss_config.wpa_cfg.passphrase,
-					bss->param.bss_config.wpa_cfg.length,
-					bss->param.bss_config.wpa_cfg.length);
-				cmd_size +=
-					sizeof(MrvlIEtypesHeader_t) +
-					bss->param.bss_config.wpa_cfg.length;
-				tlv += sizeof(MrvlIEtypesHeader_t) +
-				       bss->param.bss_config.wpa_cfg.length;
-			}
-
-			if (bss->param.bss_config.wpa_cfg.gk_rekey_time <
-			    MAX_GRP_TIMER) {
-				tlv_rekey_time =
-					(MrvlIEtypes_group_rekey_time_t *)tlv;
-				tlv_rekey_time->header.type = wlan_cpu_to_le16(
-					TLV_TYPE_UAP_GRP_REKEY_TIME);
-				tlv_rekey_time->header.len =
-					wlan_cpu_to_le16(sizeof(t_u32));
-				tlv_rekey_time->gk_rekey_time =
-					wlan_cpu_to_le32(
-						bss->param.bss_config.wpa_cfg
-							.gk_rekey_time);
-				cmd_size +=
-					sizeof(MrvlIEtypes_group_rekey_time_t);
-				tlv += sizeof(MrvlIEtypes_group_rekey_time_t);
-			}
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
+		if (bss->param.bss_config.wpa_cfg.length) {
+			tlv_passphrase = (MrvlIEtypes_passphrase_t *)tlv;
+			tlv_passphrase->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_UAP_WPA_PASSPHRASE);
+			tlv_passphrase->header.len = (t_u16)wlan_cpu_to_le16(
+				bss->param.bss_config.wpa_cfg.length);
+			memcpy_ext(pmpriv->adapter, tlv_passphrase->passphrase,
+				   bss->param.bss_config.wpa_cfg.passphrase,
+				   bss->param.bss_config.wpa_cfg.length,
+				   bss->param.bss_config.wpa_cfg.length);
+			cmd_size += sizeof(MrvlIEtypesHeader_t) +
+				    bss->param.bss_config.wpa_cfg.length;
+			tlv += sizeof(MrvlIEtypesHeader_t) +
+			       bss->param.bss_config.wpa_cfg.length;
 		}
-#endif
+
+		if (bss->param.bss_config.wpa_cfg.gk_rekey_time <
+		    MAX_GRP_TIMER) {
+			tlv_rekey_time = (MrvlIEtypes_group_rekey_time_t *)tlv;
+			tlv_rekey_time->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_UAP_GRP_REKEY_TIME);
+			tlv_rekey_time->header.len =
+				wlan_cpu_to_le16(sizeof(t_u32));
+			tlv_rekey_time->gk_rekey_time = wlan_cpu_to_le32(
+				bss->param.bss_config.wpa_cfg.gk_rekey_time);
+			cmd_size += sizeof(MrvlIEtypes_group_rekey_time_t);
+			tlv += sizeof(MrvlIEtypes_group_rekey_time_t);
+		}
 	} else {
 		if ((bss->param.bss_config.wep_cfg.key0.length) &&
 		    ((bss->param.bss_config.wep_cfg.key0.length == 5) ||
@@ -1342,7 +1320,7 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 			   bss->param.bss_config.supported_mcs_set, 16,
 			   sizeof(tlv_htcap->ht_cap.supported_mcs_set));
 		if (IS_CARD9098(pmpriv->adapter->card_type) ||
-		    IS_CARDIW62X(pmpriv->adapter->card_type) ||
+		    IS_CARDIW624(pmpriv->adapter->card_type) ||
 		    IS_CARD9097(pmpriv->adapter->card_type)) {
 			if (bss->param.bss_config.supported_mcs_set[0]) {
 				if (bss->param.bss_config.bandcfg.chanBand ==
@@ -1441,11 +1419,6 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		cmd_size += sizeof(MrvlIEtypes_wmm_parameter_t);
 		tlv += sizeof(MrvlIEtypes_wmm_parameter_t);
 	}
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	if (!IS_FW_SUPPORT_AUTHENTICATOR(pmpriv->adapter))
-		AuthenticatorBssConfig(pmpriv->psapriv,
-				       (t_u8 *)&bss->param.bss_config, 0, 0, 0);
-#endif
 	if (pmpriv->adapter->pcard_info->v17_fw_api &&
 	    bss->param.bss_config.preamble_type) {
 		tlv_preamble = (MrvlIEtypes_preamble_t *)tlv;
@@ -1459,16 +1432,6 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 
 		cmd_size += sizeof(MrvlIEtypes_preamble_t);
 		tlv += sizeof(MrvlIEtypes_preamble_t);
-	}
-	if (bss->param.bss_config.multi_ap_flag) {
-		/** Add multi AP tlv here */
-		tlv_multi_ap = (MrvlIEtypes_MultiAp_t *)tlv;
-		tlv_multi_ap->header.type = wlan_cpu_to_le16(TLV_TYPE_MULTI_AP);
-		tlv_multi_ap->header.len =
-			wlan_cpu_to_le16(sizeof(tlv_multi_ap->flag));
-		tlv_multi_ap->flag = bss->param.bss_config.multi_ap_flag;
-		cmd_size += sizeof(MrvlIEtypes_MultiAp_t);
-		tlv += sizeof(MrvlIEtypes_MultiAp_t);
 	}
 	cmd->size = (t_u16)wlan_cpu_to_le16(cmd_size);
 	PRINTM(MCMND, "AP config: cmd_size=%d\n", cmd_size);
@@ -1526,7 +1489,7 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 
 	ENTER();
 
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_SYS_CONFIGURE);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_SYS_CONFIGURE);
 	sys_config->action = wlan_cpu_to_le16(cmd_action);
 	cmd->size =
 		wlan_cpu_to_le16(sizeof(HostCmd_DS_SYS_CONFIG) - 1 + S_DS_GEN);
@@ -2036,6 +1999,7 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 	MrvlIEtypes_gwk_cipher_t *tlv_gwk_cipher = MNULL;
 	MrvlIEtypes_rsn_replay_prot_t *tlv_rsn_prot = MNULL;
 	MrvlIEtypes_passphrase_t *tlv_passphrase = MNULL;
+	MrvlIEtypes_SAE_Password_t *tlv_sae_password = MNULL;
 #ifdef WIFI_DIRECT_SUPPORT
 	MrvlIEtypes_psk_t *tlv_psk = MNULL;
 #endif /* WIFI_DIRECT_SUPPORT */
@@ -2327,6 +2291,18 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 				   sizeof(bss->param.bss_config.wpa_cfg
 						  .passphrase));
 			break;
+		case TLV_TYPE_SAE_PASSWORD:
+			tlv_sae_password = (MrvlIEtypes_SAE_Password_t *)tlv;
+			bss->param.bss_config.wpa_cfg.sae_password_length =
+				MIN(MLAN_PMK_HEXSTR_LENGTH, tlv_len);
+			memcpy_ext(pmpriv->adapter,
+				   bss->param.bss_config.wpa_cfg.sae_password,
+				   tlv_sae_password->sae_password,
+				   bss->param.bss_config.wpa_cfg
+					   .sae_password_length,
+				   sizeof(bss->param.bss_config.wpa_cfg
+						  .sae_password));
+			break;
 #ifdef WIFI_DIRECT_SUPPORT
 		case TLV_TYPE_UAP_PSK:
 			tlv_psk = (MrvlIEtypes_psk_t *)tlv;
@@ -2428,11 +2404,6 @@ static mlan_status wlan_uap_ret_cmd_ap_config(pmlan_private pmpriv,
 		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
 					      sizeof(MrvlIEtypesHeader_t));
 	}
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	if (!IS_FW_SUPPORT_AUTHENTICATOR(pmpriv->adapter))
-		AuthenticatorBssConfig(pmpriv->psapriv,
-				       (t_u8 *)&bss->param.bss_config, 0, 0, 1);
-#endif
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -3027,7 +2998,7 @@ static mlan_status wlan_uap_cmd_bss_start(pmlan_private pmpriv,
 	MrvlIEtypes_HostMlme_t *tlv;
 
 	ENTER();
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_BSS_START);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_BSS_START);
 	cmd->size = S_DS_GEN;
 	if (pmpriv->uap_host_based & UAP_FLAG_HOST_MLME) {
 		tlv = (MrvlIEtypes_HostMlme_t *)((t_u8 *)cmd + cmd->size);
@@ -3265,8 +3236,10 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->rx_stuck_issue_cnt[0]);
 		pget_info->param.stats.rx_stuck_issue_cnt[1] =
 			wlan_le32_to_cpu(pget_log->rx_stuck_issue_cnt[1]);
-		pget_info->param.stats.rx_stuck_recovery_cnt =
-			wlan_le32_to_cpu(pget_log->rx_stuck_recovery_cnt);
+		pget_info->param.stats.rx_stuck_poll_recovery_cnt =
+			wlan_le32_to_cpu(pget_log->rx_stuck_poll_recovery_cnt);
+		pget_info->param.stats.rx_stuck_intr_recovery_cnt =
+			wlan_le32_to_cpu(pget_log->rx_stuck_intr_recovery_cnt);
 		pget_info->param.stats.rx_stuck_tsf[0] =
 			wlan_le64_to_cpu(pget_log->rx_stuck_tsf[0]);
 		pget_info->param.stats.rx_stuck_tsf[1] =
@@ -3428,13 +3401,41 @@ static mlan_status wlan_uap_cmd_sta_deauth(pmlan_private pmpriv,
 	mlan_deauth_param *deauth = (mlan_deauth_param *)pdata_buf;
 
 	ENTER();
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_STA_DEAUTH);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_STA_DEAUTH);
 	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(HostCmd_DS_STA_DEAUTH));
 	memcpy_ext(pmpriv->adapter, pcmd_sta_deauth->mac, deauth->mac_addr,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	pcmd_sta_deauth->reason = wlan_cpu_to_le16(deauth->reason_code);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function send deauth command
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param sta_addr     A pointer to sta mac address
+ *  @param reason_code  reason code
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_send_deauth_cmd(pmlan_private pmpriv, t_u8 *sta_addr,
+					t_u16 reason_code)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_deauth_param param;
+
+	ENTER();
+
+	param.reason_code = reason_code;
+	memcpy_ext(pmpriv->adapter, param.mac_addr, sta_addr,
+		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_STA_DEAUTH,
+			       HostCmd_ACT_GEN_SET, 0, MNULL, (t_void *)&param);
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
 }
 
 /**
@@ -3453,7 +3454,7 @@ static mlan_status wlan_uap_cmd_report_mic(pmlan_private pmpriv,
 		(HostCmd_DS_REPORT_MIC *)&cmd->params.report_mic;
 
 	ENTER();
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_REPORT_MIC);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_REPORT_MIC);
 	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(HostCmd_DS_REPORT_MIC));
 	memcpy_ext(pmpriv->adapter, pcmd_report_mic->mac, pdata_buf,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
@@ -3909,6 +3910,10 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 				priv->is_11ax_enabled = MTRUE;
 			}
 		}
+		if (priv->is_11n_enabled || priv->is_11ac_enabled ||
+		    priv->is_11ax_enabled) {
+			PRINTM(MCMND, "STBC NOT supported, Will be disabled\n");
+		}
 
 		if (tlv_type == VENDOR_SPECIFIC_221) {
 			if (!memcmp(priv->adapter,
@@ -3986,7 +3991,7 @@ static void wlan_check_uap_capability(pmlan_private priv, pmlan_buffer pevent)
 					bandwidth;
 
 				ret = wlan_prepare_cmd(
-					priv, HOST_CMD_APCMD_SYS_CONFIGURE,
+					priv, HostCmd_CMD_APCMD_SYS_CONFIGURE,
 					HostCmd_ACT_GEN_SET, 0, MNULL,
 					&chan_bw_oper);
 				if (ret != MLAN_STATUS_SUCCESS &&
@@ -4209,7 +4214,7 @@ static mlan_status wlan_uap_cmd_oper_ctrl(pmlan_private pmpriv,
 
 	ENTER();
 
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_OPER_CTRL);
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_OPER_CTRL);
 	cmd->size =
 		wlan_cpu_to_le16(sizeof(HostCmd_DS_UAP_OPER_CTRL) + S_DS_GEN);
 	poper_ctl->action = wlan_cpu_to_le16(cmd_action);
@@ -4364,8 +4369,6 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	/* Save station aid for multi-ap */
-	sta_ptr->aid = bss->param.sta_info.aid;
 	memcpy_ext(pmadapter, new_sta->peer_mac, bss->param.sta_info.peer_mac,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if (cmd_action != HostCmd_ACT_ADD_STA)
@@ -4470,16 +4473,16 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 		if (pext_tlv == MNULL) {
 			tlv = (MrvlIEtypesHeader_t *)pos;
 			tlv->type = wlan_cpu_to_le16(EXTENSION);
-			tlv->len = wlan_cpu_to_le16(
-				MIN(sta_ptr->he_cap.ieee_hdr.len,
-				    sizeof(IEEEtypes_HECap_t) -
-					    sizeof(IEEEtypes_Header_t)));
+			tlv->len = MIN(sta_ptr->he_cap.ieee_hdr.len,
+				       sizeof(IEEEtypes_HECap_t) -
+					       sizeof(IEEEtypes_Header_t));
 
 			pos += sizeof(MrvlIEtypesHeader_t);
 			memcpy_ext(pmadapter, pos,
 				   (t_u8 *)&sta_ptr->he_cap.ext_id, tlv->len,
 				   tlv->len);
 			travel_len += sizeof(MrvlIEtypesHeader_t) + tlv->len;
+			tlv->len = wlan_cpu_to_le16(tlv->len);
 		}
 	}
 
@@ -4520,6 +4523,34 @@ done:
 	cmd->size += travel_len;
 	cmd->size = wlan_cpu_to_le16(cmd->size);
 	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief clean up station's ralist and rx_reordering table.
+ *
+ *  @param pmpriv       A pointer to pmlan_private structure
+ *  @param sta_addr     A pointer to station mac address
+ *
+ *  @return             MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static void wlan_clean_up_station(pmlan_private pmpriv, t_u8 *sta_addr)
+{
+	if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled) {
+		wlan_cleanup_reorder_tbl(pmpriv, sta_addr);
+		wlan_11n_cleanup_txbastream_tbl(pmpriv, sta_addr);
+	}
+	wlan_wmm_delete_peer_ralist(pmpriv, sta_addr);
+	return;
+}
+
+static mlan_status wlan_ret_add_station(pmlan_private pmpriv,
+					HostCmd_DS_COMMAND *resp,
+					mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_ADD_STATION *add_sta = &resp->params.sta_info;
+
+	wlan_clean_up_station(pmpriv, add_sta->peer_mac);
 	return MLAN_STATUS_SUCCESS;
 }
 
@@ -4628,23 +4659,19 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 
 	/* Prepare command */
 	switch (cmd_no) {
-	case HostCMD_APCMD_ACS_SCAN:
+	case HostCmd_CMD_APCMD_ACS_SCAN:
 	case HostCmd_CMD_SOFT_RESET:
-	case HOST_CMD_APCMD_BSS_STOP:
-	case HOST_CMD_APCMD_SYS_INFO:
-	case HOST_CMD_APCMD_SYS_RESET:
-	case HOST_CMD_APCMD_STA_LIST:
+	case HostCmd_CMD_APCMD_BSS_STOP:
+	case HostCmd_CMD_APCMD_SYS_INFO:
+	case HostCmd_CMD_APCMD_SYS_RESET:
+	case HostCmd_CMD_APCMD_STA_LIST:
 		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
 		cmd_ptr->size = wlan_cpu_to_le16(S_DS_GEN);
 		break;
-	case HOST_CMD_APCMD_BSS_START:
+	case HostCmd_CMD_APCMD_BSS_START:
 		ret = wlan_uap_cmd_bss_start(pmpriv, cmd_ptr);
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		if (IsAuthenticatorEnabled(pmpriv->psapriv))
-			AuthenticatorBssConfig(pmpriv->psapriv, MNULL, 1, 0, 0);
-#endif
 		break;
-	case HOST_CMD_APCMD_SYS_CONFIGURE:
+	case HostCmd_CMD_APCMD_SYS_CONFIGURE:
 		ret = wlan_uap_cmd_sys_configure(pmpriv, cmd_ptr, cmd_action,
 						 (pmlan_ioctl_req)pioctl_buf,
 						 pdata_buf);
@@ -4694,10 +4721,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_CHAN_REPORT_REQUEST:
 		ret = wlan_11h_cmd_process(pmpriv, cmd_ptr, pdata_buf);
 		break;
-	case HOST_CMD_APCMD_STA_DEAUTH:
+	case HostCmd_CMD_APCMD_STA_DEAUTH:
 		ret = wlan_uap_cmd_sta_deauth(pmpriv, cmd_ptr, pdata_buf);
 		break;
-	case HOST_CMD_APCMD_REPORT_MIC:
+	case HostCmd_CMD_APCMD_REPORT_MIC:
 		ret = wlan_uap_cmd_report_mic(pmpriv, cmd_ptr, pdata_buf);
 		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
@@ -4708,9 +4735,6 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_get_hw_spec(pmpriv, cmd_ptr);
 		break;
 #ifdef SDIO
-	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
-		ret = wlan_cmd_sdio_rx_aggr_cfg(cmd_ptr, cmd_action, pdata_buf);
-		break;
 #endif
 	case HostCmd_CMD_802_11_HS_CFG_ENH:
 		ret = wlan_uap_cmd_802_11_hs_cfg(pmpriv, cmd_ptr, cmd_action,
@@ -4818,16 +4842,16 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						 pdata_buf);
 		break;
 #ifdef WIFI_DIRECT_SUPPORT
-	case HOST_CMD_WIFI_DIRECT_MODE_CONFIG:
+	case HostCmd_CMD_WIFI_DIRECT_MODE_CONFIG:
 		ret = wlan_cmd_wifi_direct_mode(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
 		break;
-	case HOST_CMD_P2P_PARAMS_CONFIG:
+	case HostCmd_CMD_P2P_PARAMS_CONFIG:
 		ret = wlan_cmd_p2p_params_config(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
 		break;
 #endif
-	case HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
+	case HostCmd_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
 		ret = wlan_cmd_gpio_tsf_latch(pmpriv, cmd_ptr, cmd_action,
 					      pioctl_buf, pdata_buf);
 		break;
@@ -4873,7 +4897,7 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
-	case HOST_CMD_APCMD_OPER_CTRL:
+	case HostCmd_CMD_APCMD_OPER_CTRL:
 		ret = wlan_uap_cmd_oper_ctrl(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
 		break;
@@ -4912,7 +4936,7 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		break;
 #endif
 #endif
-	case HOST_CMD_TX_RX_PKT_STATS:
+	case HostCmd_CMD_TX_RX_PKT_STATS:
 		ret = wlan_cmd_tx_rx_pkt_stats(pmpriv, cmd_ptr,
 					       (pmlan_ioctl_req)pioctl_buf,
 					       pdata_buf);
@@ -4933,11 +4957,6 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_boot_sleep(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
 		break;
-#if defined(DRV_EMBEDDED_AUTHENTICATOR)
-	case HostCmd_CMD_CRYPTO:
-		ret = wlan_cmd_crypto(pmpriv, cmd_ptr, cmd_action, pdata_buf);
-		break;
-#endif
 	case HostCmd_CMD_11AX_CFG:
 		ret = wlan_cmd_11ax_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
@@ -4960,6 +4979,14 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_rxabortcfg_ext(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
 		break;
+	case HostCmd_CMD_NAV_MITIGATION_CFG:
+		ret = wlan_cmd_nav_mitigation(pmpriv, cmd_ptr, cmd_action,
+					      pdata_buf);
+		break;
+	case HostCmd_CMD_802_11_LED_CONTROL:
+		ret = wlan_cmd_led_config(pmpriv, cmd_ptr, cmd_action,
+					  pdata_buf);
+		break;
 	case HostCmd_CMD_TX_AMPDU_PROT_MODE:
 		ret = wlan_cmd_tx_ampdu_prot_mode(pmpriv, cmd_ptr, cmd_action,
 						  pdata_buf);
@@ -4976,7 +5003,7 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_cck_desense_cfg(pmpriv, cmd_ptr, cmd_action,
 					       pdata_buf);
 		break;
-	case HostCmd_CHANNEL_TRPC_CONFIG:
+	case HostCmd_CMD_CHANNEL_TRPC_CONFIG:
 		ret = wlan_cmd_get_chan_trpc_config(pmpriv, cmd_ptr, cmd_action,
 						    pdata_buf);
 		break;
@@ -5011,9 +5038,14 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_cross_chip_synch(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
 		break;
-	case HostCmd_DS_GET_SENSOR_TEMP:
+	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
 		break;
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_802_11_SCAN_EXT:
+		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -5060,7 +5092,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 
 	/* Command successful, handle response */
 	switch (cmdresp_no) {
-	case HOST_CMD_APCMD_BSS_STOP:
+	case HostCmd_CMD_APCMD_BSS_STOP:
 		pmpriv->uap_bss_started = MFALSE;
 		/* Timestamp update is required because bss_start after skip_cac
 		 * enabled should not select non-current channel just because
@@ -5085,15 +5117,13 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		if (pmpriv->adapter->state_rdh.stage == RDH_STOP_INTFS)
 			wlan_11h_radar_detected_callback((t_void *)pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		if (IsAuthenticatorEnabled(pmpriv->psapriv)) {
-			AuthenticatorBssConfig(pmpriv->psapriv, MNULL, 0, 1, 0);
-			AuthenticatorkeyClear(pmpriv->psapriv);
-		}
-#endif
 		pmpriv->uap_host_based = 0;
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 		break;
-	case HOST_CMD_APCMD_BSS_START:
+	case HostCmd_CMD_APCMD_BSS_START:
 		if (!pmpriv->intf_state_11h.is_11h_host &&
 		    pmpriv->adapter->state_rdh.stage == RDH_RESTART_INTFS)
 			wlan_11h_radar_detected_callback((t_void *)pmpriv);
@@ -5107,20 +5137,21 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		pmpriv->msdu_in_rx_amsdu_cnt = 0;
 		pmpriv->msdu_in_tx_amsdu_cnt = 0;
 		break;
-	case HOST_CMD_APCMD_SYS_RESET:
+	case HostCmd_CMD_APCMD_SYS_RESET:
 		pmpriv->uap_bss_started = MFALSE;
 		pmpriv->uap_host_based = 0;
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		AuthenitcatorInitBssConfig(pmpriv->psapriv);
-#endif
 		ret = wlan_uap_ret_sys_reset(pmpriv, resp, pioctl_buf);
-		wlan_reset_all_chan_dfs_state(priv, BAND_A, DFS_USABLE);
+		wlan_11h_reset_dfs_checking_chan_dfs_state(priv, DFS_USABLE);
 		wlan_11h_check_update_radar_det_state(pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 		break;
-	case HOST_CMD_APCMD_SYS_INFO:
+	case HostCmd_CMD_APCMD_SYS_INFO:
 		break;
-	case HOST_CMD_APCMD_SYS_CONFIGURE:
+	case HostCmd_CMD_APCMD_SYS_CONFIGURE:
 		ret = wlan_uap_ret_sys_config(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_802_11_PS_MODE_ENH:
@@ -5145,22 +5176,19 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CHAN_REPORT_REQUEST:
 		ret = wlan_11h_cmdresp_process(pmpriv, resp);
 		break;
-	case HOST_CMD_APCMD_STA_DEAUTH:
+	case HostCmd_CMD_APCMD_STA_DEAUTH:
 		break;
-	case HOST_CMD_APCMD_REPORT_MIC:
+	case HostCmd_CMD_APCMD_REPORT_MIC:
 		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		break;
-	case HOST_CMD_APCMD_STA_LIST:
+	case HostCmd_CMD_APCMD_STA_LIST:
 		ret = wlan_uap_ret_sta_list(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_GET_HW_SPEC:
 		ret = wlan_ret_get_hw_spec(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef SDIO
-	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
-		ret = wlan_ret_sdio_rx_aggr_cfg(pmpriv, resp);
-		break;
 #endif
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_ret_cfg_data(pmpriv, resp, pioctl_buf);
@@ -5278,14 +5306,14 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_remain_on_channel(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef WIFI_DIRECT_SUPPORT
-	case HOST_CMD_WIFI_DIRECT_MODE_CONFIG:
+	case HostCmd_CMD_WIFI_DIRECT_MODE_CONFIG:
 		ret = wlan_ret_wifi_direct_mode(pmpriv, resp, pioctl_buf);
 		break;
-	case HOST_CMD_P2P_PARAMS_CONFIG:
+	case HostCmd_CMD_P2P_PARAMS_CONFIG:
 		ret = wlan_ret_p2p_params_config(pmpriv, resp, pioctl_buf);
 		break;
 #endif
-	case HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
+	case HostCmd_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
 		ret = wlan_ret_gpio_tsf_latch(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_802_11_RF_ANTENNA:
@@ -5325,10 +5353,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCMD_APCMD_ACS_SCAN:
+	case HostCmd_CMD_APCMD_ACS_SCAN:
 		ret = wlan_ret_cmd_uap_acs_scan(pmpriv, resp, pioctl_buf);
 		break;
-	case HOST_CMD_APCMD_OPER_CTRL:
+	case HostCmd_CMD_APCMD_OPER_CTRL:
 		ret = wlan_uap_ret_oper_ctrl(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
@@ -5353,7 +5381,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 #endif
 #endif
-	case HOST_CMD_TX_RX_PKT_STATS:
+	case HostCmd_CMD_TX_RX_PKT_STATS:
 		ret = wlan_ret_tx_rx_pkt_stats(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_802_11_LINK_STATS:
@@ -5363,12 +5391,8 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_boot_sleep(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_ADD_NEW_STATION:
+		ret = wlan_ret_add_station(pmpriv, resp, pioctl_buf);
 		break;
-#if defined(DRV_EMBEDDED_AUTHENTICATOR)
-	case HostCmd_CMD_CRYPTO:
-		ret = wlan_ret_crypto(pmpriv, resp, pioctl_buf);
-		break;
-#endif
 	case HostCmd_CMD_11AX_CFG:
 		ret = wlan_ret_11ax_cfg(pmpriv, resp, pioctl_buf);
 		break;
@@ -5380,6 +5404,12 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG:
 		ret = wlan_ret_rxabortcfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_NAV_MITIGATION_CFG:
+		ret = wlan_ret_nav_mitigation(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_802_11_LED_CONTROL:
+		ret = wlan_ret_led_config(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_OFDM_DESENSE_CFG:
 		ret = wlan_ret_ofdmdesense_cfg(pmpriv, resp, pioctl_buf);
@@ -5403,7 +5433,7 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CCK_DESENSE_CFG:
 		ret = wlan_ret_cck_desense_cfg(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CHANNEL_TRPC_CONFIG:
+	case HostCmd_CMD_CHANNEL_TRPC_CONFIG:
 		ret = wlan_ret_get_chan_trpc_config(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_LOW_POWER_MODE_CFG:
@@ -5430,9 +5460,16 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CROSS_CHIP_SYNCH:
 		ret = wlan_ret_cross_chip_synch(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_DS_GET_SENSOR_TEMP:
+	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		ret = wlan_ret_get_sensor_temp(pmpriv, resp, pioctl_buf);
 		break;
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_802_11_SCAN_EXT:
+		ret = wlan_ret_802_11_scan_ext(pmpriv, resp, pioctl_buf);
+		pioctl_buf = MNULL;
+		pmadapter->curr_cmd->pioctl_buf = MNULL;
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -5462,6 +5499,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 	t_u8 *event_buf = MNULL;
 	mlan_event *pevent = MNULL;
 	t_u8 sta_addr[MLAN_MAC_ADDR_LENGTH];
+	t_u16 reason_code = 0;
 	sta_node *sta_ptr = MNULL;
 	t_u8 i = 0;
 	t_u8 channel = 0;
@@ -5514,15 +5552,12 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		pevent->event_id = MLAN_EVENT_ID_UAP_FW_BSS_START;
 		wlan_check_uap_capability(pmpriv, pmbuf);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		if (IsAuthenticatorEnabled(pmpriv->psapriv)) {
-			pmadapter->authenticator_priv = pmpriv;
-			wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DEFER_RX_WORK,
-					MNULL);
-		}
-#endif
 		if (wlan_11h_radar_detect_required(pmpriv, pmpriv->uap_channel))
 			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 		break;
 	case EVENT_MICRO_AP_BSS_ACTIVE:
 		PRINTM(MEVENT, "EVENT: MICRO_AP_BSS_ACTIVE\n");
@@ -5582,11 +5617,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		if (!sta_ptr)
 			break;
 		wlan_check_sta_capability(pmpriv, pmbuf, sta_ptr);
-		if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		    || IsAuthenticatorEnabled(pmpriv->psapriv)
-#endif
-		) {
+		if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled) {
 			for (i = 0; i < MAX_NUM_TID; i++) {
 				if (sta_ptr->is_11n_enabled ||
 				    sta_ptr->is_11ax_enabled)
@@ -5602,12 +5633,6 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		}
 		if (pmpriv->sec_info.wapi_enabled)
 			wlan_update_wapi_info_tlv(pmpriv, pmbuf);
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		/**enter authenticator*/
-		if (IsAuthenticatorEnabled(pmpriv->psapriv))
-			AuthenticatorSendEapolPacket(
-				pmpriv->psapriv, sta_ptr->cm_connectioninfo);
-#endif
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;
 	case EVENT_MICRO_AP_STA_DEAUTH:
@@ -5621,10 +5646,19 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		memcpy_ext(pmadapter, sta_addr, pmadapter->event_body + 2,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		reason_code = *(t_u16 *)pmadapter->event_body;
 		sta_ptr = wlan_get_station_entry(pmpriv, sta_addr);
+
 		PRINTM_NETINTF(MMSG, pmpriv);
-		PRINTM(MMSG, "wlan: EVENT: MICRO_AP_STA_DEAUTH " MACSTR "\n",
-		       MAC2STR(sta_addr));
+		PRINTM(MMSG,
+		       "wlan: EVENT: MICRO_AP_STA_DEAUTH reason=0x%x " MACSTR
+		       "\n",
+		       reason_code, MAC2STR(sta_addr));
+		if (pmpriv->uap_host_based & UAP_FLAG_HOST_MLME && sta_ptr) {
+			if (!(reason_code & MBIT(14)))
+				wlan_send_deauth_cmd(pmpriv, sta_addr,
+						     reason_code);
+		}
 		if (pmpriv->is_11n_enabled || pmpriv->is_11ax_enabled) {
 			wlan_cleanup_reorder_tbl(pmpriv, sta_addr);
 			wlan_11n_cleanup_txbastream_tbl(pmpriv, sta_addr);
@@ -5640,18 +5674,17 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_ADDBA:
 		PRINTM(MEVENT, "EVENT: ADDBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
-			ret = wlan_prepare_cmd(pmpriv,
-					       HostCmd_CMD_11N_ADDBA_RSP,
-					       HostCmd_ACT_GEN_SET, 0, MNULL,
-					       pmadapter->event_body);
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
+			wlan_11n_add_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
 			       "Ignore ADDBA Request event in BSS idle state\n");
 		break;
 	case EVENT_DELBA:
 		PRINTM(MEVENT, "EVENT: DELBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_delete_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
@@ -5659,7 +5692,8 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		break;
 	case EVENT_BA_STREAM_TIMEOUT:
 		PRINTM(MEVENT, "EVENT:  BA Stream timeout\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_ba_stream_timeout(
 				pmpriv, (HostCmd_DS_11N_BATIMEOUT *)
 						pmadapter->event_body);
@@ -5837,6 +5871,12 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		pmpriv->uap_state_chan_cb.bandcfg = pchan_info->bandcfg;
 		if (wlan_11h_radar_detect_required(pmpriv, pchan_info->channel))
 			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
+		else {
+			PRINTM(MCMND,
+			       "Disable DFS master operation after channel switch\n");
+			wlan_11h_config_master_radar_det(pmpriv, MFALSE);
+			wlan_11h_check_update_radar_det_state(pmpriv);
+		}
 		if ((pmpriv->adapter->state_rdh.stage != RDH_OFF &&
 		     !pmpriv->intf_state_11h.is_11h_host) ||
 		    pmpriv->adapter->dfs_test_params.no_channel_change_on_radar ||
@@ -5887,6 +5927,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		PRINTM_NETINTF(MEVENT, pmpriv);
 		PRINTM(MEVENT, "EVENT: REMAIN_ON_CHANNEL_EXPIRED reason=%d\n",
 		       *(t_u16 *)pmadapter->event_body);
+		pmpriv->adapter->remain_on_channel = MFALSE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		pevent->event_id = MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED;
 		break;
@@ -5977,7 +6018,7 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 				   sizeof(eventcause),
 			   sizeof(t_u16), sizeof(t_u16));
 		break;
-	case CHAN_LOAD_EVENT: {
+	case EVENT_CHAN_LOAD: {
 		t_u8 *ptr = MNULL;
 		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
 		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
@@ -5992,6 +6033,21 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		PRINTM(MINFO, "EVENT: Dump FW info\n");
 		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
 		break;
+#ifdef STA_SUPPORT
+	case EVENT_EXT_SCAN_REPORT:
+		PRINTM(MEVENT, "EVENT: EXT_SCAN Report (%d)\n",
+		       pmbuf->data_len);
+		if (pmadapter->pscan_ioctl_req && pmadapter->ext_scan)
+			ret = wlan_handle_event_ext_scan_report(priv, pmbuf);
+		break;
+	case EVENT_EXT_SCAN_STATUS_REPORT:
+		PRINTM(MEVENT, "EVENT: EXT_SCAN status report (%d)\n",
+		       pmbuf->data_len);
+		pmadapter->ext_scan_timeout = MFALSE;
+		ret = wlan_handle_event_ext_scan_status(priv, pmbuf);
+		break;
+#endif
+
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;
@@ -6032,7 +6088,7 @@ static mlan_status wlan_uap_set_uap_max_sta(pmlan_private pmpriv,
 		wlan_cpu_to_le16(TLV_TYPE_UAP_MAX_STA_CNT_PER_CHIP);
 	tlv_uap_max_sta.header.len = wlan_cpu_to_le16(sizeof(t_u16));
 	tlv_uap_max_sta.uap_max_sta = wlan_cpu_to_le16(uap_max_sta);
-	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE,
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_SYS_CONFIGURE,
 			       HostCmd_ACT_GEN_SET, 0, MNULL, &tlv_uap_max_sta);
 	LEAVE();
 	return ret;
@@ -6070,13 +6126,13 @@ mlan_status wlan_ops_uap_init_cmd(t_void *priv, t_u8 first_bss)
 		wlan_uap_set_uap_max_sta(
 			pmpriv, pmpriv->adapter->init_para.uap_max_sta);
 
-	ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_SYS_CONFIGURE,
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_SYS_CONFIGURE,
 			       HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	last_cmd = HOST_CMD_APCMD_SYS_CONFIGURE;
+	last_cmd = HostCmd_CMD_APCMD_SYS_CONFIGURE;
 	/** set last_init_cmd */
 	if (last_cmd) {
 		pmpriv->adapter->last_init_cmd = last_cmd;

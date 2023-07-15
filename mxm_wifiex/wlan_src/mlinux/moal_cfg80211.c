@@ -2999,7 +2999,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 
 	/* pkt_type + tx_control */
 #define HEADER_SIZE 8
-	packet_len = (t_u16)len + MLAN_MAC_ADDR_LENGTH;
+	packet_len = (t_u16)(len + MLAN_MAC_ADDR_LENGTH);
 	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
 				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
 					       packet_len + sizeof(packet_len));
@@ -3399,10 +3399,10 @@ done:
  *
  * @return                out IE length
  */
-static t_u16 woal_get_specific_ie(const t_u8 *ie, int len, t_u8 *ie_out,
+static t_u16 woal_get_specific_ie(const t_u8 *ie, size_t len, t_u8 *ie_out,
 				  t_u32 ie_out_len, t_u16 mask)
 {
-	int left_len = len;
+	size_t left_len = len;
 	const t_u8 *pos = ie;
 	int length;
 	t_u8 id = 0;
@@ -3825,9 +3825,9 @@ static t_u8 is_selected_registrar_on(const t_u8 *ie, int len)
  *
  * @return                MTRUE/MFALSE
  */
-static t_u16 woal_is_selected_registrar_on(const t_u8 *ie, int len)
+static t_u16 woal_is_selected_registrar_on(const t_u8 *ie, size_t len)
 {
-	int left_len = len;
+	size_t left_len = len;
 	const t_u8 *pos = ie;
 	int length;
 	t_u8 id = 0;
@@ -5081,6 +5081,8 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0, 0);
+#elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && IMX_ANDROID_13))
+		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0, 0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                  \
        IMX_ANDROID_13 || IMX_ANDROID_12_BACKPORT)
 		cfg80211_ch_switch_notify(priv->netdev, &chandef, 0);
@@ -5091,6 +5093,7 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 		mutex_unlock(&priv->wdev->mtx);
 #endif
 		priv->channel = pchan_info->channel;
+		priv->bandwidth = pchan_info->bandcfg.chanWidth;
 #ifdef UAP_CFG80211
 		moal_memcpy_ext(priv->phandle, &priv->chan, &chandef,
 				sizeof(struct cfg80211_chan_def),
@@ -5108,6 +5111,7 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 		return;
 	}
 	priv->channel = pchan_info->channel;
+	priv->bandwidth = pchan_info->bandcfg.chanWidth;
 	freq = ieee80211_channel_to_frequency(pchan_info->channel, band);
 	switch (pchan_info->bandcfg.chanWidth) {
 	case CHAN_BW_20MHZ:

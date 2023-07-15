@@ -44,9 +44,6 @@ Change log:
 #endif
 #include "mlan_11h.h"
 #include "mlan_11n_rxreorder.h"
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 			Local Variables
@@ -363,8 +360,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 		pmadapter->init_para.mpa_tx_cfg = pmdevice->mpa_tx_cfg;
 		pmadapter->init_para.mpa_rx_cfg = pmdevice->mpa_rx_cfg;
-		pmadapter->pcard_sd->sdio_rx_aggr_enable =
-			pmdevice->sdio_rx_aggr_enable;
 	}
 #endif
 
@@ -442,6 +437,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
 	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
 	pmadapter->second_mac = pmdevice->second_mac;
+	pmadapter->napi = pmdevice->napi;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
@@ -1054,18 +1050,6 @@ mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts)
 rx_process_start:
 	/* Check for Rx data */
 	while (MTRUE) {
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-		if (pmadapter->authenticator_priv) {
-			if (IsAuthenticatorEnabled(
-				    pmadapter->authenticator_priv->psapriv)) {
-				AuthenticatorKeyMgmtInit(
-					pmadapter->authenticator_priv->psapriv,
-					pmadapter->authenticator_priv
-						->curr_addr);
-				pmadapter->authenticator_priv = MNULL;
-			}
-		}
-#endif
 		if (pmadapter->flush_data) {
 			pmadapter->flush_data = MFALSE;
 			wlan_flush_rxreorder_tbl(pmadapter);
@@ -1109,6 +1093,16 @@ rx_process_start:
 			pmadapter->delay_task_flag = MFALSE;
 			mlan_queue_main_work(pmadapter);
 		}
+#ifdef PCIE
+		if (pmadapter->delay_rx_data_flag &&
+		    (pmadapter->rx_pkts_queued < LOW_RX_PENDING)) {
+			PRINTM(MEVENT, "Run\n");
+			pmadapter->delay_rx_data_flag = MFALSE;
+			wlan_recv_event(wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MLAN_EVENT_ID_DRV_DEFER_RX_DATA, MNULL);
+		}
+#endif
 		pmadapter->ops.handle_rx_packet(pmadapter, pmbuf);
 		if (limit && rx_num >= limit)
 			break;
@@ -1180,7 +1174,7 @@ process_start:
 				pmadapter->pending_disconnect_priv, MTRUE);
 			pmadapter->pending_disconnect_priv = MNULL;
 		}
-#if defined(SDIO) || defined(PCIE)
+#if defined(SDIO)
 		if (!IS_USB(pmadapter->card_type)) {
 			if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
 				pcb->moal_tp_accounting_rx_param(
@@ -1194,7 +1188,7 @@ process_start:
 			if (pmadapter->ireg) {
 				if (pmadapter->hs_activated == MTRUE)
 					wlan_process_hs_config(pmadapter);
-				pmadapter->ops.process_int_status(pmadapter);
+				pmadapter->ops.process_int_status(pmadapter, 0);
 				if (pmadapter->data_received)
 					mlan_queue_rx_work(pmadapter);
 			}
@@ -1291,7 +1285,6 @@ process_start:
 			pmadapter->event_received = MFALSE;
 			wlan_process_event(pmadapter);
 		}
-
 		/* Check if we need to confirm Sleep Request received previously
 		 */
 		if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
@@ -1858,5 +1851,55 @@ t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode, t_u8 func_num)
 	pmadapter->pcard_pcie->pcie_int_mode = int_mode;
 	pmadapter->pcard_pcie->func_num = func_num;
 	LEAVE();
+}
+
+/**
+ *  @brief This function handle RX/EVENT/CMDRESP/TX_COMPLETE interrupt.
+ *
+ *  @param adapter  A pointer to mlan_adapter structure
+ *  @param type     interrupt type
+ *  @return         N/A
+ */
+void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
+{
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+
+	ENTER();
+
+	if (type == RX_DATA) {
+		if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
+			pcb->moal_tp_accounting_rx_param(
+				pmadapter->pmoal_handle, 2, 0);
+			PRINTM(MEVENT, "Pause\n");
+			pmadapter->delay_rx_data_flag = MTRUE;
+			if (pmadapter->napi)
+				mlan_queue_rx_work(pmadapter);
+			else
+				mlan_rx_process(pmadapter, MNULL);
+			LEAVE();
+			return;
+		}
+	}
+	pmadapter->ops.process_int_status(pmadapter, type);
+	switch (type) {
+	case RX_DATA: // Rx Data
+		if (pmadapter->data_received) {
+			if (pmadapter->napi)
+				mlan_queue_rx_work(pmadapter);
+			else
+				mlan_rx_process(pmadapter, MNULL);
+		}
+		break;
+	case RX_EVENT: // Rx event
+	case TX_COMPLETE: // Tx data complete
+	case RX_CMD_RESP: // Rx CMD Resp
+		mlan_main_process(pmadapter);
+		break;
+	default:
+		break;
+	}
+	LEAVE();
+	return;
 }
 #endif

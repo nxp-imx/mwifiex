@@ -29,7 +29,9 @@ Change log:
 #include <linux/module.h>
 #include "mlan_decl.h"
 #include "mlan_ioctl.h"
-
+#ifdef PCIE
+EXPORT_SYMBOL(mlan_process_pcie_interrupt_cb);
+#endif
 EXPORT_SYMBOL(mlan_register);
 EXPORT_SYMBOL(mlan_unregister);
 EXPORT_SYMBOL(mlan_init_fw);

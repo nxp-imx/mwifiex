@@ -334,9 +334,6 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /**TLV type : Host MLME Flag*/
 #define TLV_TYPE_HOST_MLME (PROPRIETARY_TLV_BASE_ID + 307)
 
-/** TLV type: MULTI AP Flag */
-#define TLV_TYPE_MULTI_AP (PROPRIETARY_TLV_BASE_ID + 326)
-
 /** TLV type : AP wacp mode */
 #define TLV_TYPE_UAP_WACP_MODE (PROPRIETARY_TLV_BASE_ID + 0x147) /* 0x0247 */
 
@@ -1138,263 +1135,25 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_BSS_MODE (PROPRIETARY_TLV_BASE_ID + 0xce) /* 0x01ce */
 
 /** Firmware Host Command ID Constants */
-/** Host Command ID : Get hardware specifications */
-#define HostCmd_CMD_GET_HW_SPEC 0x0003
-/** Host Command ID : 802.11 scan */
-#define HostCmd_CMD_802_11_SCAN 0x0006
-/** Host Command ID : 802.11 get log */
-#define HostCmd_CMD_802_11_GET_LOG 0x000b
 
-/** Host Command id: GET_TX_RX_PKT_STATS */
-#define HOST_CMD_TX_RX_PKT_STATS 0x008d
+#define ENUM_ELEMENT(name, id) name = id
+#define ENUM_ELEMENT_LAST(name) name
+enum host_cmd_id {
+#include "mlan_hostcmd_ids.h"
+};
+#undef ENUM_ELEMENT
+#undef ENUM_ELEMENT_LAST
 
-/** Host Command ID : 802.11 get/set link layer statistic */
-#define HostCmd_CMD_802_11_LINK_STATS 0x0256
-
-/** Host Command ID : MAC multicast address */
-#define HostCmd_CMD_MAC_MULTICAST_ADR 0x0010
-/** Host Command ID : 802.11 EEPROM access */
-#define HostCmd_CMD_802_11_EEPROM_ACCESS 0x0059
-/** Host Command ID : 802.11 associate */
-#define HostCmd_CMD_802_11_ASSOCIATE 0x0012
-
-/** Host Command ID : 802.11 SNMP MIB */
-#define HostCmd_CMD_802_11_SNMP_MIB 0x0016
-/** Host Command ID : MAC register access */
-#define HostCmd_CMD_MAC_REG_ACCESS 0x0019
-/** Host Command ID : BBP register access */
-#define HostCmd_CMD_BBP_REG_ACCESS 0x001a
-/** Host Command ID : RF register access */
-#define HostCmd_CMD_RF_REG_ACCESS 0x001b
-
-/** Host Command ID : 802.11 radio control */
-#define HostCmd_CMD_802_11_RADIO_CONTROL 0x001c
-/** Host Command ID : 802.11 RF channel */
-#define HostCmd_CMD_802_11_RF_CHANNEL 0x001d
-/** Host Command ID : 802.11 RF Tx power */
-#define HostCmd_CMD_802_11_RF_TX_POWER 0x001e
-
-/** Host Command ID : 802.11 RF antenna */
-#define HostCmd_CMD_802_11_RF_ANTENNA 0x0020
-
-/** Host Command ID : 802.11 deauthenticate */
-#define HostCmd_CMD_802_11_DEAUTHENTICATE 0x0024
-/** Host Command ID: 802.11 disassoicate */
-#define HostCmd_CMD_802_11_DISASSOCIATE 0x0026
-/** Host Command ID : MAC control */
-#define HostCmd_CMD_MAC_CONTROL 0x0028
-/** Host Command ID : 802.11 Ad-Hoc start */
-#define HostCmd_CMD_802_11_AD_HOC_START 0x002b
-/** Host Command ID : 802.11 Ad-Hoc join */
-#define HostCmd_CMD_802_11_AD_HOC_JOIN 0x002c
-
-/** Host Command ID: CW Mode */
-#define HostCmd_CMD_CW_MODE_CTRL 0x0239
-/** Host Command ID : 802.11 key material */
-#define HostCmd_CMD_802_11_KEY_MATERIAL 0x005e
-
-/** Host Command ID : 802.11 Ad-Hoc stop */
-#define HostCmd_CMD_802_11_AD_HOC_STOP 0x0040
-
-/** Host Command ID : 802.22 MAC address */
-#define HostCmd_CMD_802_11_MAC_ADDRESS 0x004D
-
-/** Host Command ID : WMM Traffic Stream Status */
-#define HostCmd_CMD_WMM_TS_STATUS 0x005d
-
-/** Host Command ID : 802.11 D domain information */
-#define HostCmd_CMD_802_11D_DOMAIN_INFO 0x005b
-
-/*This command gets/sets the Transmit Rate-based Power Control (TRPC) channel
- * configuration.*/
-#define HostCmd_CHANNEL_TRPC_CONFIG 0x00fb
-
-/** Host Command ID : 802.11 TPC information */
-#define HostCmd_CMD_802_11_TPC_INFO 0x005f
-/** Host Command ID : 802.11 TPC adapt req */
-#define HostCmd_CMD_802_11_TPC_ADAPT_REQ 0x0060
-/** Host Command ID : 802.11 channel SW ann */
-#define HostCmd_CMD_802_11_CHAN_SW_ANN 0x0061
-
-/** Host Command ID : Measurement request */
-#define HostCmd_CMD_MEASUREMENT_REQUEST 0x0062
-/** Host Command ID : Measurement report */
-#define HostCmd_CMD_MEASUREMENT_REPORT 0x0063
-
-/** Host Command ID : 802.11 sleep parameters */
-#define HostCmd_CMD_802_11_SLEEP_PARAMS 0x0066
-
-/** Host Command ID : 802.11 ps inactivity timeout */
-#define HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT 0x0067
-
-/** Host Command ID : 802.11 sleep period */
-#define HostCmd_CMD_802_11_SLEEP_PERIOD 0x0068
-
-/** Host Command ID: 802.11 BG scan config */
-#define HostCmd_CMD_802_11_BG_SCAN_CONFIG 0x006b
-/** Host Command ID : 802.11 BG scan query */
-#define HostCmd_CMD_802_11_BG_SCAN_QUERY 0x006c
-
-/** Host Command ID : WMM ADDTS req */
-#define HostCmd_CMD_WMM_ADDTS_REQ 0x006E
-/** Host Command ID : WMM DELTS req */
-#define HostCmd_CMD_WMM_DELTS_REQ 0x006F
-/** Host Command ID : WMM queue configuration */
-#define HostCmd_CMD_WMM_QUEUE_CONFIG 0x0070
-/** Host Command ID : 802.11 get status */
-#define HostCmd_CMD_WMM_GET_STATUS 0x0071
-
-/** Host Command ID : 802.11 subscribe event */
-#define HostCmd_CMD_802_11_SUBSCRIBE_EVENT 0x0075
-
-/** Host Command ID : 802.11 Tx rate query */
-#define HostCmd_CMD_802_11_TX_RATE_QUERY 0x007f
-/** Host Command ID :Get timestamp value */
-#define HostCmd_CMD_GET_TSF 0x0080
-
-/** Host Command ID : WMM queue stats */
-#define HostCmd_CMD_WMM_QUEUE_STATS 0x0081
-
-/** Host Command ID : KEEP ALIVE command */
-#define HostCmd_CMD_AUTO_TX 0x0082
-
-/** Host Command ID : 802.11 IBSS coalescing status */
-#define HostCmd_CMD_802_11_IBSS_COALESCING_STATUS 0x0083
-
-/** Host Command ID : Memory access */
-#define HostCmd_CMD_MEM_ACCESS 0x0086
-
-#if defined(SDIO)
-/** Host Command ID : SDIO GPIO interrupt configuration */
-#define HostCmd_CMD_SDIO_GPIO_INT_CONFIG 0x0088
-#endif
-
-/** Host Command ID : Mfg command */
-#define HostCmd_CMD_MFG_COMMAND 0x0089
-/** Host Command ID : Inactivity timeout ext */
-#define HostCmd_CMD_INACTIVITY_TIMEOUT_EXT 0x008a
-
-/** Host Command ID : DBGS configuration */
-#define HostCmd_CMD_DBGS_CFG 0x008b
-/** Host Command ID : Get memory */
-#define HostCmd_CMD_GET_MEM 0x008c
-
-/** Host Command ID : Cal data dnld */
-#define HostCmd_CMD_CFG_DATA 0x008f
-
-/** Host Command ID : SDIO pull control */
-#define HostCmd_CMD_SDIO_PULL_CTRL 0x0093
-
-/** Host Command ID : ECL system clock configuration */
-#define HostCmd_CMD_ECL_SYSTEM_CLOCK_CONFIG 0x0094
-
-/** Host Command ID : Extended version */
-#define HostCmd_CMD_VERSION_EXT 0x0097
-
-/** Host Command ID : MEF configuration */
-#define HostCmd_CMD_MEF_CFG 0x009a
-/** Host Command ID : 802.11 RSSI INFO*/
-#define HostCmd_CMD_RSSI_INFO 0x00a4
-/** Host Command ID : Function initialization */
-#define HostCmd_CMD_FUNC_INIT 0x00a9
-/** Host Command ID : Function shutdown */
-#define HostCmd_CMD_FUNC_SHUTDOWN 0x00aa
-
-/** Host Command ID : Robustcoex */
-#define HostCmd_CMD_802_11_ROBUSTCOEX 0x00e0
-
-/** Host Command ID :EAPOL PKT */
-#define HostCmd_CMD_802_11_EAPOL_PKT 0x012e
-
-/** Host Command ID :MIMO SWITCH **/
-#define HostCmd_CMD_802_11_MIMO_SWITCH 0x0235
-
-/** Host Command ID : 802.11 RSSI INFO EXT*/
-#define HostCmd_CMD_RSSI_INFO_EXT 0x0237
-/** Host Command ID : ROAMING OFFLOAD TO FW*/
-#define HostCmd_CMD_ROAM_OFFLOAD 0x0245
-
-/** Host Command ID: Multi chan config */
-#define HostCmd_CMD_MULTI_CHAN_CONFIG 0x011e
-/** Host Command ID: Multi chan policy */
-#define HostCmd_CMD_MULTI_CHAN_POLICY 0x0121
 /** TLV ID for multi chan info */
 #define TLV_TYPE_MULTI_CHAN_INFO (PROPRIETARY_TLV_BASE_ID + 0xb7)
 /** TLV ID for multi chan group info */
 #define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0xb8)
 /** TLV ID for DRCS TimeSlice */
 #define MRVL_DRCS_TIME_SLICE_TLV_ID (PROPRIETARY_TLV_BASE_ID + 263)
-/** Host Command ID: DRCS config */
-#define HostCmd_CMD_DRCS_CONFIG 0x024a
 
 #define TLV_TYPE_PREV_BSSID (PROPRIETARY_TLV_BASE_ID + 330)
 
-/** Host Command ID : Channel report request */
-#define HostCmd_CMD_CHAN_REPORT_REQUEST 0x00dd
-
-/** Host Command ID: SUPPLICANT_PMK */
-#define HostCmd_CMD_SUPPLICANT_PMK 0x00c4
-/** Host Command ID: SUPPLICANT_PROFILE */
-#define HostCmd_CMD_SUPPLICANT_PROFILE 0x00c5
-
-/** Host Command ID : Add Block Ack Request */
-#define HostCmd_CMD_11N_ADDBA_REQ 0x00ce
-/** Host Command ID : Delete a Block Ack Request */
-#define HostCmd_CMD_11N_CFG 0x00cd
-/** Host Command ID : Add Block Ack Response */
-#define HostCmd_CMD_11N_ADDBA_RSP 0x00cf
-/** Host Command ID : Delete a Block Ack Request */
-#define HostCmd_CMD_11N_DELBA 0x00d0
-/** Host Command ID: Configure Tx Buf size */
-#define HostCmd_CMD_RECONFIGURE_TX_BUFF 0x00d9
-/** Host Command ID: AMSDU Aggr Ctrl */
-#define HostCmd_CMD_AMSDU_AGGR_CTRL 0x00df
-/** Host Command ID: 11AC config */
-#define HostCmd_CMD_11AC_CFG 0x0112
-/** Host Command ID: Configure TX Beamforming capability */
-#define HostCmd_CMD_TX_BF_CFG 0x0104
-
-/** Host Command ID : 802.11 TX power configuration */
-#define HostCmd_CMD_TXPWR_CFG 0x00d1
-
-/** Host Command ID : Soft Reset */
-#define HostCmd_CMD_SOFT_RESET 0x00d5
-
-/** Host Command ID : 802.11 b/g/n rate configration */
-#define HostCmd_CMD_TX_RATE_CFG 0x00d6
-
-/** Host Command ID : Enhanced PS mode */
-#define HostCmd_CMD_802_11_PS_MODE_ENH 0x00e4
-
-/** Host command action : Host sleep configuration */
-#define HostCmd_CMD_802_11_HS_CFG_ENH 0x00e5
-
-/** Host Command ID : CAU register access */
-#define HostCmd_CMD_CAU_REG_ACCESS 0x00ed
-
-/** Host Command ID : mgmt IE list */
-#define HostCmd_CMD_MGMT_IE_LIST 0x00f2
-
-#define HostCmd_CMD_802_11_BAND_STEERING 0x026f
-/*** Host Command ID " MC_AGGR_CFG */
-#define HostCmd_CMD_MC_AGGR_CFG 0x027a
-#define HostCmd_CMD_802_11_STATS 0x0014
-#define HostCmd_CMD_GET_CH_LOAD 0x027b
-
-/** Host Command ID: CROSS CHIP SYNCH */
-#define HostCmd_CMD_CROSS_CHIP_SYNCH 0x027d
-
-/** Host Command ID : TDLS configuration */
-#define HostCmd_CMD_TDLS_CONFIG 0x0100
-/** Host Command ID : TDLS operation */
-#define HostCmd_CMD_TDLS_OPERATION 0x0122
-
 #ifdef SDIO
-/** Host Command ID : SDIO single port RX aggr */
-#define HostCmd_CMD_SDIO_SP_RX_AGGR_CFG 0x0223
-
-/** fw_cap_info bit16 for sdio sp rx aggr flag*/
-#define SDIO_SP_RX_AGGR_ENABLE MBIT(16)
 
 #endif
 
@@ -1586,114 +1345,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_Op_t {
 #define IS_FW_SUPPORT_EMBEDDED_OWE(_adapter)                                   \
 	(_adapter->fw_cap_info & FW_CAPINFO_EMBEDDED_OWE_SUPPORT)
 
-/** Host Command ID : Extended scan support */
-#define HostCmd_CMD_802_11_SCAN_EXT 0x0107
-
-/** Host Command ID : Forward mgmt frame */
-#define HostCmd_CMD_RX_MGMT_IND 0x010c
-
-#ifdef PCIE
-/** Host Command ID: Host buffer description */
-#define HostCmd_CMD_PCIE_HOST_BUF_DETAILS 0x00fa
-#endif
-
-/** Host Command ID : Set BSS_MODE */
-#define HostCmd_CMD_SET_BSS_MODE 0x00f7
-
-#ifdef UAP_SUPPORT
-/**  Host Command id: SYS_INFO */
-#define HOST_CMD_APCMD_SYS_INFO 0x00ae
-/** Host Command id: sys_reset */
-#define HOST_CMD_APCMD_SYS_RESET 0x00af
-/** Host Command id: SYS_CONFIGURE  */
-#define HOST_CMD_APCMD_SYS_CONFIGURE 0x00b0
-/** Host Command id: BSS_START */
-#define HOST_CMD_APCMD_BSS_START 0x00b1
-/** Host Command id: BSS_STOP  */
-#define HOST_CMD_APCMD_BSS_STOP 0x00b2
-/** Host Command id: sta_list */
-#define HOST_CMD_APCMD_STA_LIST 0x00b3
-/** Host Command id: STA_DEAUTH */
-#define HOST_CMD_APCMD_STA_DEAUTH 0x00b5
-
-/** Host Command id: REPORT_MIC */
-#define HOST_CMD_APCMD_REPORT_MIC 0x00ee
-/** Host Command id: UAP_OPER_CTRL */
-#define HOST_CMD_APCMD_OPER_CTRL 0x0233
-#endif /* UAP_SUPPORT */
-
-/** Host Command id: PMIC CONFIGURE*/
-#define HOST_CMD_PMIC_CONFIGURE 0x23E
-
-/** Host Command ID: 802.11 Network Monitor */
-#define HostCmd_CMD_802_11_NET_MONITOR 0x0102
-
-/** Host Command ID: Tx data pause */
-#define HostCmd_CMD_CFG_TX_DATA_PAUSE 0x0103
-
-#ifdef WIFI_DIRECT_SUPPORT
-/** Host Command ID: P2P PARAMS CONFIG */
-#define HOST_CMD_P2P_PARAMS_CONFIG 0x00ea
-/** Host Command ID: WIFI_DIRECT_MODE_CONFIG */
-#define HOST_CMD_WIFI_DIRECT_MODE_CONFIG 0x00eb
-#endif
-
-/** Host Command ID: GPIO TSF LATCH */
-#define HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG 0x0278
-/** Host Command ID: Remain On Channel */
-#define HostCmd_CMD_802_11_REMAIN_ON_CHANNEL 0x010d
-
-#define HostCmd_CMD_COALESCE_CFG 0x010a
-
-/** Host Command ID: GTK REKEY OFFLOAD CFG */
-#define HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG 0x010f
-
-/** Host Command ID : OTP user data */
-#define HostCmd_CMD_OTP_READ_USER_DATA 0x0114
-
-/** Host Command ID: fw auto reconnect */
-#define HostCmd_CMD_FW_AUTO_RECONNECT 0x0115
-
-/** Host Command ID: HS wakeup reason */
-#define HostCmd_CMD_HS_WAKEUP_REASON 0x0116
-
-/** Host Command ID: reject addba request */
-#define HostCmd_CMD_REJECT_ADDBA_REQ 0x0119
-
-#define HostCmd_CMD_FW_DUMP_EVENT 0x0125
-
-#define HostCMD_CONFIG_LOW_POWER_MODE 0x0128
-
-/** Host Command ID : Target device access */
-#define HostCmd_CMD_TARGET_ACCESS 0x012a
-
-/** Host Command ID: BCA device access */
-#define HostCmd_CMD_BCA_REG_ACCESS 0x0272
-/** Host Command ID: register device access */
-#define HostCmd_CMD_REG_ACCESS 0x027C
-
-/** Host Command ID: DFS repeater mode */
-#define HostCmd_DFS_REPEATER_MODE 0x012b
-
-/** Host Command ID: ACS scan */
-#define HostCMD_APCMD_ACS_SCAN 0x0224
-
-/** Host Command ID: Get sensor temp*/
-#define HostCmd_DS_GET_SENSOR_TEMP 0x0227
-
-/** Host Command ID : Configure ADHOC_OVER_IP parameters */
-#define HostCmd_CMD_WMM_PARAM_CONFIG 0x023a
-
-#define HostCmd_CMD_IPV6_RA_OFFLOAD_CFG 0x0238
-
-#ifdef STA_SUPPORT
-/** Host Command ID :  set/get sta configure */
-#define HostCmd_CMD_STA_CONFIGURE 0x023f
-#endif
-
-/** Host Command ID : GPIO independent reset configure */
-#define HostCmd_CMD_INDEPENDENT_RESET_CFG 0x0243
-
 /* TLV type: reg type */
 #define TLV_TYPE_REG_ACCESS_CTRL (PROPRIETARY_TLV_BASE_ID + 0x13C) /* 0x023c*/
 /** MrvlIEtypes_Reg_type_t*/
@@ -1703,10 +1354,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Reg_type_t {
 	/** type: 0x81/0x82/0x83 */
 	t_u8 type;
 } MLAN_PACK_END MrvlIEtypes_Reg_type_t;
-/** use to query chan region cfg setting in firmware */
-#define HostCmd_CMD_CHAN_REGION_CFG 0x0242
-/** used in hostcmd to download region power cfg setting to firmware */
-#define HostCmd_CMD_REGION_POWER_CFG 0x0249
 
 /* mod_grp */
 typedef enum _mod_grp {
@@ -1758,55 +1405,15 @@ typedef MLAN_PACK_START struct _power_table_attr {
 #define FW_CFP_TABLE_MAX_ROWS_A 39
 #define FW_CFP_TABLE_MAX_COLS_A 29
 
-#define HostCmd_CMD_DYN_BW 0x0252
-
-#define HostCmd_CMD_BOOT_SLEEP 0x0258
-
-#define HostCmd_CMD_RX_ABORT_CFG 0x0261
-#define HostCmd_CMD_RX_ABORT_CFG_EXT 0x0262
-#define HostCmd_CMD_TX_AMPDU_PROT_MODE 0x0263
-#define HostCmd_CMD_RATE_ADAPT_CFG 0x0264
-#define HostCmd_CMD_CCK_DESENSE_CFG 0x0265
-#define HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS 0x024d
-#define HostCmd_CMD_FTM_SESSION_CTRL 0x024e
-#define HostCmd_CMD_FTM_FEATURE_CTRL 0x024f
-#define HostCmd_CMD_WLS_REQ_FTM_RANGE 0x0250
-
-#define HostCmd_CMD_FTM_CONFIG_RESPONDER 0x0255
 #define HostCmd_ACT_RTT_GET_RSP_INFO 0x0000
 #define HostCmd_ACT_RTT_SET_RSP_EN 0x0001
 #define HostCmd_ACT_RTT_SET_RSP_DIS 0x0002
 #define HostCmd_ACT_RTT_SET_RSP_LCI 0x0003
 #define HostCmd_ACT_RTT_SET_RSP_LCR 0x0004
 
-#define HostCmd_CMD_VDLL 0x0240
-#if defined(PCIE)
-#define HostCmd_CMD_SSU 0x0259
-#endif
-#define HostCmd_CMD_CSI 0x025b
 #define CSI_CMD_ENABLE 0x0001
 #define CSI_CMD_DISABLE 0x0002
 
-#define HostCmd_CMD_DMCS_CONFIG 0x0260
-
-/** Host Command ID: 11AX config */
-#define HostCmd_CMD_11AX_CFG 0x0266
-/** Host Command ID: 11AX command */
-#define HostCmd_CMD_11AX_CMD 0x026d
-/** Host Command ID: Range ext command */
-#define HostCmd_CMD_RANGE_EXT 0x0274
-/** Host Command ID: TWT cfg command */
-#define HostCmd_CMD_TWT_CFG 0x0270
-
-#define HostCmd_CMD_LOW_POWER_MODE_CFG 0x026e
-#define HostCmd_CMD_UAP_BEACON_STUCK_CFG 0x0271
-#define HostCmd_CMD_ARB_CONFIG 0x0273
-#define HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG 0x0275
-#define HostCmd_CMD_HAL_PHY_CFG 0x0276
-
-/** Host Command ID : IPS Config */
-#define HostCmd_CMD_IPS_CONFIG 0x0279
-#define HostCmd_CMD_OFDM_DESENSE_CFG 0x027f
 typedef MLAN_PACK_START struct {
 	t_u32 enable;
 } MLAN_PACK_END HostCmd_DS_IPS_CONFIG;
@@ -1815,6 +1422,7 @@ typedef MLAN_PACK_START struct {
 typedef enum _ENH_PS_MODES {
 	GET_PS = 0,
 	SLEEP_CONFIRM = 5,
+	EXT_PS_PARAM = 6,
 	DIS_AUTO_PS = 0xfe,
 	EN_AUTO_PS = 0xff,
 } ENH_PS_MODES;
@@ -1861,6 +1469,10 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_RESULT_BUSY 0x0004
 /** Data buffer is not big enough */
 #define HostCmd_RESULT_PARTIAL_DATA 0x0005
+/** cmd is blocked by cmd_filter */
+#define HostCmd_RESULT_BLOCK 0x0006
+/** cmd is blocked by pre_asleep */
+#define HostCmd_RESULT_PRE_ASLEEP 0x0007
 
 /* Define action or option for HostCmd_CMD_MAC_CONTROL */
 /** MAC action : Rx on */
@@ -1939,199 +1551,23 @@ typedef enum _ENH_PS_MODES {
 /** Get BSS type from Host Command (bit 15:12) */
 #define HostCmd_GET_BSS_TYPE(seq) (((seq)&HostCmd_BSS_TYPE_MASK) >> 12)
 
-/* EVENT ID*/
-/** Card Event definition : Dummy host wakeup signal */
-#define EVENT_DUMMY_HOST_WAKEUP_SIGNAL 0x00000001
-/** Card Event definition : Link lost */
-#define EVENT_LINK_LOST 0x00000003
-/** Card Event definition : Link sensed */
-#define EVENT_LINK_SENSED 0x00000004
-/** Card Event definition : MIB changed */
-#define EVENT_MIB_CHANGED 0x00000006
-/** Card Event definition : Init done */
-#define EVENT_INIT_DONE 0x00000007
-/** Card Event definition : Deauthenticated */
-#define EVENT_DEAUTHENTICATED 0x00000008
-/** Card Event definition : Disassociated */
-#define EVENT_DISASSOCIATED 0x00000009
-/** Card Event definition : Power save awake */
-#define EVENT_PS_AWAKE 0x0000000a
-/** Card Event definition : Power save sleep */
-#define EVENT_PS_SLEEP 0x0000000b
-/** Card Event definition : MIC error multicast */
-#define EVENT_MIC_ERR_MULTICAST 0x0000000d
-/** Card Event definition : MIC error unicast */
-#define EVENT_MIC_ERR_UNICAST 0x0000000e
+/* EVENT ID */
 
-/** Card Event definition : Ad-Hoc BCN lost */
-#define EVENT_ADHOC_BCN_LOST 0x00000011
+#define ENUM_ELEMENT(name, id) name = id
+#define ENUM_ELEMENT_LAST(name) name
+enum host_fw_event_id {
+#include "mlan_event_ids.h"
+};
+#undef ENUM_ELEMENT
+#undef ENUM_ELEMENT_LAST
 
-/** Card Event definition : Stop Tx */
-#define EVENT_STOP_TX 0x00000013
-/** Card Event definition : Start Tx */
-#define EVENT_START_TX 0x00000014
-/** Card Event definition : Channel switch */
-#define EVENT_CHANNEL_SWITCH 0x00000015
-
-/** Card Event definition : MEAS report ready */
-#define EVENT_MEAS_REPORT_RDY 0x00000016
-
-/** Card Event definition : WMM status change */
-#define EVENT_WMM_STATUS_CHANGE 0x00000017
-
-/** Card Event definition : BG scan report */
-#define EVENT_BG_SCAN_REPORT 0x00000018
-/** Card Event definition : BG scan stopped */
-#define EVENT_BG_SCAN_STOPPED 0x00000065
-
-/** Card Event definition : Beacon RSSI low */
-#define EVENT_RSSI_LOW 0x00000019
-/** Card Event definition : Beacon SNR low */
-#define EVENT_SNR_LOW 0x0000001a
-/** Card Event definition : Maximum fail */
-#define EVENT_MAX_FAIL 0x0000001b
-/** Card Event definition : Beacon RSSI high */
-#define EVENT_RSSI_HIGH 0x0000001c
-/** Card Event definition : Beacon SNR high */
-#define EVENT_SNR_HIGH 0x0000001d
-
-/** Card Event definition : IBSS coalsced */
-#define EVENT_IBSS_COALESCED 0x0000001e
-
-/** Event definition : IBSS station connected */
-#define EVENT_IBSS_STATION_CONNECT 0x00000020
-/** Event definition : IBSS station dis-connected */
-#define EVENT_IBSS_STATION_DISCONNECT 0x00000021
-
-/** Card Event definition : Data RSSI low */
-#define EVENT_DATA_RSSI_LOW 0x00000024
-/** Card Event definition : Data SNR low */
-#define EVENT_DATA_SNR_LOW 0x00000025
-/** Card Event definition : Data RSSI high */
-#define EVENT_DATA_RSSI_HIGH 0x00000026
-/** Card Event definition : Data SNR high */
-#define EVENT_DATA_SNR_HIGH 0x00000027
-
-/** Card Event definition : Link Quality */
-#define EVENT_LINK_QUALITY 0x00000028
-
-/** Card Event definition : Port release event */
-#define EVENT_PORT_RELEASE 0x0000002b
-
-#ifdef UAP_SUPPORT
-/** Event ID: STA deauth */
-#define EVENT_MICRO_AP_STA_DEAUTH 0x0000002c
-/** Event ID: STA assoicated */
-#define EVENT_MICRO_AP_STA_ASSOC 0x0000002d
-/** Event ID: BSS started */
-#define EVENT_MICRO_AP_BSS_START 0x0000002e
-/** Event ID: BSS idle event */
-#define EVENT_MICRO_AP_BSS_IDLE 0x00000043
-/** Event ID: BSS active event */
-#define EVENT_MICRO_AP_BSS_ACTIVE 0x00000044
-
-/** Event ID: MIC countermeasures event */
-#define EVENT_MICRO_AP_MIC_COUNTERMEASURES 0x0000004c
-#endif /* UAP_SUPPORT */
-
-/** Card Event definition : Pre-Beacon Lost */
-#define EVENT_PRE_BEACON_LOST 0x00000031
-
-#define EVENT_WATCHDOG_TMOUT 0x00000032
-
-/** Card Event definition : Add BA event */
-#define EVENT_ADDBA 0x00000033
-/** Card Event definition : Del BA event */
-#define EVENT_DELBA 0x00000034
-/** Card Event definition: BA stream timeout*/
-#define EVENT_BA_STREAM_TIMEOUT 0x00000037
-
-/** Card Event definition : AMSDU aggr control */
-#define EVENT_AMSDU_AGGR_CTRL 0x00000042
-
-/** Card Event definition: WEP ICV error */
-#define EVENT_WEP_ICV_ERR 0x00000046
-
-/** Card Event definition : Host sleep enable */
-#define EVENT_HS_ACT_REQ 0x00000047
-
-/** Card Event definition : BW changed */
-#define EVENT_BW_CHANGE 0x00000048
-
-#ifdef WIFI_DIRECT_SUPPORT
-/** WIFIDIRECT generic event */
-#define EVENT_WIFIDIRECT_GENERIC_EVENT 0x00000049
-/** WIFIDIRECT service discovery event */
-#define EVENT_WIFIDIRECT_SERVICE_DISCOVERY 0x0000004a
-#endif
-/** Remain on Channel expired event */
-#define EVENT_REMAIN_ON_CHANNEL_EXPIRED 0x0000005f
-
-/** TDLS generic event */
-#define EVENT_TDLS_GENERIC_EVENT 0x00000052
-
-#define EVENT_MEF_HOST_WAKEUP 0x0000004f
-
-/** Card Event definition: Channel switch pending announcment */
-#define EVENT_CHANNEL_SWITCH_ANN 0x00000050
-
-/** Event definition:  Radar Detected by card */
-#define EVENT_RADAR_DETECTED 0x00000053
-
-/** Event definition:  Radar Detected by card */
-#define EVENT_CHANNEL_REPORT_RDY 0x00000054
-
-/** Event definition:  Scan results through event */
-#define EVENT_EXT_SCAN_REPORT 0x00000058
-/** Enhance ext scan done event */
-#define EVENT_EXT_SCAN_STATUS_REPORT 0x0000007f
-
-/** Event definition: RXBA_SYNC */
-#define EVENT_RXBA_SYNC 0x00000059
-
-/** Event ID: TX data pause event */
-#define EVENT_TX_DATA_PAUSE 0x00000055
-
-/** Event definition : FW debug information */
-#define EVENT_FW_DEBUG_INFO 0x00000063
-
-/** Event ID: SAD Report */
-#define EVENT_SAD_REPORT 0x00000066
-
-/** Event ID: Multi Chan Info*/
-#define EVENT_MULTI_CHAN_INFO 0x0000006a
-
-#define EVENT_FW_DUMP_INFO 0x00000073
-/** Event ID: Tx status */
-#define EVENT_TX_STATUS_REPORT 0x00000074
-
-#define EVENT_BT_COEX_WLAN_PARA_CHANGE 0x00000076
-
-#define EVENT_VDLL_IND 0x00000081
-
-#define EVENT_ROAM_OFFLOAD 0x00000083
-
-#define EVENT_WLS_FTM_COMPLETE 0x00000086
-
-#define WLS_SUB_EVENT_FTM_COMPLETE 0
-#define WLS_SUB_EVENT_RADIO_RECEIVED 1
-#define WLS_SUB_EVENT_RADIO_RPT_RECEIVED 2
-#define WLS_SUB_EVENT_ANQP_RESP_RECEIVED 3
-#define WLS_SUB_EVENT_RTT_RESULTS 4
-
-#define EVENT_EXCEED_MAX_P2P_CONN 0x00000089
-
-#if defined(PCIE)
-#define EVENT_SSU_DUMP_DMA 0x0000008C
-#endif
-
-#define EVENT_CSI 0x0000008D
-#define EVENT_FW_HANG_REPORT 0x0000008F
-/** Card Event definition : RESET PN */
-
-#define EVENT_ASSOC_REQ_IE 0x00000095
-
-#define CHAN_LOAD_EVENT 0x00000099
+enum wls_event_subtype {
+	WLS_SUB_EVENT_FTM_COMPLETE = 0,
+	WLS_SUB_EVENT_RADIO_RECEIVED = 1,
+	WLS_SUB_EVENT_RADIO_RPT_RECEIVED = 2,
+	WLS_SUB_EVENT_ANQP_RESP_RECEIVED = 3,
+	WLS_SUB_EVENT_RTT_RESULTS = 4,
+};
 
 /** Event ID mask */
 #define EVENT_ID_MASK 0xffff
@@ -2170,8 +1606,6 @@ typedef enum _ENH_PS_MODES {
 #define TDLS_BASE_CHANNEL 0
 /** TDLS off channel */
 #define TDLS_OFF_CHANNEL 1
-
-#define RXPD_FLAG_PKT_EASYMESH MBIT(4)
 
 /** structure for channel switch result from TDLS FW */
 typedef MLAN_PACK_START struct _chan_switch_result {
@@ -2289,9 +1723,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 
 /** Bit mask for TxPD flags field for Tx status report */
 #define MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS MBIT(5)
-
-/** Bit mask for TxPD flags field for EASYMESH */
-#define MRVDRV_TxPD_FLAGS_EASYMESH MBIT(7)
 
 /** Packet type: 802.11 */
 #define PKT_TYPE_802DOT11 0x05
@@ -2432,9 +1863,6 @@ typedef MLAN_PACK_START struct _TxPD {
 	t_u8 reserved;
 	/** Tx Control */
 	t_u32 tx_control_1;
-	/** ra mac address */
-	t_u8 ra_mac[6];
-	t_u8 reserved3[2];
 } MLAN_PACK_END TxPD, *PTxPD;
 
 /** RxPD Descriptor */
@@ -2480,8 +1908,6 @@ typedef MLAN_PACK_START struct _RxPD {
 
 	/** Reserved */
 	t_u8 reserved3[8];
-	t_u8 ta_mac[6];
-	t_u8 reserved4[2];
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
@@ -2786,14 +2212,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_HostMlme_t {
 	/** Authentication type */
 	t_u8 host_mlme;
 } MLAN_PACK_END MrvlIEtypes_HostMlme_t;
-
-/** MrvlIEtypes_MultiAp_t */
-typedef MLAN_PACK_START struct _MrvlIEtypes_MultiAp_t {
-	/** Header */
-	MrvlIEtypesHeader_t header;
-	/** Multi AP flag */
-	t_u8 flag;
-} MLAN_PACK_END MrvlIEtypes_MultiAp_t;
 
 /** MrvlIEtypes_NumProbes_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_NumProbes_t {
@@ -3425,6 +2843,24 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 	t_u16 resp_ctrl;
 } MLAN_PACK_END sleep_confirm_param;
 
+/* bit define for pre_asleep*/
+#define BLOCK_CMD_IN_PRE_ASLEEP MBIT(0)
+/** MrvlIEtypes_ext_ps_param_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_ext_ps_param_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** mode: bit0:BLOCK_CMD_IN_PRE_ASLEEP */
+	t_u32 mode;
+} MLAN_PACK_END MrvlIEtypes_ext_ps_param_t;
+
+/** ext_ps_param_t */
+typedef MLAN_PACK_START struct _ext_ps_param {
+	/** reserved */
+	t_u16 reserved;
+	/** ext_ps_param tlv */
+	MrvlIEtypes_ext_ps_param_t param;
+} MLAN_PACK_END ext_ps_param;
+
 /** bitmap for get auto deepsleep */
 #define BITMAP_AUTO_DS 0x01
 /** bitmap for sta power save */
@@ -3435,6 +2871,7 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 #define BITMAP_UAP_INACT_PS 0x100
 /** bitmap for uap DTIM PS */
 #define BITMAP_UAP_DTIM_PS 0x200
+
 /** Structure definition for the new ieee power save parameters*/
 typedef MLAN_PACK_START struct _auto_ps_param {
 	/** bitmap for enable power save mode */
@@ -3454,6 +2891,8 @@ typedef MLAN_PACK_START struct _auto_ps_param {
 #define TLV_TYPE_PS_PARAM (PROPRIETARY_TLV_BASE_ID + 0x72) /* 0x0172 */
 /** TLV type : beacon timeout */
 #define TLV_TYPE_BCN_TIMEOUT (PROPRIETARY_TLV_BASE_ID + 0x11F) /* 0x011F */
+/** TLV type: ps_ext_param */
+#define TLV_TYPE_PS_EXT_PARAM (PROPRIETARY_TLV_BASE_ID + 0x15F) /* 0x25F */
 
 /** MrvlIEtypes_auto_ds_param_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_auto_ds_param_t {
@@ -3516,6 +2955,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
 		t_u16 ps_bitmap;
 		/** auto ps param */
 		auto_ps_param auto_ps;
+		/** ext ps param */
+		ext_ps_param ext_param;
 	} params;
 } MLAN_PACK_END HostCmd_DS_802_11_PS_MODE_ENH;
 
@@ -3604,12 +3045,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_HW_SPEC {
 } MLAN_PACK_END HostCmd_DS_GET_HW_SPEC;
 
 #ifdef SDIO
-/* HostCmd_DS_SDIO_SP_RX_AGGR_CFG */
-typedef MLAN_PACK_START struct _HostCmd_DS_SDIO_SP_RX_AGGR_CFG {
-	t_u8 action;
-	t_u8 enable;
-	t_u16 sdio_block_size;
-} MLAN_PACK_END HostCmd_DS_SDIO_SP_RX_AGGR_CFG;
 #endif
 
 /**  HostCmd_DS_802_11_CFG_DATA */
@@ -4078,8 +3513,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	/** Rx Stuck Related Info*/
 	/** Rx Stuck Issue count */
 	t_u32 rx_stuck_issue_cnt[2];
-	/** Rx Stuck Recovery count */
-	t_u32 rx_stuck_recovery_cnt;
+	/** Rx Stuck Recovery count polling based */
+	t_u32 rx_stuck_poll_recovery_cnt;
+	/** Rx Stuck Recovery count interrupt based */
+	t_u32 rx_stuck_intr_recovery_cnt;
 	/** Rx Stuck TSF */
 	t_u64 rx_stuck_tsf[2];
 	/** Tx Watchdog Recovery Related Info */
@@ -4389,8 +3826,8 @@ typedef MLAN_PACK_START struct _hs_config_param {
 	t_u32 conditions;
 	/** GPIO pin or 0xff for interface */
 	t_u8 gpio;
-	/** gap in milliseconds or or 0xff for special setting when
-	 *  GPIO is used to wakeup host
+	/** gap in milliseconds or 0xff for special setting
+	 *  (host acknowledge required)
 	 */
 	t_u8 gap;
 } MLAN_PACK_END hs_config_param;
@@ -6394,8 +5831,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
 	t_u16 mcast_timeout;
 	/** Timeout for additional RX traffic after Null PM1 packet exchange */
 	t_u16 ps_entry_timeout;
-	/** Reserved to further expansion */
-	t_u16 reserved;
+	/** Inactivity timeout for cmd */
+	t_u16 ps_cmd_timeout;
 } MLAN_PACK_END HostCmd_DS_INACTIVITY_TIMEOUT_EXT;
 
 /** HostCmd_DS_INDEPENDENT_RESET_CFG */
@@ -7274,9 +6711,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_DYN_BW {
 	t_u16 dyn_bw;
 } MLAN_PACK_END HostCmd_DS_DYN_BW;
 
-/** Host Command ID : Packet aggregation CTRL */
-#define HostCmd_CMD_PACKET_AGGR_CTRL 0x0251
-
 /** HostCmd_DS_PACKET_AGGR_CTRL */
 typedef MLAN_PACK_START struct _HostCmd_DS_PACKET_AGGR_AGGR_CTRL {
 	/** ACT_GET/ACT_SET */
@@ -7292,9 +6726,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PACKET_AGGR_AGGR_CTRL {
 } MLAN_PACK_END HostCmd_DS_PACKET_AGGR_CTRL;
 
 #ifdef USB
-/** Host Command ID : Packet aggregation over host interface */
-#define HostCmd_CMD_PACKET_AGGR_OVER_HOST_INTERFACE 0x0117
-
 /** TLV ID : USB Aggregation parameters */
 #define MRVL_USB_AGGR_PARAM_TLV_ID                                             \
 	(PROPRIETARY_TLV_BASE_ID + 0xB1) /* 0x1B1                              \
@@ -7650,9 +7081,6 @@ typedef MLAN_PACK_START struct {
 	t_u8 tlv_buffer[1];
 
 } MLAN_PACK_END HostCmd_DS_OPCHAN_CHANGROUP_CONFIG;
-
-#define HostCmd_CMD_OPCHAN_CONFIG 0x00f8
-#define HostCmd_CMD_OPCHAN_CHANGROUP_CONFIG 0x00f9
 #endif
 
 typedef MLAN_PACK_START struct {
@@ -8128,94 +7556,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RTTLCRCfg_t {
 	char civic_info[256];
 } MLAN_PACK_END MrvlIEtypes_RTTLCRCfg_t;
 
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-#define HostCmd_CMD_CRYPTO 0x025e
-
-#define HostCmd_CMD_CRYPTO_SUBCMD_PRF_HMAC_SHA1 (0x1)
-#define HostCmd_CMD_CRYPTO_SUBCMD_HMAC_SHA1 (0x2)
-#define HostCmd_CMD_CRYPTO_SUBCMD_HMAC_SHA256 (0x3)
-#define HostCmd_CMD_CRYPTO_SUBCMD_SHA256 (0x4)
-#define HostCmd_CMD_CRYPTO_SUBCMD_RIJNDAEL (0x5)
-#define HostCmd_CMD_CRYPTO_SUBCMD_RC4 (0x6)
-#define HostCmd_CMD_CRYPTO_SUBCMD_MD5 (0x7)
-#define HostCmd_CMD_CRYPTO_SUBCMD_MRVL_F (0x8)
-#define HostCmd_CMD_CRYPTO_SUBCMD_SHA256_KDF (0x9)
-
-#define TLV_TYPE_CRYPTO_KEY (PROPRIETARY_TLV_BASE_ID + 308)
-#define TLV_TYPE_CRYPTO_KEY_IV (PROPRIETARY_TLV_BASE_ID + 309)
-#define TLV_TYPE_CRYPTO_KEY_PREFIX (PROPRIETARY_TLV_BASE_ID + 310)
-#define TLV_TYPE_CRYPTO_KEY_DATA_BLK (PROPRIETARY_TLV_BASE_ID + 311)
-
-/** MrvlIEParamSet_t */
-typedef MLAN_PACK_START struct {
-	/** Type */
-	t_u16 Type;
-	/** Length */
-	t_u16 Length;
-} MLAN_PACK_END MrvlIEParamSet_t;
-
-/** HostCmd_DS_CRYPTO */
-typedef MLAN_PACK_START struct _HostCmd_DS_CRYPTO {
-	/** action */
-	t_u16 action;
-	/** subCmdCode */
-	t_u8 subCmdCode;
-	/** subCmd start */
-	t_u8 subCmd[];
-} MLAN_PACK_END HostCmd_DS_CRYPTO;
-
-/** subcmd_prf_hmac_sha1 used by prf_hmac_sha1, md5 and sha256_kdf */
-typedef MLAN_PACK_START struct _subcmd_prf_hmac_sha1 {
-	/** output_len */
-	t_u16 output_len;
-	/** tlv start */
-	t_u8 tlv[];
-} MLAN_PACK_END subcmd_prf_hmac_sha1_t, subcmd_md5_t, subcmd_sha256_kdf_t;
-
-/** subcmd_hmac_sha1 used by hmac_sha1, hmac_sha256, sha256 */
-typedef MLAN_PACK_START struct _subcmd_hmac_sha1 {
-	/** output_len */
-	t_u16 output_len;
-	/** number of data blocks */
-	t_u16 data_blks_nr;
-	/** tlv start */
-	t_u8 tlv[];
-} MLAN_PACK_END subcmd_hmac_sha1_t, subcmd_hmac_sha256_t, subcmd_sha256_t;
-
-/** subcmd_rijndael, used by rijndael */
-typedef MLAN_PACK_START struct _subcmd_rijndael {
-	/** output_len */
-	t_u16 output_len;
-	/** sub action code */
-	t_u8 sub_action_code;
-	/** tlv start */
-	t_u8 tlv[];
-} MLAN_PACK_END subcmd_rijndael_t;
-
-/** subcmd_rc4, used by rc4 */
-typedef MLAN_PACK_START struct _subcmd_rc4 {
-	/** output_len */
-	t_u16 output_len;
-	/** skip bytes */
-	t_u16 skip_bytes;
-	/** tlv start */
-	t_u8 tlv[];
-} MLAN_PACK_END subcmd_rc4_t;
-
-/** subcmd_mrvf_f, used by mrvl_f*/
-typedef MLAN_PACK_START struct _subcmd_mrvf_f {
-	/** output_len */
-	t_u16 output_len;
-	/** iterations */
-	t_u32 iterations;
-	/** count */
-	t_u32 count;
-	/** tlv start */
-	t_u8 tlv[];
-} MLAN_PACK_END subcmd_mrvl_f_t;
-
-#endif
-
 #ifdef UAP_SUPPORT
 /** action add station */
 #define HostCmd_ACT_ADD_STA 0x1
@@ -8237,8 +7577,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_ADD_STATION {
 	t_u8 tlv[];
 } MLAN_PACK_END HostCmd_DS_ADD_STATION;
 
-/** Host Command ID : Add New Station */
-#define HostCmd_CMD_ADD_NEW_STATION 0x025f
 /** TLV id: station flag */
 #define TLV_TYPE_UAP_STA_FLAGS (PROPRIETARY_TLV_BASE_ID + 313)
 /**MrvlIEtypes_Sta_Flag_t */
@@ -8300,6 +7638,35 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_RX_ABORT_CFG_EXT {
 	/** EDMAC status */
 	t_u8 edmac_enable;
 } MLAN_PACK_END HostCmd_DS_CMD_RX_ABORT_CFG_EXT;
+
+/** HostCmd_CMD_NAV_MITIGATION_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_NAV_MITIGATION_CFG {
+	/** Action */
+	t_u16 action;
+	/** start/stop nav mitigation */
+	t_u16 start_nav_mitigation;
+	/** Duration value in us to set as threshold in ACT_SET action */
+	t_u16 threshold;
+	/** Counter for NAV mitigation detected */
+	t_u16 detect_cnt;
+	/** Counter for NAV mitigation stopped */
+	t_u16 stop_cnt;
+} MLAN_PACK_END HostCmd_DS_CMD_NAV_MITIGATION_CFG;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_LED_CFG {
+	t_u16 action;
+	t_u8 enable;
+	t_u8 numled;
+} MLAN_PACK_END HostCmd_DS_CMD_LED_CFG;
+
+/* TLV 0x109 LED Behavior */
+typedef MLAN_PACK_START struct {
+	MrvlIEtypesHeader_t header;
+	t_u8 firmwarestate;
+	t_u8 reserved;
+	t_u8 ledstate;
+	t_u8 ledargs;
+} MLAN_PACK_END MrvlIEtypes_led_behavior_t;
 
 /** HostCmd_CMD_ARB_CONFIG */
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_ARB_CONFIG {
@@ -8372,7 +7739,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Hardware specifications */
 		HostCmd_DS_GET_HW_SPEC hw_spec;
 #ifdef SDIO
-		HostCmd_DS_SDIO_SP_RX_AGGR_CFG sdio_rx_aggr;
 #endif
 		/** Cfg data */
 		HostCmd_DS_802_11_CFG_DATA cfg_data;
@@ -8605,10 +7971,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_CSI_CFG csi_params;
 		/** boot sleep configure */
 		HostCmd_DS_BOOT_SLEEP boot_sleep;
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-		/** crypto cmd */
-		HostCmd_DS_CRYPTO crypto_cmd;
-#endif
 #ifdef UAP_SUPPORT
 		/** Add station cmd */
 		HostCmd_DS_ADD_STATION sta_info;
@@ -8624,6 +7986,8 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_CMD_RX_ABORT_CFG rx_abort_cfg;
 		HostCmd_DS_CMD_OFDM_DESENSE_CFG ofdm_desense_cfg;
 		HostCmd_DS_CMD_RX_ABORT_CFG_EXT rx_abort_cfg_ext;
+		HostCmd_DS_CMD_NAV_MITIGATION_CFG nav_mitigation;
+		HostCmd_DS_CMD_LED_CFG ledcntrcfg;
 		HostCmd_DS_CMD_TX_AMPDU_PROT_MODE tx_ampdu_prot_mode;
 		HostCmd_DS_CMD_RATE_ADAPT_CFG rate_adapt_cfg;
 		HostCmd_DS_CMD_CCK_DESENSE_CFG cck_desense_cfg;

@@ -169,6 +169,8 @@ extern mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 /** get/set channel dfs state */
 mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 					  pmlan_ioctl_req pioctl_req);
+t_void wlan_11h_reset_dfs_checking_chan_dfs_state(mlan_private *priv,
+						  dfs_state_t dfs_state);
 
 /** get/set dfs w53 cfg */
 mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,

@@ -3,7 +3,7 @@
  * @brief This file contains wlan driver specific defines etc.
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -44,6 +44,9 @@ Change log:
 #include <linux/mm.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 17)
+#include <uapi/linux/sched/types.h>
+#endif
 #include <linux/timer.h>
 #include <linux/ioport.h>
 #include <linux/pci.h>
@@ -160,7 +163,9 @@ Change log:
 #define IMX_ANDROID_12_BACKPORT 0
 
 #if defined(IMX_SUPPORT)
+
 #if defined(IMX_ANDROID)
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1
@@ -251,12 +256,13 @@ Change log:
 /** country rgpower mode */
 #define CNTRY_RGPOWER_MODE 2
 
+#define DEF_NICE 20
 /** Define BOOLEAN */
 typedef t_u8 BOOLEAN;
 
 #define INTF_CARDTYPE "----------%s-MM"
 
-#define KERN_VERSION "5X"
+#define KERN_VERSION "6X"
 
 #define V14 "14"
 #define V15 "15"
@@ -282,6 +288,12 @@ typedef t_u8 BOOLEAN;
 #define CARD_TYPE_PCIE_USB 7
 /** card type SD9177_UART */
 #define CARD_TYPE_SD9177_UART 1 // As per datasheet/SoC design
+/** card type SDIW624_UART */
+#define CARD_TYPE_SDIW624_UART 0 // As per datasheet/SoC design
+/** card type PCIEIW624_USB */
+#define CARD_TYPE_PCIEIW624_USB 4 // As per datasheet/SoC design
+/** card type PCIEIW624_UART */
+#define CARD_TYPE_PCIEIW624_UART 7 // As per datasheet/SoC design
 
 /* Max buffer size */
 #define MAX_BUF_LEN 512
@@ -824,6 +836,8 @@ out:
 
 /** Custom event : Deep Sleep awake */
 #define CUS_EVT_DEEP_SLEEP_AWAKE "EVENT=DS_AWAKE"
+
+#define CUS_EVT_ADDBA_TIMEOUT "EVENT=ADDBA_TIMEOUT"
 
 #define CUS_EVT_TOD_TOA "EVENT=TOD-TOA"
 
@@ -1417,25 +1431,13 @@ typedef struct _auto_zero_dfs_cfg {
 	t_u8 dfs_chan_list[MAX_DFS_CHAN_LIST];
 } __ATTRIB_PACK__ auto_zero_dfs_cfg;
 
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-typedef struct _station_node {
-	/** station aid */
-	t_u16 aid;
-	/** station mac address */
-	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
-	/** net_device that station is bind to */
-	struct net_device *netdev;
-	/** is valid flag */
-	t_u8 is_valid;
-} station_node;
-
-#define EASY_MESH_MULTI_AP_FH_BSS (t_u8)(0x20)
-#define EASY_MESH_MULTI_AP_BH_BSS (t_u8)(0x40)
-#define EASY_MESH_MULTI_AP_BH_AND_FH_BSS (t_u8)(0x60)
-
-#define EASY_MESH_MULTI_AP_BSS_MODE_1 (t_u8)(0x01)
-#define EASY_MESH_MULTI_AP_BSS_MODE_2 (t_u8)(0x02)
-#define EASY_MESH_MULTI_AP_BSS_MODE_3 (t_u8)(0x03)
+#ifdef STA_SUPPORT
+enum scan_set_band {
+	SCAN_SETBAND_AUTO = 0,
+	SCAN_SETBAND_2G = BIT(0),
+	SCAN_SETBAND_5G = BIT(1),
+	SCAN_SETBAND_6G = BIT(2),
+};
 #endif
 
 /** Private structure for MOAL */
@@ -1529,6 +1531,10 @@ struct _moal_private {
 #ifdef STA_SUPPORT
 	/** scan type */
 	t_u8 scan_type;
+
+	/** set band for scan */
+	t_u8 scan_setband_mask;
+
 	/** extended capabilities */
 	ExtCap_t extended_capabilities;
 	/** bg_scan_start */
@@ -1588,6 +1594,8 @@ struct _moal_private {
 	struct net_device *pa_netdev;
 	/** channel parameter for UAP/GO */
 	t_u16 channel;
+	/** bandwidth parameter for UAP/GO */
+	t_u8 bandwidth;
 #ifdef UAP_SUPPORT
 	/** wep key */
 	wep_key uap_wep_key[4];
@@ -1798,23 +1806,9 @@ struct _moal_private {
 	char csi_dump_path[64];
 	/** CSI config */
 	mlan_ds_csi_params csi_config;
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-	/** hostcmd_wait_q */
-	wait_queue_head_t hostcmd_wait_q __ATTRIB_ALIGN__;
-	/** hostcmd_wait_condition */
-	t_bool hostcmd_wait_condition;
-#endif
 	void *rings[RING_ID_MAX];
 	t_u8 pkt_fate_monitor_enable;
 	void *packet_filter;
-#ifdef UAP_SUPPORT
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-	t_u8 multi_ap_flag;
-	station_node *vlan_sta_ptr;
-	station_node *vlan_sta_list[MAX_STA_COUNT];
-	moal_private *parent_priv;
-#endif
-#endif
 	/** txwatchdog disable */
 	t_u8 txwatchdog_disable;
 
@@ -1894,6 +1888,7 @@ typedef struct _card_info {
 #endif
 	t_u8 sniffer_support;
 	t_u8 per_pkt_cfg_support;
+	t_u8 host_mlme_required;
 } card_info;
 
 /** channel_field.flags */
@@ -2329,7 +2324,6 @@ enum ext_mod_params {
 	EXT_AGGR_CTRL,
 	EXT_LOW_PW_MODE,
 #ifdef SDIO
-	EXT_SDIO_RX_AGGR,
 #endif
 	EXT_PMIC,
 	EXT_DISCONNECT_ON_SUSPEND,
@@ -2697,14 +2691,30 @@ struct _moal_handle {
 	/** Host Mlme Work struct**/
 	struct work_struct host_mlme_work;
 #endif
-	/** Driver workqueue */
-	struct workqueue_struct *rx_workqueue;
-	/** main work */
-	struct work_struct rx_work;
 	/** Driver event workqueue */
 	struct workqueue_struct *evt_workqueue;
 	/** event  work */
 	struct work_struct evt_work;
+#if defined(SDIO) || defined(USB)
+	/** Driver workqueue */
+	struct workqueue_struct *rx_workqueue;
+	/** main work */
+	struct work_struct rx_work;
+#endif
+#ifdef PCIE
+	/** Driver pcie rx event workqueue */
+	struct workqueue_struct *pcie_rx_event_workqueue;
+	/** pcie rx event  work */
+	struct work_struct pcie_rx_event_work;
+	/** Driver pcie rx cmd resp workqueue */
+	struct workqueue_struct *pcie_cmd_resp_workqueue;
+	/** pcie rx cmd resp work */
+	struct work_struct pcie_cmd_resp_work;
+	/* pcie rx data tasklet */
+	struct tasklet_struct pcie_rx_task;
+	/* pcie tx complete tasklet */
+	struct tasklet_struct pcie_tx_complete_task;
+#endif
 	/** event spin lock */
 	spinlock_t evt_lock;
 	/** event queue */
@@ -2713,6 +2723,7 @@ struct _moal_handle {
 	struct workqueue_struct *tx_workqueue;
 	/** tx work */
 	struct work_struct tx_work;
+
 	/** remain on channel flag */
 	t_u8 remain_on_channel;
 	/** bss index for remain on channel */
@@ -2847,6 +2858,7 @@ struct _moal_handle {
 	struct delayed_work scan_timeout_work;
 	/** scan timeout time */
 	t_u32 scan_timeout;
+
 #endif
 #endif
 	/** main state */
@@ -2857,10 +2869,12 @@ struct _moal_handle {
 	t_u8 driver_state;
 	/** ioctl timeout */
 	t_u8 ioctl_timeout;
+#ifdef DUMP_TO_PROC
 	/** Pointer of fw dump buffer */
 	t_u8 *drv_dump_buf;
 	/** drv dump len */
 	t_u32 drv_dump_len;
+#endif
 	/** FW dump state */
 	t_u8 fw_dump;
 	/** event fw dump */
@@ -2873,8 +2887,10 @@ struct _moal_handle {
 	t_u64 fw_dump_len;
 	/** fw dump status for each chip, useful in multichip drive */
 	BOOLEAN fw_dump_status;
+#ifdef DUMP_TO_PROC
 	/** Pointer of fw dump buffer */
 	t_u8 *fw_dump_buf;
+#endif
 	/** FW dump full name */
 	t_u8 firmware_dump_file[128];
 
@@ -3580,6 +3596,7 @@ void woal_update_firmware_name(moal_handle *handle);
 /** cancel all works in the queue */
 void woal_terminate_workqueue(moal_handle *handle);
 void woal_flush_workqueue(moal_handle *handle);
+void woal_queue_rx_task(moal_handle *handle);
 /** initializes firmware */
 mlan_status woal_init_fw(moal_handle *handle);
 /** frees the structure of moal_handle */
@@ -3707,6 +3724,7 @@ int woal_enable_hs(moal_private *priv);
 mlan_status woal_get_wakeup_reason(moal_private *priv,
 				   mlan_ds_hs_wakeup_reason *wakeup_reason);
 int woal_process_proc_hssetpara(moal_handle *handle, t_u8 *buf);
+#ifdef DUMP_TO_PROC
 #define FW_DUMP_INFO_LEN 0x280000
 /** mem dump header */
 typedef struct {
@@ -3725,6 +3743,14 @@ int woal_save_dump_info_to_buf(moal_handle *phandle, t_u8 *src, t_u32 len,
 			       t_u32 type);
 void woal_append_end_block(moal_handle *phandle);
 t_u8 *woal_dump_drv_info(moal_handle *phandle, t_u32 *dump_len);
+#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+void woal_create_dump_dir(moal_handle *phandle, char *dir_buf, int buf_size);
+#endif
+mlan_status woal_save_dump_info_to_file(char *dir_name, char *file_name,
+					t_u8 *buf, t_u32 buf_len);
+void woal_dump_drv_info(moal_handle *phandle, t_u8 *dir_name);
+#endif
 
 #define FW_DUMP_TYPE_ENDED 0x002
 #define FW_DUMP_TYPE_MEM_ITCM 0x004
@@ -3743,6 +3769,14 @@ void woal_dump_firmware_info_v3(moal_handle *phandle);
 /* Store the FW dumps received from events in a file */
 void woal_store_firmware_dump(moal_handle *phandle, pmlan_event pmevent);
 void woal_send_fw_dump_complete_event(moal_private *priv);
+
+#ifndef DUMP_TO_PROC
+#if defined(PCIE)
+void woal_store_ssu_dump(moal_handle *phandle, pmlan_event pmevent);
+#endif /* SSU_SUPPORT */
+/** save hostcmd response to file */
+t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent);
+#endif
 
 int woal_pre_warmreset(moal_private *priv);
 int woal_warmreset(moal_private *priv);
@@ -3970,10 +4004,18 @@ void woal_reassoc_timer_func(void *context);
 
 void woal_fw_dump_timer_func(void *context);
 
-t_void woal_main_work_queue(struct work_struct *work);
+#if defined(USB) || defined(SDIO)
 t_void woal_rx_work_queue(struct work_struct *work);
+#endif
+t_void woal_main_work_queue(struct work_struct *work);
 t_void woal_evt_work_queue(struct work_struct *work);
 t_void woal_mclist_work_queue(struct work_struct *work);
+
+#ifdef PCIE
+t_void woal_pcie_rx_event_work_queue(struct work_struct *work);
+t_void woal_pcie_cmd_resp_work_queue(struct work_struct *work);
+#endif
+
 #ifdef STA_CFG80211
 t_void woal_scan_timeout_handler(struct work_struct *work);
 #endif
@@ -4092,10 +4134,6 @@ void woal_hist_data_add(moal_private *priv, t_u16 rx_rate, t_s8 snr, t_s8 nflr,
 			t_u8 antenna);
 mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 				t_u32 hotspotcfg);
-
-#if defined(STA_CFG80211)
-mlan_status woal_multi_ap_cfg(moal_private *priv, t_u8 wait_option, t_u8 flag);
-#endif
 
 mlan_status woal_set_get_wowlan_config(moal_private *priv, t_u16 action,
 				       t_u8 wait_option,

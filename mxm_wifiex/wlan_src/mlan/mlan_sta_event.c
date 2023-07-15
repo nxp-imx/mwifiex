@@ -33,9 +33,6 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
 #include "mlan_11h.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 #ifdef PCIE
 #include "mlan_pcie.h"
 #endif /* PCIE */
@@ -380,6 +377,10 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 		else
 #endif
 			wlan_11h_check_update_radar_det_state(priv);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 	}
 
 	if (priv->port_ctrl_mode == MTRUE) {
@@ -405,18 +406,12 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	priv->rxpd_rate_info = 0;
 	priv->max_amsdu = 0;
 	priv->amsdu_disable = MFALSE;
-	priv->multi_ap_flag = 0;
 	wlan_coex_ampdu_rxwinsize(pmadapter);
 
 	priv->sec_info.ewpa_enabled = MFALSE;
 	priv->sec_info.wpa_enabled = MFALSE;
 	priv->sec_info.wpa2_enabled = MFALSE;
 	priv->wpa_ie_len = 0;
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	supplicantStopSessionTimer(priv->psapriv);
-	supplicantClrEncryptKey(priv->psapriv);
-	supplicantDisable(priv->psapriv);
-#endif
 
 	priv->sec_info.wapi_enabled = MFALSE;
 	priv->wapi_ie_len = 0;
@@ -896,6 +891,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_PORT_RELEASE, MNULL);
 		/* Send OBSS scan param to the application */
 		wlan_2040_coex_event(pmpriv);
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type))
+			wlan_resync_usb_port(pmadapter);
+#endif
 		break;
 
 	case EVENT_STOP_TX:
@@ -1127,18 +1126,17 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_ADDBA:
 		PRINTM(MEVENT, "EVENT: ADDBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
-			ret = wlan_prepare_cmd(pmpriv,
-					       HostCmd_CMD_11N_ADDBA_RSP,
-					       HostCmd_ACT_GEN_SET, 0, MNULL,
-					       pmadapter->event_body);
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
+			wlan_11n_add_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
 			       "Ignore ADDBA Request event in disconnected state\n");
 		break;
 	case EVENT_DELBA:
 		PRINTM(MEVENT, "EVENT: DELBA Request\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_delete_bastream(pmpriv, pmadapter->event_body);
 		else
 			PRINTM(MERROR,
@@ -1146,7 +1144,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_BA_STREAM_TIMEOUT:
 		PRINTM(MEVENT, "EVENT:  BA Stream timeout\n");
-		if (pmpriv->media_connected == MTRUE)
+		if (pmpriv->media_connected == MTRUE &&
+		    !pmpriv->adapter->remain_on_channel)
 			wlan_11n_ba_stream_timeout(
 				pmpriv, (HostCmd_DS_11N_BATIMEOUT *)
 						pmadapter->event_body);
@@ -1233,6 +1232,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM_NETINTF(MEVENT, pmpriv);
 		PRINTM(MEVENT, "EVENT: REMAIN_ON_CHANNEL_EXPIRED reason=%d\n",
 		       *(t_u16 *)pmadapter->event_body);
+		pmpriv->adapter->remain_on_channel = MFALSE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED,
 				MNULL);
@@ -1419,7 +1419,13 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		pmadapter->fw_hang_report = MTRUE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 		break;
-	case CHAN_LOAD_EVENT: {
+	case EVENT_IMD3_CAL_START:
+		PRINTM(MEVENT, "EVENT: EVENT_IMD3_CAL_START\n");
+		break;
+	case EVENT_IMD3_CAL_END:
+		PRINTM(MEVENT, "EVENT: EVENT_IMD3_CAL_END\n");
+		break;
+	case EVENT_CHAN_LOAD: {
 		t_u8 *ptr = MNULL;
 		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
 		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);

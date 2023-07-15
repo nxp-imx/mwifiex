@@ -37,9 +37,6 @@ Change log:
 #include "mlan_11ac.h"
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 /********************************************************
 			Local Constants
 ********************************************************/
@@ -3854,11 +3851,8 @@ t_s32 wlan_is_network_compatible(mlan_private *pmpriv, t_u32 index, t_u32 mode)
 	}
 
 	if ((pbss_desc->bss_mode == mode) &&
-	    (pmpriv->sec_info.ewpa_enabled == MTRUE
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	     || supplicantIsEnabled(pmpriv->psapriv)
-#endif
-	     || pmpriv->sec_info.authentication_mode == MLAN_AUTH_MODE_OWE ||
+	    (pmpriv->sec_info.ewpa_enabled == MTRUE ||
+	     pmpriv->sec_info.authentication_mode == MLAN_AUTH_MODE_OWE ||
 	     pbss_desc->owe_transition_mode == OWE_TRANS_MODE_OWE)) {
 		if (((pbss_desc->pwpa_ie) &&
 		     ((*(pbss_desc->pwpa_ie)).vend_hdr.element_id == WPA_IE)) ||
@@ -5394,7 +5388,7 @@ static t_void wlan_parse_non_trans_bssid_profile(
 	IEEEtypes_NotxBssCap_t *pcap =
 		(IEEEtypes_NotxBssCap_t *)pbss_profile->profile_data;
 	t_u8 *pos = pbss_profile->profile_data;
-	t_s8 left_len = pbss_profile->ieee_hdr.len;
+	t_u8 left_len = pbss_profile->ieee_hdr.len;
 	t_u8 ret = MFALSE;
 	mlan_callbacks *pcb = (pmlan_callbacks)&pmadapter->callbacks;
 	BSSDescriptor_t *bss_new_entry = MNULL;

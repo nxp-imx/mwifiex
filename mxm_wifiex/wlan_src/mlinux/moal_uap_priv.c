@@ -120,16 +120,6 @@ int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 			break;
 #endif
 #endif
-#if defined(UAP_CFG80211)
-#if defined(STA_WEXT) || defined(UAP_WEXT)
-		case WOAL_UAP_SET_MODE:
-			PRINTM(MINFO,
-			       "%s: setting multi_ap flag through user command\n",
-			       __func__);
-			ret = woal_uap_set_get_multi_ap_mode(priv, wrq);
-			break;
-#endif
-#endif
 		default:
 			ret = -EINVAL;
 			break;

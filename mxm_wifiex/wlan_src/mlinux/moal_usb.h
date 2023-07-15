@@ -89,14 +89,14 @@ Change Log:
 #define USB9097_PID_2 0x2061
 #endif /* USB9097 */
 
-#ifdef USBIW62X
+#ifdef USBIW624
 /** USB VID 1 */
-#define USBIW62X_VID_1 0x0471
+#define USBIW624_VID_1 0x0471
 /** USB PID 1 */
-#define USBIW62X_PID_1 0x020E
+#define USBIW624_PID_1 0x020E
 /** USB PID 2 */
-#define USBIW62X_PID_2 0x020F
-#endif /* USBIW62X */
+#define USBIW624_PID_2 0x020F
+#endif /* USBIW624 */
 
 /** Boot state: FW download */
 #define USB_FW_DNLD 1
@@ -110,7 +110,7 @@ Change Log:
 #define MVUSB_RX_DATA_URB 6
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USB8801) || defined(USBIW62X)
+	defined(USB8978) || defined(USB8801) || defined(USBIW624)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -172,12 +172,12 @@ Change Log:
 #define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
 #endif /* USB9097 */
 
-#ifdef USBIW62X
-#define USBIW62X_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw62x_combo.bin"
-#define USBUARTIW62X_COMBO_FW_NAME "nxp/usbuartiw62x_combo.bin"
-#define USBUSBIW62X_COMBO_FW_NAME "nxp/usbusbiw62x_combo.bin"
-#define USBIW62X_DEFAULT_WLAN_FW_NAME "nxp/usbiw62x_wlan.bin"
-#endif /* USBIW62X */
+#ifdef USBIW624
+#define USBIW624_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBUARTIW624_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBUSBIW624_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBIW624_DEFAULT_WLAN_FW_NAME "nxp/usbiw624_wlan.bin"
+#endif /* USBIW624 */
 
 /** urb context */
 typedef struct _urb_context {

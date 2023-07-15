@@ -275,7 +275,6 @@ static int indrstcfg = 0xffffffff;
 #define DEFAULT_DEV_CAP_MASK 0xffffffff
 static t_u32 dev_cap_mask = DEFAULT_DEV_CAP_MASK;
 #ifdef SDIO
-static int sdio_rx_aggr = MTRUE;
 #endif
 
 /** The global variable of scan beacon buffer **/
@@ -343,8 +342,8 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef SD9177
 	{CARD_TYPE_SD9177, 0, CARD_SD9177},
 #endif
-#ifdef SDIW62X
-	{CARD_TYPE_SDIW62X, 0, CARD_SDIW62X},
+#ifdef SDIW624
+	{CARD_TYPE_SDIW624, 0, CARD_SDIW624},
 #endif
 	{CARD_TYPE_SDAW693, 0, CARD_SDAW693},
 #ifdef PCIE8897
@@ -360,8 +359,8 @@ static card_type_entry card_type_map_tbl[] = {
 	{CARD_TYPE_PCIE9098, 0, CARD_PCIE9098},
 #endif
 	{CARD_TYPE_PCIEAW693, 0, CARD_PCIEAW693},
-#ifdef PCIEIW62X
-	{CARD_TYPE_PCIEIW62X, 0, CARD_PCIEIW62X},
+#ifdef PCIEIW624
+	{CARD_TYPE_PCIEIW624, 0, CARD_PCIEIW624},
 #endif
 #ifdef USB8801
 	{CARD_TYPE_USB8801, 0, CARD_USB8801},
@@ -382,8 +381,8 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef USB9097
 	{CARD_TYPE_USB9097, 0, CARD_USB9097},
 #endif
-#ifdef USBIW62X
-	{CARD_TYPE_USBIW62X, 0, CARD_USBIW62X},
+#ifdef USBIW624
+	{CARD_TYPE_USBIW624, 0, CARD_USBIW624},
 #endif
 
 };
@@ -1078,20 +1077,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "dev_cap_mask=%d\n", params->dev_cap_mask);
 		}
 #ifdef SDIO
-		else if (strncmp(line, "sdio_rx_aggr",
-				 strlen("sdio_rx_aggr")) == 0) {
-			if (parse_line_read_int(line, &out_data) !=
-			    MLAN_STATUS_SUCCESS)
-				goto err;
-			if (out_data)
-				moal_extflg_set(handle, EXT_SDIO_RX_AGGR);
-			else
-				moal_extflg_clear(handle, EXT_SDIO_RX_AGGR);
-			PRINTM(MMSG, "sdio_rx_aggr %s\n",
-			       moal_extflg_isset(handle, EXT_SDIO_RX_AGGR) ?
-				       "on" :
-				       "off");
-		}
 #endif
 		else if (strncmp(line, "pmic", strlen("pmic")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1704,8 +1689,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.dev_cap_mask = params->dev_cap_mask;
 #ifdef SDIO
-	if (sdio_rx_aggr)
-		moal_extflg_set(handle, EXT_SDIO_RX_AGGR);
 #endif
 	if (pmic)
 		moal_extflg_set(handle, EXT_PMIC);
@@ -2484,7 +2467,7 @@ mlan_status woal_init_module_param(moal_handle *handle)
 	}
 	PRINTM(MMSG, "%s: init module param from usr cfg\n",
 	       card_type_map_tbl[i].name);
-	size = handle->param_data->size;
+	size = (t_u32)handle->param_data->size;
 	data = (t_u8 *)handle->param_data->data;
 	while ((int)parse_cfg_get_line(data, size, line) != -1) {
 		if (line[0] == '#')
@@ -2762,9 +2745,6 @@ MODULE_PARM_DESC(amsdu_deaggr,
 		 "0: default; 1: Try to avoid buf copy in amsud deaggregation");
 
 #ifdef SDIO
-module_param(sdio_rx_aggr, int, 0);
-MODULE_PARM_DESC(sdio_rx_aggr,
-		 "1: Enable SDIO rx aggr; 0: Disable SDIO rx aggr");
 #endif
 
 module_param(pmic, int, 0);

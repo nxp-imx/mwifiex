@@ -286,6 +286,31 @@ t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan, t_u8 bw,
 		wlan_set_chan_dfs_state(priv, BAND_A, chan_list[i], dfs_state);
 }
 
+/**
+ *  @brief reset dfs_checking_chan's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param dfs_state    dfs state
+ *
+ *  @return  N/A
+ */
+t_void wlan_11h_reset_dfs_checking_chan_dfs_state(mlan_private *priv,
+						  dfs_state_t dfs_state)
+{
+	wlan_dfs_device_state_t *pstate_dfs = &priv->adapter->state_dfs;
+	dfs_state_t state;
+	ENTER();
+	if (pstate_dfs->dfs_check_channel) {
+		state = wlan_get_chan_dfs_state(priv, BAND_A,
+						pstate_dfs->dfs_check_channel);
+		if (state == DFS_AVAILABLE)
+			wlan_11h_set_chan_dfs_state(
+				priv, pstate_dfs->dfs_check_channel,
+				pstate_dfs->dfs_check_bandwidth, dfs_state);
+	}
+	LEAVE();
+}
+
 #ifdef STA_SUPPORT
 /**
  *  @brief Setup the IBSS DFS element passed to the firmware in adhoc start
@@ -3814,7 +3839,8 @@ void wlan_dfs_rep_disconnect(mlan_adapter *pmadapter)
 		if (wlan_11h_radar_detect_required(pmpriv,
 						   pmadapter->dfsr_channel)) {
 			mlan_status ret = MLAN_STATUS_SUCCESS;
-			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_APCMD_BSS_STOP,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
 			if (ret) {
@@ -3863,7 +3889,8 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 				    pmpriv, pmadapter->dfsr_channel))
 				return;
 
-			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_STOP,
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_APCMD_BSS_STOP,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
 			if (ret) {
@@ -3877,7 +3904,8 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 		pmpriv = priv_list[i];
 
 		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
-			ret = wlan_prepare_cmd(pmpriv, HOST_CMD_APCMD_BSS_START,
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_APCMD_BSS_START,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
 			if (ret) {
@@ -4174,10 +4202,9 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 			       __func__);
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
-				ret = wlan_prepare_cmd(pmpriv,
-						       HOST_CMD_APCMD_BSS_STOP,
-						       HostCmd_ACT_GEN_SET, 0,
-						       MNULL, MNULL);
+				ret = wlan_prepare_cmd(
+					pmpriv, HostCmd_CMD_APCMD_BSS_STOP,
+					HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 				PRINTM(MERROR,
 				       "STOP UAP and exit radar handling...\n");
 				pstate_rdh->stage = RDH_OFF;
@@ -4410,10 +4437,9 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 				pstate_rdh->priv_list[pstate_rdh->priv_curr_idx];
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
-				ret = wlan_prepare_cmd(pmpriv,
-						       HOST_CMD_APCMD_BSS_STOP,
-						       HostCmd_ACT_GEN_SET, 0,
-						       MNULL, MNULL);
+				ret = wlan_prepare_cmd(
+					pmpriv, HostCmd_CMD_APCMD_BSS_STOP,
+					HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 				break; /* leads to exit case */
 			}
 #endif
@@ -4519,10 +4545,9 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 					ret = wlan_11h_check_update_radar_det_state(
 						pmpriv);
 				}
-				ret = wlan_prepare_cmd(pmpriv,
-						       HOST_CMD_APCMD_BSS_START,
-						       HostCmd_ACT_GEN_SET, 0,
-						       MNULL, MNULL);
+				ret = wlan_prepare_cmd(
+					pmpriv, HostCmd_CMD_APCMD_BSS_START,
+					HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 				break; /* leads to exit case */
 			}
 #endif

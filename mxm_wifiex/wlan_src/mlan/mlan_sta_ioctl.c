@@ -35,9 +35,6 @@ Change log:
 #include "mlan_11ac.h"
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
-#ifdef DRV_EMBEDDED_SUPPLICANT
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 			Local Variables
@@ -1403,10 +1400,6 @@ static mlan_status wlan_bss_ioctl_find_bss(pmlan_adapter pmadapter,
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	mlan_ds_bss *bss = MNULL;
-	mlan_ssid_bssid *ssid_bssid = MNULL;
-#endif
 
 	ENTER();
 
@@ -1418,14 +1411,6 @@ static mlan_status wlan_bss_ioctl_find_bss(pmlan_adapter pmadapter,
 			return MLAN_STATUS_PENDING;
 		}
 	}
-#ifdef DRV_EMBEDDED_SUPPLICANT
-	if (!IS_FW_SUPPORT_SUPPLICANT(pmpriv->adapter)) {
-		bss = (mlan_ds_bss *)pioctl_req->pbuf;
-		ssid_bssid = &bss->param.ssid_bssid;
-		supplicantQueryPassphraseAndEnable(pmpriv->psapriv,
-						   (t_u8 *)ssid_bssid);
-	}
-#endif
 
 	ret = wlan_find_bss(pmpriv, pioctl_req);
 
@@ -5179,9 +5164,6 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_HOTSPOT_CFG:
 		status = wlan_misc_hotspot_cfg(pmadapter, pioctl_req);
 		break;
-	case MLAN_OID_MISC_MULTI_AP_CFG:
-		status = wlan_misc_multi_ap_cfg(pmadapter, pioctl_req);
-		break;
 	case MLAN_OID_MISC_OTP_USER_DATA:
 		status = wlan_misc_otp_user_data(pmadapter, pioctl_req);
 		break;
@@ -5200,11 +5182,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_TXCONTROL:
 		status = wlan_misc_ioctl_txcontrol(pmadapter, pioctl_req);
 		break;
-#ifdef STA_SUPPORT
 	case MLAN_OID_MISC_EXT_CAP_CFG:
 		status = wlan_misc_ext_capa_cfg(pmadapter, pioctl_req);
 		break;
-#endif
 	case MLAN_OID_MISC_PMFCFG:
 		status = wlan_misc_pmfcfg(pmadapter, pioctl_req);
 		break;
@@ -5351,6 +5331,12 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_RX_ABORT_CFG_EXT:
 		status = wlan_misc_ioctl_rxabortcfg_ext(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_NAV_MITIGATION:
+		status = wlan_misc_ioctl_nav_mitigation(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_LED_CONFIG:
+		status = wlan_misc_ioctl_led(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_TX_AMPDU_PROT_MODE:
 		status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 							    pioctl_req);
@@ -5393,6 +5379,11 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_IPS_CFG:
 		status = wlan_misc_ioctl_ips_cfg(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_REORDER_FLUSH_TIME:
+		status = wlan_misc_ioctl_reorder_flush_time(pmadapter,
+							    pioctl_req);
+		break;
+
 	default:
 		if (pioctl_req)
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
@@ -5477,8 +5468,7 @@ static mlan_status wlan_set_get_scan_cfg(pmlan_adapter pmadapter,
  *  @return		MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success,
  * otherwise fail
  */
-static mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter,
-				   pmlan_ioctl_req pioctl_req)
+mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 {
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status status = MLAN_STATUS_SUCCESS;

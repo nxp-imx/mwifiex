@@ -3408,7 +3408,7 @@ static const iw_handler woal_private_handler[] = {
 void woal_send_iwevcustom_event(moal_private *priv, char *str)
 {
 	union iwreq_data iwrq;
-	char buf[IW_CUSTOM_MAX];
+	char buf[256];
 
 	ENTER();
 	/* Check register_netdevice is completed before sending*/

@@ -52,9 +52,9 @@ Change log:
 /** PCIE device ID for 9098 card FN1 */
 #define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
 
-#ifdef PCIEIW62X
-/** PCIE device ID for IW62X card FN0 */
-#define PCIE_DEVICE_ID_88WIW62X (0x3000)
+#ifdef PCIEIW624
+/** PCIE device ID for IW624 card FN0 */
+#define PCIE_DEVICE_ID_88WIW624 (0x3000)
 #endif
 
 /** PCIE device ID for AW693 card FN0 */
@@ -120,12 +120,12 @@ Change log:
 #define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
-#ifdef PCIEIW62X
-#define PCIEIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw62x_combo.bin"
-#define PCIEUARTIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw62x_combo.bin"
-#define PCIEUSBIW62X_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw62x_combo.bin"
-#define PCIEIW62X_DEFAULT_WLAN_FW_NAME "nxp/pcieiw62x_wlan.bin"
-#endif /* PCIEIW62X */
+#ifdef PCIEIW624
+#define PCIEIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw624_combo.bin"
+#define PCIEUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEIW624_DEFAULT_WLAN_FW_NAME "nxp/pcieiw624_wlan.bin"
+#endif /* PCIEIW624 */
 
 #define PCIE_NUM_MSIX_VECTORS 32
 
