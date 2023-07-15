@@ -295,7 +295,7 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 		/** update the RX MCS map */
 		if (cfg->param.vht_cfg.txrx & MLAN_RADIO_RX) {
 			if (IS_CARD9098(pmadapter->card_type) ||
-			    IS_CARDIW62X(pmadapter->card_type) ||
+			    IS_CARDIW624(pmadapter->card_type) ||
 			    IS_CARD9097(pmadapter->card_type)) {
 				if (cfg->param.vht_cfg.band == BAND_SELECT_A) {
 					rx_nss = GET_RXMCSSUPP(
@@ -789,7 +789,7 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_map_resp =
 			wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
 	if (IS_CARD9098(priv->adapter->card_type) ||
-	    IS_CARDIW62X(priv->adapter->card_type) ||
+	    IS_CARDIW624(priv->adapter->card_type) ||
 	    IS_CARD9097(priv->adapter->card_type)) {
 		if (bands & BAND_A) {
 			rx_nss = GET_RXMCSSUPP(priv->adapter->user_htstream >>
@@ -1060,7 +1060,7 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 	ENTER();
 
 	if (!IS_CARD9098(pmpriv->adapter->card_type) &&
-	    !IS_CARDIW62X(pmpriv->adapter->card_type) &&
+	    !IS_CARDIW624(pmpriv->adapter->card_type) &&
 	    !IS_CARD9097(pmpriv->adapter->card_type))
 		return ret;
 	/** check band A */
@@ -1179,7 +1179,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		/** set default bandwidth:80M*/
 		SET_OPER_MODE_80M(pmrvl_oper_mode->oper_mode);
 		if (IS_CARD9098(pmadapter->card_type) ||
-		    IS_CARDIW62X(pmadapter->card_type) ||
+		    IS_CARDIW624(pmadapter->card_type) ||
 		    IS_CARD9097(pmadapter->card_type)) {
 			if (pbss_desc->bss_band & BAND_A)
 				rx_nss = GET_RXMCSSUPP(
@@ -1193,7 +1193,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		nss = wlan_get_nss_num_vht_mcs(mcs_map_user);
 
 		if (IS_CARD9098(pmadapter->card_type) ||
-		    IS_CARDIW62X(pmadapter->card_type) ||
+		    IS_CARDIW624(pmadapter->card_type) ||
 		    IS_CARD9097(pmadapter->card_type)) {
 			PRINTM(MCMND, "rx_nss=%d nss=%d\n", rx_nss, nss);
 			nss = MIN(rx_nss, nss);

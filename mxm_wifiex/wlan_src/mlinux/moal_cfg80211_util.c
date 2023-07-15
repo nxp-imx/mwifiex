@@ -144,6 +144,7 @@ static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
 	[ATTR_SCAN_MAC_OUI_SET] = {.type = NLA_STRING, .len = 3},
 	[ATTR_NODFS_VALUE] = {.type = NLA_U32},
 	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
+	[ATTR_SCAN_BAND_SET] = {.type = NLA_U8},
 };
 
 // clang-format off
@@ -785,6 +786,9 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	int ret = MLAN_STATUS_SUCCESS;
 	int length = 0;
 	char driver_dump_file[128];
+#ifndef DUMP_TO_PROC
+	char path_name[64];
+#endif
 	struct sk_buff *skb = NULL;
 
 	ENTER();
@@ -796,6 +800,7 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	dev = wdev->netdev;
 	priv = (moal_private *)woal_get_netdev_priv(dev);
 	handle = priv->phandle;
+#ifdef DUMP_TO_PROC
 	memset(driver_dump_file, 0, sizeof(driver_dump_file));
 	snprintf(driver_dump_file, sizeof(driver_dump_file), "/proc/mwlan/");
 	if (handle->handle_idx)
@@ -804,6 +809,15 @@ static int woal_cfg80211_subcmd_get_drv_dump(struct wiphy *wiphy,
 	else
 		snprintf(driver_dump_file, sizeof(driver_dump_file),
 			 "drv_dump");
+#else
+	memset(path_name, 0, sizeof(path_name));
+	woal_create_dump_dir(handle, path_name, sizeof(path_name));
+	PRINTM(MMSG, "driver dump path name is %s\n", path_name);
+	woal_dump_drv_info(handle, path_name);
+	memset(driver_dump_file, 0, sizeof(driver_dump_file));
+	snprintf(driver_dump_file, sizeof(driver_dump_file), "%s/%s", path_name,
+		 "file_drv_info");
+#endif
 	PRINTM(MMSG, "driver dump file is %s\n", driver_dump_file);
 	length = sizeof(driver_dump_file);
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, length);
@@ -2795,7 +2809,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	unsigned long flags;
 
 	ENTER();
-	pkt_filter = priv->packet_filter;
+	pkt_filter = (packet_filter *)priv->packet_filter;
 	if (!unlikely(pkt_filter)) {
 		PRINTM(MINFO, "packet_filter not init\n");
 		goto done;
@@ -3342,12 +3356,12 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi)
 		    priv->conn_bssid) ||
 	    nla_put_s8(skb, ATTR_RSSI_MONITOR_CUR_RSSI, rssi_value)) {
 		PRINTM(MERROR, "nla_put failed!\n");
-		kfree(skb);
+		dev_kfree_skb(skb);
 		goto done;
 	}
 	woal_cfg80211_vendor_event(priv, event_rssi_monitor, (t_u8 *)skb->data,
 				   skb->len);
-	kfree(skb);
+	dev_kfree_skb(skb);
 done:
 	LEAVE();
 }
@@ -3376,7 +3390,7 @@ void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode)
 	if (nla_put_u8(skb, ATTR_FW_RELOAD_MODE, reload_mode)) {
 		PRINTM(MERROR,
 		       "woal_cfg80211_driver_hang_event: nla_put failed!\n");
-		kfree(skb);
+		dev_kfree_skb(skb);
 		goto done;
 	}
 
@@ -3386,7 +3400,7 @@ void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode)
 	woal_cfg80211_vendor_event(priv, event_hang, (t_u8 *)skb->data,
 				   skb->len);
 
-	kfree(skb);
+	dev_kfree_skb(skb);
 done:
 	LEAVE();
 }
@@ -3918,6 +3932,57 @@ done:
 }
 
 /**
+ * @brief vendor command to set scan band
+ *
+ * @param wiphy         A pointer to wiphy struct
+ * @param wdev          A pointer to wireless_dev struct
+ * @param data           a pointer to data
+ * @param data_len     data length
+ *
+ * @return      0: success  <0: fail
+ */
+static int woal_cfg80211_subcmd_set_scan_band(struct wiphy *wiphy,
+					      struct wireless_dev *wdev,
+					      const void *data, int data_len)
+{
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	struct nlattr *tb_vendor[ATTR_WIFI_MAX + 1];
+	int ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	nla_parse(tb_vendor, ATTR_WIFI_MAX, (struct nlattr *)data, data_len,
+		  NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+		  ,
+		  NULL
+#endif
+	);
+	if (!tb_vendor[ATTR_SCAN_BAND_SET]) {
+		PRINTM(MERROR, "%s: ATTR_SCAN_BAND_SET not found\n", __func__);
+		ret = -EFAULT;
+		goto done;
+	}
+	priv->scan_setband_mask =
+		*(u8 *)nla_data(tb_vendor[ATTR_SCAN_BAND_SET]);
+	PRINTM(MMSG,
+	       "woal_cfg80211_subcmd_set_scan_band: scan_setband_mask :%d",
+	       priv->scan_setband_mask);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief vendor command to start keep alive
  *
  * @param wiphy    A pointer to wiphy struct
@@ -4430,7 +4495,7 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	t_u8 rtt_config_num = handle->rtt_params.rtt_config_num;
 	struct nlattr *tb[ATTR_RTT_MAX + 1];
 	t_u32 target_num = 0;
-	t_u8 addr[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH];
+	t_u8 addr[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH] = {0x00};
 	int i = 0, j = 0;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int err = 0;
@@ -4569,7 +4634,7 @@ mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
 
 	complete = *pos;
 	nla_put(skb, ATTR_RTT_RESULT_COMPLETE, sizeof(complete), &complete);
-	pos++;
+	pos = (t_u8 *)(pos + 1);
 	event_left_len--;
 
 	while (event_left_len > sizeof(wifi_rtt_result_element)) {
@@ -5256,6 +5321,13 @@ static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
 					      t_u8 format, char *name)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+#ifndef DUMP_TO_PROC
+	struct file *pfile = NULL;
+	loff_t pos;
+	char dw_string[10];
+	int i = 0;
+	t_u32 *tmp = NULL;
+#endif
 	ENTER();
 
 	if (!dir_name || !file_name || !buf) {
@@ -5263,6 +5335,55 @@ static mlan_status woal_save_csi_dump_to_file(char *dir_name, char *file_name,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+#ifndef DUMP_TO_PROC
+	snprintf(name, MAX_BUF_LEN, "%s/%s", dir_name, file_name);
+	pfile = filp_open(name, O_CREAT | O_RDWR | O_APPEND, 0644);
+
+	if (IS_ERR(pfile)) {
+		PRINTM(MMSG,
+		       "Create file %s error, try to save dump file in /var\n",
+		       name);
+		snprintf(name, MAX_BUF_LEN, "%s/%s", "/var", file_name);
+		pfile = filp_open(name, O_CREAT | O_RDWR | O_APPEND, 0644);
+	}
+	if (IS_ERR(pfile)) {
+		PRINTM(MERROR, "Create Dump file for %s error\n", name);
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	PRINTM(MMSG, "Dump data %s saved in %s\n", file_name, name);
+
+	pos = 0;
+	/* Save CSI dump directly to file */
+	if (format == 1) {
+#if KERNEL_VERSION(4, 14, 0) > LINUX_VERSION_CODE
+		vfs_write(pfile, (const char __user *)buf, buf_len, &pos);
+#else
+		kernel_write(pfile, buf, buf_len, &pos);
+#endif
+	} else {
+		tmp = (t_u32 *)buf;
+		for (i = 0; i < buf_len / 4; i++) {
+			if ((i + 1) % 8 == 0)
+				snprintf(dw_string, sizeof(dw_string), "%08x\n",
+					 *tmp);
+			else
+				snprintf(dw_string, sizeof(dw_string), "%08x ",
+					 *tmp);
+#if KERNEL_VERSION(4, 14, 0) > LINUX_VERSION_CODE
+			vfs_write(pfile, (const char __user *)dw_string, 9,
+				  &pos);
+#else
+			kernel_write(pfile, dw_string, 9, &pos);
+#endif
+			tmp++;
+		}
+	}
+	filp_close(pfile, NULL);
+
+	PRINTM(MMSG, "Dump data saved in %s successfully\n", name);
+#endif
 done:
 	LEAVE();
 	return ret;
@@ -5347,6 +5468,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_set_scan_mac_oui,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_attr_policy,
+		.maxattr = ATTR_WIFI_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_set_scan_band,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_set_scan_band,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = woal_attr_policy,
 		.maxattr = ATTR_WIFI_MAX,

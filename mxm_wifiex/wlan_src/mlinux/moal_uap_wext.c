@@ -84,10 +84,6 @@ static const struct iw_priv_args woal_uap_priv_args[] = {
 #endif
 #endif
 
-#if defined(UAP_CFG80211)
-	{WOAL_UAP_SET_MODE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
-	 "setmode"},
-#endif
 	{WOAL_UAP_SET_GET_256_CHAR, IW_PRIV_TYPE_CHAR | 256,
 	 IW_PRIV_TYPE_CHAR | 256, ""},
 	{WOAL_WL_FW_RELOAD, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,

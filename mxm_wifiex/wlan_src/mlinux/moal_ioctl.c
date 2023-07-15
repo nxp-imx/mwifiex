@@ -1211,7 +1211,10 @@ void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
 #endif
 	t_u16 enable = 0;
 
-	woal_mc_policy_cfg(priv, &enable, wait_option, MLAN_ACT_GET);
+	if (woal_mc_policy_cfg(priv, &enable, wait_option, MLAN_ACT_GET)) {
+		PRINTM(MERROR, "Get multi-channel policy failed\n");
+	}
+
 	if (!enable)
 		return;
 #ifdef UAP_SUPPORT
@@ -3643,7 +3646,9 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 	if (priv->phandle->fw_roam_enable == ROAM_OFFLOAD_WITH_BSSID ||
 	    priv->phandle->fw_roam_enable == ROAM_OFFLOAD_WITH_SSID ||
 	    priv->phandle->fw_roam_enable == AUTO_RECONNECT)
-		woal_config_fw_roaming(priv, ROAM_OFFLOAD_RESUME_CFG, NULL);
+		if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_RESUME_CFG, NULL))
+			PRINTM(MERROR,
+			       "config fw roaming ROAM_OFFLOAD_RESUME_CFG failed\n");
 #ifdef STA_CFG80211
 	if (priv->phandle->fw_roam_enable == AUTO_RECONNECT)
 		woal_set_clear_pmk(priv, MLAN_ACT_CLEAR);
@@ -3719,12 +3724,16 @@ static int woal_set_fw_roaming_params(moal_private *priv)
 #endif
 
 	/*Enable fw roaming*/
-	woal_config_fw_roaming(priv, ROAM_OFFLOAD_ENABLE, NULL);
+	if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_ENABLE, NULL))
+		PRINTM(MERROR,
+		       "config fw roaming ROAM_OFFLOAD_ENABLE failed\n");
 	/*Download fw roaming parameters*/
-	woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
-			       &priv->phandle->fw_roam_params);
+	if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
+				   &priv->phandle->fw_roam_params))
+		PRINTM(MERROR,
+		       "config fw roaming ROAM_OFFLOAD_PARAM_CFG failed\n");
 
-	/*Download userset passphrase key and current connection's PMK*/
+		/*Download userset passphrase key and current connection's PMK*/
 #ifdef STA_CFG80211
 	if (!priv->phandle->fw_roam_params.userset_passphrase) {
 		woal_set_clear_pmk(priv, MLAN_ACT_SET);
@@ -3761,7 +3770,10 @@ static int woal_set_fw_roaming_params(moal_private *priv)
 	}
 #endif
 	/*Set userset to mlan adapter*/
-	woal_config_fw_roaming(priv, ROAM_OFFLOAD_ENABLE, &roam_offload_cfg);
+	if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_ENABLE,
+				   &roam_offload_cfg))
+		PRINTM(MERROR,
+		       "config fw roaming ROAM_OFFLOAD_ENABLE failed\n");
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -3953,7 +3965,10 @@ int woal_enable_hs(moal_private *priv)
 	if (handle->fw_roam_enable == ROAM_OFFLOAD_WITH_BSSID ||
 	    handle->fw_roam_enable == ROAM_OFFLOAD_WITH_SSID ||
 	    handle->fw_roam_enable == AUTO_RECONNECT) {
-		woal_config_fw_roaming(priv, ROAM_OFFLOAD_SUSPEND_CFG, NULL);
+		if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_SUSPEND_CFG,
+					   NULL))
+			PRINTM(MERROR,
+			       "config fw roaming ROAM_OFFLOAD_SUSPEND_CFG failed\n");
 #ifdef STA_CFG80211
 		if (priv->phandle->fw_roam_enable == AUTO_RECONNECT)
 			woal_set_clear_pmk(priv, MLAN_ACT_SET);
@@ -4069,7 +4084,8 @@ int woal_enable_hs(moal_private *priv)
 #ifdef SDIO_SUSPEND_RESUME
 	else if (IS_SD(handle->card_type)) {
 		handle->suspend_fail = MTRUE;
-		woal_get_pm_info(priv, &pm_info);
+		if (woal_get_pm_info(priv, &pm_info))
+			PRINTM(MCMND, "get pm info failed\n");
 		if (pm_info.is_suspend_allowed == MTRUE) {
 #ifdef MMC_PM_FUNC_SUSPENDED
 			woal_wlan_is_suspended(priv->phandle);
@@ -6084,9 +6100,9 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	}
 	spin_unlock_irqrestore(&handle->scan_req_lock, flags);
 #endif
-	/* add 10ms delay, incase firmware delay 0x7f event after scan cancel
+	/* add 300ms delay, incase firmware delay 0x7f event after scan cancel
 	 * command response */
-	woal_sched_timeout(10);
+	woal_sched_timeout(300);
 	handle->scan_priv = NULL;
 done:
 	if (ret != MLAN_STATUS_PENDING)
@@ -7537,8 +7553,6 @@ mlan_status woal_usb_aggr_init(moal_handle *handle)
 				if (cardp->rx_data_list[i].urb) {
 					usb_kill_urb(
 						cardp->rx_data_list[i].urb);
-					usb_init_urb(
-						cardp->rx_data_list[i].urb);
 				}
 			}
 		}
@@ -7608,48 +7622,6 @@ done:
 	LEAVE();
 	return status;
 }
-
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-/**
- * @brief Set multi ap flag to mlan layer
- *
- * @param priv		A pointer to moal_private structure
- * @param wait_option	wait_option of ioctl
- * @param flag	    multi ap flag
- *
- * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_multi_ap_cfg(moal_private *priv, t_u8 wait_option, t_u8 flag)
-{
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *cfg = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		status = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	cfg = (mlan_ds_misc_cfg *)req->pbuf;
-	cfg->param.multi_ap_flag = flag;
-	cfg->sub_command = MLAN_OID_MISC_MULTI_AP_CFG;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = MLAN_ACT_SET;
-
-	status = woal_request_ioctl(priv, req, wait_option);
-	if (status != MLAN_STATUS_SUCCESS)
-		goto done;
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return status;
-}
-#endif
 
 /**
  *  @brief Set hotspot configuration value to mlan layer

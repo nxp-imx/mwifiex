@@ -82,9 +82,6 @@ Change log:
 #define PRIV_CMD_GET_STA_LIST "getstalist"
 #define PRIV_CMD_BSS_CONFIG "bssconfig"
 #endif
-#if defined(UAP_SUPPORT)
-#define PRIV_CMD_SETMODE "setmode"
-#endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #define PRIV_CMD_BSSROLE "bssrole"
@@ -103,6 +100,8 @@ typedef struct _chan_stats {
 #define PRIV_CMD_EXTCAPCFG "extcapcfg"
 #define PRIV_CMD_CANCELSCAN "cancelscan"
 #endif
+#define PRIV_CMD_REORDER_FLUSH_TIME "flush_time"
+
 #define PRIV_CMD_DEEPSLEEP "deepsleep"
 #define PRIV_CMD_IPADDR "ipaddr"
 #define PRIV_CMD_WPSSESSION "wpssession"
@@ -274,6 +273,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_GET_CFG_CHAN_LIST "getcfgchanlist"
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH "channel_switch"
+#define PRIV_CMD_SET_CHAN_SWITCH_PARAM "chanswitch_param"
 #endif
 
 #define PRIV_CMD_TDLS_IDLE_TIME "tdls_idle_time"
@@ -310,6 +310,9 @@ typedef struct _chan_stats {
 #define PRIV_CMD_OFDM_DESENSE_CFG "ofdm_desense_cfg"
 /**Private command to configure dynamic rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG_EXT "rx_abort_cfg_ext"
+/** configure NAV mitigation parameters. */
+#define PRIV_CMD_NAV_MITIGATION "nav_mitigation"
+#define PRIV_CMD_LED "led"
 #define TX_AMPDU_RTS_CTS 0
 #define TX_AMPDU_CTS_2_SELF 1
 #define TX_AMPDU_DISABLE_PROTECTION 2

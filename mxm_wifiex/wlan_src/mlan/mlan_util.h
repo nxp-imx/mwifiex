@@ -47,6 +47,11 @@ typedef struct _mlan_list_head {
 	t_void *plock;
 } mlan_list_head, *pmlan_list_head;
 
+struct reflective_enum_element {
+	int id;
+	const char *name;
+};
+
 /** MLAN MNULL pointer */
 #define MNULL ((void *)0)
 
@@ -495,6 +500,19 @@ static INLINE t_u32 bitcount(t_u32 num)
 	for (; num != 0; num >>= 4)
 		count += nibblebits[num & 0x0f];
 	return count;
+}
+
+static INLINE const char *
+reflective_enum_lookup_name(const struct reflective_enum_element *elements,
+			    int id)
+{
+	const struct reflective_enum_element *elem = elements;
+
+	while (elem->name && elem->id != id) {
+		elem++;
+	}
+
+	return elem->name;
 }
 
 #endif /* !_MLAN_UTIL_H_ */

@@ -1122,7 +1122,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 			}
 		}
 	}
-	if (!ptr->is_wmm_enabled ||
+	if (!ptr->is_wmm_enabled || priv->adapter->remain_on_channel ||
 	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
@@ -1148,7 +1148,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 					    priv, tid, ptr->ra, MFALSE)) {
 					wlan_11n_create_txbastream_tbl(
 						priv, ptr->ra, tid,
-						BA_STREAM_SETUP_INPROGRESS);
+						BA_STREAM_SETUP_SENT_ADDBA);
 					wlan_send_addba(priv, tid, ptr->ra);
 				}
 			} else if (wlan_find_stream_to_delete(priv, ptr, tid,
@@ -1160,6 +1160,9 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 					wlan_11n_create_txbastream_tbl(
 						priv, ptr->ra, tid,
 						BA_STREAM_SETUP_INPROGRESS);
+					wlan_11n_set_txbastream_status(
+						priv, tid_del, ra,
+						BA_STREAM_SENT_DELBA, MFALSE);
 					wlan_send_delba(priv, MNULL, tid_del,
 							ra, 1);
 				}
@@ -2156,13 +2159,8 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 				&priv->wmm.tid_tbl_ptr[tid_down].ra_list, MNULL,
 				MNULL);
 	} else {
-		if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH)
-			memcpy_ext(pmadapter, ra, pmbuf->mac,
-				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-		else
-			memcpy_ext(pmadapter, ra,
-				   pmbuf->pbuf + pmbuf->data_offset,
-				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		memcpy_ext(pmadapter, ra, pmbuf->pbuf + pmbuf->data_offset,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 		/** put multicast/broadcast packet in the same ralist */
 		if (ra[0] & 0x01)
 			memset(pmadapter, ra, 0xff, sizeof(ra));

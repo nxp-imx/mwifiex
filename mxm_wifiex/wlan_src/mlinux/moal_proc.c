@@ -566,7 +566,7 @@ mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
 		    IS_CARD9097(priv->phandle->card_type) ||
-		    IS_CARDIW62X(priv->phandle->card_type)) {
+		    IS_CARDIW624(priv->phandle->card_type)) {
 			woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy,
 						    radio);
 		}
@@ -1081,6 +1081,7 @@ static const struct file_operations config_proc_fops = {
 };
 #endif
 
+#ifdef DUMP_TO_PROC
 static int woal_drv_dump_read(struct seq_file *sfp, void *data)
 {
 	moal_handle *handle = (moal_handle *)sfp->private;
@@ -1234,6 +1235,7 @@ static const struct file_operations fw_dump_fops = {
 	.release = single_release,
 };
 #endif
+#endif
 
 /**
  *  @brief wifi status proc read function
@@ -1305,11 +1307,11 @@ int woal_string_to_number(char *s)
 
 	if (!strncmp(s, "-", 1)) {
 		pn = -1;
-		s++;
+		s = (char *)(s + 1);
 	}
 	if (!strncmp(s, "0x", 2) || !strncmp(s, "0X", 2)) {
 		base = 16;
-		s += 2;
+		s = (char *)(s + 2);
 	} else
 		base = 10;
 
@@ -1387,8 +1389,10 @@ void woal_proc_init(moal_handle *handle)
 	struct proc_dir_entry *pde = proc_mwlan;
 #endif
 	char config_proc_dir[20];
+#ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
+#endif
 
 	ENTER();
 
@@ -1444,6 +1448,7 @@ void woal_proc_init(moal_handle *handle)
 	if (!r)
 		PRINTM(MERROR, "Fail to create proc config\n");
 
+#ifdef DUMP_TO_PROC
 	strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	r = proc_create_data(drv_dump_dir, 0644, handle->proc_wlan,
@@ -1471,6 +1476,7 @@ void woal_proc_init(moal_handle *handle)
 #endif
 	if (!r)
 		PRINTM(MERROR, "Failed to create proc fw dump\n");
+#endif
 
 done:
 	LEAVE();
@@ -1486,8 +1492,10 @@ done:
 void woal_proc_exit(moal_handle *handle)
 {
 	char config_proc_dir[20];
+#ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
+#endif
 
 	ENTER();
 
@@ -1495,10 +1503,12 @@ void woal_proc_exit(moal_handle *handle)
 	if (handle->proc_wlan) {
 		strncpy(config_proc_dir, "config", sizeof(config_proc_dir));
 		remove_proc_entry(config_proc_dir, handle->proc_wlan);
+#ifdef DUMP_TO_PROC
 		strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
 		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
 		strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
 		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 		/* Remove only if we are the only instance using this */
@@ -1516,6 +1526,7 @@ void woal_proc_exit(moal_handle *handle)
 		}
 #endif
 	}
+#ifdef DUMP_TO_PROC
 	if (handle->fw_dump_buf) {
 		moal_vfree(handle, handle->fw_dump_buf);
 		handle->fw_dump_buf = NULL;
@@ -1526,6 +1537,7 @@ void woal_proc_exit(moal_handle *handle)
 		handle->drv_dump_len = 0;
 		handle->drv_dump_buf = NULL;
 	}
+#endif
 	LEAVE();
 }
 

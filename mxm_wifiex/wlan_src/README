@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel from 2.6.32 to 6.0.0.
+	The driver code supports Linux kernel from 2.6.32 to 6.3.0.
 
 2) FOR DRIVER INSTALL
 
@@ -662,6 +662,7 @@
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
 	for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
+	for chipset 89xx FP-92, 90xx and later, host_mlme restricted to 1
 #endif
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)

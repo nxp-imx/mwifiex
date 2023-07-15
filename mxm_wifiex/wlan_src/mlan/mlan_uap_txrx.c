@@ -36,9 +36,6 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-#include "authenticator_api.h"
-#endif
 
 /********************************************************
 			Local Functions
@@ -249,11 +246,6 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
-	if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
-		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_EASYMESH;
-		memcpy_ext(pmpriv->adapter, plocal_tx_pd->ra_mac, pmbuf->mac,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-	}
 
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_CTRL) {
 		if (pmbuf->u.tx_info.data_rate) {
@@ -346,9 +338,6 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
 	sta_node *sta_ptr = MNULL;
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	t_u8 eapol_type[2] = {0x88, 0x8e};
-#endif
 	t_u16 adj_rx_rate = 0;
 	t_u8 antenna = 0;
 
@@ -359,7 +348,8 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	wlan_802_11_header *pwlan_hdr;
 	IEEEtypes_FrameCtl_t *frmctl;
 	pmlan_buffer pmbuf2 = MNULL;
-	mlan_802_11_mac_addr src_addr, dest_addr;
+	mlan_802_11_mac_addr src_addr = {0x00};
+	mlan_802_11_mac_addr dest_addr = {0x00};
 	t_u16 hdr_len;
 	t_u8 snap_eth_hdr[5] = {0xaa, 0xaa, 0x03, 0x00, 0x00};
 	t_u8 ext_rate_info = 0;
@@ -398,14 +388,6 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	}
 
 	rx_pkt_type = prx_pd->rx_pkt_type;
-	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
-		PRINTM_NETINTF(MDAT_D, priv);
-		PRINTM(MDAT_D, "UAP Rx Easymesh pkt flags : 0x%x\n",
-		       prx_pd->flags);
-		ret = wlan_check_easymesh_pkt(priv, pmbuf, prx_pd);
-		if (ret != MLAN_STATUS_SUCCESS)
-			goto done;
-	}
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	PRINTM(MINFO,
@@ -567,11 +549,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		}
 	}
 
-	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH)
-		sta_ptr = wlan_get_station_entry(priv, prx_pd->ta_mac);
-	else
-		sta_ptr = wlan_get_station_entry(priv,
-						 prx_pkt->eth803_hdr.src_addr);
+	sta_ptr = wlan_get_station_entry(priv, prx_pkt->eth803_hdr.src_addr);
 	if (sta_ptr) {
 		sta_ptr->snr = prx_pd->snr;
 		sta_ptr->nf = prx_pd->nf;
@@ -585,33 +563,14 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		}
 	}
 
-#ifdef DRV_EMBEDDED_AUTHENTICATOR
-	/**process eapol packet for uap*/
-	if (IsAuthenticatorEnabled(priv->psapriv) &&
-	    (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len, eapol_type,
-		     sizeof(eapol_type)))) {
-		ret = AuthenticatorProcessEapolPacket(
-			priv->psapriv, ((t_u8 *)prx_pd + prx_pd->rx_pkt_offset),
-			prx_pd->rx_pkt_length);
-		if (ret == MLAN_STATUS_SUCCESS) {
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-			goto done;
-		}
-	}
-#endif
-
 	pmbuf->priority |= prx_pd->priority;
 	if (pmadapter->enable_net_mon &&
 	    (prx_pd->rx_pkt_type == PKT_TYPE_802DOT11)) {
 		wlan_process_uap_rx_packet(priv, pmbuf);
 		goto done;
 	}
-	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH)
-		memcpy_ext(pmadapter, ta, prx_pd->ta_mac, MLAN_MAC_ADDR_LENGTH,
-			   MLAN_MAC_ADDR_LENGTH);
-	else
-		memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
+		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if ((rx_pkt_type != PKT_TYPE_BAR) && (prx_pd->priority < MAX_NUM_TID)) {
 		sta_ptr = wlan_get_station_entry(priv, ta);
 		if (sta_ptr) {

@@ -127,11 +127,6 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	}
 	if (pmbuf->flags & MLAN_BUF_FLAG_TDLS)
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TDLS_PACKET;
-	if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
-		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_EASYMESH;
-		memcpy_ext(pmpriv->adapter, plocal_tx_pd->ra_mac, pmbuf->mac,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-	}
 	/* Offset of actual data */
 	plocal_tx_pd->tx_pkt_offset = (t_u16)(
 		(t_ptr)pmbuf->pbuf + pmbuf->data_offset - (t_ptr)plocal_tx_pd);

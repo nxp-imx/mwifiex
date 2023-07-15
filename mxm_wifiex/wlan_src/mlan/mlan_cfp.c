@@ -398,6 +398,7 @@ static chan_freq_power_t channel_freq_power_EU_A[] = {
 	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
+	{144, 5720, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
@@ -579,10 +580,10 @@ static chan_freq_power_t channel_freq_power_low_middle_high_band[] = {
 	{40, 5200, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{44, 5220, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{48, 5240, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{52, 5260, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{56, 5280, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{60, 5300, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{64, 5320, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{52, 5260, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{56, 5280, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{60, 5300, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{64, 5320, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
@@ -3368,27 +3369,49 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					break;
 				}
 			}
+			PRINTM(MCMND,
+			       "OTP region: region_code=%d %c%c dfs_region=%d\n",
+			       pmadapter->otp_region->region_code,
+			       pmadapter->otp_region->country_code[0],
+			       pmadapter->otp_region->country_code[1],
+			       pmadapter->otp_region->dfs_region);
+
 			/* Update the region code and the country code in
 			 * pmadapter
 			 */
 			pmadapter->region_code =
 				pmadapter->otp_region->region_code;
-			pmadapter->country_code[0] =
-				pmadapter->otp_region->country_code[0];
-			pmadapter->country_code[1] =
-				pmadapter->otp_region->country_code[1];
+			if (pmadapter->otp_region->force_reg) {
+				/* Region is enforced. Use FW country code only
+				 */
+				pmadapter->country_code[0] =
+					pmadapter->otp_region->country_code[0];
+				pmadapter->country_code[1] =
+					pmadapter->otp_region->country_code[1];
+			} else if (memcmp(pmadapter,
+					  pmadapter->otp_region->country_code,
+					  pmadapter->country_code,
+					  COUNTRY_CODE_LEN - 1)) {
+				PRINTM(MERROR,
+				       "FW country code %c%c does not match with %c%c\n",
+				       pmadapter->otp_region->country_code[0],
+				       pmadapter->otp_region->country_code[1],
+				       pmadapter->country_code[0],
+				       pmadapter->country_code[1]);
+
+				/* FW code mismatch, replace with the driver
+				 * code */
+				pmadapter->otp_region->country_code[0] =
+					pmadapter->country_code[0];
+				pmadapter->otp_region->country_code[1] =
+					pmadapter->country_code[1];
+			}
 			pmadapter->country_code[2] = '\0';
 			pmadapter->domain_reg.country_code[0] =
 				pmadapter->otp_region->country_code[0];
 			pmadapter->domain_reg.country_code[1] =
 				pmadapter->otp_region->country_code[1];
 			pmadapter->domain_reg.country_code[2] = '\0';
-			PRINTM(MCMND,
-			       "OTP region: region_code=%d %c%c dfs_region=%d\n",
-			       pmadapter->otp_region->region_code,
-			       pmadapter->country_code[0],
-			       pmadapter->country_code[1],
-			       pmadapter->otp_region->dfs_region);
 			pmadapter->cfp_code_bg =
 				pmadapter->otp_region->region_code;
 			pmadapter->cfp_code_a =

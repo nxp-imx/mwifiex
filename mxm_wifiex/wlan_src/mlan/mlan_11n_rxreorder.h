@@ -82,6 +82,7 @@ mlan_status mlan_11n_rxreorder_pkt(void *priv, t_u16 seqNum, t_u16 tid,
 void mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 				  t_u8 *PeerMACAddr, t_u8 type, int initiator,
 				  t_u16 reason_code);
+mlan_status wlan_11n_add_bastream(mlan_private *priv, t_u8 *addba);
 void wlan_11n_ba_stream_timeout(mlan_private *priv,
 				HostCmd_DS_11N_BATIMEOUT *event);
 mlan_status wlan_ret_11n_addba_resp(mlan_private *priv,

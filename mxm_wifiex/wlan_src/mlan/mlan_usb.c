@@ -99,8 +99,8 @@ static const struct _mlan_card_info mlan_card_info_usb9097 = {
 };
 #endif
 
-#ifdef USBIW62X
-static const struct _mlan_card_info mlan_card_info_usbIW62X = {
+#ifdef USBIW624
+static const struct _mlan_card_info mlan_card_info_usbIW624 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v16_fw_api = 1,
 	.v17_fw_api = 1,
@@ -262,8 +262,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 	if (IS_USB9097(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
-#if defined(USBIW62X)
-	if (IS_USBIW62X(pmadapter->card_type))
+#if defined(USBIW624)
+	if (IS_USBIW624(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
 
@@ -806,9 +806,9 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_usb9097;
 		break;
 #endif
-#ifdef USBIW62X
-	case CARD_TYPE_USBIW62X:
-		pmadapter->pcard_info = &mlan_card_info_usbIW62X;
+#ifdef USBIW624
+	case CARD_TYPE_USBIW624:
+		pmadapter->pcard_info = &mlan_card_info_usbIW624;
 		break;
 #endif
 	default:
@@ -1305,7 +1305,7 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		return MLAN_STATUS_FAILURE;
 	}
 	if (type == MLAN_TYPE_CMD
-#if (defined(USB9098) || defined(USB9097) || defined(USBIW62X))
+#if (defined(USB9098) || defined(USB9097) || defined(USBIW624))
 	    || type == MLAN_TYPE_VDLL
 #endif
 	) {
@@ -1356,18 +1356,36 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 }
 
 /**
- *  @brief This function handle event/cmd complete
+ *  @brief This function handle event complete
  *
  *  @param pmadapter A pointer to mlan_adapter structure
  *  @param pmbuf     A pointer to the mlan_buffer
  *  @return          N/A
  */
-static mlan_status wlan_usb_cmdevt_complete(pmlan_adapter pmadapter,
-					    mlan_buffer *pmbuf,
-					    mlan_status status)
+static mlan_status wlan_usb_evt_complete(pmlan_adapter pmadapter,
+					 mlan_buffer *pmbuf, mlan_status status)
 {
 	ENTER();
+	pmadapter->event_cause = 0;
+	pmadapter->pmlan_buffer_event = MNULL;
+	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
+						pmadapter->rx_cmd_ep, status);
 
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handle cmd complete
+ *
+ *  @param pmadapter A pointer to mlan_adapter structure
+ *  @param pmbuf     A pointer to the mlan_buffer
+ *  @return          N/A
+ */
+static mlan_status wlan_usb_cmd_complete(pmlan_adapter pmadapter,
+					 mlan_buffer *pmbuf, mlan_status status)
+{
+	ENTER();
 	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
 						pmadapter->rx_cmd_ep, status);
 
@@ -1419,9 +1437,9 @@ mlan_adapter_operations mlan_usb_ops = {
 	.dnld_fw = wlan_usb_dnld_fw,
 	.host_to_card = wlan_usb_host_to_card,
 	.wakeup_card = wlan_pm_usb_wakeup_card,
-	.event_complete = wlan_usb_cmdevt_complete,
+	.event_complete = wlan_usb_evt_complete,
 	.data_complete = wlan_usb_data_complete,
-	.cmdrsp_complete = wlan_usb_cmdevt_complete,
+	.cmdrsp_complete = wlan_usb_cmd_complete,
 	.handle_rx_packet = wlan_usb_handle_rx_packet,
 
 	.intf_header_len = USB_INTF_HEADER_LEN,

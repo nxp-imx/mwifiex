@@ -1886,32 +1886,6 @@ done:
 #endif
 #endif
 
-#ifdef UAP_SUPPORT
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-/**
- *  @brief This function get binded net_device from station list
- *
- *  @param priv Pointer to structure moal_private
- *  @param aid    station aid from mlan
- *
- *  @return    binded net_device pointer or NULL if not found
- */
-struct net_device *moal_get_netdev_from_stalist(moal_private *priv, t_u16 aid)
-{
-	station_node *sta_node = NULL;
-
-	ENTER();
-	sta_node = priv->vlan_sta_list[(aid - 1) % MAX_STA_COUNT];
-	if (sta_node) {
-		LEAVE();
-		return sta_node->netdev;
-	}
-	LEAVE();
-	return NULL;
-}
-#endif
-#endif
-
 /**
  *  @brief This function uploads amsdu packet to the network stack
  *
@@ -2114,11 +2088,6 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	int j;
 	struct ethhdr *ethh = NULL;
 	struct net_device *netdev = NULL;
-#ifdef UAP_SUPPORT
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-	t_u16 aid = 0;
-#endif
-#endif
 
 	ENTER();
 	if (pmbuf) {
@@ -2235,23 +2204,6 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				priv->deauth_evt_cnt = 0;
 #endif
 			}
-#ifdef UAP_SUPPORT
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-			if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
-				aid = (pmbuf->priority & 0xFF000000) >> 24;
-				if (!priv->vlan_sta_list[(aid - 1) %
-							 MAX_STA_COUNT]
-					     ->is_valid) {
-					status = MLAN_STATUS_FAILURE;
-					priv->stats.rx_dropped++;
-					goto done;
-				}
-				if (aid != 0)
-					netdev = moal_get_netdev_from_stalist(
-						priv, aid);
-			}
-#endif
-#endif
 			if (!netdev)
 				netdev = priv->netdev;
 			skb->dev = netdev;
@@ -2562,6 +2514,88 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 #endif
 
 /**
+ *  @brief This function handles defer event receive
+ *
+ *  @param handle   Pointer to the moal_handle
+ *  @param event_id 	event id
+ *
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_process_defer_event(moal_handle *handle,
+					    mlan_event_id event_id)
+{
+	mlan_status status = MLAN_STATUS_FAILURE;
+	ENTER();
+	switch (event_id) {
+#ifdef PCIE
+	case MLAN_EVENT_ID_DRV_DEFER_RX_DATA:
+		status = MLAN_STATUS_SUCCESS;
+		tasklet_schedule(&handle->pcie_rx_task);
+		break;
+	case MLAN_EVENT_ID_DRV_DEFER_RX_EVENT:
+		status = MLAN_STATUS_SUCCESS;
+		queue_work(handle->pcie_rx_event_workqueue,
+			   &handle->pcie_rx_event_work);
+		break;
+	case MLAN_EVENT_ID_DRV_DEFER_CMDRESP:
+		status = MLAN_STATUS_SUCCESS;
+		queue_work(handle->pcie_cmd_resp_workqueue,
+			   &handle->pcie_cmd_resp_work);
+		break;
+	case MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE:
+		status = MLAN_STATUS_SUCCESS;
+		tasklet_schedule(&handle->pcie_tx_complete_task);
+		break;
+#endif /* PCIE */
+
+	case MLAN_EVENT_ID_DRV_FLUSH_RX_WORK:
+		status = MLAN_STATUS_SUCCESS;
+		if (moal_extflg_isset(handle, EXT_NAPI)) {
+			napi_synchronize(&handle->napi_rx);
+			break;
+		}
+#ifdef PCIE
+		if (IS_PCIE(handle->card_type)) {
+			tasklet_kill(&handle->pcie_rx_task);
+			break;
+		}
+#endif
+#if defined(SDIO) || defined(USB)
+		flush_workqueue(handle->rx_workqueue);
+#endif
+		break;
+	case MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK:
+		status = MLAN_STATUS_SUCCESS;
+		flush_workqueue(handle->workqueue);
+		break;
+	case MLAN_EVENT_ID_DRV_DEFER_HANDLING:
+		status = MLAN_STATUS_SUCCESS;
+		queue_work(handle->workqueue, &handle->main_work);
+		break;
+	case MLAN_EVENT_ID_DRV_DEFER_RX_WORK:
+		status = MLAN_STATUS_SUCCESS;
+		if (moal_extflg_isset(handle, EXT_NAPI)) {
+			napi_schedule(&handle->napi_rx);
+			break;
+		}
+#ifdef PCIE
+		if (IS_PCIE(handle->card_type)) {
+			tasklet_schedule(&handle->pcie_rx_task);
+			break;
+		}
+#endif
+#if defined(USB) || defined(SDIO)
+		queue_work(handle->rx_workqueue, &handle->rx_work);
+#endif
+		break;
+	default:
+		break;
+	}
+	LEAVE();
+	return status;
+}
+
+/**
  *  @brief This function handles event receive
  *
  *  @param pmoal Pointer to the MOAL context
@@ -2634,6 +2668,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	unsigned long wait_time, wait_time_ms, timeout;
 #endif
 #endif
+	char iwevent_str[256];
+	addba_timeout_event *evtbuf = NULL;
 
 	t_u8 auto_fw_dump = MFALSE;
 	ENTER();
@@ -2651,16 +2687,23 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			ref_handle->driver_status = MTRUE;
 		goto done;
 	}
-	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
+	if (MLAN_STATUS_SUCCESS ==
+	    wlan_process_defer_event(handle, pmevent->event_id))
+		goto done;
+	if (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME)
 		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 #if defined(PCIE)
 	if (pmevent->event_id == MLAN_EVENT_ID_SSU_DUMP_FILE) {
+#ifndef DUMP_TO_PROC
+		woal_store_ssu_dump(pmoal, pmevent);
+#endif
 		goto done;
 	}
 #endif /* SSU_SUPPORT */
 	if (pmevent->event_id == MLAN_EVENT_ID_STORE_HOST_CMD_RESP) {
+#ifndef DUMP_TO_PROC
+		woal_save_host_cmdresp(handle, (mlan_cmdresp_event *)pmevent);
+#endif
 		goto done;
 	}
 	priv = woal_bss_index_to_priv(pmoal, pmevent->bss_index);
@@ -2998,6 +3041,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				*(t_s16 *)pmevent->event_buf,
 #endif
 				GFP_KERNEL);
+			woal_set_rssi_threshold(priv,
+						MLAN_EVENT_ID_FW_BCN_RSSI_LOW,
+						MOAL_NO_WAIT);
 			priv->last_event |= EVENT_BCN_RSSI_LOW;
 #endif
 			if (!hw_test && priv->roaming_enabled)
@@ -3211,28 +3257,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 		woal_broadcast_event(priv, CUS_EVT_WEP_ICV_ERR,
 				     strlen(CUS_EVT_WEP_ICV_ERR));
-		break;
-
-	case MLAN_EVENT_ID_DRV_DEFER_HANDLING:
-		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
-		break;
-	case MLAN_EVENT_ID_DRV_FLUSH_RX_WORK:
-		if (moal_extflg_isset(priv->phandle, EXT_NAPI)) {
-			napi_synchronize(&priv->phandle->napi_rx);
-			break;
-		}
-		flush_workqueue(priv->phandle->rx_workqueue);
-		break;
-	case MLAN_EVENT_ID_DRV_FLUSH_MAIN_WORK:
-		flush_workqueue(priv->phandle->workqueue);
-		break;
-	case MLAN_EVENT_ID_DRV_DEFER_RX_WORK:
-		if (moal_extflg_isset(priv->phandle, EXT_NAPI)) {
-			napi_schedule(&priv->phandle->napi_rx);
-			break;
-		}
-		queue_work(priv->phandle->rx_workqueue,
-			   &priv->phandle->rx_work);
 		break;
 	case MLAN_EVENT_ID_DRV_DBG_DUMP:
 		priv->phandle->driver_status = MTRUE;
@@ -3626,14 +3650,21 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			}
 #endif
 #endif
-			if (priv->channel == pchan_info->channel)
+			/* Block host event only for same channel, same
+			 * bandwidth case */
+			if ((priv->channel == pchan_info->channel) &&
+			    (priv->bandwidth == pchan_info->bandcfg.chanWidth))
 				break;
+			PRINTM(MMSG, "OLD BW = %d NEW BW = %d", priv->bandwidth,
+			       pchan_info->bandcfg.chanWidth);
+
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			woal_update_uap_channel_dfs_state(priv);
 #endif
 #endif
 			priv->channel = pchan_info->channel;
+			priv->bandwidth = pchan_info->bandcfg.chanWidth;
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (MFALSE
@@ -3717,7 +3748,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 		memset(&pm_info, 0, sizeof(mlan_ds_ps_info));
 		if (priv->phandle->suspend_fail == MFALSE) {
-			woal_get_pm_info(priv, &pm_info);
+			if (woal_get_pm_info(priv, &pm_info))
+				PRINTM(MEVENT, "get pm info failed\n");
 			if (pm_info.is_suspend_allowed == MTRUE) {
 				priv->phandle->hs_activated = MTRUE;
 #ifdef MMC_PM_FUNC_SUSPENDED
@@ -3791,7 +3823,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0,
 						  0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && IMX_ANDROID_13))
-			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0, 0);
+			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0,
+						  0);
 #elif ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                  \
        IMX_ANDROID_13 || IMX_ANDROID_12_BACKPORT)
 			cfg80211_ch_switch_notify(priv->netdev, &priv->chan, 0);
@@ -3807,7 +3840,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	case MLAN_EVENT_ID_DRV_UAP_CHAN_INFO:
 #ifdef UAP_CFG80211
 		if (IS_UAP_CFG80211(cfg80211_wext)) {
+			struct cfg80211_chan_def chandef;
 			pchan_info = (chan_band_info *)pmevent->event_buf;
+			if (woal_chandef_create(priv, &chandef, pchan_info))
+				PRINTM(MERROR,
+				       "Failed to create cfg80211_chan_def structure\n");
 			PRINTM(MEVENT,
 			       "UAP: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
 			       pchan_info->is_11n_enabled, pchan_info->channel,
@@ -3816,7 +3853,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			       pchan_info->bandcfg.chanWidth,
 			       pchan_info->bandcfg.chan2Offset);
 			if (priv->uap_host_based &&
-			    (priv->channel != pchan_info->channel))
+			    ((priv->chan.chan->hw_value !=
+			      pchan_info->channel) ||
+			     (priv->chan.width != chandef.width)))
 				woal_channel_switch_event(priv, pchan_info);
 		}
 #endif
@@ -3958,7 +3997,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			memset(&wrqu, 0, sizeof(union iwreq_data));
 			wrqu.data.pointer = (t_u8 __user *)pmevent->event_buf;
 			if ((pmevent->event_len +
-			     strlen(CUS_EVT_STA_CONNECTED) + 1) > IW_CUSTOM_MAX)
+			     strlen(CUS_EVT_STA_CONNECTED) + 1) > 256)
 				wrqu.data.length =
 					ETH_ALEN +
 					strlen(CUS_EVT_STA_CONNECTED) + 1;
@@ -4569,6 +4608,25 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 #endif
 		break;
+	case MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT:
+		evtbuf = (addba_timeout_event *)(pmevent->event_buf);
+		DBG_HEXDUMP(MEVT_D, "ADDBA_TIMEOUT", pmevent->event_buf,
+			    pmevent->event_len);
+		memset(iwevent_str, 0, sizeof(iwevent_str));
+		snprintf(iwevent_str, sizeof(iwevent_str),
+			 "%s, MAC:%02x%02x%02x%02x%02x%02x,TID=%u",
+			 CUS_EVT_ADDBA_TIMEOUT, evtbuf->peer_mac_addr[0],
+			 evtbuf->peer_mac_addr[1], evtbuf->peer_mac_addr[2],
+			 evtbuf->peer_mac_addr[3], evtbuf->peer_mac_addr[4],
+			 evtbuf->peer_mac_addr[5], evtbuf->tid);
+#if defined(STA_SUPPORT) || defined(UAP_SUPPORT)
+#if defined(STA_WEXT) || defined(UAP_WEXT)
+		if (IS_STA_OR_UAP_WEXT(cfg80211_wext)) {
+			woal_send_iwevcustom_event(priv, iwevent_str);
+		}
+#endif
+#endif
+		break;
 	case MLAN_EVENT_ID_CSI:
 		DBG_HEXDUMP(MEVT_D, "CSI dump", pmevent->event_buf,
 			    pmevent->event_len);
@@ -4767,63 +4825,3 @@ t_u64 moal_do_div(t_u64 num, t_u32 base)
 	do_div(val, base);
 	return val;
 }
-
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-/**
- *  @brief Performs wait event
- *
- *  @param pmoal   t_void
- *  @param bss_index      index of priv
- *  @return      MLAN_STATUS_SUCCESS
- */
-mlan_status moal_wait_hostcmd_complete(t_void *pmoal, t_u32 bss_index)
-{
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	moal_handle *handle = (moal_handle *)pmoal;
-	moal_private *priv = woal_bss_index_to_priv(handle, bss_index);
-	long time_left = 0;
-
-	ENTER();
-
-	if (!priv) {
-		PRINTM(MERROR, "moal_wait_event: priv is null!\n");
-		goto done;
-	}
-
-	priv->hostcmd_wait_condition = MFALSE;
-	time_left = wait_event_timeout(priv->hostcmd_wait_q,
-				       priv->hostcmd_wait_condition,
-				       MOAL_IOCTL_TIMEOUT);
-
-	if (!time_left) {
-		PRINTM(MERROR, "moal_wait_event: wait timeout ");
-		status = MLAN_STATUS_FAILURE;
-	}
-
-done:
-	LEAVE();
-	return status;
-}
-
-/**
- *  @brief wake up esa wait_q
- *
- *  @param pmoal   t_void
- *  @param bss_index      index of priv
- *  @return      MLAN_STATUS_SUCCESS
- */
-mlan_status moal_notify_hostcmd_complete(t_void *pmoal, t_u32 bss_index)
-{
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	moal_handle *handle = (moal_handle *)pmoal;
-	moal_private *priv = woal_bss_index_to_priv(handle, bss_index);
-
-	ENTER();
-
-	priv->hostcmd_wait_condition = MTRUE;
-	wake_up(&priv->hostcmd_wait_q);
-
-	LEAVE();
-	return status;
-}
-#endif

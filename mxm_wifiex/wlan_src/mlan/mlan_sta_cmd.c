@@ -5,7 +5,7 @@
  *  it is ready.
  *
  *
- *  Copyright 2008-2022 NXP
+ *  Copyright 2008-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -1002,6 +1002,10 @@ static mlan_status wlan_cmd_mac_multicast_adr(pmlan_private pmpriv,
 	HostCmd_DS_MAC_MULTICAST_ADR *pmc_addr = &cmd->params.mc_addr;
 
 	ENTER();
+	if (!pdata_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_MAC_MULTICAST_ADR) +
 				     S_DS_GEN);
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_MAC_MULTICAST_ADR);
@@ -2689,6 +2693,8 @@ static mlan_status wlan_cmd_inactivity_timeout(HostCmd_DS_COMMAND *cmd,
 			wlan_cpu_to_le16((t_u16)inac_to->mcast_timeout);
 		cmd_inac_to->ps_entry_timeout =
 			wlan_cpu_to_le16((t_u16)inac_to->ps_entry_timeout);
+		cmd_inac_to->ps_cmd_timeout =
+			wlan_cpu_to_le16((t_u16)inac_to->ps_cmd_timeout);
 	}
 
 	LEAVE();
@@ -3720,9 +3726,6 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_get_hw_spec(pmpriv, cmd_ptr);
 		break;
 #ifdef SDIO
-	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
-		ret = wlan_cmd_sdio_rx_aggr_cfg(cmd_ptr, cmd_action, pdata_buf);
-		break;
 #endif
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_cmd_cfg_data(pmpriv, cmd_ptr, cmd_action, cmd_oid,
@@ -3791,7 +3794,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_ips_config(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
 		break;
-	case HOST_CMD_PMIC_CONFIGURE:
+	case HostCmd_CMD_PMIC_CONFIGURE:
 		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
 		cmd_ptr->size = wlan_cpu_to_le16(S_DS_GEN);
 		break;
@@ -4082,7 +4085,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						 pdata_buf);
 		break;
 #ifdef WIFI_DIRECT_SUPPORT
-	case HOST_CMD_WIFI_DIRECT_MODE_CONFIG:
+	case HostCmd_CMD_WIFI_DIRECT_MODE_CONFIG:
 		ret = wlan_cmd_wifi_direct_mode(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
 		break;
@@ -4127,10 +4130,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
-	case HostCMD_CONFIG_LOW_POWER_MODE:
+	case HostCmd_CMD_CONFIG_LOW_POWER_MODE:
 		ret = wlan_cmd_low_pwr_mode(pmpriv, cmd_ptr, pdata_buf);
 		break;
-	case HostCmd_DFS_REPEATER_MODE:
+	case HostCmd_CMD_DFS_REPEATER_MODE:
 		ret = wlan_cmd_dfs_repeater_cfg(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
 		break;
@@ -4138,7 +4141,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_coalesce_config(pmpriv, cmd_ptr, cmd_action,
 					       pdata_buf);
 		break;
-	case HostCmd_DS_GET_SENSOR_TEMP:
+	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		ret = wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
 		break;
 	case HostCmd_CMD_802_11_MIMO_SWITCH:
@@ -4176,7 +4179,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_auto_tx(pmpriv, cmd_ptr, cmd_action, cmd_oid,
 				       pdata_buf);
 		break;
-	case HOST_CMD_TX_RX_PKT_STATS:
+	case HostCmd_CMD_TX_RX_PKT_STATS:
 		ret = wlan_cmd_tx_rx_pkt_stats(pmpriv, cmd_ptr,
 					       (pmlan_ioctl_req)pioctl_buf,
 					       pdata_buf);
@@ -4193,11 +4196,6 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_fw_dump_event(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
 		break;
-#if defined(DRV_EMBEDDED_SUPPLICANT)
-	case HostCmd_CMD_CRYPTO:
-		ret = wlan_cmd_crypto(pmpriv, cmd_ptr, cmd_action, pdata_buf);
-		break;
-#endif
 	case HostCmd_CMD_11AX_CFG:
 		ret = wlan_cmd_11ax_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
@@ -4211,7 +4209,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_TWT_CFG:
 		ret = wlan_cmd_twt_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
-	case HOST_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
+	case HostCmd_CMD_GPIO_TSF_LATCH_PARAM_CONFIG:
 		ret = wlan_cmd_gpio_tsf_latch(pmpriv, cmd_ptr, cmd_action,
 					      pioctl_buf, pdata_buf);
 		break;
@@ -4226,6 +4224,14 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_RX_ABORT_CFG_EXT:
 		ret = wlan_cmd_rxabortcfg_ext(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
+		break;
+	case HostCmd_CMD_NAV_MITIGATION_CFG:
+		ret = wlan_cmd_nav_mitigation(pmpriv, cmd_ptr, cmd_action,
+					      pdata_buf);
+		break;
+	case HostCmd_CMD_802_11_LED_CONTROL:
+		ret = wlan_cmd_led_config(pmpriv, cmd_ptr, cmd_action,
+					  pdata_buf);
 		break;
 	case HostCmd_CMD_ARB_CONFIG:
 		ret = wlan_cmd_arb_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
@@ -4246,7 +4252,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_cck_desense_cfg(pmpriv, cmd_ptr, cmd_action,
 					       pdata_buf);
 		break;
-	case HostCmd_CHANNEL_TRPC_CONFIG:
+	case HostCmd_CMD_CHANNEL_TRPC_CONFIG:
 		ret = wlan_cmd_get_chan_trpc_config(pmpriv, cmd_ptr, cmd_action,
 						    pdata_buf);
 		break;

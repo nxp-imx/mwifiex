@@ -35,7 +35,7 @@ extern struct semaphore AddRemoveCardSem;
 ********************************************************/
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW62X)
+	defined(USB8978) || defined(USBIW624)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -95,10 +95,10 @@ static struct usb_device_id woal_usb_table[] = {
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
-#ifdef USBIW62X
-	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_1,
+#ifdef USBIW624
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_1,
 			"NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_2,
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_2,
 			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
@@ -128,8 +128,8 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 #ifdef USB9097
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
-#ifdef USBIW62X
-	{NXP_USB_DEVICE(USBIW62X_VID_1, USBIW62X_PID_2,
+#ifdef USBIW624
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_2,
 			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
@@ -497,7 +497,7 @@ rx_ret:
 ********************************************************/
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW62X)
+	defined(USB8978) || defined(USBIW624)
 /**
  *  @brief  Check chip revision
  *
@@ -810,14 +810,14 @@ static t_u16 woal_update_card_type(t_void *card)
 					strlen(KERN_VERSION));
 	}
 #endif
-#ifdef USBIW62X
+#ifdef USBIW624
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USBIW62X_PID_1 ||
+		    (__force __le16)USBIW624_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USBIW62X_PID_2) {
-		card_type = CARD_TYPE_USBIW62X;
-		moal_memcpy_ext(NULL, driver_version, CARD_USBIW62X,
-				strlen(CARD_USBIW62X), strlen(driver_version));
+		    (__force __le16)USBIW624_PID_2) {
+		card_type = CARD_TYPE_USBIW624;
+		moal_memcpy_ext(NULL, driver_version, CARD_USBIW624,
+				strlen(CARD_USBIW624), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -893,9 +893,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_1:
 #endif /* USB9097 */
-#ifdef USBIW62X
-			case (__force __le16)USBIW62X_PID_1:
-#endif /* USBIW62X */
+#ifdef USBIW624
+			case (__force __le16)USBIW624_PID_1:
+#endif /* USBIW624 */
 
 				/* If skip FW is set, we must return error so
 				 * the next driver can download the FW */
@@ -923,9 +923,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB9097
 			case (__force __le16)USB9097_PID_2:
 #endif /* USB9097 */
-#ifdef USBIW62X
-			case (__force __le16)USBIW62X_PID_2:
-#endif /* USBIW62X */
+#ifdef USBIW624
+			case (__force __le16)USBIW624_PID_2:
+#endif /* USBIW624 */
 
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
@@ -1283,7 +1283,6 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
 			if (cardp->rx_data_list[i].urb) {
 				usb_kill_urb(cardp->rx_data_list[i].urb);
-				usb_init_urb(cardp->rx_data_list[i].urb);
 			}
 		}
 	}
@@ -2043,7 +2042,7 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW62X)
+	defined(USB8978) || defined(USBIW624)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
 	t_u32 boot_mode = 0;
@@ -2064,7 +2063,7 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #endif
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW62X)
+	defined(USB8978) || defined(USBIW624)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap,
 				       &boot_mode);
 	if (ret != MLAN_STATUS_SUCCESS) {
@@ -2170,16 +2169,16 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		}
 	}
 #endif
-#ifdef USBIW62X
-	if (IS_USBIW62X(handle->card_type)) {
+#ifdef USBIW624
+	if (IS_USBIW624(handle->card_type)) {
 		if (boot_mode == 0x03)
-			PRINTM(MMSG, "wlan: USB-IW62X in secure-boot mode\n");
+			PRINTM(MMSG, "wlan: USB-IW624 in secure-boot mode\n");
 		if (strap == CARD_TYPE_USB_UART)
 			strncpy(handle->card_info->fw_name,
-				USBUARTIW62X_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
+				USBUARTIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 		else
 			strncpy(handle->card_info->fw_name,
-				USBUSBIW62X_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
+				USBUSBIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 	}
 #endif
 

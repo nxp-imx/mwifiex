@@ -1928,7 +1928,7 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
 		    IS_CARD9097(priv->phandle->card_type) ||
-		    IS_CARDIW62X(priv->phandle->card_type)) {
+		    IS_CARDIW624(priv->phandle->card_type)) {
 			if (IS_STA_CFG80211(
 				    priv->phandle->params.cfg80211_wext))
 				woal_cfg80211_notify_antcfg(
@@ -4110,61 +4110,6 @@ done:
 	LEAVE();
 	return ret;
 }
-
-#if defined(UAP_CFG80211)
-#if defined(STA_WEXT) || defined(UAP_WEXT)
-/**
- *  @brief Set/Get multi AP mode
- *
- *  @param priv             A pointer to moal_private structure
- *  @param wrq              A pointer to structure iwreq
- *
- *  @return                  0 --success, otherwise fail
- */
-int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0;
-	int mode = 0;
-
-	ENTER();
-
-	if (wrq->u.data.length) {
-		if (wrq->u.data.length > 1) {
-			PRINTM(MERROR, "Invalid no of arguments!\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		if (copy_from_user(&mode, wrq->u.data.pointer, sizeof(int))) {
-			PRINTM(MERROR, "copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (mode == EASY_MESH_MULTI_AP_BSS_MODE_3)
-			/* Supports backhaul and fronthaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_AND_FH_BSS;
-		else if (mode == EASY_MESH_MULTI_AP_BSS_MODE_2)
-			/* Supports backhaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_BSS;
-		else if (mode == EASY_MESH_MULTI_AP_BSS_MODE_1)
-			/* Supports fronthaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_FH_BSS;
-	} else {
-		if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_AND_FH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_3;
-		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_2;
-		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_FH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_1;
-		wrq->u.data.length = 1;
-		if (copy_to_user(wrq->u.data.pointer, &mode, sizeof(int)))
-			ret = -EFAULT;
-	}
-done:
-	LEAVE();
-	return ret;
-}
-#endif
-#endif
 
 /**
  *  @brief Set AP configuration
