@@ -118,6 +118,10 @@ Change log:
 
 #include <net/ieee80211_radiotap.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+#include <net/netdev_rx_queue.h>
+#endif
+
 #include "mlan.h"
 #include "moal_shim.h"
 /* Wireless header */
