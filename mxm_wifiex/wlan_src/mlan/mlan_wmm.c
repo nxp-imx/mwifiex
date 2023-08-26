@@ -2159,8 +2159,13 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 				&priv->wmm.tid_tbl_ptr[tid_down].ra_list, MNULL,
 				MNULL);
 	} else {
-		memcpy_ext(pmadapter, ra, pmbuf->pbuf + pmbuf->data_offset,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH)
+			memcpy_ext(pmadapter, ra, pmbuf->mac,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		else
+			memcpy_ext(pmadapter, ra,
+				   pmbuf->pbuf + pmbuf->data_offset,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 		/** put multicast/broadcast packet in the same ralist */
 		if (ra[0] & 0x01)
 			memset(pmadapter, ra, 0xff, sizeof(ra));

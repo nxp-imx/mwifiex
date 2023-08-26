@@ -8811,7 +8811,7 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 			.get_link_statistic;
 
 	/* TLV parse */
-	if (resp->size > (sizeof(HostCmd_DS_802_11_LINK_STATISTIC) - S_DS_GEN))
+	if (resp->size > (sizeof(HostCmd_DS_802_11_LINK_STATISTIC) + S_DS_GEN))
 		left_len = resp->size -
 			   sizeof(HostCmd_DS_802_11_LINK_STATISTIC) - S_DS_GEN;
 
@@ -8820,6 +8820,10 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 	while (left_len > sizeof(MrvlIEtypesHeader_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv->type);
 		tlv_len = wlan_le16_to_cpu(tlv->len);
+		if (left_len < (tlv_len + sizeof(MrvlIEtypesHeader_t))) {
+			PRINTM(MERROR, "Invalid link statistic tlv\n");
+			break;
+		}
 		switch (tlv_type) {
 		case TLV_TYPE_LL_STAT_IFACE:
 			fw_ifaceStat = (mlan_wifi_iface_stat

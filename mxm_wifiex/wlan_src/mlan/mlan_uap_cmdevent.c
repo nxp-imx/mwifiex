@@ -705,6 +705,7 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 	MrvlIETypes_HTCap_t *tlv_htcap = MNULL;
 	MrvlIEtypes_wmm_parameter_t *tlv_wmm_parameter = MNULL;
 	MrvlIEtypes_preamble_t *tlv_preamble = MNULL;
+	MrvlIEtypes_MultiAp_t *tlv_multi_ap = MNULL;
 
 	t_u32 cmd_size = 0;
 	t_u8 zero_mac[] = {0, 0, 0, 0, 0, 0};
@@ -1432,6 +1433,16 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 
 		cmd_size += sizeof(MrvlIEtypes_preamble_t);
 		tlv += sizeof(MrvlIEtypes_preamble_t);
+	}
+	if (bss->param.bss_config.multi_ap_flag) {
+		/** Add multi AP tlv here */
+		tlv_multi_ap = (MrvlIEtypes_MultiAp_t *)tlv;
+		tlv_multi_ap->header.type = wlan_cpu_to_le16(TLV_TYPE_MULTI_AP);
+		tlv_multi_ap->header.len =
+			wlan_cpu_to_le16(sizeof(tlv_multi_ap->flag));
+		tlv_multi_ap->flag = bss->param.bss_config.multi_ap_flag;
+		cmd_size += sizeof(MrvlIEtypes_MultiAp_t);
+		tlv += sizeof(MrvlIEtypes_MultiAp_t);
 	}
 	cmd->size = (t_u16)wlan_cpu_to_le16(cmd_size);
 	PRINTM(MCMND, "AP config: cmd_size=%d\n", cmd_size);
@@ -4369,6 +4380,8 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
+	/* Save station aid for multi-ap */
+	sta_ptr->aid = bss->param.sta_info.aid;
 	memcpy_ext(pmadapter, new_sta->peer_mac, bss->param.sta_info.peer_mac,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if (cmd_action != HostCmd_ACT_ADD_STA)

@@ -5164,6 +5164,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_HOTSPOT_CFG:
 		status = wlan_misc_hotspot_cfg(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_MULTI_AP_CFG:
+		status = wlan_misc_multi_ap_cfg(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_OTP_USER_DATA:
 		status = wlan_misc_otp_user_data(pmadapter, pioctl_req);
 		break;

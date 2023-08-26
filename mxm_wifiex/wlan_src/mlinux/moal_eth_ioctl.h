@@ -82,6 +82,9 @@ Change log:
 #define PRIV_CMD_GET_STA_LIST "getstalist"
 #define PRIV_CMD_BSS_CONFIG "bssconfig"
 #endif
+#if defined(UAP_SUPPORT)
+#define PRIV_CMD_SETMODE "setmode"
+#endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #define PRIV_CMD_BSSROLE "bssrole"

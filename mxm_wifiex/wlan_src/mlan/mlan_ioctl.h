@@ -357,6 +357,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_TP_STATE = 0x0020007D,
 	MLAN_OID_MISC_HAL_PHY_CFG = 0x0020007E,
 	MLAN_OID_MISC_RF_TEST_HE_POWER = 0X0020007F,
+	MLAN_OID_MISC_MULTI_AP_CFG = 0x00200080,
 #ifdef UAP_SUPPORT
 	MLAN_OID_MISC_WACP_MODE = 0x00200081,
 #endif
@@ -1185,6 +1186,8 @@ typedef struct _mlan_uap_bss_param {
 
 	/** uap host based config */
 	t_u32 uap_host_based_config;
+	/** multi ap flag */
+	t_u8 multi_ap_flag;
 } mlan_uap_bss_param, *pmlan_uap_bss_param;
 
 /** mlan_uap_scan_channels */
@@ -6188,6 +6191,8 @@ typedef struct _mlan_ds_misc_cfg {
 #endif
 		/** Hotspot config param set */
 		t_u32 hotspot_cfg;
+		/** Multi AP flag */
+		t_u8 multi_ap_flag;
 #ifdef STA_SUPPORT
 		ExtCap_t ext_cap;
 #endif

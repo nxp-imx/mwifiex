@@ -246,6 +246,11 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
+	if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
+		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_EASYMESH;
+		memcpy_ext(pmpriv->adapter, plocal_tx_pd->ra_mac, pmbuf->mac,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	}
 
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_CTRL) {
 		if (pmbuf->u.tx_info.data_rate) {
@@ -388,6 +393,14 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	}
 
 	rx_pkt_type = prx_pd->rx_pkt_type;
+	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
+		PRINTM_NETINTF(MDAT_D, priv);
+		PRINTM(MDAT_D, "UAP Rx Easymesh pkt flags : 0x%x\n",
+		       prx_pd->flags);
+		ret = wlan_check_easymesh_pkt(priv, pmbuf, prx_pd);
+		if (ret != MLAN_STATUS_SUCCESS)
+			goto done;
+	}
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	PRINTM(MINFO,
@@ -549,7 +562,11 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		}
 	}
 
-	sta_ptr = wlan_get_station_entry(priv, prx_pkt->eth803_hdr.src_addr);
+	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH)
+		sta_ptr = wlan_get_station_entry(priv, prx_pd->ta_mac);
+	else
+		sta_ptr = wlan_get_station_entry(priv,
+						 prx_pkt->eth803_hdr.src_addr);
 	if (sta_ptr) {
 		sta_ptr->snr = prx_pd->snr;
 		sta_ptr->nf = prx_pd->nf;
@@ -569,8 +586,12 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		wlan_process_uap_rx_packet(priv, pmbuf);
 		goto done;
 	}
-	memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
-		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH)
+		memcpy_ext(pmadapter, ta, prx_pd->ta_mac, MLAN_MAC_ADDR_LENGTH,
+			   MLAN_MAC_ADDR_LENGTH);
+	else
+		memcpy_ext(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	if ((rx_pkt_type != PKT_TYPE_BAR) && (prx_pd->priority < MAX_NUM_TID)) {
 		sta_ptr = wlan_get_station_entry(priv, ta);
 		if (sta_ptr) {

@@ -1435,6 +1435,27 @@ typedef struct _auto_zero_dfs_cfg {
 	t_u8 dfs_chan_list[MAX_DFS_CHAN_LIST];
 } __ATTRIB_PACK__ auto_zero_dfs_cfg;
 
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+typedef struct _station_node {
+	/** station aid */
+	t_u16 aid;
+	/** station mac address */
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+	/** net_device that station is bind to */
+	struct net_device *netdev;
+	/** is valid flag */
+	t_u8 is_valid;
+} station_node;
+
+#define EASY_MESH_MULTI_AP_FH_BSS (t_u8)(0x20)
+#define EASY_MESH_MULTI_AP_BH_BSS (t_u8)(0x40)
+#define EASY_MESH_MULTI_AP_BH_AND_FH_BSS (t_u8)(0x60)
+
+#define EASY_MESH_MULTI_AP_BSS_MODE_1 (t_u8)(0x01)
+#define EASY_MESH_MULTI_AP_BSS_MODE_2 (t_u8)(0x02)
+#define EASY_MESH_MULTI_AP_BSS_MODE_3 (t_u8)(0x03)
+#endif
+
 #ifdef STA_SUPPORT
 enum scan_set_band {
 	SCAN_SETBAND_AUTO = 0,
@@ -1813,6 +1834,14 @@ struct _moal_private {
 	void *rings[RING_ID_MAX];
 	t_u8 pkt_fate_monitor_enable;
 	void *packet_filter;
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	t_u8 multi_ap_flag;
+	station_node *vlan_sta_ptr;
+	station_node *vlan_sta_list[MAX_STA_COUNT];
+	moal_private *parent_priv;
+#endif
+#endif
 	/** txwatchdog disable */
 	t_u8 txwatchdog_disable;
 
@@ -4138,6 +4167,10 @@ void woal_hist_data_add(moal_private *priv, t_u16 rx_rate, t_s8 snr, t_s8 nflr,
 			t_u8 antenna);
 mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 				t_u32 hotspotcfg);
+
+#if defined(STA_CFG80211)
+mlan_status woal_multi_ap_cfg(moal_private *priv, t_u8 wait_option, t_u8 flag);
+#endif
 
 mlan_status woal_set_get_wowlan_config(moal_private *priv, t_u16 action,
 				       t_u8 wait_option,

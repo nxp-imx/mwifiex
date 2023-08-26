@@ -585,6 +585,8 @@ static struct _card_info card_info_PCIE8997 = {
 	.magic_reg = 0x0cd4,
 	.fw_name = PCIE8997_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE8997_DEFAULT_WLAN_FW_NAME,
+	.fw_reset_reg = 0xcf4,
+	.fw_reset_val = 0x99,
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 	.host_mlme_required = 1,
@@ -5520,6 +5522,11 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 #endif
 	int i = 0;
 
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	int count = 0;
+#endif
+#endif
 	ENTER();
 
 	if (!priv || !priv->netdev)
@@ -5620,6 +5627,18 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
 	if (IS_STA_OR_UAP_CFG80211(handle->params.cfg80211_wext))
 		priv->phandle->wiphy->extended_capabilities = NULL;
+#endif
+#ifdef UAP_SUPPORT
+	/* Clear the whole backhaul station list in moal */
+	for (count = 0; count < MAX_STA_COUNT; count++) {
+		if (priv->vlan_sta_list[count]) {
+			if (priv->vlan_sta_list[count]->is_valid)
+				unregister_netdevice(
+					priv->vlan_sta_list[count]->netdev);
+			kfree(priv->vlan_sta_list[count]);
+		}
+		priv->vlan_sta_list[count] = NULL;
+	}
 #endif
 #endif
 	priv->phandle->priv[priv->bss_index] = NULL;
@@ -6067,6 +6086,9 @@ int woal_open(struct net_device *dev)
 #endif /* < 2.6.34 */
 #endif /* USB_SUSPEND_RESUME */
 	t_u8 carrier_on = MFALSE;
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
+#endif
 
 	ENTER();
 
@@ -6134,6 +6156,13 @@ int woal_open(struct net_device *dev)
 		carrier_on = MTRUE;
 #endif
 
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
+		if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP_VLAN)
+			carrier_on = MTRUE;
+	}
+#endif
+
 	if (carrier_on == MTRUE) {
 		if (!netif_carrier_ok(priv->netdev))
 			netif_carrier_on(priv->netdev);
@@ -6170,6 +6199,18 @@ int woal_close(struct net_device *dev)
 	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
 #endif
 	ENTER();
+
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
+		/** For multi-ap virtual interface */
+		if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP_VLAN) {
+			woal_stop_queue(priv->netdev);
+			MODULE_PUT;
+			LEAVE();
+			return 0;
+		}
+	}
+#endif
 
 	woal_flush_tx_stat_queue(priv);
 
@@ -6313,6 +6354,13 @@ int woal_set_mac_address(struct net_device *dev, void *addr)
 		LEAVE();
 		return -EFAULT;
 	}
+
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	/* No need to set mac address for multi-ap virtual interface */
+	if ((dev->ieee80211_ptr) &&
+	    (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP_VLAN))
+		return 0;
+#endif
 
 	moal_memcpy_ext(priv->phandle, prev_addr, priv->current_addr, ETH_ALEN,
 			ETH_ALEN);
@@ -7598,6 +7646,66 @@ done:
 #endif
 #endif
 
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+/**
+ *  @brief This function check if the packet is easymesh packet
+ *
+ *  @param priv      A pointer to moal_private structure
+ *  @param skb       A pointer to sk_buff structure
+ *
+ *  @return          MTRUE/MFALSE
+ */
+static BOOLEAN woal_check_easymesh_packet(moal_private *priv,
+					  mlan_buffer *pmbuf)
+{
+	struct sk_buff *skb = pmbuf->pdesc;
+	ENTER();
+
+	/** not construct 4 address if SA is same as local address */
+	if (!moal_memcmp(NULL, (skb->data + 6), priv->current_addr, ETH_ALEN)) {
+		PRINTM(MINFO,
+		       "%s: SA is same as local address " FULL_MACSTR "\n",
+		       __func__, FULL_MAC2STR(priv->current_addr));
+		LEAVE();
+		return MFALSE;
+	}
+
+	/* RA TA */
+	switch (priv->wdev->iftype) {
+#ifdef UAP_SUPPORT
+	case NL80211_IFTYPE_AP_VLAN:
+		PRINTM(MDAT_D, "%s: Easymesh AP_VLAN\n", priv->netdev->name);
+		moal_memcpy_ext(priv->phandle, pmbuf->mac,
+				priv->vlan_sta_ptr->peer_mac,
+				MLAN_MAC_ADDR_LENGTH, ETH_ALEN);
+		pmbuf->flags |= MLAN_BUF_FLAG_EASYMESH;
+		break;
+#endif
+	case NL80211_IFTYPE_STATION:
+		PRINTM(MDAT_D, "%s Easymesh STATION\n", priv->netdev->name);
+		moal_memcpy_ext(priv->phandle, pmbuf->mac, priv->cfg_bssid,
+				ETH_ALEN, ETH_ALEN);
+		pmbuf->flags |= MLAN_BUF_FLAG_EASYMESH;
+		break;
+	default:
+		PRINTM(MERROR, "Not supported iftype\n");
+		LEAVE();
+		return MFALSE;
+	}
+	PRINTM(MDAT_D,
+	       "Easymesh Tx %s:\nRA: " FULL_MACSTR "\nTA: " FULL_MACSTR
+	       "\nDA: " FULL_MACSTR "\nSA: " FULL_MACSTR "\n",
+	       __func__, FULL_MAC2STR(pmbuf->mac),
+	       FULL_MAC2STR(priv->current_addr), FULL_MAC2STR(skb->data),
+	       FULL_MAC2STR(skb->data + ETH_ALEN));
+
+	LEAVE();
+	return MTRUE;
+}
+#endif
+#endif
+
 /**
  *  @brief This function handles packet transmission
  *
@@ -7615,6 +7723,12 @@ static void woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	t_u32 index = 0;
 #endif
 	int ret = 0;
+
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	BOOLEAN multi_ap_packet = MFALSE;
+#endif
+#endif
 
 	ENTER();
 
@@ -7660,6 +7774,23 @@ static void woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	pmbuf->bss_index = priv->bss_index;
 	woal_fill_mlan_buffer(priv, pmbuf, skb);
 
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	if (priv->wdev->use_4addr) {
+		if ((priv->wdev->iftype == NL80211_IFTYPE_AP_VLAN &&
+		     !priv->vlan_sta_ptr) ||
+		    (priv->wdev->iftype == NL80211_IFTYPE_STATION &&
+		     !priv->media_connected)) {
+			priv->stats.tx_dropped++;
+			dev_kfree_skb_any(skb);
+			LEAVE();
+			return;
+		}
+		multi_ap_packet = woal_check_easymesh_packet(priv, pmbuf);
+	}
+#endif
+#endif
+
 	if (priv->enable_tcp_ack_enh == MTRUE) {
 		ret = woal_process_tcp_ack(priv, pmbuf);
 		if (ret)
@@ -7695,6 +7826,13 @@ static void woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 	switch (status) {
 	case MLAN_STATUS_PENDING:
 		atomic_inc(&priv->phandle->tx_pending);
+
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+		if (priv->wdev->iftype == NL80211_IFTYPE_AP_VLAN)
+			priv = priv->parent_priv;
+#endif
+#endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 		atomic_inc(&priv->wmm_tx_pending[index]);
@@ -7999,6 +8137,12 @@ void woal_set_multicast_list(struct net_device *dev)
  */
 void woal_init_priv(moal_private *priv, t_u8 wait_option)
 {
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	int i;
+#endif
+#endif
+
 	ENTER();
 #ifdef STA_SUPPORT
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
@@ -8059,6 +8203,14 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		woal_init_wifi_hal(priv);
 #endif
+#endif
+#endif
+
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+		priv->vlan_sta_ptr = NULL;
+		for (i = 0; i < MAX_STA_COUNT; i++)
+			priv->vlan_sta_list[i] = NULL;
 #endif
 #endif
 	}
@@ -8189,6 +8341,11 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 	priv->chan_num_pkts = DEFAULT_RETRY_PKTS;
 	priv->user_cac_period_msec = 0;
 	priv->chan_under_nop = MFALSE;
+#endif
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	priv->multi_ap_flag = 0;
+#endif
 #endif
 	LEAVE();
 }
@@ -12570,7 +12727,8 @@ static int woal_pcie_reset_and_reload_fw(moal_handle *handle)
 	if (!IS_PCIE9098(handle->card_type) &&
 	    !IS_PCIEIW624(handle->card_type) &&
 	    !IS_PCIEAW693(handle->card_type) &&
-	    !IS_PCIE9097(handle->card_type)) {
+	    !IS_PCIE9097(handle->card_type) &&
+	    !IS_PCIE8997(handle->card_type)) {
 		PRINTM(MERROR, "HW don't support PCIE in-band reset\n");
 		return -EFAULT;
 	}
