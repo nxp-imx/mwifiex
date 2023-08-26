@@ -406,6 +406,7 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	priv->rxpd_rate_info = 0;
 	priv->max_amsdu = 0;
 	priv->amsdu_disable = MFALSE;
+	priv->multi_ap_flag = 0;
 	wlan_coex_ampdu_rxwinsize(pmadapter);
 
 	priv->sec_info.ewpa_enabled = MFALSE;
@@ -675,6 +676,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	t_u8 radar_chan;
 	t_u8 bandwidth;
 	t_u16 enable = 0;
+	Event_Link_Lost *link_lost_evt = MNULL;
 
 	ENTER();
 
@@ -756,12 +758,51 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 
 	case EVENT_LINK_LOST:
-		reason_code = wlan_le16_to_cpu(*(t_u16 *)(pmbuf->pbuf +
-							  pmbuf->data_offset +
-							  sizeof(eventcause)));
-		PRINTM(MMSG, "wlan: EVENT: Link lost (reason 0x%x)\n",
-		       reason_code);
-		pmpriv->disconnect_reason_code = reason_code;
+		if (pmbuf && (pmbuf->data_len >=
+			      sizeof(eventcause) + sizeof(Event_Link_Lost))) {
+			link_lost_evt = (Event_Link_Lost *)(pmbuf->pbuf +
+							    pmbuf->data_offset +
+							    sizeof(eventcause));
+			PRINTM(MMSG,
+			       "wlan: EVENT: Link lost (reason 0x%x) bssid: " MACSTR
+			       "\n",
+			       link_lost_evt->reason_code,
+			       MAC2STR(link_lost_evt->bssid));
+			pmpriv->disconnect_reason_code =
+				link_lost_evt->reason_code;
+			if (memcmp(pmpriv->adapter, link_lost_evt->bssid,
+				   &pmpriv->curr_bss_params.attemp_bssid,
+				   MLAN_MAC_ADDR_LENGTH)) {
+				PRINTM(MMSG, "wlan: skip link lost event\n");
+				PRINTM(MMSG, "pattempted_bssid: " MACSTR "\n",
+				       MAC2STR(&pmpriv->curr_bss_params
+							.attemp_bssid));
+				break;
+			}
+		} else {
+			if (memcmp(pmpriv->adapter,
+				   pmpriv->curr_bss_params.bss_descriptor
+					   .mac_address,
+				   &pmpriv->curr_bss_params.attemp_bssid,
+				   MLAN_MAC_ADDR_LENGTH)) {
+				PRINTM(MMSG, "wlan: skip link lost event\n");
+				PRINTM(MMSG,
+				       "pattempted_bssid: " MACSTR
+				       " curr_bssid:" MACSTR "\n",
+				       MAC2STR(&pmpriv->curr_bss_params
+							.attemp_bssid),
+				       MAC2STR(pmpriv->curr_bss_params
+						       .bss_descriptor
+						       .mac_address));
+				break;
+			}
+			reason_code = wlan_le16_to_cpu(
+				*(t_u16 *)(pmbuf->pbuf + pmbuf->data_offset +
+					   sizeof(eventcause)));
+			PRINTM(MMSG, "wlan: EVENT: Link lost (reason 0x%x)\n",
+			       reason_code);
+			pmpriv->disconnect_reason_code = reason_code;
+		}
 		pmadapter->dbg.num_event_link_lost++;
 		wlan_handle_disconnect_event(pmpriv);
 		break;

@@ -863,7 +863,10 @@ typedef struct {
 	t_u8 data_rates[WLAN_SUPPORTED_RATES];
 	/** Host MLME flag*/
 	t_u8 host_mlme;
+	/** prev_bssid */
 	mlan_802_11_mac_addr prev_bssid;
+	/** attemp_bssid */
+	mlan_802_11_mac_addr attemp_bssid;
 	t_u8 use_mfp;
 } current_bss_params_t;
 
@@ -1327,6 +1330,7 @@ typedef struct _mlan_private {
 	/** IP address */
 	t_u8 ip_addr[IPADDR_LEN];
 	t_u32 hotspot_cfg;
+	t_u8 multi_ap_flag;
 #ifdef STA_SUPPORT
 	ExtCap_t ext_cap;
 	ExtCap_t def_ext_cap;
@@ -1580,6 +1584,8 @@ struct _sta_node {
 	/** station band mode */
 	t_u16 bandmode;
 	sta_stats stats;
+	/** station aid */
+	t_u16 aid;
 };
 
 /** 802.11h State information kept in the 'mlan_adapter' driver structure */
@@ -3949,6 +3955,8 @@ static inline t_u8 wlan_is_port_ready(pmlan_adapter pmadapter, t_u32 port_index)
 		return MTRUE;
 }
 #endif
+mlan_status wlan_check_easymesh_pkt(mlan_private *priv, pmlan_buffer pmbuf,
+				    RxPD *prx_pd);
 
 #ifdef UAP_SUPPORT
 mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf);
@@ -4095,6 +4103,9 @@ mlan_status wlan_set_drvdbg(pmlan_adapter pmadapter,
 
 mlan_status wlan_misc_hotspot_cfg(pmlan_adapter pmadapter,
 				  pmlan_ioctl_req pioctl_req);
+
+mlan_status wlan_misc_multi_ap_cfg(pmlan_adapter pmadapter,
+				   pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_misc_ext_capa_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);

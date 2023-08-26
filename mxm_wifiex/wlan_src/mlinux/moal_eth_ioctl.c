@@ -2913,6 +2913,116 @@ done:
 }
 #endif
 
+#if defined(UAP_SUPPORT)
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+/**
+ *  @brief easymesh uap Set/Get multi AP mode handler
+ *
+ *  @param priv     A pointer to moal_private structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int woal_uap_set_multiap_mode(moal_private *priv, t_u8 *respbuf,
+				     t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int mode[1] = {0};
+	int ret = 0;
+	int header_len = 0;
+	int user_data_len = 0;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_SETMODE);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_MULTI_AP_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, mode, ARRAY_SIZE(mode),
+				&user_data_len);
+		if (user_data_len > 1) {
+			PRINTM(MERROR, "Invalid number of args!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((mode[0] != EASY_MESH_MULTI_AP_BSS_MODE_3) &&
+		    (mode[0] != EASY_MESH_MULTI_AP_BSS_MODE_2) &&
+		    (mode[0] != EASY_MESH_MULTI_AP_BSS_MODE_1)) {
+			PRINTM(MERROR, "Invalid setmode value\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
+		if (mode[0] == EASY_MESH_MULTI_AP_BSS_MODE_3)
+			/* Supports backhaul and fronthaul BSS */
+			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_AND_FH_BSS;
+		else if (mode[0] == EASY_MESH_MULTI_AP_BSS_MODE_2)
+			/* Supports backhaul BSS */
+			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_BSS;
+		else if (mode[0] == EASY_MESH_MULTI_AP_BSS_MODE_1)
+			/* Supports fronthaul BSS */
+			priv->multi_ap_flag = EASY_MESH_MULTI_AP_FH_BSS;
+		PRINTM(MINFO, "[EM:%s:%d] priv->multi_ap_flag 0x%x\n", __func__,
+		       __LINE__, priv->multi_ap_flag);
+
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (req->action == MLAN_ACT_GET) {
+		if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_AND_FH_BSS)
+			mode[0] = EASY_MESH_MULTI_AP_BSS_MODE_3;
+		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_BSS)
+			mode[0] = EASY_MESH_MULTI_AP_BSS_MODE_2;
+		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_FH_BSS)
+			mode[0] = EASY_MESH_MULTI_AP_BSS_MODE_1;
+
+		PRINTM(MINFO, "[EM:%s:%d] setmode to 0x%x\n", __func__,
+		       __LINE__, mode[0]);
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)mode,
+				sizeof(mode), respbuflen);
+		ret = sizeof(mode);
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+#endif
+#endif
+
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 /**
@@ -20033,6 +20143,16 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_bss_config(priv, buf,
 						   priv_cmd.total_len);
 			goto handled;
+#endif
+#if defined(UAP_SUPPORT)
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_SETMODE,
+				    strlen(PRIV_CMD_SETMODE)) == 0) {
+			/* Set multi_ap mode */
+			len = woal_uap_set_multiap_mode(priv, buf,
+							priv_cmd.total_len);
+			goto handled;
+#endif
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)

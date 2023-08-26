@@ -1360,8 +1360,8 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 	case MLAN_TYPE_EVENT:
 		PRINTM(MINFO, "--- Rx: Event ---\n");
 
-		event = *(t_u32 *)&pmbuf->pbuf[MIN(
-			pmbuf->data_offset + SDIO_INTF_HEADER_LEN, UINT_MAX)];
+		event = *(t_u32 *)&pmbuf->pbuf[pmbuf->data_offset +
+					       SDIO_INTF_HEADER_LEN];
 		pmadapter->event_cause = wlan_le32_to_cpu(event);
 		if ((pmadapter->upld_len > MLAN_EVENT_HEADER_LEN) &&
 		    ((pmadapter->upld_len - MLAN_EVENT_HEADER_LEN) <

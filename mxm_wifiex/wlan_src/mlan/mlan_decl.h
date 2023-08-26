@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "408"
+#define MLAN_RELEASE_VERSION "408.p2"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -620,6 +620,8 @@ typedef enum {
 #define MLAN_BUF_FLAG_DIAG_BUF MBIT(13)
 
 #define MLAN_BUF_FLAG_TX_CTRL MBIT(14)
+
+#define MLAN_BUF_FLAG_EASYMESH MBIT(16)
 
 #define MLAN_BUF_FLAG_MC_AGGR_PKT MBIT(17)
 
@@ -1335,6 +1337,8 @@ typedef struct _mlan_buffer {
 	t_u32 extra_ts_sec;
 	/** Time stamp when packet is dequed from rx_q(micro seconds) */
 	t_u32 extra_ts_usec;
+	/** When TX ra mac address,  When Rx Ta mac address*/
+	t_u8 mac[MLAN_MAC_ADDR_LENGTH];
 	/** Fields below are valid for MLAN module only */
 	/** Pointer to parent mlan_buffer */
 	struct _mlan_buffer *pparent;

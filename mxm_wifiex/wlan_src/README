@@ -505,6 +505,8 @@
 #ifdef TX_POWERCFG
 	  txpwrlimit_cfg=<Tx power limit config file name>
 		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=nxp/txpwrlimit_cfg_set.conf
+		txpwrlimit_cfg_set.conf file should be the binary format file generate by mlanutl application
+
 #ifdef OTP_CHANINFO
       cntry_txpwr=0|1|2
 #else

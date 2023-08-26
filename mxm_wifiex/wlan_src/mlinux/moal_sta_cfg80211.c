@@ -908,6 +908,9 @@ static int woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie,
 	t_u8 wps_oui[] = {0x00, 0x50, 0xf2, 0x04};
 	t_u8 hs20_oui[] = {0x50, 0x6f, 0x9a, 0x10};
 
+	t_u8 multiap_oui[] = {0x50, 0x6f, 0x9a, 0x1b};
+	t_u8 multiap_flag = 0;
+
 	while (bytes_left >= 2) {
 		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
 		element_len = *((t_u8 *)pcurrent_ptr + 1);
@@ -939,6 +942,21 @@ static int woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie,
 				if (woal_wps_cfg(priv, MTRUE)) {
 					PRINTM(MERROR,
 					       "%s: Enable WPS session failed\n",
+					       __func__);
+					ret = -EFAULT;
+					goto done;
+				}
+			}
+
+			if (!memcmp(pvendor_ie->vend_hdr.oui, multiap_oui,
+				    sizeof(pvendor_ie->vend_hdr.oui)) &&
+			    (pvendor_ie->vend_hdr.oui_type == multiap_oui[3])) {
+				multiap_flag = pvendor_ie->data[0];
+				if (MLAN_STATUS_SUCCESS !=
+				    woal_multi_ap_cfg(priv, wait_option,
+						      multiap_flag)) {
+					PRINTM(MERROR,
+					       "%s: failed to configure multi ap\n",
 					       __func__);
 					ret = -EFAULT;
 					goto done;
@@ -2740,6 +2758,7 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	int ie_len;
 	mlan_ssid_bssid *ssid_bssid = NULL;
 	unsigned long flags;
 	const u8 *ssid_ie;
@@ -2912,6 +2931,22 @@ done:
 			       "woal_get_bss_info Fails to get bss info\n");
 		}
 		priv->channel = bss_info.bss_chan;
+	} else {
+		/* clear the encryption mode */
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_cfg80211_set_auth(priv, MLAN_ENCRYPTION_MODE_NONE,
+					   MFALSE, MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "Could not clear encryption \n");
+			ret = -EFAULT;
+		}
+		/* clear IE */
+		ie_len = 0;
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_get_gen_ie(priv, MLAN_ACT_SET, NULL, &ie_len,
+					MOAL_IOCTL_WAIT)) {
+			PRINTM(MERROR, "Could not clear RSN IE\n");
+			ret = -EFAULT;
+		}
 	}
 
 	spin_lock_irqsave(&priv->connect_lock, flags);
@@ -3382,6 +3417,37 @@ done:
 	return ret;
 }
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 1, 18)
+/**
+ * @brief This function convert he_gi to nl80211_he_gi
+ *
+ * @param he_gi  0/1/2/3
+ *
+ *
+ * @return  0: NL80211_RATE_INFO_HE_GI_0_8
+ *          1: NL80211_RATE_INFO_HE_GI_1_6
+ *          2: NL80211_RATE_INFO_HE_GI_3_2
+ */
+static t_u8 woal_he_gi_to_nl80211_he_gi(t_u8 he_gi)
+{
+	t_u8 cfg_he_gi = 0;
+	switch (he_gi) {
+	case 3:
+		cfg_he_gi = NL80211_RATE_INFO_HE_GI_3_2;
+		break;
+	case 2:
+		cfg_he_gi = NL80211_RATE_INFO_HE_GI_1_6;
+		break;
+	case 0:
+	case 1:
+	default:
+		cfg_he_gi = NL80211_RATE_INFO_HE_GI_0_8;
+		break;
+	}
+	return cfg_he_gi;
+}
+#endif
+
 /**
  * @brief Request the driver to fill the tx/rx rate info
  *
@@ -3458,7 +3524,8 @@ static void woal_cfg80211_fill_rate_info(moal_private *priv,
 			sinfo->txrate.flags = RATE_INFO_FLAGS_HE_MCS;
 			sinfo->txrate.nss = rate->param.data_rate.tx_nss + 1;
 			sinfo->txrate.mcs = rate->param.data_rate.tx_mcs_index;
-			sinfo->txrate.he_gi = rate->param.data_rate.tx_ht_gi;
+			sinfo->txrate.he_gi = woal_he_gi_to_nl80211_he_gi(
+				rate->param.data_rate.tx_ht_gi);
 			if (rate->param.data_rate.tx_ht_bw == MLAN_VHT_BW80)
 				sinfo->txrate.bw = RATE_INFO_BW_80;
 			else if (rate->param.data_rate.tx_ht_bw == MLAN_HT_BW40)
@@ -3505,7 +3572,8 @@ static void woal_cfg80211_fill_rate_info(moal_private *priv,
 			sinfo->rxrate.flags = RATE_INFO_FLAGS_HE_MCS;
 			sinfo->rxrate.nss = rate->param.data_rate.rx_nss + 1;
 			sinfo->rxrate.mcs = rate->param.data_rate.rx_mcs_index;
-			sinfo->rxrate.he_gi = rate->param.data_rate.rx_ht_gi;
+			sinfo->rxrate.he_gi = woal_he_gi_to_nl80211_he_gi(
+				rate->param.data_rate.rx_ht_gi);
 			if (rate->param.data_rate.rx_ht_bw == MLAN_VHT_BW80)
 				sinfo->rxrate.bw = RATE_INFO_BW_80;
 			else if (rate->param.data_rate.rx_ht_bw == MLAN_HT_BW40)
@@ -4548,7 +4616,30 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 			if (chan->flags & IEEE80211_CHAN_PASSIVE_SCAN)
 				scan_req->chan_list[num_chans].scan_time =
 					INIT_PASSIVE_SCAN_CHAN_TIME;
-			else
+			else if ((priv->bss_type == MLAN_BSS_TYPE_STA) &&
+				 (1 ==
+				  priv->phandle->scan_request->n_channels)) {
+				/*
+				 * Set passive scan time to 110ms to discover
+				 * all nearby AP's, Current 40ms passive scan
+				 * time does not scan all AP's. There are issues
+				 * with 40ms scan time:
+				 * 1. Regular user passive scan does list
+				 * limited nearby AP's.
+				 * 2. Radio Measurement RPT with beacon report
+				 * for passive scan mode does not list all
+				 * required AP's and hence cert fails. This
+				 * change is limited to below scenario only:
+				 * 1. Single channel user scan is requested
+				 * 2. STA is in connected state
+				 * 3. Scan type is passive
+				 */
+				if (scan_req->chan_list[num_chans].scan_type ==
+				    MLAN_SCAN_TYPE_PASSIVE)
+					scan_req->chan_list[num_chans]
+						.scan_time =
+						PASSIVE_SCAN_CHAN_TIME;
+			} else
 				scan_req->chan_list[num_chans].scan_time = MIN(
 					MIN_SPECIFIC_SCAN_CHAN_TIME,
 					scan_cfg.scan_time.specific_scan_time);
@@ -7335,6 +7426,11 @@ void woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev)
 	}
 	if (tdls_discovery)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr, 0,
+					TDLS_DISCOVERY_REQUEST, 1, 0, 0, 0,
+					NULL, 0);
+#else
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
 		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
 					TDLS_DISCOVERY_REQUEST, 1, 0, 0, 0,
@@ -7343,6 +7439,7 @@ void woal_check_auto_tdls(struct wiphy *wiphy, struct net_device *dev)
 		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
 					TDLS_DISCOVERY_REQUEST, 1, 0, 0, NULL,
 					0);
+#endif
 #endif
 #else
 		woal_cfg80211_tdls_mgmt(wiphy, dev, bcast_addr,
@@ -8473,8 +8570,41 @@ static int woal_cfg80211_change_station(struct wiphy *wiphy,
 					struct station_parameters *params)
 {
 	int ret = 0;
+#ifdef UAP_SUPPORT
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_private *vlan_priv = NULL;
+	station_node *sta_node = NULL;
+	int i = 0;
+#endif
 
 	ENTER();
+#ifdef UAP_SUPPORT
+	/** Bind the station to uap virtual interface and
+	save the station info in moal_private */
+	if (params->vlan) {
+		if (params->vlan->ieee80211_ptr &&
+		    params->vlan->ieee80211_ptr->iftype ==
+			    NL80211_IFTYPE_AP_VLAN) {
+			vlan_priv = (moal_private *)woal_get_netdev_priv(
+				params->vlan);
+			for (i = 0; i < MAX_STA_COUNT; i++) {
+				sta_node = priv->vlan_sta_list[i];
+				if (sta_node &&
+				    !moal_memcmp(priv->phandle,
+						 sta_node->peer_mac, mac,
+						 MLAN_MAC_ADDR_LENGTH)) {
+					PRINTM(MCMND,
+					       "wlan: Easymesh change station aid=%d\n",
+					       sta_node->aid);
+					sta_node->netdev = params->vlan;
+					sta_node->is_valid = MTRUE;
+					vlan_priv->vlan_sta_ptr = sta_node;
+					break;
+				}
+			}
+		}
+	}
+#endif
 	/**do nothing*/
 
 	LEAVE();
@@ -8505,12 +8635,29 @@ static int woal_cfg80211_add_station(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	station_node *sta_node = NULL;
 
 	ENTER();
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 #ifdef UAP_SUPPORT
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
 	    (priv->bss_role == MLAN_BSS_ROLE_UAP)) {
+		sta_node = kmalloc(sizeof(station_node), GFP_KERNEL);
+		if (!sta_node) {
+			PRINTM(MERROR,
+			       "Failed to alloc memory for station node\n");
+			LEAVE();
+			return -ENOMEM;
+		}
+		memset(sta_node, 0, sizeof(*sta_node));
+		moal_memcpy_ext(priv->phandle, sta_node->peer_mac, mac,
+				MLAN_MAC_ADDR_LENGTH, ETH_ALEN);
+		sta_node->netdev = dev;
+		sta_node->aid = params->aid;
+		sta_node->is_valid = MFALSE;
+		/** AID should start from 1 to MAX_STA_COUNT */
+		priv->vlan_sta_list[(params->aid - 1) % MAX_STA_COUNT] =
+			sta_node;
 		ret = woal_cfg80211_uap_add_station(wiphy, dev, (u8 *)mac,
 						    params);
 		LEAVE();
@@ -9917,8 +10064,9 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	wiphy->max_scan_ssids = MRVDRV_MAX_SSID_LIST_LENGTH;
 	wiphy->max_scan_ie_len = MAX_IE_SIZE;
 	wiphy->interface_modes = 0;
-	wiphy->interface_modes =
-		MBIT(NL80211_IFTYPE_STATION) | MBIT(NL80211_IFTYPE_AP);
+	wiphy->interface_modes = MBIT(NL80211_IFTYPE_STATION) |
+				 MBIT(NL80211_IFTYPE_AP_VLAN) |
+				 MBIT(NL80211_IFTYPE_AP);
 	wiphy->interface_modes |= MBIT(NL80211_IFTYPE_MONITOR);
 
 #ifdef WIFI_DIRECT_SUPPORT
@@ -10080,6 +10228,8 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 		wiphy->features |= NL80211_FEATURE_SAE;
 #endif
+	wiphy->flags |= WIPHY_FLAG_4ADDR_AP;
+	wiphy->flags |= WIPHY_FLAG_4ADDR_STATION;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	wiphy->features |= NL80211_FEATURE_NEED_OBSS_SCAN;
 #endif

@@ -1886,6 +1886,32 @@ done:
 #endif
 #endif
 
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+/**
+ *  @brief This function get binded net_device from station list
+ *
+ *  @param priv Pointer to structure moal_private
+ *  @param aid    station aid from mlan
+ *
+ *  @return    binded net_device pointer or NULL if not found
+ */
+struct net_device *moal_get_netdev_from_stalist(moal_private *priv, t_u16 aid)
+{
+	station_node *sta_node = NULL;
+
+	ENTER();
+	sta_node = priv->vlan_sta_list[(aid - 1) % MAX_STA_COUNT];
+	if (sta_node) {
+		LEAVE();
+		return sta_node->netdev;
+	}
+	LEAVE();
+	return NULL;
+}
+#endif
+#endif
+
 /**
  *  @brief This function uploads amsdu packet to the network stack
  *
@@ -2088,6 +2114,11 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	int j;
 	struct ethhdr *ethh = NULL;
 	struct net_device *netdev = NULL;
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	t_u16 aid = 0;
+#endif
+#endif
 
 	ENTER();
 	if (pmbuf) {
@@ -2204,6 +2235,23 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				priv->deauth_evt_cnt = 0;
 #endif
 			}
+#ifdef UAP_SUPPORT
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+			if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
+				aid = (pmbuf->priority & 0xFF000000) >> 24;
+				if (!priv->vlan_sta_list[(aid - 1) %
+							 MAX_STA_COUNT]
+					     ->is_valid) {
+					status = MLAN_STATUS_FAILURE;
+					priv->stats.rx_dropped++;
+					goto done;
+				}
+				if (aid != 0)
+					netdev = moal_get_netdev_from_stalist(
+						priv, aid);
+			}
+#endif
+#endif
 			if (!netdev)
 				netdev = priv->netdev;
 			skb->dev = netdev;
