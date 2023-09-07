@@ -3019,10 +3019,11 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
 	       MAC2STR(peer_mac));
 
-	add_ba_req.block_ack_param_set = (t_u16)(
-		(tid << BLOCKACKPARAM_TID_POS) |
-		(priv->add_ba_param.tx_win_size << BLOCKACKPARAM_WINSIZE_POS) |
-		IMMEDIATE_BLOCK_ACK);
+	add_ba_req.block_ack_param_set =
+		(t_u16)((tid << BLOCKACKPARAM_TID_POS) |
+			(priv->add_ba_param.tx_win_size
+			 << BLOCKACKPARAM_WINSIZE_POS) |
+			IMMEDIATE_BLOCK_ACK);
 	/** enable AMSDU inside AMPDU */
 	if (priv->add_ba_param.tx_amsdu &&
 	    (priv->aggr_prio_tbl[tid].amsdu != BA_STREAM_NOT_ALLOWED))

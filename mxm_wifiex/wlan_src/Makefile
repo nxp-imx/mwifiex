@@ -93,10 +93,8 @@ CONFIG_BIG_ENDIAN=n
 
 
 
-#ifdef SDIO_MMC
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
-#endif
 
 # DFS testing support
 CONFIG_DFS_TESTING_SUPPORT=y
@@ -107,6 +105,8 @@ CONFIG_MULTI_CHAN_SUPPORT=y
 
 
 CONFIG_DUMP_TO_PROC=y
+
+CONFIG_TASKLET_SUPPORT=n
 
 
 #32bit app over 64bit kernel support
@@ -200,11 +200,9 @@ ifeq ($(CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT),y)
 	ccflags-y += -DUSERSPACE_32BIT_OVER_KERNEL_64BIT
 endif
 
-#ifdef SDIO_MMC
 ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	ccflags-y += -DSDIO_SUSPEND_RESUME
 endif
-#endif
 
 ifeq ($(CONFIG_MULTI_CHAN_SUPPORT),y)
 	ccflags-y += -DMULTI_CHAN_SUPPORT
@@ -222,6 +220,10 @@ endif
 
 ifeq ($(CONFIG_DUMP_TO_PROC), y)
 	ccflags-y += -DDUMP_TO_PROC
+endif
+
+ifeq ($(CONFIG_TASKLET_SUPPORT), y)
+	ccflags-y += -DTASKLET_SUPPORT
 endif
 
 ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
@@ -330,12 +332,10 @@ ifeq ($(CONFIG_PCIEIW624),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIEIW624
 endif
-#ifdef PCIEAW693_OPT
 ifeq ($(CONFIG_PCIEAW693),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIEAW693
 endif
-#endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
 	ccflags-y += -DSDIO_MMC

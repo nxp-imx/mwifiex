@@ -693,7 +693,9 @@ t_void wlan_wakeup_card_timeout_func(void *function_context)
 		PRINTM(MERROR, "Wakeup card timeout(%d)!\n",
 		       pmadapter->pm_wakeup_timeout);
 		pmadapter->pm_wakeup_timeout++;
-		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+		pmadapter->pm_wakeup_flag = MTRUE;
+		wlan_recv_event(wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
+				MLAN_EVENT_ID_DRV_DEFER_HANDLING, MNULL);
 	}
 	pmadapter->wakeup_fw_timer_is_set = MFALSE;
 

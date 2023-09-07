@@ -5952,7 +5952,11 @@ void woal_queue_rx_task(moal_handle *handle)
 	ENTER();
 #ifdef PCIE
 	if (IS_PCIE(handle->card_type)) {
+#ifdef TASKLET_SUPPORT
 		tasklet_schedule(&handle->pcie_rx_task);
+#else
+		queue_work(handle->pcie_rx_workqueue, &handle->pcie_rx_work);
+#endif
 		LEAVE();
 		return;
 	}
@@ -5998,8 +6002,15 @@ void woal_flush_workqueue(moal_handle *handle)
 			flush_workqueue(handle->pcie_rx_event_workqueue);
 		if (handle->pcie_cmd_resp_workqueue)
 			flush_workqueue(handle->pcie_cmd_resp_workqueue);
+#ifdef TASKLET_SUPPORT
 		tasklet_kill(&handle->pcie_tx_complete_task);
 		tasklet_kill(&handle->pcie_rx_task);
+#else
+		if (handle->pcie_tx_complete_workqueue)
+			flush_workqueue(handle->pcie_tx_complete_workqueue);
+		if (handle->pcie_rx_workqueue)
+			flush_workqueue(handle->pcie_rx_workqueue);
+#endif
 	}
 #endif
 	LEAVE();
@@ -6055,8 +6066,21 @@ void woal_terminate_workqueue(moal_handle *handle)
 			destroy_workqueue(handle->pcie_cmd_resp_workqueue);
 			handle->pcie_cmd_resp_workqueue = NULL;
 		}
+#ifdef TASKLET_SUPPORT
 		tasklet_kill(&handle->pcie_tx_complete_task);
 		tasklet_kill(&handle->pcie_rx_task);
+#else
+		if (handle->pcie_rx_workqueue) {
+			flush_workqueue(handle->pcie_rx_workqueue);
+			destroy_workqueue(handle->pcie_rx_workqueue);
+			handle->pcie_rx_workqueue = NULL;
+		}
+		if (handle->pcie_tx_complete_workqueue) {
+			flush_workqueue(handle->pcie_tx_complete_workqueue);
+			destroy_workqueue(handle->pcie_tx_complete_workqueue);
+			handle->pcie_tx_complete_workqueue = NULL;
+		}
+#endif
 	}
 #endif
 	LEAVE();
@@ -11464,6 +11488,7 @@ t_void woal_rx_work_queue(struct work_struct *work)
 #endif
 
 #ifdef PCIE
+#ifdef TASKLET_SUPPORT
 /**
  *  @brief This tasklet handles rx_data
  *
@@ -11529,6 +11554,74 @@ t_void woal_pcie_tx_complete_task(unsigned long data)
 	mlan_process_pcie_interrupt_cb(handle->pmlan_adapter, TX_COMPLETE);
 	LEAVE();
 }
+#else
+/**
+ *  @brief This work queue handles rx_data interrupt
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+t_void woal_pcie_rx_work_queue(struct work_struct *work)
+{
+	moal_handle *handle = container_of(work, moal_handle, pcie_rx_work);
+	wifi_timeval start_timeval;
+	wifi_timeval end_timeval;
+
+	ENTER();
+
+	if (!handle || handle->surprise_removed == MTRUE) {
+		LEAVE();
+		return;
+	}
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+	if (handle->cfg80211_suspend == MTRUE) {
+		LEAVE();
+		return;
+	}
+#endif
+#endif
+
+	woal_get_monotonic_time(&start_timeval);
+
+	mlan_process_pcie_interrupt_cb(handle->pmlan_adapter, RX_DATA);
+
+	woal_get_monotonic_time(&end_timeval);
+	handle->rx_time += (t_u64)(timeval_to_usec(end_timeval) -
+				   timeval_to_usec(start_timeval));
+	PRINTM(MINFO,
+	       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu rx_time=%llu\n",
+	       __func__, start_timeval.time_sec, start_timeval.time_usec,
+	       end_timeval.time_sec, end_timeval.time_usec,
+	       (t_u64)(timeval_to_usec(end_timeval) -
+		       timeval_to_usec(start_timeval)),
+	       handle->rx_time);
+	LEAVE();
+}
+
+/**
+ *  @brief This workqueue handles tx_complete interrupt
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+t_void woal_pcie_tx_complete_work_queue(struct work_struct *work)
+{
+	moal_handle *handle =
+		container_of(work, moal_handle, pcie_tx_complete_work);
+	ENTER();
+
+	if (!handle || handle->surprise_removed == MTRUE) {
+		LEAVE();
+		return;
+	}
+
+	mlan_process_pcie_interrupt_cb(handle->pmlan_adapter, TX_COMPLETE);
+	LEAVE();
+}
+#endif
 
 /**
  *  @brief This workqueue handles rx_event
@@ -12178,10 +12271,55 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 		}
 		MLAN_INIT_WORK(&handle->pcie_cmd_resp_work,
 			       woal_pcie_cmd_resp_work_queue);
+#ifdef TASKLET_SUPPORT
 		tasklet_init(&handle->pcie_tx_complete_task,
 			     woal_pcie_tx_complete_task, (unsigned long)handle);
 		tasklet_init(&handle->pcie_rx_task, woal_pcie_rx_data_task,
 			     (unsigned long)handle);
+#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
+		/* For kernel less than 2.6.14 name can not be
+		 * greater than 10 characters */
+		handle->pcie_rx_workqueue =
+			create_workqueue("MOAL_PCIE_RX_WORKQ");
+#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		handle->pcie_rx_workqueue = alloc_workqueue(
+			"MOAL_PCIE_RX_WORK_QUEUE",
+			WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
+#else
+		handle->pcie_rx_workqueue =
+			create_workqueue("MOAL_PCIE_RX_WORK_QUEUE");
+#endif
+#endif
+		if (!handle->pcie_rx_workqueue) {
+			woal_terminate_workqueue(handle);
+			goto err_kmalloc;
+		}
+		MLAN_INIT_WORK(&handle->pcie_rx_work, woal_pcie_rx_work_queue);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
+		/* For kernel less than 2.6.14 name can not be
+		 * greater than 10 characters */
+		handle->pcie_tx_complete_workqueue =
+			create_workqueue("MOAL_PCIE_TX_COMPLETE_WORKQ");
+#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		handle->pcie_tx_complete_workqueue = alloc_workqueue(
+			"MOAL_PCIE_TX_COMPLETE_WORKQ",
+			WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
+#else
+		handle->pcie_tx_complete_workqueue =
+			create_workqueue("MOAL_PCIE_TX_COMPLETE_WORKQ");
+#endif
+#endif
+		if (!handle->pcie_tx_complete_workqueue) {
+			woal_terminate_workqueue(handle);
+			goto err_kmalloc;
+		}
+		MLAN_INIT_WORK(&handle->pcie_tx_complete_work,
+			       woal_pcie_tx_complete_work_queue);
+#endif
 	}
 #endif // PCIE
 

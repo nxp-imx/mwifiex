@@ -2578,7 +2578,11 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 #ifdef PCIE
 	case MLAN_EVENT_ID_DRV_DEFER_RX_DATA:
 		status = MLAN_STATUS_SUCCESS;
+#ifdef TASKLET_SUPPORT
 		tasklet_schedule(&handle->pcie_rx_task);
+#else
+		queue_work(handle->pcie_rx_workqueue, &handle->pcie_rx_work);
+#endif
 		break;
 	case MLAN_EVENT_ID_DRV_DEFER_RX_EVENT:
 		status = MLAN_STATUS_SUCCESS;
@@ -2592,7 +2596,12 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		break;
 	case MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE:
 		status = MLAN_STATUS_SUCCESS;
+#ifdef TASKLET_SUPPORT
 		tasklet_schedule(&handle->pcie_tx_complete_task);
+#else
+		queue_work(handle->pcie_tx_complete_workqueue,
+			   &handle->pcie_tx_complete_work);
+#endif
 		break;
 #endif /* PCIE */
 
@@ -2604,7 +2613,11 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		}
 #ifdef PCIE
 		if (IS_PCIE(handle->card_type)) {
+#ifdef TASKLET_SUPPORT
 			tasklet_kill(&handle->pcie_rx_task);
+#else
+			flush_workqueue(handle->pcie_rx_workqueue);
+#endif
 			break;
 		}
 #endif
@@ -2628,7 +2641,12 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		}
 #ifdef PCIE
 		if (IS_PCIE(handle->card_type)) {
+#ifdef TASKLET_SUPPORT
 			tasklet_schedule(&handle->pcie_rx_task);
+#else
+			queue_work(handle->pcie_rx_workqueue,
+				   &handle->pcie_rx_work);
+#endif
 			break;
 		}
 #endif
@@ -2916,10 +2934,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 
 		if (!is_zero_timeval(priv->phandle->scan_time_start)) {
 			woal_get_monotonic_time(&priv->phandle->scan_time_end);
-			priv->phandle->scan_time += (t_u64)(
-				timeval_to_usec(priv->phandle->scan_time_end) -
-				timeval_to_usec(
-					priv->phandle->scan_time_start));
+			priv->phandle->scan_time +=
+				(t_u64)(timeval_to_usec(
+						priv->phandle->scan_time_end) -
+					timeval_to_usec(
+						priv->phandle->scan_time_start));
 			PRINTM(MINFO,
 			       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu scan_time=%llu\n",
 			       __func__,

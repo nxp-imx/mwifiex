@@ -1194,7 +1194,29 @@ process_start:
 			}
 		}
 #endif
+#ifdef PCIE
+		if (IS_PCIE(pmadapter->card_type) &&
+		    pmadapter->pcie_cmd_dnld_int) {
+			pmadapter->pcie_cmd_dnld_int = MFALSE;
+			mlan_process_pcie_interrupt_cb(pmadapter, RX_CMD_DNLD);
+		}
+#endif
 
+		/* wake up timeout happened */
+		if ((pmadapter->ps_state == PS_STATE_SLEEP) &&
+		    pmadapter->pm_wakeup_flag) {
+			pmadapter->pm_wakeup_flag = MFALSE;
+			if (pmadapter->pm_wakeup_timeout > 2)
+				wlan_recv_event(
+					wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+			else {
+				pmadapter->ops.wakeup_card(pmadapter, MTRUE);
+				pmadapter->pm_wakeup_fw_try = MTRUE;
+				continue;
+			}
+		}
 		/* Need to wake up the card ? */
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) &&
 		    (pmadapter->pm_wakeup_card_req &&
@@ -1868,6 +1890,12 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 	ENTER();
 
 	if (type == RX_DATA) {
+		if ((pmadapter->ps_state == PS_STATE_SLEEP) ||
+		    (pmadapter->ps_state == PS_STATE_SLEEP_CFM)) {
+			LEAVE();
+			return;
+		}
+
 		if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
 			pcb->moal_tp_accounting_rx_param(
 				pmadapter->pmoal_handle, 2, 0);
@@ -1896,6 +1924,7 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 	case RX_CMD_RESP: // Rx CMD Resp
 		mlan_main_process(pmadapter);
 		break;
+	case RX_CMD_DNLD:
 	default:
 		break;
 	}

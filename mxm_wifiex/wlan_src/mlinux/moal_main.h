@@ -162,10 +162,6 @@ Change log:
 #define IMX_ANDROID_13 0
 #define IMX_ANDROID_12_BACKPORT 0
 
-#if defined(IMX_SUPPORT)
-
-#if defined(IMX_ANDROID)
-
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1
@@ -173,8 +169,6 @@ Change log:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
 #undef IMX_ANDROID_12_BACKPORT
 #define IMX_ANDROID_12_BACKPORT 1
-#endif
-#endif
 #endif
 
 /**
@@ -385,11 +379,13 @@ typedef enum _MOAL_HARDWARE_STATUS {
 enum { MOAL_NO_WAIT, MOAL_IOCTL_WAIT, MOAL_IOCTL_WAIT_TIMEOUT };
 
 /** moal_main_state */
-enum { MOAL_STATE_IDLE,
-       MOAL_RECV_INT,
-       MOAL_ENTER_WORK_QUEUE,
-       MOAL_START_MAIN_PROCESS,
-       MOAL_END_MAIN_PROCESS };
+enum {
+	MOAL_STATE_IDLE,
+	MOAL_RECV_INT,
+	MOAL_ENTER_WORK_QUEUE,
+	MOAL_START_MAIN_PROCESS,
+	MOAL_END_MAIN_PROCESS
+};
 
 /** HostCmd_Header */
 typedef struct _HostCmd_Header {
@@ -2153,7 +2149,8 @@ extern t_u8 ru_signal_52[9];
 				y = (y + 1) - TONE_MAX_USERS_242;                 \
 			} else {                                                  \
 				tone = (y == 2) ? RU_TONE_106 :                   \
-						  (y == 1) ? 0 : RU_TONE_106;     \
+				       (y == 1) ? 0 :                             \
+						  RU_TONE_106;                    \
 			}                                                         \
 		} else if (x == RU_40_242_TONE) {                                 \
 			if (!y) {                                                 \
@@ -2739,10 +2736,21 @@ struct _moal_handle {
 	struct workqueue_struct *pcie_cmd_resp_workqueue;
 	/** pcie rx cmd resp work */
 	struct work_struct pcie_cmd_resp_work;
+#ifdef TASKLET_SUPPORT
 	/* pcie rx data tasklet */
 	struct tasklet_struct pcie_rx_task;
 	/* pcie tx complete tasklet */
 	struct tasklet_struct pcie_tx_complete_task;
+#else
+	/** Driver pcie rx workqueue */
+	struct workqueue_struct *pcie_rx_workqueue;
+	/* pcie rx work */
+	struct work_struct pcie_rx_work;
+	/** Driver pcie tx complete workqueue */
+	struct workqueue_struct *pcie_tx_complete_workqueue;
+	/* pcie tx complete work */
+	struct work_struct pcie_tx_complete_work;
+#endif
 #endif
 	/** event spin lock */
 	spinlock_t evt_lock;
@@ -4043,6 +4051,10 @@ t_void woal_mclist_work_queue(struct work_struct *work);
 #ifdef PCIE
 t_void woal_pcie_rx_event_work_queue(struct work_struct *work);
 t_void woal_pcie_cmd_resp_work_queue(struct work_struct *work);
+#ifndef TASKLET_SUPPORT
+t_void woal_pcie_rx_work_queue(struct work_struct *work);
+t_void woal_pcie_tx_complete_work_queue(struct work_struct *work);
+#endif
 #endif
 
 #ifdef STA_CFG80211

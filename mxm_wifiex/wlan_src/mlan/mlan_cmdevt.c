@@ -3537,14 +3537,16 @@ t_void wlan_check_ps_cond(mlan_adapter *pmadapter)
 
 	if (!pmadapter->cmd_sent && !pmadapter->curr_cmd &&
 	    !pmadapter->keep_wakeup && !wlan_is_tx_pending(pmadapter) &&
-	    !pmadapter->event_cause && !IS_CARD_RX_RCVD(pmadapter)) {
+	    !wlan_is_rx_pending(pmadapter) && !pmadapter->event_cause &&
+	    !IS_CARD_RX_RCVD(pmadapter)) {
 		wlan_dnld_sleep_confirm_cmd(pmadapter);
 	} else {
-		PRINTM(MCMND, "Delay Sleep Confirm (%s%s%s%s)\n",
+		PRINTM(MCMND, "Delay Sleep Confirm (%s%s%s%s%s%s)\n",
 		       (pmadapter->cmd_sent) ? "D" : "",
 		       (pmadapter->curr_cmd) ? "C" : "",
 		       (pmadapter->event_cause) ? "V" : "",
 		       (wlan_is_tx_pending(pmadapter)) ? "T" : "",
+		       (wlan_is_rx_pending(pmadapter)) ? "P" : "",
 		       (IS_CARD_RX_RCVD(pmadapter)) ? "R" : "");
 	}
 
@@ -5372,8 +5374,9 @@ mlan_status wlan_process_csi_event(pmlan_private pmpriv)
 				  MLAN_MEM_DEF, &evt_buf);
 	if ((status == MLAN_STATUS_SUCCESS) && evt_buf) {
 		t_u16 csi_sig;
-		pcsi_record_ds csi_record = (pcsi_record_ds)(
-			pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause));
+		pcsi_record_ds csi_record =
+			(pcsi_record_ds)(pmbuf->pbuf + pmbuf->data_offset +
+					 sizeof(eventcause));
 		/* Check CSI signature */
 		csi_sig = csi_record->CSI_Sign;
 		if (csi_sig != CSI_SIGNATURE) {

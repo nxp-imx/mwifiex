@@ -487,11 +487,11 @@ static int wlan_usb_deaggr_rx_num_pkts(pmlan_adapter pmadapter, t_u8 *pdata,
 static inline t_u32 usb_tx_aggr_pad_len(t_u32 len,
 					usb_tx_aggr_params *pusb_tx_aggr)
 {
-	return (t_u32)(
-		(len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
-			(len + (pusb_tx_aggr->aggr_ctrl.aggr_align -
-				(len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
-			len);
+	return (t_u32)((len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
+			       (len +
+				(pusb_tx_aggr->aggr_ctrl.aggr_align -
+				 (len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
+			       len);
 }
 
 /**

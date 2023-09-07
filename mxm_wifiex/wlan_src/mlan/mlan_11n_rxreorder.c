@@ -209,7 +209,11 @@ static mlan_status wlan_11n_dispatch_pkt_until_start_win(
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	if (no_pkt_to_send < (8 * (sizeof(rx_reor_tbl_ptr->bitmap))))
+		rx_reor_tbl_ptr->bitmap =
+			rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win = start_win;
 	pmpriv->adapter->callbacks.moal_spin_unlock(
@@ -290,7 +294,10 @@ static mlan_status wlan_11n_scan_and_dispatch(t_void *priv,
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	if (i < (8 * sizeof(rx_reor_tbl_ptr->bitmap)))
+		rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win =
 		(rx_reor_tbl_ptr->start_win + i) & (MAX_TID_VALUE - 1);

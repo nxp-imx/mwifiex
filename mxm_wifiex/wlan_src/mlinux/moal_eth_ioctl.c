@@ -2213,7 +2213,7 @@ static int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				       data[3]);
 
 /* HE Preamble type */
-//#define HE_SU_PREAMBLE 0
+// #define HE_SU_PREAMBLE 0
 #define HE_ER_PREAMBLE 1
 
 /* HE ER SU Type */

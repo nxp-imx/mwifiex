@@ -2189,6 +2189,8 @@ typedef struct _mlan_pcie_card {
 	t_u32 pcie_int_mode;
 	/** PCIE function number */
 	t_u8 func_num;
+	/** rx interrupt pending */
+	t_u8 rx_pending;
 	/** pending num of tx ring buffer in firmware */
 	t_u8 txbd_pending;
 	/** Write pointer for TXBD ring */
@@ -2351,6 +2353,16 @@ struct _mlan_adapter {
 #ifdef PCIE
 	/** rx data lock to synchronize wlan_pcie_process_recv_data */
 	t_void *pmlan_rx_lock;
+	/** PCIe rx process */
+	t_u8 pcie_rx_processing;
+	/** PCIe event process */
+	t_u8 pcie_event_processing;
+	/** PCIe tx process */
+	t_u8 pcie_tx_processing;
+	/** pcie cmd_dnld_int flag */
+	t_u8 pcie_cmd_dnld_int;
+	/** more_tx_task_flag */
+	t_u32 more_tx_task_flag;
 	/** tx data lock to synchronize send_data and send_data_complete */
 	t_void *pmlan_tx_lock;
 	/** event lock to synchronize process_event and event_ready */
@@ -2731,6 +2743,8 @@ struct _mlan_adapter {
 	t_u8 wakeup_fw_timer_is_set;
 	/** Number of wake up timeouts */
 	t_u32 pm_wakeup_timeout;
+	/** Card wakeup flag */
+	t_u8 pm_wakeup_flag;
 
 	/** Host Sleep configured flag */
 	t_u8 is_hs_configured;
@@ -2983,6 +2997,21 @@ static inline t_u8 wlan_is_tx_pending(mlan_adapter *pmadapter)
 #ifdef PCIE
 	if (IS_PCIE(pmadapter->card_type) &&
 	    pmadapter->pcard_pcie->txbd_pending)
+		return MTRUE;
+#endif
+	return MFALSE;
+}
+
+/**
+ *  @brief check if Rx pending
+ *
+ *  @param pmadapter	Pointer to mlan_adapter
+ *  @return  MTRUE/MFALSE;
+ */
+static inline t_u8 wlan_is_rx_pending(mlan_adapter *pmadapter)
+{
+#ifdef PCIE
+	if (IS_PCIE(pmadapter->card_type) && pmadapter->pcard_pcie->rx_pending)
 		return MTRUE;
 #endif
 	return MFALSE;
