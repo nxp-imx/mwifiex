@@ -5076,7 +5076,9 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	if (MLAN_STATUS_SUCCESS ==
 	    woal_chandef_create(priv, &chandef, pchan_info)) {
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 6, 0) <= CFG80211_VERSION_CODE
+		wiphy_lock(priv->wdev->wiphy);
+#elif KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 		mutex_lock(&priv->wdev->mtx);
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
@@ -5089,7 +5091,9 @@ void woal_cfg80211_notify_channel(moal_private *priv,
 #else
 		cfg80211_ch_switch_notify(priv->netdev, &chandef);
 #endif
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 6, 0) <= CFG80211_VERSION_CODE
+		wiphy_unlock(priv->wdev->wiphy);
+#elif KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 		mutex_unlock(&priv->wdev->mtx);
 #endif
 		priv->channel = pchan_info->channel;

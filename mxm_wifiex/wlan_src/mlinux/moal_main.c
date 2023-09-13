@@ -11356,7 +11356,13 @@ t_void woal_evt_work_queue(struct work_struct *work)
 			break;
 		case WOAL_EVENT_RX_MGMT_PKT:
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+			priv = evt->priv;
+			wiphy_lock(priv->wdev->wiphy);
+			cfg80211_rx_mlme_mgmt(priv->netdev, evt->evt.event_buf,
+					      evt->evt.event_len);
+			wiphy_unlock(priv->wdev->wiphy);
+#elif CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 			priv = evt->priv;
 			mutex_lock(&priv->wdev->mtx);
 			cfg80211_rx_mlme_mgmt(priv->netdev, evt->evt.event_buf,
