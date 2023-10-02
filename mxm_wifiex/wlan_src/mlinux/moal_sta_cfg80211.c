@@ -10336,7 +10336,7 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		PRINTM(MIOCTL, "Follow countryIE provided by AP.\n");
 	}
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && CFG80211_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && CFG80211_VERSION_CODE < KERNEL_VERSION(6, 1, 39)
 	/*REGULATORY_IGNORE_STALE_KICKOFF: the regulatory core will _not_ make
 	 * sure all interfaces on this wiphy reside on allowed channels. If this
 	 * flag is not set, upon a regdomain change, the interfaces are given a
