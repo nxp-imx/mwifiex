@@ -89,6 +89,7 @@ enum _mlan_ioctl_req_id {
 #ifdef UAP_SUPPORT
 	MLAN_OID_ACTION_CHAN_SWITCH = 0x0002001E,
 #endif
+	MLAN_OID_BSS_HOST_MLME = 0x0002001F,
 
 	/* Radio Configuration Group */
 	MLAN_IOCTL_RADIO_CFG = 0x00030000,
@@ -376,6 +377,10 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_REORDER_FLUSH_TIME = 0x0020008F,
 	MLAN_OID_MISC_NAV_MITIGATION = 0x00200090,
 	MLAN_OID_MISC_LED_CONFIG = 0x00200091,
+	MLAN_OID_MISC_TX_FRAME = 0x00200092,
+	MLAN_OID_MISC_EDMAC_CONFIG = 0x00200093,
+	MLAN_OID_MISC_GPIO_CFG = 0x00200094,
+	MLAN_OID_MISC_REGION_POWER_CFG = 0x00200095,
 };
 
 /** Sub command size */
@@ -390,7 +395,6 @@ enum _mlan_act_ioctl {
 	MLAN_ACT_RESET,
 	MLAN_ACT_DEFAULT
 };
-
 /** Enumeration for generic enable/disable */
 enum _mlan_act_generic { MLAN_ACT_DISABLE = 0, MLAN_ACT_ENABLE = 1 };
 
@@ -1965,6 +1969,9 @@ typedef struct _mlan_fw_info {
 
 	/* higher 8 bytes of uuid */
 	t_u64 uuid_hi;
+	/* FW support tx data by cmd */
+	t_u8 cmd_tx_data;
+	t_u8 sec_rgpower;
 } mlan_fw_info, *pmlan_fw_info;
 
 /** Version string buffer length */
@@ -4104,7 +4111,9 @@ typedef struct _mlan_ds_11ax_llde_cmd {
 	t_u8 triggerlimit; // cap airtime limit index: auto=0xff
 	t_u8 peakULrate; // cap peak UL rate
 	t_u8 dl_llde; // Downlink LLDE: enable=1,disable=0
-	t_u16 triggerinterval; // Set trigger frame interval(us): auto=0
+	t_u16 pollinterval; // Set trigger frame interval(us): auto=0
+	t_u16 txOpDuration; // Set TxOp duration
+	t_u16 llde_ctrl; // for other configurations
 	t_u16 mu_rts_successcnt;
 	t_u16 mu_rts_failcnt;
 	t_u16 basic_trigger_successcnt;
@@ -4286,11 +4295,20 @@ enum _mlan_reg_type {
 	MLAN_REG_CAU = 5,
 	MLAN_REG_PSU = 6,
 	MLAN_REG_BCA = 7,
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097) ||          \
+	defined(SD9177)
 	MLAN_REG_CIU = 8,
+#endif
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	MLAN_REG_MAC2 = 0x81,
 	MLAN_REG_BBP2 = 0x82,
 	MLAN_REG_RF2 = 0x83,
 	MLAN_REG_BCA2 = 0x87
+#endif
 };
 
 /** Type definition of mlan_ds_reg_rw for MLAN_OID_REG_RW */
@@ -4489,6 +4507,26 @@ typedef struct _mlan_ds_misc_cmd {
 	/** Command buffer */
 	t_u8 cmd[MRVDRV_SIZE_OF_CMD_BUFFER];
 } mlan_ds_misc_cmd;
+
+/** Type definition of mlan_ds_misc_tx_frame for MLAN_OID_MISC_TX_FRAME */
+typedef struct _mlan_ds_misc_tx_frame {
+	/** Band Configuration */
+	Band_Config_t bandcfg;
+	/** channel */
+	t_u8 channel;
+	/** Buffer type: data, cmd, event etc. */
+	mlan_buf_type buf_type;
+	/** QoS priority */
+	t_u32 priority;
+	/** Flags for this buffer */
+	t_u32 flags;
+	/** tx_seq_num */
+	t_u32 tx_seq_num;
+	/** tx_buf length */
+	t_u16 data_len;
+	/** Tx buffer */
+	t_u8 tx_buf[MRVDRV_SIZE_OF_CMD_BUFFER];
+} mlan_ds_misc_tx_frame;
 
 /** Maximum number of system clocks */
 #define MLAN_MAX_CLK_NUM 16
@@ -4765,6 +4803,18 @@ typedef struct _mlan_ds_misc_country_code {
 	/** Country Code */
 	t_u8 country_code[COUNTRY_CODE_LEN];
 } mlan_ds_misc_country_code;
+
+/** Type defination of mlan_ds_gpio_cfg_ops */
+typedef struct _mlan_ds_gpio_cfg_ops {
+	/** Get or Set action */
+	t_u8 action;
+	/** Operation type */
+	t_u8 opsType;
+	/** pin number */
+	t_u8 pin_num;
+	/** pin value */
+	t_u8 value;
+} mlan_ds_gpio_cfg_ops;
 
 /** action for set */
 #define SUBSCRIBE_EVT_ACT_BITWISE_SET 0x0002
@@ -5490,22 +5540,6 @@ typedef MLAN_PACK_START struct _mlan_ds_misc_tx_rx_histogram {
 	t_u8 value[1];
 } MLAN_PACK_END mlan_ds_misc_tx_rx_histogram;
 
-typedef MLAN_PACK_START struct _mlan_ds_cw_mode_ctrl {
-	/** Mode of Operation 0: Disable 1: Tx Continuous Packet 2: Tx
-	 * Continuous Wave */
-	t_u8 mode;
-	/*channel*/
-	t_u8 channel;
-	/* channel info*/
-	t_u8 chanInfo;
-	/** Tx Power level in dBm */
-	t_u16 txPower;
-	/** Packet Length */
-	t_u16 pktLength;
-	/** bit rate Info */
-	t_u32 rateInfo;
-} MLAN_PACK_END mlan_ds_cw_mode_ctrl;
-
 #define RX_PKT_INFO MBIT(1)
 /** Struct for per-packet configuration */
 typedef struct _mlan_per_pkt_cfg {
@@ -6124,6 +6158,20 @@ typedef struct _mlan_ds_reorder_flush_time {
 	t_u16 flush_time_ac_vi_vo;
 } mlan_ds_reorder_flush_time;
 
+/** EDMAC configuration parameters */
+typedef struct _mlan_ds_ed_mac_cfg {
+	/** EU adaptivity for 2.4ghz band */
+	t_u16 ed_ctrl_2g;
+	/** Energy detect threshold offset for 2.4ghz */
+	t_s16 ed_offset_2g;
+	/** EU adaptivity for 5ghz band */
+	t_u16 ed_ctrl_5g;
+	/** Energy detect threshold offset for 5ghz */
+	t_s16 ed_offset_5g;
+
+	t_u32 ed_bitmap_txq_lock;
+} mlan_ds_ed_mac_cfg;
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
 	/** Sub-command */
@@ -6140,6 +6188,8 @@ typedef struct _mlan_ds_misc_cfg {
 #endif
 		/** Hostcmd for MLAN_OID_MISC_HOST_CMD */
 		mlan_ds_misc_cmd hostcmd;
+		/** tx_frame for MLAN_OID_MISC_TX_FRAME */
+		mlan_ds_misc_tx_frame tx_frame;
 		/** System clock for MLAN_OID_MISC_SYS_CLOCK */
 		mlan_ds_misc_sys_clock sys_clock;
 		/** WWS set/get for MLAN_OID_MISC_WWS */
@@ -6241,7 +6291,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_keep_alive keep_alive;
 		mlan_ds_misc_keep_alive_rx keep_alive_rx;
 		mlan_ds_misc_tx_rx_histogram tx_rx_histogram;
-		mlan_ds_cw_mode_ctrl cwmode;
 		/**  Tx/Rx per-packet control */
 		t_u8 txrx_pkt_ctrl;
 		mlan_ds_misc_robustcoex_params robustcoexparams;
@@ -6294,6 +6343,8 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_ch_load ch_load;
 		mlan_ds_cross_chip_synch cross_chip_synch;
 		mlan_ds_reorder_flush_time flush_time;
+		mlan_ds_ed_mac_cfg edmac_cfg;
+		mlan_ds_gpio_cfg_ops gpio_cfg_ops;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

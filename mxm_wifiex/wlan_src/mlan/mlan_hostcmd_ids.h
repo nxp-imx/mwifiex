@@ -73,13 +73,13 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : 802.11 Ad-Hoc join */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_AD_HOC_JOIN, 0x002c),
 
-	/** Host Command ID: CW Mode */
-	ENUM_ELEMENT(HostCmd_CMD_CW_MODE_CTRL, 0x0239),
 	/** Host Command ID : 802.11 key material */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_KEY_MATERIAL, 0x005e),
 
 	/** Host Command ID : 802.11 Ad-Hoc stop */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_AD_HOC_STOP, 0x0040),
+	/** Host Command ID : GPIO Configuration */
+	ENUM_ELEMENT(HostCmd_CMD_GPIO_CFG, 0x0041),
 
 	/** Host Command ID : 802.22 MAC address */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_MAC_ADDRESS, 0x004D),
@@ -198,6 +198,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID :EAPOL PKT */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_EAPOL_PKT, 0x012e),
+
+	ENUM_ELEMENT(HostCmd_CMD_EDMAC_CFG, 0x0130),
 
 	/** Host Command ID :MIMO SWITCH **/
 	ENUM_ELEMENT(HostCmd_CMD_802_11_MIMO_SWITCH, 0x0235),
@@ -375,6 +377,17 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID: Get sensor temp*/
 	ENUM_ELEMENT(HostCmd_CMD_DS_GET_SENSOR_TEMP, 0x0227),
 
+	/** Host Command ID: NAN Parameters cofiguration */
+	ENUM_ELEMENT(HostCmd_CMD_NAN_PARAMS_CONFIG, 0x0228),
+	/** Host Command ID: NAN mode cofiguration */
+	ENUM_ELEMENT(HostCmd_CMD_NAN_MODE_CONFIG, 0x0229),
+	/** Host Command ID: NAN service discovery functionality */
+	ENUM_ELEMENT(HostCmd_CMD_NAN_SDF, 0x022a),
+	/** Host Command ID: NAN service hash */
+	ENUM_ELEMENT(HostCmd_CMD_NAN_SERVICE_HASH, 0x022b),
+	/** Host Command ID: NAN service state info (get/set) */
+	ENUM_ELEMENT(HostCmd_CMD_NAN_STATE_INFO, 0x022c),
+
 	/** Host Command ID : Configure ADHOC_OVER_IP parameters */
 	ENUM_ELEMENT(HostCmd_CMD_WMM_PARAM_CONFIG, 0x023a),
 
@@ -446,4 +459,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_OFDM_DESENSE_CFG, 0x027f),
 	ENUM_ELEMENT(HostCmd_CMD_NAV_MITIGATION_CFG, 0x0282),
 
+	/** Host Command ID: Tx Frame */
+	ENUM_ELEMENT(HostCmd_CMD_802_11_TX_FRAME, 0x0283),
+
 	/* Always keep this last */
+	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)

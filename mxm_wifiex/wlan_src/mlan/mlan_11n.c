@@ -1536,9 +1536,13 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 			 pmadapter->hw_mpdu_density);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmadapter->card_type) ||
 	    IS_CARDIW624(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type)) {
+	    IS_CARD9097(pmadapter->card_type) ||
+	    IS_CARDAW693(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
 				rx_mcs_supp,
@@ -1548,6 +1552,7 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 				MIN(rx_mcs_supp,
 				    GET_RXMCSSUPP(pmadapter->user_htstream));
 	}
+#endif
 	memset(pmadapter, (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
 	       rx_mcs_supp);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP
@@ -1609,9 +1614,13 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	SETAMPDU_SPACING(pht_cap->ht_cap.ampdu_param, 0);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(pmadapter->card_type) ||
 	    IS_CARDIW624(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type)) {
+	    IS_CARD9097(pmadapter->card_type) ||
+	    IS_CARDAW693(pmadapter->card_type)) {
 		if (bands & BAND_A)
 			rx_mcs_supp = MIN(
 				rx_mcs_supp,
@@ -1621,6 +1630,7 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 				MIN(rx_mcs_supp,
 				    GET_RXMCSSUPP(pmadapter->user_htstream));
 	}
+#endif
 	memset(pmadapter, (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
 	       rx_mcs_supp);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP

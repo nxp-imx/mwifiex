@@ -73,7 +73,7 @@
 mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 				  t_u32 cipher, const t_u8 *key, int key_len,
 				  const t_u8 *seq, int seq_len, t_u8 key_index,
-				  const t_u8 *addr, int disable,
+				  const t_u8 *addr, int disable, t_u8 pairwise,
 				  t_u8 wait_option);
 
 mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,

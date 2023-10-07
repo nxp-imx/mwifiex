@@ -1202,6 +1202,7 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 	t_u32 last_drvdbg = drvdbg;
 #endif
 	gfp_t flag;
+	t_u32 temp_count = 0;
 
 	ENTER();
 
@@ -1210,7 +1211,11 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 		return MLAN_STATUS_FAILURE;
 	}
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
-	pdata = kzalloc(count + 1, flag);
+
+	if (!woal_secure_add(&count, 1, &temp_count, TYPE_UINT32))
+		PRINTM(MERROR, "%s:count param overflow \n", __func__);
+
+	pdata = kzalloc(temp_count, flag);
 	if (pdata == NULL) {
 		MODULE_PUT;
 		LEAVE();

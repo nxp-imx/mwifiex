@@ -319,6 +319,27 @@ typedef MLAN_PACK_START struct {
 	t_u8 variablep[];
 } MLAN_PACK_END IEEEtypes_assoc_req;
 
+/** Assoc Request */
+#define SUBTYPE_ASSOC_REQUEST 0
+/** Assoc Response */
+#define SUBTYPE_ASSOC_RESP 1
+/** ReAssoc Request */
+#define SUBTYPE_REASSOC_REQUEST 2
+/** ReAssoc Request */
+#define SUBTYPE_REASSOC_RESP 3
+/** Probe Resp */
+#define SUBTYPE_PROBE_RESP 5
+/** Disassoc Request */
+#define SUBTYPE_DISASSOC 10
+/** Auth Request */
+#define SUBTYPE_AUTH 11
+/** Deauth Request */
+#define SUBTYPE_DEAUTH 12
+/** Action frame */
+#define SUBTYPE_ACTION 13
+/** beacon */
+#define SUBTYPE_BEACON 8
+
 /*Mgmt frame*/
 typedef MLAN_PACK_START struct {
 	/** frame control */

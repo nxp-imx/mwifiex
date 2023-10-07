@@ -353,6 +353,7 @@ t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band)
  *  @param key_index        Key index
  *  @param addr             Mac for which key is to be set
  *  @param disable          Key disabled or not
+ *  @param pairwise         pairwise flag
  *  @param wait_option      wait option
  *
  *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
@@ -360,7 +361,7 @@ t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band)
 mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 				  t_u32 cipher, const t_u8 *key, int key_len,
 				  const t_u8 *seq, int seq_len, t_u8 key_index,
-				  const t_u8 *addr, int disable,
+				  const t_u8 *addr, int disable, t_u8 pairwise,
 				  t_u8 wait_option)
 {
 	mlan_ioctl_req *req = NULL;
@@ -462,9 +463,16 @@ mlan_status woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 				   ETH_ALEN) == 0)
 				sec->param.encrypt_key.key_flags =
 					KEY_FLAG_GROUP_KEY;
-			else
-				sec->param.encrypt_key.key_flags =
-					KEY_FLAG_SET_TX_KEY;
+			else {
+#if KERNEL_VERSION(2, 6, 36) < CFG80211_VERSION_CODE
+				if (!pairwise)
+					sec->param.encrypt_key.key_flags =
+						KEY_FLAG_GROUP_KEY;
+				else
+#endif
+					sec->param.encrypt_key.key_flags =
+						KEY_FLAG_SET_TX_KEY;
+			}
 		} else {
 			moal_memcpy_ext(priv->phandle,
 					sec->param.encrypt_key.mac_addr,
@@ -562,13 +570,13 @@ mlan_status woal_cfg80211_set_wep_keys(moal_private *priv, const t_u8 *key,
 		else
 			cipher = WLAN_CIPHER_SUITE_WEP104;
 		ret = woal_cfg80211_set_key(priv, 0, cipher, key, key_len, NULL,
-					    0, index, NULL, 0, wait_option);
+					    0, index, NULL, 0, 0, wait_option);
 	} else {
 		/* No key provided so it is enable key. We
 		 * want to just set the transmit key index
 		 */
 		ret = woal_cfg80211_set_key(priv, 1, cipher, key, key_len, NULL,
-					    0, index, NULL, 0, wait_option);
+					    0, index, NULL, 0, 0, wait_option);
 	}
 	if (ret != MLAN_STATUS_SUCCESS)
 		PRINTM(MERROR, "woal_cfg80211_set_wep_keys Fail\n");
@@ -1523,6 +1531,7 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
 			  const t_u8 *mac_addr, struct key_params *params)
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(netdev);
+	t_u8 pairwise_key = MFALSE;
 
 	ENTER();
 	if (priv->ft_pre_connect) {
@@ -1533,9 +1542,25 @@ int woal_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
 	/** cancel pending scan */
 	woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 
+#if KERNEL_VERSION(2, 6, 36) < CFG80211_VERSION_CODE
+	if (pairwise)
+		pairwise_key = MTRUE;
+	if (mac_addr)
+		PRINTM(MCMND,
+		       "wlan: set_key key_index=%d pairwise=%d " MACSTR
+		       " cipher=0x%x key_len=%d seq_len=%d\n",
+		       key_index, pairwise, MAC2STR(mac_addr), params->cipher,
+		       params->key_len, params->seq_len);
+	else
+		PRINTM(MCMND,
+		       "wlan: set_key key_index=%d pairwise=%d cipher=0x%x key_len=%d seq_len=%d\n",
+		       key_index, pairwise, params->cipher, params->key_len,
+		       params->seq_len);
+#endif
 	if (woal_cfg80211_set_key(priv, 0, params->cipher, params->key,
 				  params->key_len, params->seq, params->seq_len,
-				  key_index, mac_addr, 0, MOAL_IOCTL_WAIT)) {
+				  key_index, mac_addr, 0, pairwise_key,
+				  MOAL_IOCTL_WAIT)) {
 		PRINTM(MERROR, "Error adding the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -1595,7 +1620,7 @@ int woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 	 */
 	if (MLAN_STATUS_FAILURE ==
 	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0, key_index,
-				  mac_addr, 1, MOAL_NO_WAIT)) {
+				  mac_addr, 1, 0, MOAL_NO_WAIT)) {
 		PRINTM(MERROR, "Error deleting the crypto keys\n");
 		LEAVE();
 		return -EFAULT;
@@ -2659,6 +2684,242 @@ t_u8 woal_check_mgmt_tx_channel(moal_private *priv,
 }
 #endif
 
+/*
+ * @brief  transmit management packet
+ *
+ * @param priv           A pointer moal_private structure
+ * @param buf                   Frame buffer
+ * @param len                   Frame length
+ * @param chan                  A pointer to ieee80211_channel structure
+ * @param cookie                Frame cookie
+ * @param wait                  Duration to wait
+ *
+ * @return           0 -- success, otherwise fail
+ */
+int woal_mgmt_tx(moal_private *priv, const u8 *buf, size_t len,
+		 struct ieee80211_channel *chan, u64 cookie, unsigned int wait)
+{
+	int ret = 0;
+	pmlan_buffer pmbuf = NULL;
+	t_u8 *pbuf = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_u8 addr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	t_u16 packet_len = 0;
+	t_u16 pkt_len = 0;
+	t_u32 pkt_type;
+	t_u32 tx_control;
+	unsigned long flags;
+	struct sk_buff *skb = NULL;
+	struct tx_status_info *tx_info = NULL;
+	t_u32 remain_len = 0;
+	t_u32 buf_flags = 0;
+	t_u8 tx_seq_num = 0;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+
+	ENTER();
+
+	/* pkt_type + tx_control */
+#define HEADER_SIZE 8
+	packet_len = (t_u16)(len + MLAN_MAC_ADDR_LENGTH);
+
+	if (priv->phandle->cmd_tx_data) {
+		ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+		if (ioctl_req == NULL) {
+			ret = -ENOMEM;
+			goto done;
+		}
+		misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+		misc->sub_command = MLAN_OID_MISC_TX_FRAME;
+		ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+		ioctl_req->action = MLAN_ACT_SET;
+		if (chan) {
+			misc->param.tx_frame.bandcfg.chanBand =
+				woal_ieee_band_to_radio_type(chan->band);
+			misc->param.tx_frame.channel = chan->hw_value;
+		}
+		pbuf = misc->param.tx_frame.tx_buf;
+	} else {
+		pmbuf = woal_alloc_mlan_buffer(
+			priv->phandle, MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
+					       packet_len + sizeof(packet_len));
+		if (!pmbuf) {
+			PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
+			ret = -ENOMEM;
+			goto done;
+		}
+
+		pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
+		pbuf = pmbuf->pbuf + pmbuf->data_offset;
+	}
+	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
+	tx_control = 0;
+	remain_len = HEADER_SIZE + packet_len + sizeof(packet_len);
+	/* Add pkt_type and tx_control */
+	moal_memcpy_ext(priv->phandle, pbuf, &pkt_type, sizeof(pkt_type),
+			remain_len);
+	remain_len -= sizeof(pkt_type);
+	moal_memcpy_ext(priv->phandle, pbuf + sizeof(pkt_type), &tx_control,
+			sizeof(tx_control), remain_len);
+	remain_len -= sizeof(tx_control);
+	/* frmctl + durationid + addr1 + addr2 + addr3 + seqctl */
+#define PACKET_ADDR4_POS (2 + 2 + 6 + 6 + 6 + 2)
+	pkt_len = woal_cpu_to_le16(packet_len);
+	moal_memcpy_ext(priv->phandle, pbuf + HEADER_SIZE, &pkt_len,
+			sizeof(pkt_len), remain_len);
+	remain_len -= sizeof(packet_len);
+	moal_memcpy_ext(priv->phandle, pbuf + HEADER_SIZE + sizeof(packet_len),
+			buf, PACKET_ADDR4_POS, remain_len);
+	remain_len -= PACKET_ADDR4_POS;
+	moal_memcpy_ext(priv->phandle,
+			pbuf + HEADER_SIZE + sizeof(packet_len) +
+				PACKET_ADDR4_POS,
+			addr, MLAN_MAC_ADDR_LENGTH, remain_len);
+	remain_len -= MLAN_MAC_ADDR_LENGTH;
+	moal_memcpy_ext(priv->phandle,
+			pbuf + HEADER_SIZE + sizeof(packet_len) +
+				PACKET_ADDR4_POS + MLAN_MAC_ADDR_LENGTH,
+			buf + PACKET_ADDR4_POS, len - PACKET_ADDR4_POS,
+			remain_len);
+
+	DBG_HEXDUMP(MDAT_D, "Mgmt Tx", pbuf,
+		    HEADER_SIZE + packet_len + sizeof(packet_len));
+	if ((ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control))
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+	    || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
+#endif
+	) {
+		buf_flags = MLAN_BUF_FLAG_TX_STATUS;
+		if (!priv->tx_seq_num)
+			priv->tx_seq_num++;
+		tx_seq_num = priv->tx_seq_num++;
+		tx_info = kzalloc(sizeof(struct tx_status_info), GFP_ATOMIC);
+		if (tx_info) {
+			skb = alloc_skb(len, GFP_ATOMIC);
+			if (skb) {
+				moal_memcpy_ext(priv->phandle, skb->data, buf,
+						len, len);
+				skb_put(skb, len);
+				spin_lock_irqsave(&priv->tx_stat_lock, flags);
+				tx_info->tx_cookie = cookie;
+				tx_info->tx_skb = skb;
+				tx_info->tx_seq_num = tx_seq_num;
+				if ((priv->bss_role == MLAN_BSS_ROLE_UAP) &&
+				    (priv->phandle->remain_on_channel && !wait))
+					tx_info->cancel_remain_on_channel =
+						MTRUE;
+				INIT_LIST_HEAD(&tx_info->link);
+				list_add_tail(&tx_info->link,
+					      &priv->tx_stat_queue);
+				spin_unlock_irqrestore(&priv->tx_stat_lock,
+						       flags);
+			} else {
+				kfree(tx_info);
+				tx_info = NULL;
+			}
+		}
+	}
+	if (priv->phandle->cmd_tx_data) {
+		misc->param.tx_frame.data_len =
+			HEADER_SIZE + packet_len + sizeof(packet_len);
+		misc->param.tx_frame.buf_type = MLAN_BUF_TYPE_RAW_DATA;
+		misc->param.tx_frame.priority = 7;
+		misc->param.tx_frame.flags = buf_flags;
+		misc->param.tx_frame.tx_seq_num = tx_seq_num;
+		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+		if (status != MLAN_STATUS_SUCCESS) {
+			PRINTM(MERROR, "Fail to send packet status=%d\n",
+			       status);
+			if (tx_info)
+				woal_remove_tx_info(priv, tx_info->tx_seq_num);
+			ret = -EFAULT;
+			goto done;
+		}
+		if (!tx_info) {
+			/* Delay 30ms to guarantee the packet has been already
+			 * tx'ed, because if we call cfg80211_mgmt_tx_status()
+			 * immediately, then wpa_supplicant will call
+			 * cancel_remain_on_channel(), which may affect the mgmt
+			 * frame tx. Meanwhile it is only necessary for P2P
+			 * action handshake to wait 30ms.
+			 */
+			if (buf_flags == MLAN_BUF_FLAG_TX_STATUS)
+				woal_sched_timeout(30);
+				/* Notify the mgmt tx status */
+#if KERNEL_VERSION(2, 6, 37) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(3, 6, 0) > CFG80211_VERSION_CODE
+			cfg80211_mgmt_tx_status(dev, cookie, buf, len, true,
+						GFP_ATOMIC);
+#else
+			cfg80211_mgmt_tx_status(priv->wdev, cookie, buf, len,
+						true, GFP_ATOMIC);
+#endif
+#endif
+		}
+	} else {
+		pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
+		pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
+		pmbuf->bss_index = priv->bss_index;
+		pmbuf->flags = buf_flags;
+		pmbuf->tx_seq_num = tx_seq_num;
+
+		status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
+
+		switch (status) {
+		case MLAN_STATUS_PENDING:
+			atomic_inc(&priv->phandle->tx_pending);
+			queue_work(priv->phandle->workqueue,
+				   &priv->phandle->main_work);
+
+			/* Delay 30ms to guarantee the packet has been already
+			 * tx'ed, because if we call cfg80211_mgmt_tx_status()
+			 * immediately, then wpa_supplicant will call
+			 * cancel_remain_on_channel(), which may affect the mgmt
+			 * frame tx. Meanwhile it is only necessary for P2P
+			 * action handshake to wait 30ms.
+			 */
+			if (buf_flags == MLAN_BUF_FLAG_TX_STATUS) {
+				if (tx_info)
+					break;
+				else
+					woal_sched_timeout(30);
+			}
+			/* Notify the mgmt tx status */
+#if KERNEL_VERSION(2, 6, 37) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(3, 6, 0) > CFG80211_VERSION_CODE
+			cfg80211_mgmt_tx_status(dev, cookie, buf, len, true,
+						GFP_ATOMIC);
+#else
+			cfg80211_mgmt_tx_status(priv->wdev, cookie, buf, len,
+						true, GFP_ATOMIC);
+#endif
+#endif
+			break;
+		case MLAN_STATUS_SUCCESS:
+			woal_free_mlan_buffer(priv->phandle, pmbuf);
+			break;
+		case MLAN_STATUS_FAILURE:
+		default:
+			woal_free_mlan_buffer(priv->phandle, pmbuf);
+			ret = -EFAULT;
+			break;
+		}
+	}
+done:
+	if (priv->phandle->cmd_tx_data) {
+		if (status != MLAN_STATUS_PENDING)
+			kfree(ioctl_req);
+	} else {
+		if (status != MLAN_STATUS_PENDING) {
+			if (tx_info)
+				woal_remove_tx_info(priv, tx_info->tx_seq_num);
+		}
+	}
+
+	LEAVE();
+	return ret;
+}
+
 #if KERNEL_VERSION(3, 2, 0) <= CFG80211_VERSION_CODE
 #if KERNEL_VERSION(3, 3, 0) <= CFG80211_VERSION_CODE
 #if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
@@ -2804,25 +3065,13 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #endif
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
-	pmlan_buffer pmbuf = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	t_u16 packet_len = 0;
-	t_u16 pkt_len = 0;
-	t_u8 addr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	t_u32 pkt_type;
-	t_u32 tx_control;
+
 #if KERNEL_VERSION(2, 6, 39) <= CFG80211_VERSION_CODE
 	t_u8 channel_status;
 	t_u32 duration;
 	moal_private *remain_priv = NULL;
 #endif
-
-	unsigned long flags;
-	struct sk_buff *skb = NULL;
-	struct tx_status_info *tx_info = NULL;
-	t_u32 remain_len = 0;
 	t_u16 fc, type, stype;
-
 	ENTER();
 
 	if (buf == NULL || len == 0) {
@@ -2856,7 +3105,8 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			case IEEE80211_STYPE_DEAUTH:
 			case IEEE80211_STYPE_DISASSOC:
 #ifdef UAP_SUPPORT
-				if (!priv->bss_started) {
+				if ((priv->bss_role == MLAN_BSS_ROLE_UAP) &&
+				    !priv->bss_started) {
 					PRINTM(MCMND,
 					       "Drop deauth packet before AP started\n");
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
@@ -2997,17 +3247,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	}
 #endif
 
-	/* pkt_type + tx_control */
-#define HEADER_SIZE 8
-	packet_len = (t_u16)(len + MLAN_MAC_ADDR_LENGTH);
-	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
-				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
-					       packet_len + sizeof(packet_len));
-	if (!pmbuf) {
-		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
-		ret = -ENOMEM;
-		goto done;
-	}
 #if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
 	*cookie = random32() | 1;
 #else
@@ -3017,133 +3256,9 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	*cookie = get_random_u32() | 1;
 #endif
 #endif
-	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
-	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
-	tx_control = 0;
-	remain_len = HEADER_SIZE + packet_len + sizeof(packet_len);
-	/* Add pkt_type and tx_control */
-	moal_memcpy_ext(priv->phandle, pmbuf->pbuf + pmbuf->data_offset,
-			&pkt_type, sizeof(pkt_type), remain_len);
-	remain_len -= sizeof(pkt_type);
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + sizeof(pkt_type),
-			&tx_control, sizeof(tx_control), remain_len);
-	remain_len -= sizeof(tx_control);
-	/* frmctl + durationid + addr1 + addr2 + addr3 + seqctl */
-#define PACKET_ADDR4_POS (2 + 2 + 6 + 6 + 6 + 2)
-	pkt_len = woal_cpu_to_le16(packet_len);
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE,
-			&pkt_len, sizeof(pkt_len), remain_len);
-	remain_len -= sizeof(packet_len);
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE +
-				sizeof(packet_len),
-			buf, PACKET_ADDR4_POS, remain_len);
-	remain_len -= PACKET_ADDR4_POS;
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE +
-				sizeof(packet_len) + PACKET_ADDR4_POS,
-			addr, MLAN_MAC_ADDR_LENGTH, remain_len);
-	remain_len -= MLAN_MAC_ADDR_LENGTH;
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE +
-				sizeof(packet_len) + PACKET_ADDR4_POS +
-				MLAN_MAC_ADDR_LENGTH,
-			buf + PACKET_ADDR4_POS, len - PACKET_ADDR4_POS,
-			remain_len);
-
-	pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
-	pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
-	pmbuf->bss_index = priv->bss_index;
-	if ((ieee80211_is_action(((struct ieee80211_mgmt *)buf)->frame_control))
-#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-	    || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
-#endif
-	) {
-		pmbuf->flags = MLAN_BUF_FLAG_TX_STATUS;
-		if (!priv->tx_seq_num)
-			priv->tx_seq_num++;
-		pmbuf->tx_seq_num = priv->tx_seq_num++;
-		tx_info = kzalloc(sizeof(struct tx_status_info), GFP_ATOMIC);
-		if (tx_info) {
-			skb = alloc_skb(len, GFP_ATOMIC);
-			if (skb) {
-				moal_memcpy_ext(priv->phandle, skb->data, buf,
-						len, len);
-				skb_put(skb, len);
-				spin_lock_irqsave(&priv->tx_stat_lock, flags);
-				tx_info->tx_cookie = *cookie;
-				tx_info->tx_skb = skb;
-				tx_info->tx_seq_num = pmbuf->tx_seq_num;
-				if ((priv->bss_role == MLAN_BSS_ROLE_UAP) &&
-				    (priv->phandle->remain_on_channel && !wait))
-					tx_info->cancel_remain_on_channel =
-						MTRUE;
-				INIT_LIST_HEAD(&tx_info->link);
-				list_add_tail(&tx_info->link,
-					      &priv->tx_stat_queue);
-				spin_unlock_irqrestore(&priv->tx_stat_lock,
-						       flags);
-			} else {
-				kfree(tx_info);
-				tx_info = NULL;
-			}
-		}
-	}
-
-	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
-
-	switch (status) {
-	case MLAN_STATUS_PENDING:
-		atomic_inc(&priv->phandle->tx_pending);
-		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
-
-		/* Delay 30ms to guarantee the packet has been already tx'ed,
-		 * because if we call cfg80211_mgmt_tx_status() immediately,
-		 * then wpa_supplicant will call cancel_remain_on_channel(),
-		 * which may affect the mgmt frame tx. Meanwhile it is only
-		 * necessary for P2P action handshake to wait 30ms.
-		 */
-		if ((ieee80211_is_action(
-			    ((struct ieee80211_mgmt *)buf)->frame_control))
-#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-		    || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
-#endif
-		) {
-			if (tx_info)
-				break;
-			else
-				woal_sched_timeout(30);
-		}
-		/* Notify the mgmt tx status */
-#if KERNEL_VERSION(2, 6, 37) <= CFG80211_VERSION_CODE
-#if KERNEL_VERSION(3, 6, 0) > CFG80211_VERSION_CODE
-		cfg80211_mgmt_tx_status(dev, *cookie, buf, len, true,
-					GFP_ATOMIC);
-#else
-		cfg80211_mgmt_tx_status(priv->wdev, *cookie, buf, len, true,
-					GFP_ATOMIC);
-#endif
-#endif
-		break;
-	case MLAN_STATUS_SUCCESS:
-		woal_free_mlan_buffer(priv->phandle, pmbuf);
-		break;
-	case MLAN_STATUS_FAILURE:
-	default:
-		woal_free_mlan_buffer(priv->phandle, pmbuf);
-		ret = -EFAULT;
-		break;
-	}
+	ret = woal_mgmt_tx(priv, buf, len, chan, *cookie, wait);
 
 done:
-
-	if (status != MLAN_STATUS_PENDING) {
-		if (tx_info)
-			woal_remove_tx_info(priv, tx_info->tx_seq_num);
-	}
-
 	LEAVE();
 	return ret;
 }
@@ -4596,6 +4711,7 @@ Bit18: 0x1 (STBC Tx <= 80 MHz)
 Bit19: 0x1 (STBC Rx <= 80 MHz)
 Bit20: 0x1 (Doppler Tx)
 Bit21: 0x1 (Doppler Rx)
+Bit24-25: 0x1 (DCM Max Constellation Tx)
 Bit27-28: 0x1 (DCM Max Constellation Rx)
 Bit31: 0x1 (SU Beamformer)
 Bit32: 0x1 (SU BeamFormee)
@@ -4609,16 +4725,16 @@ Bit59-61: 0x1 (Max Nc)
 Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 */
 
-#define UAP_HE_MAC_CAP0_MASK 0x00
+#define UAP_HE_MAC_CAP0_MASK 0x06
 #define UAP_HE_MAC_CAP1_MASK 0x00
-#define UAP_HE_MAC_CAP2_MASK 0x00
+#define UAP_HE_MAC_CAP2_MASK 0x10
 #define UAP_HE_MAC_CAP3_MASK 0x02
 #define UAP_HE_MAC_CAP4_MASK 0x00
 #define UAP_HE_MAC_CAP5_MASK 0x00
 #define UAP_HE_PHY_CAP0_MASK 0x04
 #define UAP_HE_PHY_CAP1_MASK 0x23
 #define UAP_HE_PHY_CAP2_MASK 0x3E
-#define UAP_HE_PHY_CAP3_MASK 0x88
+#define UAP_HE_PHY_CAP3_MASK 0x89
 #define UAP_HE_PHY_CAP4_MASK 0x1D
 #define UAP_HE_PHY_CAP5_MASK 0x01
 #define UAP_HE_PHY_CAP6_MASK 0xA0
@@ -4645,6 +4761,7 @@ Bit18: 0x1 (STBC Tx <= 80 MHz)
 Bit19: 0x1 (STBC Rx <= 80 MHz)
 Bit20: 0x1 (Doppler Tx)
 Bit21: 0x1 (Doppler Rx)
+Bit24-25: 0x1 (DCM Max Constellation Tx)
 Bit27-28: 0x1 (DCM Max Constellation Rx)
 Bit31: 0x1 (SU Beamformer)
 Bit32: 0x1 (SU BeamFormee)
@@ -4666,7 +4783,7 @@ Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 #define UAP_HE_2G_PHY_CAP0_MASK 0x02
 #define UAP_HE_2G_PHY_CAP1_MASK 0x20
 #define UAP_HE_2G_PHY_CAP2_MASK 0x3E
-#define UAP_HE_2G_PHY_CAP3_MASK 0x88
+#define UAP_HE_2G_PHY_CAP3_MASK 0x89
 #define UAP_HE_2G_PHY_CAP4_MASK 0x1D
 #define UAP_HE_2G_PHY_CAP5_MASK 0x01
 #define UAP_HE_2G_PHY_CAP6_MASK 0xA0

@@ -223,6 +223,9 @@ static const struct _mlan_card_info mlan_card_info_sd8897 = {
 };
 #endif
 
+#if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
+	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
+	defined(SD8978) || defined(SD9177)
 static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.start_rd_port = 0,
 	.start_wr_port = 0,
@@ -289,6 +292,7 @@ static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.fw_dnld_status_1_reg = 0xE9,
 	.winner_check_reg = 0xFC,
 };
+#endif
 
 #ifdef SD8997
 static const struct _mlan_card_info mlan_card_info_sd8997 = {
@@ -321,15 +325,6 @@ static const struct _mlan_card_info mlan_card_info_sdiw624 = {
 	.support_11mc = 1,
 };
 #endif
-
-static const struct _mlan_card_info mlan_card_info_sdaw693 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 1,
-	.v17_fw_api = 1,
-	.supp_ps_handshake = 0,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-	.support_11mc = 1,
-};
 
 #ifdef SD9098
 static const struct _mlan_card_info mlan_card_info_sd9098 = {
@@ -1049,10 +1044,12 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			check_fw_status = MTRUE;
 	}
 #endif
+#if defined(SD9097) || defined(SD9177) || defined(SDIW624)
 	if (IS_SD9097(pmadapter->card_type) ||
 	    IS_SDIW624(pmadapter->card_type) ||
 	    IS_SDAW693(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
 		check_fw_status = MTRUE;
+#endif
 
 	/* Perform firmware data transfer */
 	do {
@@ -2411,10 +2408,6 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_sdiw624;
 		break;
 #endif
-	case CARD_TYPE_SDAW693:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
-		pmadapter->pcard_info = &mlan_card_info_sdaw693;
-		break;
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
 		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
@@ -3024,6 +3017,7 @@ exit:
 	return ret;
 }
 
+#if (defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177))
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -3065,6 +3059,7 @@ static mlan_status wlan_sdio_send_vdll(mlan_adapter *pmadapter,
 	LEAVE();
 	return ret;
 }
+#endif
 
 /**
  *  @brief This function sends data to the card.
@@ -3083,8 +3078,10 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
+#if (defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177))
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
+#endif
 	ret = wlan_sdio_host_to_card(pmadapter, type, pmbuf, tx_param);
 
 	if (type == MLAN_TYPE_DATA && ret == MLAN_STATUS_FAILURE)
@@ -3110,6 +3107,7 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 buf_size = 0;
 	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
 
 	ENTER();
@@ -3117,9 +3115,12 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
 	    (pmadapter->pcard_sd->max_seg_size <
 	     pmadapter->pcard_sd->max_sp_tx_size)) {
+		if (!wlan_secure_add(&mpa_tx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:tx_buf_size overflow \n", __func__);
+
 		ret = pcb->moal_malloc(
-			pmadapter->pmoal_handle,
-			mpa_tx_buf_size + DMA_ALIGNMENT,
+			pmadapter->pmoal_handle, buf_size,
 			MLAN_MEM_DEF | MLAN_MEM_DMA,
 			(t_u8 **)&pmadapter->pcard_sd->mpa_tx.head_ptr);
 		if (ret != MLAN_STATUS_SUCCESS ||
@@ -3141,9 +3142,12 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
 	    (pmadapter->pcard_sd->max_seg_size <
 	     pmadapter->pcard_sd->max_sp_rx_size)) {
+		if (!wlan_secure_add(&mpa_rx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:rx_buf_size overflow \n", __func__);
+
 		ret = pcb->moal_malloc(
-			pmadapter->pmoal_handle,
-			mpa_rx_buf_size + DMA_ALIGNMENT,
+			pmadapter->pmoal_handle, buf_size,
 			MLAN_MEM_DEF | MLAN_MEM_DMA,
 			(t_u8 **)&pmadapter->pcard_sd->mpa_rx.head_ptr);
 		if (ret != MLAN_STATUS_SUCCESS ||
@@ -3384,6 +3388,9 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+#if defined(SD8997) || defined(SD8977) || defined(SD8987) ||                   \
+	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
+	defined(SD8978) || defined(SD9177)
 	if (MFALSE
 #ifdef SD8997
 	    || IS_SD8997(pmadapter->card_type)
@@ -3406,7 +3413,6 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 #ifdef SDIW624
 	    || IS_SDIW624(pmadapter->card_type)
 #endif
-	    || IS_SDAW693(pmadapter->card_type)
 #ifdef SD9177
 	    || IS_SD9177(pmadapter->card_type)
 #endif
@@ -3417,6 +3423,7 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 				    HOST_TO_CARD_EVENT_REG,
 				    value | HOST_POWER_UP);
 	}
+#endif
 	/* Poll register around 100 ms */
 	for (tries = 0; tries < MAX_POLL_TRIES; ++tries) {
 		pcb->moal_read_reg(pmadapter->pmoal_handle, reset_reg, &value);

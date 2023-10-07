@@ -620,7 +620,6 @@ typedef enum wifi_attr {
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
-
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };

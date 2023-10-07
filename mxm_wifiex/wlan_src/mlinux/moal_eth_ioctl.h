@@ -151,6 +151,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_REGRDWR "regrdwr"
 #define PRIV_CMD_RDEEPROM "rdeeprom"
 #define PRIV_CMD_MEMRDWR "memrdwr"
+#define PRIV_CMD_GPIOCFG "gpiocfg"
 #ifdef SDIO
 #define PRIV_CMD_SDCMD52RW "sdcmd52rw"
 #endif
@@ -229,7 +230,6 @@ typedef struct _chan_stats {
 #define PRIV_CMD_DFS_CAC "dfs_cac"
 #define PRIV_CMD_AUTODFS "autodfs"
 #define PRIV_CMD_CFP_CODE "cfpcode"
-#define PRIV_CMD_CWMODE "cwmode"
 #define PRIV_CMD_ANT_CFG "antcfg"
 #define PRIV_CMD_SYSCLOCK "sysclock"
 #define PRIV_CMD_GET_KEY "getkey"
@@ -736,13 +736,6 @@ typedef struct _tx_rx_histogram {
 	/** Choose to get TX, RX or both histogram statistic */
 	t_u8 action;
 } __ATTRIB_PACK__ tx_rx_histogram;
-
-/* Enum for different CW mode type */
-typedef enum _cw_modes_e {
-	CWMODE_DISABLE,
-	CWMODE_TXCONTPKT,
-	CWMODE_TXCONTWAVE,
-} cw_modes_e;
 
 /** wlan_ieee80211_chan */
 typedef struct {

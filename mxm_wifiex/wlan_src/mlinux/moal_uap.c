@@ -1928,7 +1928,8 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
 		    IS_CARD9097(priv->phandle->card_type) ||
-		    IS_CARDIW624(priv->phandle->card_type)) {
+		    IS_CARDIW624(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
 			if (IS_STA_CFG80211(
 				    priv->phandle->params.cfg80211_wext))
 				woal_cfg80211_notify_antcfg(
@@ -3861,10 +3862,6 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 				&hecap_ie->ext_id, he_cfg.he_cap.len,
 				he_cfg.he_cap.len);
 	}
-#define HE_MAC_CAP_TWT_REQ_SUPPORT MBIT(1)
-	/* uap mode clear TWT request bit */
-	he_cfg.he_cap.he_mac_cap[0] &= ~HE_MAC_CAP_TWT_REQ_SUPPORT;
-
 	if (action == MLAN_ACT_DISABLE) {
 		if (he_cfg.he_cap.len &&
 		    (he_cfg.he_cap.ext_id == HE_CAPABILITY)) {

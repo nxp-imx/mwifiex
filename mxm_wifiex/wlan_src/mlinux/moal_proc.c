@@ -566,15 +566,22 @@ mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
 		    IS_CARD9097(priv->phandle->card_type) ||
-		    IS_CARDIW624(priv->phandle->card_type)) {
+		    IS_CARDIW624(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
 			woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy,
 						    radio);
 		}
 #endif
 	} else
 		radio->param.ant_cfg_1x1.antenna = data[0];
-	if (user_data_len == 2)
+	if (user_data_len == 2) {
+		if (data[1] > 0xffff) {
+			kfree(req);
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
 		radio->param.ant_cfg_1x1.evaluate_time = data[1];
+	}
 	/* Send IOCTL request to MLAN */
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_PENDING)
@@ -669,7 +676,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (ref_handle) {
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
-				handle->fw_dump_status = MTRUE;
+				ref_handle->fw_dump_status = MTRUE;
 				woal_mlan_debug_info(priv);
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}

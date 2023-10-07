@@ -1876,6 +1876,12 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
 			}
 #endif
+			if (priv->bss_type == MLAN_BSS_TYPE_NAN) {
+				priv->add_ba_param.tx_win_size =
+					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
+				priv->add_ba_param.rx_win_size =
+					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
+			}
 #ifdef UAP_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 				priv->add_ba_param.tx_win_size =
@@ -2502,7 +2508,7 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 	t_u8 ret_val = 0;
 	t_u32 out_ts_sec, out_ts_usec;
 	t_s32 queue_delay;
-
+	t_s32 temp_delay = 0;
 	ENTER();
 
 	priv->adapter->callbacks.moal_get_system_time(
@@ -2514,9 +2520,17 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 			priv->adapter->callbacks.moal_tp_accounting(
 				priv->adapter->pmoal_handle, pmbuf, 11);
 	}
-	queue_delay = (t_s32)(out_ts_sec - pmbuf->in_ts_sec) * 1000;
-	queue_delay += (t_s32)(out_ts_usec - pmbuf->in_ts_usec) / 1000;
+	if (!wlan_secure_sub(&out_ts_sec, pmbuf->in_ts_sec, &temp_delay,
+			     TYPE_SINT32))
+		PRINTM(MERROR, "%s:TS(sec) not valid \n", __func__);
 
+	queue_delay = temp_delay * 1000;
+
+	if (!wlan_secure_sub(&out_ts_usec, pmbuf->in_ts_usec, &temp_delay,
+			     TYPE_SINT32))
+		PRINTM(MERROR, "%s:TS(usec) not valid \n", __func__);
+
+	queue_delay += temp_delay / 1000;
 	/*
 	 * Queue delay is passed as a uint8 in units of 2ms (ms shifted
 	 *  by 1). Min value (other than 0) is therefore 2ms, max is 510ms.

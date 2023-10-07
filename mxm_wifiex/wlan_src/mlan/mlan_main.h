@@ -560,7 +560,14 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #ifdef SDIO
 #define MAX_SUPPORT_AMSDU_SIZE 4096
 /** Maximum numbfer of registers to read for multiple port */
+#if defined(SD8887) || defined(SD8997) || defined(SD8977) ||                   \
+	defined(SD8987) || defined(SD9098) || defined(SD9097) ||               \
+	defined(SDIW624) || defined(SD8978) || defined(SD9177)
 #define MAX_MP_REGS 196
+#else
+/* upto 0xB7 */
+#define MAX_MP_REGS 184
+#endif
 /** Maximum port */
 #define MAX_PORT 32
 /** Maximum port 16 */
@@ -2254,8 +2261,11 @@ typedef struct _mlan_pcie_card {
 	mlan_buffer *cmdrsp_buf;
 	/** Command buffer */
 	mlan_buffer *vdll_cmd_buf;
+	/** last write index where we have tx_done interrupt enabled  */
+	t_u32 last_write_index_with_irq;
 	/** last tx_pkt_size  */
 	t_u32 last_tx_pkt_size[MLAN_MAX_TXRX_BD];
+
 } mlan_pcie_card, *pmlan_pcie_card;
 #endif
 
@@ -2436,9 +2446,13 @@ struct _mlan_adapter {
 	t_u32 fw_cap_info;
 	/** Extended firmware capability information */
 	t_u32 fw_cap_ext;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(SD9097) || defined(USB9097) ||            \
+	defined(SDIW624) || defined(PCIEIW624) || defined(USBIW624)
 	/** High byte for 5G, low byte for 2G, like 0x2211 0x22 for 5G, 0x11 for
 	 * 2G */
 	t_u16 user_htstream;
+#endif
 	/** vdll ctrl */
 	vdll_dnld_ctrl vdll_ctrl;
 #if defined(SDIO) || defined(PCIE)
@@ -3196,6 +3210,11 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf);
 t_void wlan_process_bypass_tx(mlan_adapter *pmadapter);
 t_void wlan_cleanup_bypass_txq(pmlan_private priv);
 t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter);
+
+mlan_status wlan_misc_ioctl_tx_frame(pmlan_adapter pmadapter,
+				     pmlan_ioctl_req pioctl_req);
+mlan_status wlan_cmd_tx_frame(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			      t_u16 cmd_action, t_void *pdata_buf);
 
 /** Check if this is the last packet */
 t_u8 wlan_check_last_packet_indication(pmlan_private priv);
@@ -4015,12 +4034,6 @@ mlan_status wlan_cmd_mac_control(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 mlan_status wlan_ret_mac_control(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				 mlan_ioctl_req *pioctl_buf);
 
-mlan_status wlan_cmd_cw_mode_ctrl(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
-				  t_u16 cmd_action, t_void *pdata_buf);
-mlan_status wlan_ret_cw_mode_ctrl(pmlan_private pmpriv,
-				  HostCmd_DS_COMMAND *resp,
-				  mlan_ioctl_req *pioctl_buf);
-
 mlan_status wlan_cmd_802_11_radio_control(pmlan_private pmpriv,
 					  HostCmd_DS_COMMAND *cmd,
 					  t_u16 cmd_action, t_void *pdata_buf);
@@ -4040,6 +4053,9 @@ mlan_status wlan_ret_reg_access(mlan_adapter *pmadapter, t_u16 type,
 				mlan_ioctl_req *pioctl_buf);
 mlan_status wlan_ret_mem_access(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_ret_gpio_cfg_ops(pmlan_private pmpriv,
+				  HostCmd_DS_COMMAND *resp,
+				  mlan_ioctl_req *pioctl_buf);
 
 mlan_status wlan_reg_mem_ioctl_reg_rw(pmlan_adapter pmadapter,
 				      pmlan_ioctl_req pioctl_req);
@@ -4051,6 +4067,8 @@ mlan_status wlan_cmd_reg_access(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				t_u16 cmd_action, t_void *pdata_buf);
 mlan_status wlan_cmd_mem_access(HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				t_void *pdata_buf);
+mlan_status wlan_cmd_gpio_cfg_ops(HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
+				  t_void *pdata_buf);
 mlan_status wlan_cmd_802_11_mac_address(pmlan_private pmpriv,
 					HostCmd_DS_COMMAND *cmd,
 					t_u16 cmd_action);
@@ -4243,9 +4261,6 @@ mlan_status wlan_misc_ioctl_low_pwr_mode(pmlan_adapter pmadapter,
 mlan_status wlan_misc_ioctl_pmic_configure(pmlan_adapter pmadapter,
 					   pmlan_ioctl_req pioctl_req);
 
-mlan_status wlan_misc_ioctl_cwmode_ctrl(pmlan_adapter pmadapter,
-					pmlan_ioctl_req pioctl_req);
-
 mlan_status wlan_set_mef_entry(mlan_private *pmpriv, pmlan_adapter pmadapter,
 			       mef_cfg_data *pmef);
 mlan_status wlan_process_mef_cfg_cmd(mlan_private *pmpriv,
@@ -4289,11 +4304,12 @@ mlan_status wlan_ret_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 mlan_status wlan_misc_ioctl_get_tsf(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
 void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left);
-
 void wlan_free_fw_cfp_tables(mlan_adapter *pmadapter);
 
 mlan_status wlan_misc_chan_reg_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_region_power_cfg(pmlan_adapter pmadapter,
+				       pmlan_ioctl_req pioctl_req);
 
 mlan_status wlan_get_cfp_table(pmlan_adapter pmadapter,
 			       pmlan_ioctl_req pioctl_req);
@@ -4341,6 +4357,9 @@ mlan_status wlan_cmd_fw_dump_event(pmlan_private pmpriv,
 				   HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				   t_void *pdata_buf);
 
+mlan_status wlan_misc_gpiocfg(pmlan_adapter pmadapter,
+			      mlan_ioctl_req *pioctl_req);
+
 mlan_status wlan_misc_bootsleep(pmlan_adapter pmadapter,
 				pmlan_ioctl_req pioctl_req);
 
@@ -4380,6 +4399,11 @@ mlan_status wlan_cmd_get_sensor_temp(pmlan_private pmpriv,
 mlan_status wlan_ret_get_sensor_temp(pmlan_private pmpriv,
 				     HostCmd_DS_COMMAND *resp,
 				     mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_misc_ioctl_edmac_cfg(pmlan_adapter pmadapter,
+				      pmlan_ioctl_req pioctl_req);
+mlan_status wlan_cmd_edmac_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			       t_u16 cmd_action, t_void *pdata_buf);
 
 /** Set/Get Country code */
 mlan_status wlan_misc_ioctl_country_code(pmlan_adapter pmadapter,
@@ -4743,4 +4767,10 @@ wlan_get_privs_by_two_cond(mlan_adapter *pmadapter,
 
 	return count;
 }
+
+t_bool wlan_secure_add(t_void *datain, t_s32 add, t_void *dataout,
+		       data_type type);
+t_bool wlan_secure_sub(t_void *datain, t_s32 sub, t_void *dataout,
+		       data_type type);
+
 #endif /* !_MLAN_MAIN_H_ */

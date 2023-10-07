@@ -2975,6 +2975,11 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		LEAVE();
 		return ret;
 	}
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	woal_update_uap_channel_dfs_state(priv);
+#endif
+#endif
 	priv->uap_host_based = MFALSE;
 	PRINTM(MMSG, "wlan: Stoping AP\n");
 #ifdef STA_SUPPORT
@@ -3042,7 +3047,6 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		}
 	}
 #endif
-
 	priv->cipher = 0;
 	memset(priv->uap_wep_key, 0, sizeof(priv->uap_wep_key));
 	priv->channel = 0;
@@ -3628,20 +3632,7 @@ int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
 	}
 	chan_rpt_req.startFreq = START_FREQ_11A_BAND;
 	chan_rpt_req.chanNum = (t_u8)chandef->chan->hw_value;
-	chan_rpt_req.bandcfg.chanBand = BAND_5GHZ;
-	switch (chandef->width) {
-	case NL80211_CHAN_WIDTH_40:
-		chan_rpt_req.bandcfg.chanWidth = CHAN_BW_40MHZ;
-		break;
-	case NL80211_CHAN_WIDTH_80:
-		chan_rpt_req.bandcfg.chanWidth = CHAN_BW_80MHZ;
-		break;
-	case NL80211_CHAN_WIDTH_20:
-	case NL80211_CHAN_WIDTH_20_NOHT:
-	default:
-		chan_rpt_req.bandcfg.chanWidth = CHAN_BW_20MHZ;
-		break;
-	}
+	woal_convert_chan_to_bandconfig(priv, &chan_rpt_req.bandcfg, chandef);
 	chan_rpt_req.millisec_dwell_time = cac_time_ms;
 	chan_rpt_req.host_based = MTRUE;
 	moal_memcpy_ext(priv->phandle, &priv->chan_rpt_req, &chan_rpt_req,

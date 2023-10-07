@@ -1385,7 +1385,19 @@ process_start:
 			break;
 		}
 #endif
-
+#ifdef PCIE
+		if (IS_PCIE(pmadapter->card_type)) {
+			if (pmadapter->pcard_pcie->reg->use_adma) {
+				if (wlan_is_tx_pending(pmadapter)) {
+					wlan_recv_event(
+						wlan_get_priv(pmadapter,
+							      MLAN_BSS_ROLE_ANY),
+						MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE,
+						MNULL);
+				}
+			}
+		}
+#endif
 	} while (MTRUE);
 
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
@@ -1439,10 +1451,9 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	eth_type =
 		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
 						  MLAN_ETHER_PKT_TYPE_OFFSET]);
-	if (((pmadapter->priv[pmbuf->bss_index]->port_ctrl_mode == MTRUE) &&
-	     ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
-	      (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
-	      (eth_type == MLAN_ETHER_PKT_TYPE_WAPI))) ||
+	if ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
+	    (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
+	    (eth_type == MLAN_ETHER_PKT_TYPE_WAPI) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
 
@@ -1908,6 +1919,9 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 			LEAVE();
 			return;
 		}
+	} else if (type == TX_COMPLETE && !wlan_is_tx_pending(pmadapter)) {
+		LEAVE();
+		return;
 	}
 	pmadapter->ops.process_int_status(pmadapter, type);
 	switch (type) {
@@ -1919,10 +1933,22 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 				mlan_rx_process(pmadapter, MNULL);
 		}
 		break;
-	case RX_EVENT: // Rx event
 	case TX_COMPLETE: // Tx data complete
+		wlan_recv_event(wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
+				MLAN_EVENT_ID_DRV_DEFER_HANDLING, MNULL);
+		if (pmadapter->pcard_pcie->reg->use_adma) {
+			if (wlan_is_tx_pending(pmadapter))
+				wlan_recv_event(
+					wlan_get_priv(pmadapter,
+						      MLAN_BSS_ROLE_ANY),
+					MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE,
+					MNULL);
+		}
+		break;
+	case RX_EVENT: // Rx event
 	case RX_CMD_RESP: // Rx CMD Resp
-		mlan_main_process(pmadapter);
+		if (mlan_main_process(pmadapter) == MLAN_STATUS_FAILURE)
+			PRINTM(MERROR, "mlan_main_process failed.\n");
 		break;
 	case RX_CMD_DNLD:
 	default:

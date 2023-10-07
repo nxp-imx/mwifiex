@@ -6421,9 +6421,14 @@ static int woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 				radio->param.ant_cfg.rx_antenna = data[1];
 		} else {
 			radio->param.ant_cfg_1x1.antenna = data[0];
-			if (wrq->u.data.length == 2)
+			if (wrq->u.data.length == 2) {
+				if (data[1] > 0xffff) {
+					ret = -EINVAL;
+					goto done;
+				}
 				radio->param.ant_cfg_1x1.evaluate_time =
 					data[1];
+			}
 		}
 		req->action = MLAN_ACT_SET;
 	} else

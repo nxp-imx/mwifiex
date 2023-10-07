@@ -197,7 +197,7 @@ static t_u32 wlan_11h_convert_ieee_to_mrvl_ie(mlan_adapter *pmadapter,
 
 	LEAVE();
 	/* Return the number of bytes appended to pout_buf */
-	return sizeof(mrvl_ie_hdr) + pin_ie[1];
+	return (t_u32)(sizeof(mrvl_ie_hdr) + pin_ie[1]);
 }
 
 /**
@@ -3530,6 +3530,12 @@ mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 					priv, BAND_A,
 					ds_11hcfg->param.ch_dfs_state.channel);
 		} else {
+			if (ds_11hcfg->param.ch_dfs_state.dfs_state ==
+			    DFS_UNAVAILABLE) {
+				wlan_11h_add_dfs_timestamp(
+					pmadapter, DFS_TS_REPR_NOP_START,
+					ds_11hcfg->param.ch_dfs_state.channel);
+			}
 			wlan_set_chan_dfs_state(
 				priv, BAND_A,
 				ds_11hcfg->param.ch_dfs_state.channel,

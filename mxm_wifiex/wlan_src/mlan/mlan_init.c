@@ -975,6 +975,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->pcard_pcie->txbd_rdptr = 0;
 		pmadapter->pcard_pcie->rxbd_rdptr = 0;
 		pmadapter->pcard_pcie->evtbd_rdptr = 0;
+		pmadapter->pcard_pcie->txbd_pending = 0;
 #if defined(PCIE8997) || defined(PCIE8897)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
 			pmadapter->pcard_pcie->rxbd_wrptr =
@@ -984,11 +985,15 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 				EVT_RW_PTR_ROLLOVER_IND;
 		}
 #endif
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEIW624)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			pmadapter->pcard_pcie->rxbd_wrptr =
 				pmadapter->pcard_pcie->txrx_bd_size;
 			pmadapter->pcard_pcie->evtbd_wrptr = MLAN_MAX_EVT_BD;
+			pmadapter->pcard_pcie->last_write_index_with_irq =
+				0xffffffff;
 		}
+#endif
 	}
 #endif
 	LEAVE();

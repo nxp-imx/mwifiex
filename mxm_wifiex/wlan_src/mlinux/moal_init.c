@@ -29,7 +29,11 @@ extern pmoal_handle m_handle[];
 static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
-int auto_fw_reload;
+#ifdef PCIE
+int auto_fw_reload = AUTO_FW_RELOAD_ENABLE | AUTO_FW_RELOAD_PCIE_INBAND_RESET;
+#else
+int auto_fw_reload = AUTO_FW_RELOAD_ENABLE;
+#endif
 
 static char *hw_name;
 
@@ -78,7 +82,7 @@ static int auto_ds;
 /** net_rx mode*/
 static int net_rx;
 /** amsdu deaggr mode */
-static int amsdu_deaggr;
+static int amsdu_deaggr = 1;
 
 static int ext_scan;
 
@@ -122,6 +126,11 @@ static int max_vir_bss = DEF_VIRTUAL_BSS;
 #endif
 #endif
 
+/** Max NAN interfaces */
+static int max_nan_bss = DEF_NAN_BSS;
+/** NAN interface name */
+static char *nan_name;
+
 /** PM keep power */
 static int pm_keep_power = 1;
 #ifdef SDIO_SUSPEND_RESUME
@@ -151,6 +160,12 @@ static int rps = 0;
 #define RPS_CPU_MASK 0xf
 #endif
 #endif
+
+/**
+ * EDMAC for EU adaptivity
+ * Default value of 0 keeps edmac disabled by default
+ */
+static int edmac_ctrl = 0;
 
 static int tx_skb_clone = 0;
 #ifdef IMX_SUPPORT
@@ -301,6 +316,8 @@ static int mon_filter = DEFAULT_NETMON_FILTER;
 #endif
 #endif
 
+int dual_nb;
+
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
 #define DEFAULT_DEBUG_MASK (0xffffffff)
@@ -345,7 +362,6 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef SDIW624
 	{CARD_TYPE_SDIW624, 0, CARD_SDIW624},
 #endif
-	{CARD_TYPE_SDAW693, 0, CARD_SDAW693},
 #ifdef PCIE8897
 	{CARD_TYPE_PCIE8897, 0, CARD_PCIE8897},
 #endif
@@ -358,7 +374,6 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef PCIE9098
 	{CARD_TYPE_PCIE9098, 0, CARD_PCIE9098},
 #endif
-	{CARD_TYPE_PCIEAW693, 0, CARD_PCIEAW693},
 #ifdef PCIEIW624
 	{CARD_TYPE_PCIEIW624, 0, CARD_PCIEIW624},
 #endif
@@ -553,7 +568,9 @@ static mlan_status parse_line_read_card_info(t_u8 *line, char **type,
 
 	p = strstr(line, "_");
 	if (p != NULL) {
-		*p++ = '\0';
+		*p = '\0';
+		if (!woal_secure_add(&p, 1, &p, TYPE_PTR))
+			PRINTM(MERROR, "%s:ERR:pointer overflow \n", __func__);
 		*if_id = p;
 	} else {
 		*if_id = NULL;
@@ -772,7 +789,20 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 		}
 #endif
 #endif
-		else if (strncmp(line, "auto_ds", strlen("auto_ds")) == 0) {
+		else if (strncmp(line, "nan_name", strlen("nan_name")) == 0) {
+			if (parse_line_read_string(line, &out_str) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			woal_dup_string(&params->nan_name, out_str);
+			PRINTM(MMSG, "nan_name=%s\n", params->nan_name);
+		} else if (strncmp(line, "max_nan_bss",
+				   strlen("max_nan_bss")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->max_nan_bss = out_data;
+			PRINTM(MMSG, "max_nan_bss = %d\n", params->max_nan_bss);
+		} else if (strncmp(line, "auto_ds", strlen("auto_ds")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1237,8 +1267,17 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 		}
 #endif
 #endif
-		else if (strncmp(line, "tx_skb_clone",
-				 strlen("tx_skb_clone")) == 0) {
+		else if (strncmp(line, "edmac_ctrl", strlen("edmac_ctrl")) ==
+			 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+
+			handle->params.edmac_ctrl = out_data;
+			PRINTM(MMSG, "edmac_ctrl set to %x from cfg\n",
+			       handle->params.edmac_ctrl);
+		} else if (strncmp(line, "tx_skb_clone",
+				   strlen("tx_skb_clone")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1452,6 +1491,12 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->auto_11ax = out_data;
 			PRINTM(MMSG, "auto_11ax=%d\n", params->auto_11ax);
+		} else if (strncmp(line, "dual_nb", strlen("dual_nb")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->dual_nb = out_data;
+			PRINTM(MMSG, "dual_nb=%d\n", params->dual_nb);
 		}
 	}
 	if (end)
@@ -1570,6 +1615,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		handle->params.max_vir_bss = params->max_vir_bss;
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
+	handle->params.max_nan_bss = max_nan_bss;
+	woal_dup_string(&handle->params.nan_name, nan_name);
+	if (params) {
+		handle->params.max_nan_bss = params->max_nan_bss;
+		woal_dup_string(&handle->params.nan_name, params->nan_name);
+	}
 	handle->params.auto_ds = auto_ds;
 	if (params)
 		handle->params.auto_ds = params->auto_ds;
@@ -1738,6 +1789,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	PRINTM(MMSG, "rps set to %x from module param\n", handle->params.rps);
 #endif
 #endif
+	handle->params.edmac_ctrl = edmac_ctrl;
 
 	if (tx_skb_clone)
 		moal_extflg_set(handle, EXT_TX_SKB_CLONE);
@@ -1804,6 +1856,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	}
 	handle->params.keep_previous_scan = keep_previous_scan;
 	handle->params.auto_11ax = auto_11ax;
+	handle->params.dual_nb = dual_nb;
+	if (params)
+		handle->params.dual_nb = params->dual_nb;
 }
 
 /**
@@ -1848,6 +1903,10 @@ void woal_free_module_param(moal_handle *handle)
 		params->wfd_name = NULL;
 	}
 #endif /* WIFI_DIRECT_SUPPORT */
+	if (params->nan_name) {
+		kfree(params->nan_name);
+		params->nan_name = NULL;
+	}
 	if (params->dpd_data_cfg) {
 		kfree(params->dpd_data_cfg);
 		params->dpd_data_cfg = NULL;
@@ -1987,8 +2046,14 @@ void woal_init_from_dev_tree(void)
 		}
 #endif
 #endif
-		else if (!strncmp(prop->name, "tx_skb_clone",
-				  strlen("tx_skb_clone"))) {
+		else if (!strncmp(prop->name, "edmac_ctrl",
+				  strlen("edmac_ctrl"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "edmac_ctrl=0x%x\n", data);
+				edmac_ctrl = data;
+			}
+		} else if (!strncmp(prop->name, "tx_skb_clone",
+				    strlen("tx_skb_clone"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "tx_skb_clone=0x%x\n", data);
 				tx_skb_clone = data;
@@ -2551,8 +2616,9 @@ MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
 module_param(auto_fw_reload, int, 0);
 #ifdef PCIE
-MODULE_PARM_DESC(auto_fw_reload,
-		 "BIT0: enable auto fw_reload; BIT1:enable PCIe in-band reset");
+MODULE_PARM_DESC(
+	auto_fw_reload,
+	"BIT0: enable auto fw_reload; BIT1: 0: enable PCIE FLR, 1: enable PCIe in-band reset");
 #else
 MODULE_PARM_DESC(auto_fw_reload, "BIT0: enable auto fw_reload");
 #endif
@@ -2573,8 +2639,9 @@ MODULE_PARM_DESC(
 	rf_test_mode,
 	"0: Download normal firmware; 1: Download RF_TEST_MODE firmware");
 module_param(drv_mode, int, 0660);
-MODULE_PARM_DESC(drv_mode,
-		 "Bit 0: STA; Bit 1: uAP; Bit 2: WIFIDIRECT; Bit 7: ZERO_DFS");
+MODULE_PARM_DESC(
+	drv_mode,
+	"Bit 0: STA; Bit 1: uAP; Bit 2: WIFIDIRECT; Bit 4: NAN; Bit 7: ZERO_DFS");
 
 #ifdef STA_SUPPORT
 module_param(max_sta_bss, int, 0);
@@ -2598,6 +2665,10 @@ module_param(max_vir_bss, int, 0);
 MODULE_PARM_DESC(max_vir_bss, "Number of Virtual interfaces (0)");
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
+module_param(nan_name, charp, 0);
+MODULE_PARM_DESC(nan_name, "NAN interface name");
+module_param(max_nan_bss, int, 0);
+MODULE_PARM_DESC(max_nan_bss, "Number of NAN interfaces (1)");
 #ifdef DEBUG_LEVEL1
 module_param(drvdbg, uint, 0660);
 MODULE_PARM_DESC(drvdbg, "Driver debug");
@@ -2663,6 +2734,8 @@ MODULE_PARM_DESC(
 	"bit0-bit4(0x1 - 0xf): Enables rps on specific cpu ; 0: Disables rps");
 #endif
 #endif
+module_param(edmac_ctrl, int, 0660);
+MODULE_PARM_DESC(edmac_ctrl, "0: Disable edmac; 1: Enable edmac");
 module_param(tx_skb_clone, uint, 0660);
 MODULE_PARM_DESC(tx_skb_clone,
 		 "1: Enable tx_skb_clone; 0: Disable tx_skb_clone");
@@ -2741,8 +2814,9 @@ module_param(net_rx, int, 0);
 MODULE_PARM_DESC(net_rx,
 		 "0: use netif_rx_ni in rx; 1: use netif_receive_skb in rx");
 module_param(amsdu_deaggr, int, 0);
-MODULE_PARM_DESC(amsdu_deaggr,
-		 "0: default; 1: Try to avoid buf copy in amsud deaggregation");
+MODULE_PARM_DESC(
+	amsdu_deaggr,
+	"0: buf copy in amsud deaggregation; 1: avoid buf copy in amsud deaggregation (default)");
 
 #ifdef SDIO
 #endif
@@ -2884,3 +2958,6 @@ MODULE_PARM_DESC(
 	"Bit6:TX frames excluding control; Bit5:non-bss beacons; Bit3:unicast destined non-promiscuous frames only; Bit2:data frames; Bit1:control frames; Bit0:management frames");
 #endif
 #endif
+
+module_param(dual_nb, int, 0);
+MODULE_PARM_DESC(dual_nb, "0: Single BT (Default); 1: Dual BT");

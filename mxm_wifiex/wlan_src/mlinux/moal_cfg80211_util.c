@@ -146,10 +146,9 @@ static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
 	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
 	[ATTR_SCAN_BAND_SET] = {.type = NLA_U8},
 };
-
 // clang-format off
 static const struct nla_policy
-	woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
+        woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
 		[ATTR_ND_OFFLOAD_CONTROL] = {.type = NLA_U8},
 };
 // clang-format on
@@ -3935,9 +3934,8 @@ done:
 	LEAVE();
 	return ret;
 }
-
 /**
- * @brief vendor command to set scan band
+ * @brief vendor command to
  *
  * @param wiphy         A pointer to wiphy struct
  * @param wdev          A pointer to wireless_dev struct
