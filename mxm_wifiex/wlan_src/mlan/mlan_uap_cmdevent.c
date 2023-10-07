@@ -197,7 +197,8 @@ static mlan_status uap_process_cmdresp_error(mlan_private *pmpriv,
 
 	ENTER();
 	if (resp->command != HostCmd_CMD_WMM_PARAM_CONFIG &&
-	    resp->command != HostCmd_CMD_CHAN_REGION_CFG)
+	    resp->command != HostCmd_CMD_CHAN_REGION_CFG &&
+	    resp->command != HostCmd_CMD_REGION_POWER_CFG)
 		PRINTM(MERROR, "CMD_RESP: cmd %#x error, result=%#x\n",
 		       resp->command, resp->result);
 	if (pioctl_buf)
@@ -290,6 +291,10 @@ static mlan_status uap_process_cmdresp_error(mlan_private *pmpriv,
 	case HostCmd_CMD_CHAN_REGION_CFG:
 		ret = MLAN_STATUS_SUCCESS;
 		PRINTM(MCMND, "FW don't support chan region cfg command!\n");
+		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		ret = MLAN_STATUS_SUCCESS;
+		PRINTM(MCMND, "FW don't support region power cfg command!\n");
 		break;
 	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
 		if (resp->result == HostCmd_RESULT_BUSY)
@@ -711,7 +716,11 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 	t_u8 zero_mac[] = {0, 0, 0, 0, 0, 0};
 	t_u16 i;
 	t_u16 ac;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	int rx_mcs_supp = 0;
+#endif
 
 	ENTER();
 	if (pioctl_buf == MNULL) {
@@ -1320,9 +1329,13 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		memcpy_ext(pmpriv->adapter, tlv_htcap->ht_cap.supported_mcs_set,
 			   bss->param.bss_config.supported_mcs_set, 16,
 			   sizeof(tlv_htcap->ht_cap.supported_mcs_set));
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 		if (IS_CARD9098(pmpriv->adapter->card_type) ||
 		    IS_CARDIW624(pmpriv->adapter->card_type) ||
-		    IS_CARD9097(pmpriv->adapter->card_type)) {
+		    IS_CARD9097(pmpriv->adapter->card_type) ||
+		    IS_CARDAW693(pmpriv->adapter->card_type)) {
 			if (bss->param.bss_config.supported_mcs_set[0]) {
 				if (bss->param.bss_config.bandcfg.chanBand ==
 				    BAND_5GHZ)
@@ -1346,6 +1359,7 @@ static mlan_status wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 				}
 			}
 		}
+#endif
 		tlv_htcap->ht_cap.ht_ext_cap =
 			wlan_cpu_to_le16(bss->param.bss_config.ht_ext_cap);
 		tlv_htcap->ht_cap.tx_bf_cap =
@@ -3529,7 +3543,7 @@ static mlan_status wlan_uap_cmd_key_material(pmlan_private pmpriv,
 		PRINTM(MCMND, "Remove Key\n");
 		goto done;
 	}
-	pkey_material->action = wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+	pkey_material->action = wlan_cpu_to_le16(cmd_action);
 	pkey_material->key_param_set.key_idx = pkey->key_index & KEY_INDEX_MASK;
 	pkey_material->key_param_set.type =
 		wlan_cpu_to_le16(TLV_TYPE_KEY_PARAM_V2);
@@ -4567,6 +4581,9 @@ static mlan_status wlan_ret_add_station(pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
+extern Stats_mcast_drv_t gmcast_stats;
+extern t_u8 mcast_drv_update_allow_flag;
+#define OP_RESET 3
 /**
  *  @brief This function prepares command of per peer stats
  *
@@ -4600,6 +4617,13 @@ static mlan_status wlan_cmd_stats(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				(Stats_Cfg_Params_TLV_t *)stats_cmd->tlv_buffer;
 			*cfg_param = *stats_param;
 		}
+		/* To identify the reset operation */
+		if (stats_param->op == OP_RESET) {
+			mcast_drv_update_allow_flag = MFALSE;
+			memset(pmpriv->adapter, &gmcast_stats, 0,
+			       sizeof(Stats_mcast_drv_t));
+			mcast_drv_update_allow_flag = MTRUE;
+		}
 	} else {
 		cmd->size =
 			wlan_cpu_to_le16(sizeof(HostCmd_DS_STATS) + S_DS_GEN);
@@ -4624,6 +4648,7 @@ static mlan_status wlan_ret_stats(pmlan_private pmpriv,
 {
 	HostCmd_DS_STATS *cfg_cmd = (HostCmd_DS_STATS *)&resp->params.stats;
 	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	Stats_Cfg_Params_TLV_t *stats_param = MNULL;
 	t_u8 *pBuf = (t_u8 *)&cfg_cmd->tlv_buffer;
 	int len = resp->size;
 
@@ -4636,6 +4661,29 @@ static mlan_status wlan_ret_stats(pmlan_private pmpriv,
 			   len);
 		misc_cfg->param.stats.tlv_len = len;
 		pioctl_buf->buf_len = sizeof(mlan_ds_stats) + len - 1;
+
+		stats_param =
+			(Stats_Cfg_Params_TLV_t *)misc_cfg->param.stats.tlv_buf;
+		if (stats_param && (stats_param->tlvHeader.type ==
+				    NXP_802_11_PER_PEER_STATS_ENTRY_TLV_ID)) {
+			/* add the mcast drv stats */
+			mcast_drv_update_allow_flag = MFALSE;
+			/* Adding the Mcast drv stats to stats tlv_buf */
+			memcpy_ext(pmpriv->adapter,
+				   (t_u8 *)(((t_u8 *)&misc_cfg->param.stats
+						     .tlv_buf) +
+					    len),
+				   (t_u8 *)&gmcast_stats,
+				   sizeof(Stats_mcast_drv_t),
+				   sizeof(Stats_mcast_drv_t));
+			mcast_drv_update_allow_flag = MTRUE;
+			/* Updating the tlv_len */
+			misc_cfg->param.stats.tlv_len =
+				len + sizeof(Stats_mcast_drv_t);
+
+			pioctl_buf->buf_len = sizeof(mlan_ds_stats) + len +
+					      sizeof(Stats_mcast_drv_t) - 1;
+		}
 	}
 
 	LEAVE();
@@ -4933,6 +4981,13 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 			sizeof(HostCmd_DS_CHAN_REGION_CFG) + S_DS_GEN);
 		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
 		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size = wlan_cpu_to_le16(
+			sizeof(HostCmd_DS_REGION_POWER_CFG) + S_DS_GEN);
+		cmd_ptr->params.rg_power_cfg.action =
+			wlan_cpu_to_le16(cmd_action);
+		break;
 	case HostCmd_CMD_802_11_NET_MONITOR:
 		ret = wlan_cmd_net_monitor(pmpriv, cmd_ptr, cmd_action,
 					   pdata_buf);
@@ -5059,6 +5114,13 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
 		break;
 #endif
+	case HostCmd_CMD_802_11_TX_FRAME:
+		ret = wlan_cmd_tx_frame(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_EDMAC_CFG:
+		ret = wlan_cmd_edmac_cfg(pmpriv, cmd_ptr, cmd_action,
+					 pdata_buf);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -5131,10 +5193,6 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 			wlan_11h_radar_detected_callback((t_void *)pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
 		pmpriv->uap_host_based = 0;
-#if defined(USB)
-		if (IS_USB(pmadapter->card_type))
-			wlan_resync_usb_port(pmadapter);
-#endif
 		break;
 	case HostCmd_CMD_APCMD_BSS_START:
 		if (!pmpriv->intf_state_11h.is_11h_host &&
@@ -5154,13 +5212,12 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		pmpriv->uap_bss_started = MFALSE;
 		pmpriv->uap_host_based = 0;
 		ret = wlan_uap_ret_sys_reset(pmpriv, resp, pioctl_buf);
-		wlan_11h_reset_dfs_checking_chan_dfs_state(priv, DFS_USABLE);
+		if (!(wlan_is_etsi_country(pmpriv->adapter,
+					   pmpriv->adapter->country_code)))
+			wlan_11h_reset_dfs_checking_chan_dfs_state(priv,
+								   DFS_USABLE);
 		wlan_11h_check_update_radar_det_state(pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
-#if defined(USB)
-		if (IS_USB(pmadapter->card_type))
-			wlan_resync_usb_port(pmadapter);
-#endif
 		break;
 	case HostCmd_CMD_APCMD_SYS_INFO:
 		break;
@@ -5384,6 +5441,8 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CHAN_REGION_CFG:
 		ret = wlan_ret_chan_region_cfg(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		break;
 	case HostCmd_CMD_PACKET_AGGR_CTRL:
 		ret = wlan_ret_packet_aggr_ctrl(pmpriv, resp, pioctl_buf);
 		break;
@@ -5483,6 +5542,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		pmadapter->curr_cmd->pioctl_buf = MNULL;
 		break;
 #endif
+	case HostCmd_CMD_802_11_TX_FRAME:
+		break;
+	case HostCmd_CMD_EDMAC_CFG:
+		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -5567,10 +5630,6 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		wlan_coex_ampdu_rxwinsize(pmadapter);
 		if (wlan_11h_radar_detect_required(pmpriv, pmpriv->uap_channel))
 			wlan_11h_update_dfs_master_state_by_uap(pmpriv);
-#if defined(USB)
-		if (IS_USB(pmadapter->card_type))
-			wlan_resync_usb_port(pmadapter);
-#endif
 		break;
 	case EVENT_MICRO_AP_BSS_ACTIVE:
 		PRINTM(MEVENT, "EVENT: MICRO_AP_BSS_ACTIVE\n");

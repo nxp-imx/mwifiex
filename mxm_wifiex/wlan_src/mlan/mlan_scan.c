@@ -3377,7 +3377,8 @@ static t_void wlan_scan_process_results(mlan_private *pmpriv)
 	 * Prepares domain info from scan table and downloads the
 	 *   domain info command to the FW.
 	 */
-	wlan_11d_prepare_dnld_domain_info_cmd(pmpriv);
+	if (pmpriv->bss_role == MLAN_BSS_ROLE_STA)
+		wlan_11d_prepare_dnld_domain_info_cmd(pmpriv);
 	PRINTM(MMSG, "wlan: SCAN COMPLETED: scanned AP count=%d\n",
 	       pmadapter->num_in_scan_table);
 	LEAVE();

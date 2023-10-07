@@ -1042,7 +1042,7 @@ wlan_uap_sec_ioctl_set_encrypt_key(pmlan_adapter pmadapter,
 
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
-	if (pioctl_req->action != MLAN_ACT_SET) {
+	if ((pioctl_req->action != MLAN_ACT_SET)) {
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -1055,7 +1055,7 @@ wlan_uap_sec_ioctl_set_encrypt_key(pmlan_adapter pmadapter,
 	}
 
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_KEY_MATERIAL,
-			       HostCmd_ACT_GEN_SET, KEY_INFO_ENABLED,
+			       pioctl_req->action, KEY_INFO_ENABLED,
 			       (t_void *)pioctl_req, &sec->param.encrypt_key);
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -2127,6 +2127,13 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				pmadapter->max_sta_conn;
 			pget_info->param.fw_info.uuid_lo = pmadapter->uuid_lo;
 			pget_info->param.fw_info.uuid_hi = pmadapter->uuid_hi;
+			pget_info->param.fw_info.cmd_tx_data =
+				IS_FW_SUPPORT_CMD_TX_DATA(pmadapter) ? 0x01 :
+								       0x00;
+			pget_info->param.fw_info.sec_rgpower =
+				IS_FW_SUPPORT_SEC_RG_POWER(pmadapter) ? 0x01 :
+									0x00;
+
 		} else if (pget_info->sub_command == MLAN_OID_LINK_STATS)
 			status = wlan_ioctl_link_statistic(pmpriv, pioctl_req);
 		break;
@@ -2305,6 +2312,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 							    pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_REGIONPWR_CFG)
 			status = wlan_get_rgchnpwr_cfg(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_REGION_POWER_CFG)
+			status = wlan_misc_region_power_cfg(pmadapter,
+							    pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_CFP_TABLE)
 			status = wlan_get_cfp_table(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RANGE_EXT)
@@ -2321,6 +2331,12 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 								    pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_EXT_CAP_CFG)
 			status = wlan_misc_ext_capa_cfg(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_TX_FRAME)
+			status =
+				wlan_misc_ioctl_tx_frame(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_EDMAC_CONFIG)
+			status = wlan_misc_ioctl_edmac_cfg(pmadapter,
+							   pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

@@ -1237,6 +1237,7 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_card_rec *cardp = usb_get_intfdata(intf);
 	moal_handle *handle = NULL;
+	mlan_ds_ps_info pm_info;
 	int i;
 	int ret = 0;
 
@@ -1261,6 +1262,27 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 			woal_cancel_scan(handle->priv[i], MOAL_IOCTL_WAIT);
 	}
 #endif
+
+	memset(&pm_info, 0, sizeof(pm_info));
+#define MAX_RETRY_USB 8
+	for (i = 0; i < MAX_RETRY_USB; i++) {
+		if (MLAN_STATUS_SUCCESS ==
+		    woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
+				     &pm_info)) {
+			if (pm_info.is_suspend_allowed == MTRUE)
+				break;
+			else
+				PRINTM(MMSG,
+				       "Suspend not allowed and retry again\n");
+		}
+		woal_sched_timeout(100);
+	}
+	if (pm_info.is_suspend_allowed == MFALSE) {
+		PRINTM(MMSG, "Suspend not allowed\n");
+		ret = -EBUSY;
+		goto done;
+	}
+
 	/* Enable Host Sleep */
 	woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
 

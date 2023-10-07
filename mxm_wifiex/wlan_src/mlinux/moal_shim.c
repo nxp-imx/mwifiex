@@ -3,7 +3,7 @@
  * @brief This file contains the callback functions registered to MLAN
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -924,6 +924,8 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 					MLAN_MAX_VER_STR_LEN - 1);
 		}
 #endif
+		if (phw->fw_cap & FW_CAPINFO_DISABLE_NAN)
+			handle->params.drv_mode &= ~DRV_MODE_NAN;
 		/** FW should only enable DFS on one mac */
 		if (!(phw->fw_cap & FW_CAPINFO_ZERO_DFS))
 			handle->params.drv_mode &= ~DRV_MODE_DFS;
@@ -2562,6 +2564,31 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 #endif
 
 /**
+ *  @brief This function handles rgpower key mismatch event
+ *
+ *  @param priv pointer to the moal_private structure.
+ *
+ *  @return         N/A
+ */
+void woal_rgpower_key_mismatch_event(moal_private *priv)
+{
+	struct woal_event *evt;
+	unsigned long flags;
+	moal_handle *handle = priv->phandle;
+
+	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
+	if (evt) {
+		evt->priv = priv;
+		evt->type = WOAL_EVENT_RGPWR_KEY_MISMATCH;
+		INIT_LIST_HEAD(&evt->link);
+		spin_lock_irqsave(&handle->evt_lock, flags);
+		list_add_tail(&evt->link, &handle->evt_queue);
+		spin_unlock_irqrestore(&handle->evt_lock, flags);
+		queue_work(handle->evt_workqueue, &handle->evt_work);
+	}
+}
+
+/**
  *  @brief This function handles defer event receive
  *
  *  @param handle   Pointer to the moal_handle
@@ -2578,7 +2605,11 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 #ifdef PCIE
 	case MLAN_EVENT_ID_DRV_DEFER_RX_DATA:
 		status = MLAN_STATUS_SUCCESS;
+#ifdef TASKLET_SUPPORT
 		tasklet_schedule(&handle->pcie_rx_task);
+#else
+		queue_work(handle->pcie_rx_workqueue, &handle->pcie_rx_work);
+#endif
 		break;
 	case MLAN_EVENT_ID_DRV_DEFER_RX_EVENT:
 		status = MLAN_STATUS_SUCCESS;
@@ -2592,7 +2623,16 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		break;
 	case MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE:
 		status = MLAN_STATUS_SUCCESS;
+#ifdef TASKLET_SUPPORT
 		tasklet_schedule(&handle->pcie_tx_complete_task);
+#else
+		queue_work(handle->pcie_tx_complete_workqueue,
+			   &handle->pcie_tx_complete_work);
+#endif
+		break;
+	case MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE:
+		status = MLAN_STATUS_SUCCESS;
+		schedule_delayed_work(&handle->pcie_delayed_tx_work, 1);
 		break;
 #endif /* PCIE */
 
@@ -2604,7 +2644,11 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		}
 #ifdef PCIE
 		if (IS_PCIE(handle->card_type)) {
+#ifdef TASKLET_SUPPORT
 			tasklet_kill(&handle->pcie_rx_task);
+#else
+			flush_workqueue(handle->pcie_rx_workqueue);
+#endif
 			break;
 		}
 #endif
@@ -2628,7 +2672,12 @@ static mlan_status wlan_process_defer_event(moal_handle *handle,
 		}
 #ifdef PCIE
 		if (IS_PCIE(handle->card_type)) {
+#ifdef TASKLET_SUPPORT
 			tasklet_schedule(&handle->pcie_rx_task);
+#else
+			queue_work(handle->pcie_rx_workqueue,
+				   &handle->pcie_rx_work);
+#endif
 			break;
 		}
 #endif
@@ -2663,6 +2712,13 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if defined(STA_SUPPORT) || defined(UAP_SUPPORT)
 	moal_private *pmpriv = NULL;
 #endif
+
+#if defined(STA_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+	struct station_info *sinfo = NULL;
+#endif
+#endif
+	char concat_str[64], peer_mac_str[20];
 #if defined(STA_WEXT) || defined(UAP_WEXT)
 #if defined(STA_SUPPORT) || defined(UAP_WEXT)
 #if defined(UAP_SUPPORT) || defined(STA_WEXT)
@@ -3705,12 +3761,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				break;
 			PRINTM(MMSG, "OLD BW = %d NEW BW = %d", priv->bandwidth,
 			       pchan_info->bandcfg.chanWidth);
-
-#ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-			woal_update_uap_channel_dfs_state(priv);
-#endif
-#endif
 			priv->channel = pchan_info->channel;
 			priv->bandwidth = pchan_info->bandcfg.chanWidth;
 
@@ -4070,10 +4120,18 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				PRINTM(MCMND, "deauth reason code =0x%x\n",
 				       reason_code);
 				/** BIT 14 indicate deauth is initiated by FW */
-				if (reason_code & MBIT(14))
-					woal_host_mlme_disconnect(
-						priv, 0,
-						pmevent->event_buf + 2);
+				if (reason_code & MBIT(14)) {
+					if (reason_code & MBIT(1)) {
+						reason_code =
+							MLAN_REASON_DISASSOC_DUE_TO_INACTIVITY;
+						woal_host_mlme_disconnect(
+							priv, reason_code,
+							pmevent->event_buf + 2);
+					} else
+						woal_host_mlme_disconnect(
+							priv, 0,
+							pmevent->event_buf + 2);
+				}
 			} else
 #endif
 				if (priv->netdev && priv->wdev)
@@ -4118,7 +4176,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
-			if (priv->netdev &&
+			if (priv->netdev && priv->netdev->ieee80211_ptr &&
 			    priv->netdev->ieee80211_ptr->wiphy->mgmt_stypes &&
 			    priv->mgmt_subtype_mask) {
 				/* frmctl + durationid + addr1 + addr2 + addr3 +
@@ -4355,6 +4413,82 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	case MLAN_EVENT_ID_DRV_PASSTHRU:
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
+		break;
+	case MLAN_EVENT_ID_FW_IBSS_CONNECT:
+		PRINTM(MINFO, "STA Connect attempt\n");
+		DBG_HEXDUMP(MCMD_D, "IBSS Connect", pmevent->event_buf,
+			    pmevent->event_len);
+		memset(concat_str, 0, sizeof(concat_str));
+		snprintf(peer_mac_str, sizeof(peer_mac_str),
+			 "%02x%02x%02x%02x%02x%02x", *(pmevent->event_buf + 6),
+			 *(pmevent->event_buf + 7), *(pmevent->event_buf + 8),
+			 *(pmevent->event_buf + 9), *(pmevent->event_buf + 10),
+			 *(pmevent->event_buf + 11));
+
+		peer_mac_str[ETH_ALEN * 2] = '\0';
+
+#if defined(STA_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			sinfo = kzalloc(sizeof(struct station_info),
+					GFP_KERNEL);
+
+			if (sinfo) {
+				/* Notify user space about new station */
+				cfg80211_new_sta(priv->netdev,
+						 pmevent->event_buf + 6, sinfo,
+						 GFP_KERNEL);
+				kfree(sinfo);
+			} else {
+				PRINTM(MERROR,
+				       "IBSS:Failed to allocate memory to new station");
+			}
+		}
+#endif
+#endif
+		snprintf(concat_str, sizeof(concat_str), "%s%s",
+			 CUS_EVT_IBSS_CONNECT_ATTEMPT, peer_mac_str);
+		woal_broadcast_event(priv, concat_str, strlen(concat_str));
+#ifdef STA_WEXT
+#ifdef STA_SUPPORT
+		if (IS_STA_WEXT(cfg80211_wext)) {
+			woal_send_iwevcustom_event(priv, concat_str);
+		}
+#endif
+#endif
+		break;
+	case MLAN_EVENT_ID_FW_IBSS_DISCONNECT:
+		PRINTM(MINFO, "STA Disconnect attempt\n");
+		DBG_HEXDUMP(MCMD_D, "IBSS DisConnect", pmevent->event_buf,
+			    pmevent->event_len);
+		memset(concat_str, 0, sizeof(concat_str));
+		snprintf(peer_mac_str, sizeof(peer_mac_str),
+			 "%02x%02x%02x%02x%02x%02x", *(pmevent->event_buf + 6),
+			 *(pmevent->event_buf + 7), *(pmevent->event_buf + 8),
+			 *(pmevent->event_buf + 9), *(pmevent->event_buf + 10),
+			 *(pmevent->event_buf + 11));
+
+		peer_mac_str[ETH_ALEN * 2] = '\0';
+
+		snprintf(concat_str, sizeof(concat_str), "%s%s",
+			 CUS_EVT_IBSS_DISCONNECT_ATTEMPT, peer_mac_str);
+		woal_broadcast_event(priv, concat_str, strlen(concat_str));
+#ifdef STA_WEXT
+#ifdef STA_SUPPORT
+		if (IS_STA_WEXT(cfg80211_wext)) {
+			woal_send_iwevcustom_event(priv, concat_str);
+		}
+#endif
+#endif
+
+#if defined(STA_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			cfg80211_del_sta(priv->netdev, pmevent->event_buf + 6,
+					 GFP_KERNEL);
+		}
+#endif
+#endif
 		break;
 	case MLAN_EVENT_ID_DRV_ASSOC_FAILURE_REPORT:
 		PRINTM(MINFO, "Assoc result\n");
@@ -4699,6 +4833,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     custom_len + csi_len);
 		priv->csi_seq++;
+		break;
+	case MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH:
+		if (handle->sec_rgpower)
+			woal_rgpower_key_mismatch_event(priv);
 		break;
 	default:
 		break;

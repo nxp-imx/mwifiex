@@ -118,7 +118,7 @@ Change log:
 
 #include <net/ieee80211_radiotap.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
 #include <net/netdev_rx_queue.h>
 #endif
 
@@ -292,12 +292,16 @@ typedef t_u8 BOOLEAN;
 #define CARD_TYPE_PCIE_USB 7
 /** card type SD9177_UART */
 #define CARD_TYPE_SD9177_UART 1 // As per datasheet/SoC design
-/** card type SDIW624_UART */
-#define CARD_TYPE_SDIW624_UART 0 // As per datasheet/SoC design
-/** card type PCIEIW624_USB */
-#define CARD_TYPE_PCIEIW624_USB 4 // As per datasheet/SoC design
-/** card type PCIEIW624_UART */
-#define CARD_TYPE_PCIEIW624_UART 7 // As per datasheet/SoC design
+/** card type SDIW624_UARTSPI */
+#define CARD_TYPE_SDIW624_UARTSPI 0 // As per datasheet/SoC design
+/** card type SDIW624_UARTUART */
+#define CARD_TYPE_SDIW624_UARTUART 2 // As per datasheet/SoC design
+/** card type PCIEIW624_USBUSB */
+#define CARD_TYPE_PCIEIW624_USBUSB 4 // As per datasheet/SoC design
+/** card type PCIEIW624_UARTUART */
+#define CARD_TYPE_PCIEIW624_UARTUART 7 // As per datasheet/SoC design
+/** card type PCIEIW624_UARTSPI */
+#define CARD_TYPE_PCIEIW624_UARTSPI 5 // As per datasheet/SoC design
 
 /* Max buffer size */
 #define MAX_BUF_LEN 512
@@ -866,6 +870,7 @@ typedef enum {
 	CONTROL_FRAME_MATCHED, // 8. Control frame matched
 	MANAGEMENT_FRAME_MATCHED, // 9. Management frame matched
 	GTK_REKEY_FAILURE, // 10. GTK rekey failure
+	MGMT_FRAME_FILTER_EXT_MATCHED, // 11. Management frame filter matched
 	RESERVED // Others: reserved
 } HSWakeupReason_t;
 
@@ -895,6 +900,11 @@ mlan_status woal_do_dfs_cac(moal_private *priv,
 
 /** Custom indiciation message sent to the application layer for WMM changes */
 #define WMM_CONFIG_CHANGE_INDICATION "WMM_CONFIG_CHANGE.indication"
+
+/** Custom event : IBSS STA connect attempt */
+#define CUS_EVT_IBSS_CONNECT_ATTEMPT "EVENT=IBSS_CONNECT_ATTEMPT_"
+/** Custom event : IBSS STA dis-connect attempt */
+#define CUS_EVT_IBSS_DISCONNECT_ATTEMPT "EVENT=IBSS_DISCONNECT_ATTEMPT_"
 
 #define CUS_EVT_FW_DUMP_DONE "EVENT=FW_DUMP_DONE"
 
@@ -1054,6 +1064,12 @@ typedef struct _wait_queue {
 #define DEF_VIRTUAL_BSS 0
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
+/** Driver mode NAN bit */
+#define DRV_MODE_NAN MBIT(4)
+/** Maximum NAN BSS */
+#define MAX_NAN_BSS 1
+/** Default NAN BSS */
+#define DEF_NAN_BSS 1
 
 /**Driver mode 0DFS bit**/
 #define DRV_MODE_DFS MBIT(7)
@@ -1182,6 +1198,7 @@ enum woal_event_type {
 	WOAL_EVENT_CANCEL_CHANRPT,
 #endif
 #endif
+	WOAL_EVENT_RGPWR_KEY_MISMATCH,
 };
 
 /** chan_rpt_info */
@@ -2423,6 +2440,8 @@ typedef struct _moal_mod_para {
 	int max_vir_bss;
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
+	char *nan_name;
+	int max_nan_bss;
 	int auto_ds;
 	int net_rx;
 	int amsdu_deaggr;
@@ -2487,10 +2506,13 @@ typedef struct _moal_mod_para {
 	int rps;
 #endif
 #endif
+	int edmac_ctrl;
 	int keep_previous_scan;
 	int auto_11ax;
 	/** hs_auto_arp setting */
 	int hs_auto_arp;
+	/** Dual-BT **/
+	int dual_nb;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -2625,6 +2647,10 @@ struct _moal_handle {
 	t_u16 fw_bands;
 	/** ECSA support */
 	t_u8 fw_ecsa_enable;
+	/* Firmware support cmd_tx_data */
+	t_u8 cmd_tx_data;
+	/** FW support security key for rgpower table */
+	t_u8 sec_rgpower;
 	/** FW ROAMING support */
 	t_u8 fw_roam_enable;
 	/** FW ROAMING capability in fw */
@@ -2743,10 +2769,23 @@ struct _moal_handle {
 	struct workqueue_struct *pcie_cmd_resp_workqueue;
 	/** pcie rx cmd resp work */
 	struct work_struct pcie_cmd_resp_work;
+	/** pcie delayed work */
+	struct delayed_work pcie_delayed_tx_work;
+#ifdef TASKLET_SUPPORT
 	/* pcie rx data tasklet */
 	struct tasklet_struct pcie_rx_task;
 	/* pcie tx complete tasklet */
 	struct tasklet_struct pcie_tx_complete_task;
+#else
+	/** Driver pcie rx workqueue */
+	struct workqueue_struct *pcie_rx_workqueue;
+	/* pcie rx work */
+	struct work_struct pcie_rx_work;
+	/** Driver pcie tx complete workqueue */
+	struct workqueue_struct *pcie_tx_complete_workqueue;
+	/* pcie tx complete work */
+	struct work_struct pcie_tx_complete_work;
+#endif
 #endif
 	/** event spin lock */
 	spinlock_t evt_lock;
@@ -3019,6 +3058,7 @@ struct _moal_handle {
 #endif
 #endif
 	t_u32 ips_ctrl;
+	BOOLEAN is_edmac_enabled;
 };
 
 /**
@@ -3626,6 +3666,7 @@ void woal_init_from_dev_tree(void);
 mlan_status woal_init_sw(moal_handle *handle);
 /** update the default firmware name */
 void woal_update_firmware_name(moal_handle *handle);
+mlan_status woal_set_rgpower_table(moal_handle *handle);
 /** cancel all works in the queue */
 void woal_terminate_workqueue(moal_handle *handle);
 void woal_flush_workqueue(moal_handle *handle);
@@ -4047,6 +4088,11 @@ t_void woal_mclist_work_queue(struct work_struct *work);
 #ifdef PCIE
 t_void woal_pcie_rx_event_work_queue(struct work_struct *work);
 t_void woal_pcie_cmd_resp_work_queue(struct work_struct *work);
+t_void woal_pcie_delayed_tx_work(struct work_struct *work);
+#ifndef TASKLET_SUPPORT
+t_void woal_pcie_rx_work_queue(struct work_struct *work);
+t_void woal_pcie_tx_complete_work_queue(struct work_struct *work);
+#endif
 #endif
 
 #ifdef STA_CFG80211
@@ -4148,7 +4194,8 @@ t_void woal_add_mcast_node(moal_private *priv, t_u8 *mcast_addr);
 void woal_remove_mcast_node(moal_private *priv, t_u8 *mcast_addr);
 t_u8 woal_find_mcast_node_tx(moal_private *priv, struct sk_buff *skb);
 
-mlan_status woal_request_country_power_table(moal_private *priv, char *region);
+mlan_status woal_request_country_power_table(moal_private *priv, char *region,
+					     t_u8 wait_option);
 mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 			       t_u8 wait_option, t_u8 action);
 #ifdef UAP_SUPPORT
@@ -4255,4 +4302,12 @@ void woal_disable_oob_wakeup_irq(moal_handle *handle);
 void woal_enable_oob_wakeup_irq(moal_handle *handle);
 irqreturn_t woal_oob_wakeup_irq_handler(int irq, void *priv);
 #endif /* IMX_SUPPORT */
+
+t_bool woal_secure_add(t_void *datain, t_s32 add, t_void *dataout,
+		       data_type type);
+t_bool woal_secure_sub(t_void *datain, t_s32 sub, t_void *dataout,
+		       data_type type);
+
+mlan_status woal_edmac_cfg(moal_private *priv, t_u8 *country_code);
+
 #endif /* _MOAL_MAIN_H */

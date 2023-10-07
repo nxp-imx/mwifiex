@@ -209,7 +209,11 @@ static mlan_status wlan_11n_dispatch_pkt_until_start_win(
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	if (no_pkt_to_send < (8 * (sizeof(rx_reor_tbl_ptr->bitmap))))
+		rx_reor_tbl_ptr->bitmap =
+			rx_reor_tbl_ptr->bitmap >> no_pkt_to_send;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win = start_win;
 	pmpriv->adapter->callbacks.moal_spin_unlock(
@@ -290,7 +294,10 @@ static mlan_status wlan_11n_scan_and_dispatch(t_void *priv,
 	}
 
 	/* clear the bits of reorder bitmap that has been dispatched */
-	rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	if (i < (8 * sizeof(rx_reor_tbl_ptr->bitmap)))
+		rx_reor_tbl_ptr->bitmap = rx_reor_tbl_ptr->bitmap >> i;
+	else
+		rx_reor_tbl_ptr->bitmap = 0;
 
 	rx_reor_tbl_ptr->start_win =
 		(rx_reor_tbl_ptr->start_win + i) & (MAX_TID_VALUE - 1);
@@ -1531,6 +1538,9 @@ static void wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 					priv->add_ba_param.rx_win_size =
 						MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE;
 #endif
+				if (priv->bss_type == MLAN_BSS_TYPE_NAN)
+					priv->add_ba_param.rx_win_size =
+						MLAN_NAN_COEX_AMPDU_DEF_RXWINSIZE;
 #ifdef UAP_SUPPORT
 				if (priv->bss_type == MLAN_BSS_TYPE_UAP)
 					priv->add_ba_param.rx_win_size =

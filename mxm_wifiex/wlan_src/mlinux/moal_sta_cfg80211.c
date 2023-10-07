@@ -462,9 +462,12 @@ static const struct ieee80211_txrx_stypes
 	ieee80211_mgmt_stypes[NUM_NL80211_IFTYPES] = {
 		[NL80211_IFTYPE_STATION] = {
 			.tx = MBIT(IEEE80211_STYPE_ACTION >> 4) |
-			      MBIT(IEEE80211_STYPE_PROBE_RESP >> 4),
+			      MBIT(IEEE80211_STYPE_PROBE_RESP >> 4)|
+			      MBIT(IEEE80211_STYPE_AUTH >> 4)|
+			      MBIT(IEEE80211_STYPE_DEAUTH >> 4),
 			.rx = MBIT(IEEE80211_STYPE_ACTION >> 4) |
-			      MBIT(IEEE80211_STYPE_PROBE_REQ >> 4),
+			      MBIT(IEEE80211_STYPE_PROBE_REQ >> 4)|
+			      MBIT(IEEE80211_STYPE_AUTH >> 4),
 		},
 		[NL80211_IFTYPE_AP] = {
 			.tx = 0xffff,
@@ -1067,6 +1070,8 @@ static int woal_cfg80211_assoc_ies_cfg(moal_private *priv, t_u8 *ie,
 						pcurrent_ptr, &total_ie_len,
 						wait_option)) {
 				PRINTM(MERROR, "Fail to set GEN IE\n");
+				DBG_HEXDUMP(MCMD_D, "GEN IE", pcurrent_ptr,
+					    total_ie_len);
 				ret = -EFAULT;
 				goto done;
 			}
@@ -1246,7 +1251,7 @@ static mlan_status woal_send_domain_info_cmd_fw(moal_private *priv,
 			priv->phandle->country_code[1];
 	}
 	cfg_11d->param.domain_info.country_code[2] = ' ';
-	cfg_11d->param.domain_info.band = band;
+	cfg_11d->param.domain_info.band = woal_ieee_band_to_radio_type(band);
 
 	sband = priv->wdev->wiphy->bands[band];
 	for (i = 0; (i < sband->n_channels) &&
@@ -2153,6 +2158,43 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
 }
 
 /**
+ *  @brief Send set host_mlme request to MLAN
+ *
+ *  @param priv   A pointer to moal_private structure
+ *
+ *  @return       MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING
+ *                  -- success, otherwise fail
+ */
+mlan_status woal_request_set_host_mlme(moal_private *priv)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_bss *bss = NULL;
+	mlan_status status;
+	ENTER();
+
+	/* Allocate an IOCTL request buffer */
+	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
+	if (req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	bss = (mlan_ds_bss *)req->pbuf;
+	bss->sub_command = MLAN_OID_BSS_HOST_MLME;
+	req->req_id = MLAN_IOCTL_BSS;
+	req->action = MLAN_ACT_SET;
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}
+
+/**
  *  @brief This function is authentication handler when host MLME
  *          enable.
  *          In this case driver will prepare and send Auth Req.
@@ -2173,12 +2215,14 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	IEEE80211_MGMT *mgmt = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	pmlan_buffer pmbuf = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	t_u8 *pbuf = NULL;
 	t_u32 pkt_type, tx_control;
 	t_u16 packet_len = 0, auth_alg;
 	t_u16 pkt_len;
 	t_u8 addr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	int ret = 0;
-
 	t_u8 trans = 1, status_code = 0;
 	t_u8 *varptr = NULL;
 	moal_handle *handle = priv->phandle;
@@ -2295,31 +2339,9 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 		woal_mgmt_frame_register(priv, IEEE80211_STYPE_DISASSOC, MTRUE);
 	}
 
-#define HEADER_SIZE 8
-	// frmctl + durationid + addr1 + addr2 + addr3 + seqctl + addr4
-#define MGMT_HEADER_LEN (2 + 2 + 6 + 6 + 6 + 2 + 6)
-	// 6   = auth_alg + auth_transaction +auth_status
-#define AUTH_BODY_LEN 6
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-	packet_len = (t_u16)req->ie_len + req->auth_data_len + MGMT_HEADER_LEN +
-		     AUTH_BODY_LEN;
-#else
-	packet_len = (t_u16)req->ie_len + req->sae_data_len + MGMT_HEADER_LEN +
-		     AUTH_BODY_LEN;
-#endif
-	pmbuf = woal_alloc_mlan_buffer(priv->phandle,
-				       MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
-					       packet_len + sizeof(packet_len));
-
-	if (!pmbuf) {
-		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
-		ret = -ENOMEM;
-		goto done;
-	}
-
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0,
-				  KEY_INDEX_CLEAR_ALL, NULL, 1,
+				  KEY_INDEX_CLEAR_ALL, NULL, 1, 0,
 				  MOAL_IOCTL_WAIT)) {
 		/* Disable keys and clear all previous security settings */
 		PRINTM(MERROR, "Fail to clear previous keys\n");
@@ -2401,19 +2423,54 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 			       dev->name, status);
 		}
 	}
+#define HEADER_SIZE 8
+	// frmctl + durationid + addr1 + addr2 + addr3 + seqctl + addr4
+#define MGMT_HEADER_LEN (2 + 2 + 6 + 6 + 6 + 2 + 6)
+	// 6   = auth_alg + auth_transaction +auth_status
+#define AUTH_BODY_LEN 6
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	packet_len = (t_u16)req->ie_len + req->auth_data_len + MGMT_HEADER_LEN +
+		     AUTH_BODY_LEN;
+#else
+	packet_len = (t_u16)req->ie_len + req->sae_data_len + MGMT_HEADER_LEN +
+		     AUTH_BODY_LEN;
+#endif
+	if (priv->phandle->cmd_tx_data) {
+		ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+		if (ioctl_req == NULL) {
+			ret = -ENOMEM;
+			goto done;
+		}
+		misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+		misc->sub_command = MLAN_OID_MISC_TX_FRAME;
+		ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+		ioctl_req->action = MLAN_ACT_SET;
+		misc->param.tx_frame.bandcfg.chanBand =
+			woal_ieee_band_to_radio_type(req->bss->channel->band);
+		misc->param.tx_frame.channel = req->bss->channel->hw_value;
+		pbuf = misc->param.tx_frame.tx_buf;
+	} else {
+		pmbuf = woal_alloc_mlan_buffer(
+			priv->phandle, MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
+					       packet_len + sizeof(packet_len));
 
-	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
+		if (!pmbuf) {
+			PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
+			ret = -ENOMEM;
+			goto done;
+		}
+		pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
+		pbuf = pmbuf->pbuf + pmbuf->data_offset;
+	}
 	pkt_type = MRVL_PKT_TYPE_MGMT_FRAME;
 	tx_control = 0;
 	/* Add pkt_type and tx_control */
-	moal_memcpy_ext(priv->phandle, pmbuf->pbuf + pmbuf->data_offset,
-			&pkt_type, sizeof(pkt_type), sizeof(pkt_type));
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + sizeof(pkt_type),
-			&tx_control, sizeof(tx_control), sizeof(tx_control));
+	moal_memcpy_ext(priv->phandle, pbuf, &pkt_type, sizeof(pkt_type),
+			sizeof(pkt_type));
+	moal_memcpy_ext(priv->phandle, pbuf + sizeof(pkt_type), &tx_control,
+			sizeof(tx_control), sizeof(tx_control));
 
-	mgmt = (IEEE80211_MGMT *)(pmbuf->pbuf + pmbuf->data_offset +
-				  HEADER_SIZE + sizeof(packet_len));
+	mgmt = (IEEE80211_MGMT *)(pbuf + HEADER_SIZE + sizeof(packet_len));
 	memset(mgmt, 0, MGMT_HEADER_LEN);
 	/**Authentication Frame: Frame Control*/
 	mgmt->frame_control =
@@ -2463,9 +2520,8 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 #endif
 	/*Add packet len*/
 	pkt_len = woal_cpu_to_le16(packet_len);
-	moal_memcpy_ext(priv->phandle,
-			pmbuf->pbuf + pmbuf->data_offset + HEADER_SIZE,
-			&pkt_len, sizeof(pkt_len), sizeof(pkt_len));
+	moal_memcpy_ext(priv->phandle, pbuf + HEADER_SIZE, &pkt_len,
+			sizeof(pkt_len), sizeof(pkt_len));
 
 	/**Authentication Frame: Authentication Alg*/
 	mgmt->u.auth.auth_alg = woal_cpu_to_le16(auth_alg);
@@ -2481,50 +2537,74 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 				req->ie_len, req->ie_len);
 	}
 
-	pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
-	pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
-	pmbuf->bss_index = priv->bss_index;
-	pmbuf->priority = 7;
-
 	priv->host_mlme = MTRUE;
 	priv->auth_flag = HOST_MLME_AUTH_PENDING;
 	priv->auth_alg = woal_cpu_to_le16(auth_alg);
+	woal_save_auth_params(priv, req);
+	woal_request_set_host_mlme(priv);
 
 	PRINTM(MMSG, "wlan: HostMlme %s send auth to bssid " MACSTR "\n",
 	       dev->name, MAC2STR(req->bss->bssid));
-	DBG_HEXDUMP(MDAT_D, "Auth:", pmbuf->pbuf + pmbuf->data_offset,
-		    pmbuf->data_len);
-	woal_save_auth_params(priv, req);
-	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
-
-	switch (status) {
-	case MLAN_STATUS_PENDING:
-		atomic_inc(&priv->phandle->tx_pending);
-		queue_work(priv->phandle->workqueue, &priv->phandle->main_work);
-#define MAX_AUTH_COUNTER 5
-		priv->auth_tx_cnt++;
-		if (priv->auth_tx_cnt >= MAX_AUTH_COUNTER) {
-			if (woal_reset_wifi(priv->phandle, priv->auth_tx_cnt,
-					    "auth timeout") ==
-			    MLAN_STATUS_SUCCESS) {
-				priv->auth_tx_cnt = 0;
-			}
+	DBG_HEXDUMP(MDAT_D, "Auth:", pbuf,
+		    HEADER_SIZE + packet_len + sizeof(packet_len));
+	if (priv->phandle->cmd_tx_data) {
+		misc->param.tx_frame.data_len =
+			HEADER_SIZE + packet_len + sizeof(packet_len);
+		misc->param.tx_frame.buf_type = MLAN_BUF_TYPE_RAW_DATA;
+		misc->param.tx_frame.priority = 7;
+		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+		if (status != MLAN_STATUS_SUCCESS) {
+			priv->host_mlme = MFALSE;
+			priv->auth_flag = 0;
+			priv->auth_alg = 0xFFFF;
+			ret = -EFAULT;
+			PRINTM(MERROR, "Fail to send packet status=%d\n",
+			       status);
 		}
-		break;
-	case MLAN_STATUS_SUCCESS:
-		woal_free_mlan_buffer(priv->phandle, pmbuf);
-		break;
-	case MLAN_STATUS_FAILURE:
-	default:
-		woal_free_mlan_buffer(priv->phandle, pmbuf);
-		priv->host_mlme = MFALSE;
-		priv->auth_flag = 0;
-		priv->auth_alg = 0xFFFF;
-		ret = -EFAULT;
-		PRINTM(MERROR, "Fail to send packet status=%d\n", status);
-		break;
+	} else {
+		pmbuf->data_len = HEADER_SIZE + packet_len + sizeof(packet_len);
+		pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
+		pmbuf->bss_index = priv->bss_index;
+		pmbuf->priority = 7;
+
+		status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
+
+		switch (status) {
+		case MLAN_STATUS_PENDING:
+			atomic_inc(&priv->phandle->tx_pending);
+			queue_work(priv->phandle->workqueue,
+				   &priv->phandle->main_work);
+#define MAX_AUTH_COUNTER 5
+			priv->auth_tx_cnt++;
+			if (priv->auth_tx_cnt >= MAX_AUTH_COUNTER) {
+				if (woal_reset_wifi(priv->phandle,
+						    priv->auth_tx_cnt,
+						    "auth timeout") ==
+				    MLAN_STATUS_SUCCESS) {
+					priv->auth_tx_cnt = 0;
+				}
+			}
+			break;
+		case MLAN_STATUS_SUCCESS:
+			woal_free_mlan_buffer(priv->phandle, pmbuf);
+			break;
+		case MLAN_STATUS_FAILURE:
+		default:
+			woal_free_mlan_buffer(priv->phandle, pmbuf);
+			priv->host_mlme = MFALSE;
+			priv->auth_flag = 0;
+			priv->auth_alg = 0xFFFF;
+			ret = -EFAULT;
+			PRINTM(MERROR, "Fail to send packet status=%d\n",
+			       status);
+			break;
+		}
 	}
 done:
+	if (priv->phandle->cmd_tx_data) {
+		if (status != MLAN_STATUS_PENDING)
+			kfree(ioctl_req);
+	}
 	if (ret) {
 		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MFALSE);
 		if (priv->phandle->remain_on_channel) {
@@ -2777,6 +2857,13 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+	if (!priv->auth_flag && !priv->host_mlme) {
+		PRINTM(MINFO,
+		       "wlan: HostMlme %s can not proceed with this Assoc, as Auth is not done yet \n",
+		       priv->netdev->name);
+		ret = -EFAULT;
+		goto done;
+	}
 
 	priv->cfg_disconnect = MFALSE;
 
@@ -2881,8 +2968,7 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_assoc_ies_cfg(priv, (t_u8 *)req->ie,
 						req->ie_len, MOAL_IOCTL_WAIT)) {
-			ret = -EFAULT;
-			goto done;
+			PRINTM(MINFO, "Fail to woal_cfg80211_assoc_ies_cfg\n");
 		}
 	}
 
@@ -3163,7 +3249,8 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_cfg80211_set_key(priv, 0, 0, NULL, 0, NULL, 0,
-				  KEY_INDEX_CLEAR_ALL, NULL, 1, wait_option)) {
+				  KEY_INDEX_CLEAR_ALL, NULL, 1, 0,
+				  wait_option)) {
 		/* Disable keys and clear all previous security settings */
 		ret = -EFAULT;
 		goto done;
@@ -3192,8 +3279,7 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_assoc_ies_cfg(priv, ie, ie_len,
 						wait_option)) {
-			ret = -EFAULT;
-			goto done;
+			PRINTM(MINFO, "Fail to woal_cfg80211_assoc_ies_cfg\n");
 		}
 	}
 
@@ -3851,7 +3937,6 @@ create_custom_regdomain(moal_private *priv,
 
 	sort(&custom_reg->cfp_tbl[custom_reg->num_bg_chan],
 	     custom_reg->num_a_chan, sizeof(chan_freq_power_t), &compare, NULL);
-
 	regd_size = sizeof(struct ieee80211_regdomain) +
 		    num_chan * sizeof(struct ieee80211_reg_rule);
 
@@ -4182,8 +4267,8 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 				country_code[1] = request->alpha2[1];
 			}
 			if (MLAN_STATUS_SUCCESS !=
-			    woal_request_country_power_table(priv,
-							     country_code)) {
+			    woal_request_country_power_table(priv, country_code,
+							     MOAL_IOCTL_WAIT)) {
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 				return -EFAULT;
 #else
@@ -4251,6 +4336,9 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 		}
 		priv->phandle->band = band;
 	}
+
+	if (handle->params.edmac_ctrl && IS_CARD9098(priv->phandle->card_type))
+		woal_edmac_cfg(priv, priv->phandle->country_code);
 
 	LEAVE();
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
@@ -6760,12 +6848,14 @@ int woal_cfg80211_resume(struct wiphy *wiphy)
 		    wiphy->wowlan_config->gtk_rekey_failure)
 			wakeup_report.gtk_rekey_failure = true;
 		break;
+	case MGMT_FRAME_FILTER_EXT_MATCHED:
+		break;
 	default:
 		break;
 	}
 
 	if ((wakeup_reason.hs_wakeup_reason > 0) &&
-	    (wakeup_reason.hs_wakeup_reason <= 10)) {
+	    (wakeup_reason.hs_wakeup_reason <= 11)) {
 		cfg80211_report_wowlan_wakeup(priv->wdev, &wakeup_report,
 					      GFP_KERNEL);
 	}
@@ -9743,6 +9833,8 @@ mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 		wdev->iftype = NL80211_IFTYPE_STATION;
 #endif
 #endif
+	if (bss_type == MLAN_BSS_TYPE_NAN)
+		wdev->iftype = NL80211_IFTYPE_STATION;
 	dev_net_set(dev, wiphy_net(wdev->wiphy));
 	dev->ieee80211_ptr = wdev;
 	SET_NETDEV_DEV(dev, wiphy_dev(wdev->wiphy));
@@ -9840,7 +9932,8 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 	/* Initialize parameters for 2GHz and 5GHz bands */
 	if (wiphy->bands[IEEE80211_BAND_2GHZ]) {
 		if (IS_CARD9098(priv->phandle->card_type) ||
-		    IS_CARD9097(priv->phandle->card_type)) {
+		    IS_CARD9097(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
 			mcs_supp = priv->phandle->params.antcfg & 0xf;
 			if (mcs_supp != 3 && mcs_supp != 0)
 				cfg_11n->param.supported_mcs_set[1] = 0;
@@ -9861,7 +9954,8 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 	/* For 2.4G band only card, this shouldn't be set */
 	if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
 		if (IS_CARD9098(priv->phandle->card_type) ||
-		    IS_CARD9097(priv->phandle->card_type)) {
+		    IS_CARD9097(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
 			mcs_supp = (priv->phandle->params.antcfg & 0xf00) >> 8;
 			if (mcs_supp != 3 && mcs_supp != 0)
 				cfg_11n->param.supported_mcs_set[1] = 0;
@@ -9906,7 +10000,8 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 #endif
 	if (IS_CARD9098(priv->phandle->card_type) ||
 	    IS_CARD9097(priv->phandle->card_type) ||
-	    IS_CARDIW624(priv->phandle->card_type)) {
+	    IS_CARDIW624(priv->phandle->card_type) ||
+	    IS_CARDAW693(priv->phandle->card_type)) {
 		woal_cfg80211_notify_antcfg(priv, wiphy, radio);
 	}
 	wiphy->available_antennas_tx = radio->param.ant_cfg.tx_antenna;
@@ -10162,7 +10257,8 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	if ((moal_extflg_isset(priv->phandle, EXT_CFG80211_DRCS) &&
 	     priv->phandle->card_info->drcs) ||
-	    IS_CARD9098(priv->phandle->card_type)) {
+	    IS_CARD9098(priv->phandle->card_type) ||
+	    IS_CARDAW693(priv->phandle->card_type)) {
 		cfg80211_iface_comb_ap_sta.num_different_channels = 2;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 		cfg80211_iface_comb_ap_sta.radar_detect_widths = 0;
@@ -10252,6 +10348,7 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 #endif
 	wiphy->flags |= WIPHY_FLAG_4ADDR_AP;
 	wiphy->flags |= WIPHY_FLAG_4ADDR_STATION;
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	wiphy->features |= NL80211_FEATURE_NEED_OBSS_SCAN;
 #endif

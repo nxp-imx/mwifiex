@@ -853,6 +853,8 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 	MrvlIEtypes_DomainParamSet_t *domain = &pdomain_info->domain;
 	t_u8 no_of_sub_band = pmadapter->domain_reg.no_of_sub_band;
 	MrvlIEtypes_Rgn_dom_code_t *rgn = MNULL;
+	t_u8 *tlv = MNULL;
+
 	t_u8 i;
 
 	ENTER();
@@ -881,7 +883,10 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 		return MLAN_STATUS_SUCCESS;
 	}
 
+	tlv = (t_u8 *)&pdomain_info->domain;
+
 	/* Set domain info fields */
+	domain = (MrvlIEtypes_DomainParamSet_t *)tlv;
 	domain->header.type = wlan_cpu_to_le16(TLV_TYPE_DOMAIN);
 	memcpy_ext(pmadapter, domain->country_code,
 		   pmadapter->domain_reg.country_code,
@@ -898,20 +903,22 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 			   MRVDRV_MAX_SUBBAND_802_11D *
 				   sizeof(IEEEtypes_SubbandSet_t));
 
-		pcmd->size = sizeof(pdomain_info->action) + domain->header.len +
-			     sizeof(MrvlIEtypesHeader_t) + S_DS_GEN;
+		pcmd->size += sizeof(pdomain_info->action) +
+			      domain->header.len + sizeof(MrvlIEtypesHeader_t) +
+			      S_DS_GEN;
+
+		tlv += domain->header.len + sizeof(MrvlIEtypesHeader_t);
 
 		if (pmadapter->domain_reg.dfs_region != NXP_DFS_UNKNOWN) {
-			rgn = (MrvlIEtypes_Rgn_dom_code_t
-				       *)((t_u8 *)&pdomain_info->domain +
-					  domain->header.len +
-					  sizeof(MrvlIEtypesHeader_t));
+			rgn = (MrvlIEtypes_Rgn_dom_code_t *)tlv;
 			rgn->header.type =
 				wlan_cpu_to_le16(TLV_TYPE_REGION_DOMAIN_CODE);
 			rgn->header.len = 2;
 			rgn->domain_code = pmadapter->domain_reg.dfs_region;
 			pcmd->size += sizeof(MrvlIEtypes_Rgn_dom_code_t);
+			tlv += sizeof(MrvlIEtypes_Rgn_dom_code_t);
 		}
+
 	} else {
 		pcmd->size = sizeof(pdomain_info->action) + S_DS_GEN;
 	}

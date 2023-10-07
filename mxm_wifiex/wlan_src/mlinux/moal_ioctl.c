@@ -2150,6 +2150,8 @@ mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
 			info->param.fw_info.hotfix_version;
 		priv->phandle->fw_ecsa_enable = info->param.fw_info.ecsa_enable;
 		priv->phandle->fw_bands = info->param.fw_info.fw_bands;
+		priv->phandle->cmd_tx_data = info->param.fw_info.cmd_tx_data;
+		priv->phandle->sec_rgpower = info->param.fw_info.sec_rgpower;
 		priv->phandle->fw_getlog_enable =
 			info->param.fw_info.getlog_enable;
 		priv->phandle->fw_roaming_support =
@@ -2584,6 +2586,43 @@ done:
 }
 
 /**
+ *  @brief send mgmt packet through ioctl
+ *
+ *  @param priv     A pointer to moal_private structure
+ *  @param pmbuf    A pointer to mlan_buffer which hold mgmt packet
+ *  @return         N/A
+ */
+static mlan_status woal_send_mgmt_packet(moal_private *priv, pmlan_buffer pmbuf)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	ENTER();
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL)
+		goto done;
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_TX_FRAME;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+	ioctl_req->action = MLAN_ACT_SET;
+	misc->param.tx_frame.data_len = pmbuf->data_len;
+	misc->param.tx_frame.buf_type = MLAN_BUF_TYPE_RAW_DATA;
+	misc->param.tx_frame.priority = 7;
+	if (pmbuf->tx_seq_num)
+		misc->param.tx_frame.flags = MLAN_BUF_FLAG_TX_STATUS;
+	misc->param.tx_frame.tx_seq_num = pmbuf->tx_seq_num;
+	moal_memcpy_ext(priv->phandle, misc->param.tx_frame.tx_buf,
+			pmbuf->pbuf + pmbuf->data_offset, pmbuf->data_len,
+			MRVDRV_SIZE_OF_CMD_BUFFER);
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return status;
+}
+
+/**
  *  @brief send raw data packet ioctl function
  *
  *  @param dev      A pointer to net_device structure
@@ -2596,6 +2635,7 @@ int woal_send_host_packet(struct net_device *dev, struct ifreq *req)
 	t_u32 packet_len = 0;
 	int ret = 0;
 	pmlan_buffer pmbuf = NULL;
+	IEEE80211_MGMT *mgmt = NULL;
 	mlan_status status;
 
 	ENTER();
@@ -2619,6 +2659,7 @@ int woal_send_host_packet(struct net_device *dev, struct ifreq *req)
 		goto done;
 	}
 #define PACKET_HEADER_LEN 8
+#define FRAME_LEN 2
 #define MV_ETH_FRAME_LEN 1514
 	if (packet_len > MV_ETH_FRAME_LEN) {
 		PRINTM(MERROR, "Invalid packet length %d\n", packet_len);
@@ -2648,6 +2689,15 @@ int woal_send_host_packet(struct net_device *dev, struct ifreq *req)
 	pmbuf->buf_type = MLAN_BUF_TYPE_RAW_DATA;
 	pmbuf->bss_index = priv->bss_index;
 
+	mgmt = (IEEE80211_MGMT *)(pmbuf->pbuf + pmbuf->data_offset +
+				  PACKET_HEADER_LEN + FRAME_LEN);
+
+	if (priv->phandle->cmd_tx_data &&
+	    ((mgmt->frame_control & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)) {
+		status = woal_send_mgmt_packet(priv, pmbuf);
+		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		goto done;
+	}
 	status = mlan_send_packet(priv->phandle->pmlan_adapter, pmbuf);
 	switch (status) {
 	case MLAN_STATUS_PENDING:
@@ -3858,6 +3908,34 @@ done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
 
+	LEAVE();
+	return ret;
+}
+
+/**  @brief This function set rgpower table
+ *
+ *  @param priv     A Pointer to the moal_private structure
+ *  @return         MTRUE or MFALSE
+ */
+mlan_status woal_set_rgpower_table(moal_handle *handle)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+
+	ENTER();
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req) {
+		misc = (mlan_ds_misc_cfg *)req->pbuf;
+		misc->sub_command = MLAN_OID_MISC_REGION_POWER_CFG;
+		req->req_id = MLAN_IOCTL_MISC_CFG;
+		req->action = MLAN_ACT_SET;
+		ret = woal_request_ioctl(woal_get_priv(handle,
+						       MLAN_BSS_ROLE_ANY),
+					 req, MOAL_IOCTL_WAIT);
+	}
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
 	LEAVE();
 	return ret;
 }
@@ -8160,6 +8238,7 @@ void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info)
 #define TX_FRAME_STR_LEN 200
 #define TRIGGER_FRAME_STR_LEN 250
 #define HE_TB_TX_STR_LEN 30
+#define MAX_RADIO_MODE 21
 
 /*
  *  @brief Parse mfg cmd radio mode string
@@ -8206,7 +8285,7 @@ static int parse_radio_mode_string(const char *s, size_t len,
 	if (pos)
 		d->data2 = (t_u32)woal_string_to_number(pos);
 
-	if ((d->data1 > 14) || (d->data2 > 14))
+	if ((d->data1 > MAX_RADIO_MODE) || (d->data2 > MAX_RADIO_MODE))
 		ret = -EINVAL;
 
 	kfree(tmp);
@@ -8214,7 +8293,6 @@ static int parse_radio_mode_string(const char *s, size_t len,
 	return ret;
 }
 
-#ifdef SD9177
 /*
  *  @brief PowerLevelToDUT11Bits
  *
@@ -8238,7 +8316,6 @@ static void PowerLevelToDUT11Bits(int Pwr, t_u32 *PowerLevel)
 
 	return;
 }
-#endif
 
 /*
  *  @brief Parse mfg cmd tx pwr string
@@ -8258,21 +8335,24 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 	char *tmp = NULL;
 	char *pos = NULL;
 	gfp_t flag;
-#ifdef SD9177
 	t_u32 tx_pwr_converted = 0xffffffff;
 	int tx_pwr_local = 0;
-	t_u8 fc_card = MFALSE;
-#endif
+	t_u8 pow_conv = MFALSE;
+	t_u32 pow_limit = 24;
+	t_u8 card_type;
 
 	ENTER();
 	if (!s || !d) {
 		LEAVE();
 		return -EINVAL;
 	}
-#ifdef SD9177
-	if (IS_SD9177(handle->card_type))
-		fc_card = MTRUE;
-#endif
+
+	card_type = (handle->card_type) & 0xff;
+	if ((card_type == CARD_TYPE_9098) || (card_type == CARD_TYPE_9097) ||
+	    (card_type == CARD_TYPE_9177) || (card_type == CARD_TYPE_IW624) ||
+	    (card_type == CARD_TYPE_AW693))
+		pow_conv = MTRUE;
+
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
 	string = kzalloc(TX_PWR_STR_LEN, flag);
 	if (string == NULL) {
@@ -8288,16 +8368,14 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 
 	/* tx power value */
 	pos = strsep(&string, " \t");
-#ifdef SD9177
-	if (fc_card && pos) {
-		/* for sd9177 we need to convert user power vals including -ve
-		 * vals as per labtool */
+	if (pow_conv && pos) {
+		/* for SH and later chipsets we need to convert user power vals
+		 * including -ve vals to 1/16dbm resolution*/
 		tx_pwr_local = woal_string_to_number(pos);
 		PowerLevelToDUT11Bits(tx_pwr_local, &tx_pwr_converted);
 		d->data1 = tx_pwr_converted;
-	} else
-#endif
-		if (pos) {
+		pow_limit = 384;
+	} else if (pos) {
 		d->data1 = (t_u32)woal_string_to_number(pos);
 	}
 	/* modulation */
@@ -8310,12 +8388,8 @@ static int parse_tx_pwr_string(moal_handle *handle, const char *s, size_t len,
 	if (pos)
 		d->data3 = (t_u32)woal_string_to_number(pos);
 
-#ifdef SD9177
-	if (((!fc_card) && ((d->data1 > 24) && (d->data1 != 0xffffffff))) ||
+	if (((d->data1 > pow_limit) && (d->data1 != 0xffffffff)) ||
 	    (d->data2 > 2))
-#else
-	if (((d->data1 > 24) && (d->data1 != 0xffffffff)) || (d->data2 > 2))
-#endif
 		ret = -EINVAL;
 
 	kfree(tmp);
@@ -9112,3 +9186,59 @@ done:
 	return ret;
 }
 #endif /* RF_TEST_MODE */
+
+/**
+ *  @brief Configures edmac parameters based on region
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param country_code A pointer to country code
+ *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING on success,
+ *                      otherwise failure code
+ */
+mlan_status woal_edmac_cfg(moal_private *priv, t_u8 *country_code)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	BOOLEAN is_etsi = MFALSE;
+
+	ENTER();
+
+	is_etsi = woal_is_etsi_country(country_code);
+	if (is_etsi == MFALSE && priv->phandle->is_edmac_enabled == MFALSE)
+		return MLAN_STATUS_SUCCESS;
+
+	if (is_etsi == MTRUE && priv->phandle->is_edmac_enabled == MTRUE)
+		return MLAN_STATUS_SUCCESS;
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_EDMAC_CONFIG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (is_etsi)
+		req->action = MLAN_ACT_SET;
+	else
+		req->action = MLAN_ACT_CLEAR;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MMSG, "Failed to configure edmac\n");
+		goto done;
+	}
+
+	if (is_etsi)
+		priv->phandle->is_edmac_enabled = MTRUE;
+	else
+		priv->phandle->is_edmac_enabled = MFALSE;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}

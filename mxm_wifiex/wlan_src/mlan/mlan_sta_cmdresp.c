@@ -158,7 +158,8 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 
 	ENTER();
 	if (resp->command != HostCmd_CMD_WMM_PARAM_CONFIG &&
-	    resp->command != HostCmd_CMD_CHAN_REGION_CFG)
+	    resp->command != HostCmd_CMD_CHAN_REGION_CFG &&
+	    resp->command != HostCmd_CMD_REGION_POWER_CFG)
 		PRINTM(MERROR, "CMD_RESP: cmd %#x error, result=%#x\n",
 		       resp->command, resp->result);
 	if (pioctl_buf)
@@ -334,6 +335,10 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 	case HostCmd_CMD_CHAN_REGION_CFG:
 		ret = MLAN_STATUS_SUCCESS;
 		PRINTM(MCMND, "FW don't support chan region cfg command!\n");
+		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		ret = MLAN_STATUS_SUCCESS;
+		PRINTM(MCMND, "FW don't support region power cfg command!\n");
 		break;
 	default:
 		break;
@@ -3354,9 +3359,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_RF_ANTENNA:
 		ret = wlan_ret_802_11_rf_antenna(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_CW_MODE_CTRL:
-		ret = wlan_ret_cw_mode_ctrl(pmpriv, resp, pioctl_buf);
-		break;
 	case HostCmd_CMD_VERSION_EXT:
 		ret = wlan_ret_ver_ext(pmpriv, resp, pioctl_buf);
 		break;
@@ -3511,6 +3513,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_MEM_ACCESS:
 		ret = wlan_ret_mem_access(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_GPIO_CFG:
+		ret = wlan_ret_gpio_cfg_ops(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCmd_CMD_INACTIVITY_TIMEOUT_EXT:
 		ret = wlan_ret_inactivity_timeout(pmpriv, resp, pioctl_buf);
 		break;
@@ -3612,6 +3617,8 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CHAN_REGION_CFG:
 		ret = wlan_ret_chan_region_cfg(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		break;
 	case HostCmd_CMD_AUTO_TX:
 		ret = wlan_ret_auto_tx(pmpriv, resp, pioctl_buf);
 		break;
@@ -3694,6 +3701,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_CROSS_CHIP_SYNCH:
 		ret = wlan_ret_cross_chip_synch(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_802_11_TX_FRAME:
+		break;
+	case HostCmd_CMD_EDMAC_CFG:
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",

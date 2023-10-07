@@ -1169,7 +1169,7 @@ static mlan_status wlan_cmd_802_11_key_material(pmlan_private pmpriv,
 		PRINTM(MCMND, "Remove Key\n");
 		goto done;
 	}
-	pkey_material->action = wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+	pkey_material->action = wlan_cpu_to_le16(cmd_action);
 	pkey_material->key_param_set.key_idx = pkey->key_index & KEY_INDEX_MASK;
 	pkey_material->key_param_set.type =
 		wlan_cpu_to_le16(TLV_TYPE_KEY_PARAM_V2);
@@ -3750,10 +3750,6 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_802_11_rf_antenna(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
 		break;
-	case HostCmd_CMD_CW_MODE_CTRL:
-		ret = wlan_cmd_cw_mode_ctrl(pmpriv, cmd_ptr, cmd_action,
-					    pdata_buf);
-		break;
 	case HostCmd_CMD_TXPWR_CFG:
 		ret = wlan_cmd_tx_power_cfg(pmpriv, cmd_ptr, cmd_action,
 					    pdata_buf);
@@ -4034,6 +4030,9 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_MEM_ACCESS:
 		ret = wlan_cmd_mem_access(cmd_ptr, cmd_action, pdata_buf);
 		break;
+	case HostCmd_CMD_GPIO_CFG:
+		ret = wlan_cmd_gpio_cfg_ops(cmd_ptr, cmd_action, pdata_buf);
+		break;
 	case HostCmd_CMD_INACTIVITY_TIMEOUT_EXT:
 		ret = wlan_cmd_inactivity_timeout(cmd_ptr, cmd_action,
 						  pdata_buf);
@@ -4175,6 +4174,13 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 			sizeof(HostCmd_DS_CHAN_REGION_CFG) + S_DS_GEN);
 		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
 		break;
+	case HostCmd_CMD_REGION_POWER_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size = wlan_cpu_to_le16(
+			sizeof(HostCmd_DS_REGION_POWER_CFG) + S_DS_GEN);
+		cmd_ptr->params.rg_power_cfg.action =
+			wlan_cpu_to_le16(cmd_action);
+		break;
 	case HostCmd_CMD_AUTO_TX:
 		ret = wlan_cmd_auto_tx(pmpriv, cmd_ptr, cmd_action, cmd_oid,
 				       pdata_buf);
@@ -4274,6 +4280,13 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_CROSS_CHIP_SYNCH:
 		ret = wlan_cmd_cross_chip_synch(pmpriv, cmd_ptr, cmd_action,
 						pdata_buf);
+		break;
+	case HostCmd_CMD_802_11_TX_FRAME:
+		ret = wlan_cmd_tx_frame(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_EDMAC_CFG:
+		ret = wlan_cmd_edmac_cfg(pmpriv, cmd_ptr, cmd_action,
+					 pdata_buf);
 		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);

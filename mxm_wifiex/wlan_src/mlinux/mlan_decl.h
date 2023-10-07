@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "408.p2"
+#define MLAN_RELEASE_VERSION "423.p1"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -157,10 +157,6 @@ typedef t_s32 t_sval;
 /** This is current limit on Maximum Rx AMPDU allowed */
 #define MLAN_MAX_RX_BASTREAM_SUPPORTED 16
 
-#ifndef UINT_MAX
-#define UINT_MAX (~0U)
-#endif
-
 #ifdef STA_SUPPORT
 /** Default Win size attached during ADDBA request */
 #define MLAN_STA_AMPDU_DEF_TXWINSIZE 64
@@ -184,6 +180,11 @@ typedef t_s32 t_sval;
 /** RX winsize for COEX */
 #define MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE 16
 #endif
+
+/** NAN use the same window size for tx/rx */
+#define MLAN_NAN_AMPDU_DEF_TXRXWINSIZE 16
+/** RX winsize for COEX */
+#define MLAN_NAN_COEX_AMPDU_DEF_RXWINSIZE 16
 
 /** Block ack timeout value */
 #define MLAN_DEFAULT_BLOCK_ACK_TIMEOUT 0xffff
@@ -273,9 +274,14 @@ typedef t_s32 t_sval;
 /** pcie inband reset */
 #define FW_RELOAD_PCIE_INBAND_RESET 6
 
+/** auto fw reload enable */
+#define AUTO_FW_RELOAD_ENABLE MBIT(0)
+/** auto fw reload enable pcie inband reset */
+#define AUTO_FW_RELOAD_PCIE_INBAND_RESET MBIT(1)
+
 #ifdef PCIE
 /* Interrupt type */
-enum { RX_DATA, RX_EVENT, TX_COMPLETE, RX_CMD_RESP };
+enum { RX_DATA, RX_EVENT, TX_COMPLETE, RX_CMD_RESP, RX_CMD_DNLD };
 #endif
 #ifdef USB
 #define MLAN_USB_BLOCK_SIZE (512)
@@ -747,6 +753,7 @@ typedef enum _mlan_bss_type {
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_BSS_TYPE_WIFIDIRECT = 2,
 #endif
+	MLAN_BSS_TYPE_NAN = 4,
 	MLAN_BSS_TYPE_DFS = 8,
 	MLAN_BSS_TYPE_ANY = 0xff,
 } mlan_bss_type;
@@ -803,6 +810,8 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_FW_RADAR_DETECTED = 0x00000024,
 	MLAN_EVENT_ID_FW_CHANNEL_REPORT_RDY = 0x00000025,
 	MLAN_EVENT_ID_FW_BW_CHANGED = 0x00000026,
+	MLAN_EVENT_ID_FW_IBSS_CONNECT = 0x00000028,
+	MLAN_EVENT_ID_FW_IBSS_DISCONNECT = 0x00000029,
 	MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED = 0x0000002B,
 
 #ifdef UAP_SUPPORT
@@ -845,6 +854,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_UAP_CHAN_INFO = 0x80000020,
 #endif
 	MLAN_EVENT_ID_FW_ROAM_OFFLOAD_RESULT = 0x80000023,
+	MLAN_EVENT_ID_NAN_STARTED = 0x80000024,
 	MLAN_EVENT_ID_DRV_RTT_RESULT = 0x80000025,
 	MLAN_EVENT_ID_DRV_ASSOC_FAILURE_LOGGER = 0x80000026,
 	MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER = 0x80000027,
@@ -857,7 +867,9 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DEFER_RX_EVENT = 0x80000033,
 	MLAN_EVENT_ID_DRV_DEFER_CMDRESP = 0x80000034,
 	MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE = 0x80000035,
+	MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE = 0x80000036,
 #endif
+	MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH = 0x80000037,
 } mlan_event_id;
 
 /** Data Structures */
@@ -907,7 +919,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 
 #define OID_TYPE_CAL 0x2
 #define OID_TYPE_DPD 0xa
+#define NONE_TYPE_DPD 0xb
 #define UNKNOW_DPD_LENGTH 0xffffffff
+#define NONE_DPD_LENGTH 0xfafafafa
 
 /** Custom data structure */
 typedef struct _mlan_init_param {
@@ -1291,7 +1305,19 @@ typedef MLAN_PACK_START struct _mc_txcontrol {
 	/** mc_pkt_flags */
 	t_u8 mc_pkt_flags;
 } MLAN_PACK_END mc_txcontrol, *pmc_txcontrol;
-
+typedef MLAN_PACK_START struct MAPP_Stats_Mcast_drv {
+	t_u32 cycle_recv_under_2300usec;
+	t_u32 cycle_recv_in_time;
+	t_u32 cycle_recv_over_2900usec;
+	t_u32 cycle_recv_over_3500usec;
+	t_u32 cycle_recv_over_5000usec;
+	t_u32 cycle_recv_over_10000usec;
+	t_u32 cycle_recv_over_15000usec;
+	t_u32 spent_time_under_1000usec;
+	t_u32 spent_time_over_1000usec;
+	t_u32 spent_time_over_2000usec;
+	t_u32 spent_time_over_3000usec;
+} MLAN_PACK_END Stats_mcast_drv_t, *pStats_mcast_drv_t;
 /** mlan_buffer data structure */
 typedef struct _mlan_buffer {
 	/** Pointer to previous mlan_buffer */
@@ -2781,5 +2807,98 @@ MLAN_API void mlan_process_pcie_interrupt_cb(t_void *pmadapter, int type);
 #endif
 
 #define CSI_SIGNATURE 0xABCD
+
+/** secure add/sub **/
+#ifndef SINT8_MAX
+#define SINT8_MAX 0x7f
+#endif
+
+#ifndef SINT8_MIN
+#define SINT8_MIN 0x80
+#endif
+
+#ifndef UINT8_MAX
+#define UINT8_MAX 0xff
+#endif
+
+#ifndef SINT16_MAX
+#define SINT16_MAX 0x7fff
+#endif
+
+#ifndef SINT16_MIN
+#define SINT16_MIN 0x8000
+#endif
+
+#ifndef UINT16_MAX
+#define UINT16_MAX 0xffff
+#endif
+
+#ifndef SINT32_MAX
+#define SINT32_MAX 0x7fffffff
+#endif
+
+#ifndef SINT32_MIN
+#define SINT32_MIN 0x80000000
+#endif
+
+#ifndef UINT32_MAX
+#define UINT32_MAX 0xffffffff
+#endif
+
+#ifndef SINT64_MAX
+#define SINT64_MAX 0x7fffffffffffffff
+#endif
+
+#ifndef SINT64_MIN
+#define SINT64_MIN 0x8000000000000000
+#endif
+
+#ifndef UINT64_MAX
+#define UINT64_MAX 0xffffffffffffffff
+#endif
+
+#ifndef PTR_MAX
+#ifdef MLAN_64BIT
+#define PTR_MAX UINT64_MAX
+#else
+#define PTR_MAX UINT32_MAX
+#endif
+#endif
+
+#ifndef SINT_MAX
+#ifdef MLAN_64BIT
+#define SINT_MAX SINT64_MAX
+#else
+#define SINT_MAX SINT32_MAX
+#endif
+#endif
+
+#ifndef SINT_MIN
+#ifdef MLAN_64BIT
+#define SINT_MIN SINT64_MIN
+#else
+#define SINT_MIN SINT32_MIN
+#endif
+#endif
+
+#ifndef UINT_MAX
+#ifdef MLAN_64BIT
+#define UINT_MAX UINT64_MAX
+#else
+#define UINT_MAX UINT32_MAX
+#endif
+#endif
+
+typedef enum {
+	TYPE_SINT8,
+	TYPE_UINT8,
+	TYPE_SINT16,
+	TYPE_UINT16,
+	TYPE_SINT32,
+	TYPE_UINT32,
+	TYPE_SINT64,
+	TYPE_UINT64,
+	TYPE_PTR,
+} data_type;
 
 #endif /* !_MLAN_DECL_H_ */

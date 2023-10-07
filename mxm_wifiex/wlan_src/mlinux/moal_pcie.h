@@ -47,20 +47,24 @@ Change log:
 #define PCIE_DEVICE_ID_88W9097 (0x2b56)
 #endif
 
+#if defined(PCIE9098)
 /** PCIE device ID for 9098 card FN0 */
 #define PCIE_DEVICE_ID_88W9098P_FN0 (0x2b43)
 /** PCIE device ID for 9098 card FN1 */
 #define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
+#endif
 
 #ifdef PCIEIW624
 /** PCIE device ID for IW624 card FN0 */
 #define PCIE_DEVICE_ID_88WIW624 (0x3000)
 #endif
 
+#if defined(PCIE9098)
 /** PCIE device ID for AW693 card FN0 */
 #define PCIE_DEVICE_ID_88WAW693_FN0 (0x3003)
 /** PCIE device ID for AW693 card FN1 */
 #define PCIE_DEVICE_ID_88WAW693_FN1 (0x3004)
+#endif
 
 #include <linux/version.h>
 #include <linux/pci.h>
@@ -86,10 +90,6 @@ Change log:
 #define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcie8897_uapsta.bin"
 #define PCIE8897_DEFAULT_WLAN_FW_NAME "nxp/pcie8897_wlan.bin"
 #endif /* PCIE8897*/
-
-#define PCIEUARTAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieuartAW693_combo.bin"
-#define PCIEAW693_DEFAULT_COMBO_FW_NAME "nxp/pcieAW693_wlan.bin"
-#define PCIEAW693_DEFAULT_WLAN_FW_NAME "nxp/pcieAW693_wlan.bin"
 
 #ifdef PCIE9098
 #define PCIE9098_Z1Z2 0x00
@@ -124,10 +124,18 @@ Change log:
 #define PCIEIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
 #define PCIEUARTIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw624_combo.bin"
 #define PCIEUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTUARTIW624_DEFAULT_COMBO_FW_NAME                                \
+	"nxp/pcieuartuartiw624_combo.bin"
+#define PCIEUARTSPIIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartspiiw624_combo.bin"
+#define PCIEUSBUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbusbiw624_combo.bin"
 #define PCIEIW624_DEFAULT_WLAN_FW_NAME "nxp/pcieiw624_wlan.bin"
 #endif /* PCIEIW624 */
 
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEIW624)
 #define PCIE_NUM_MSIX_VECTORS 32
+#else
+#define PCIE_NUM_MSIX_VECTORS 4
+#endif
 
 typedef struct _msix_context {
 	/** pci_dev structure pointer */

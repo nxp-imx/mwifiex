@@ -63,6 +63,49 @@ static t_void wlan_handle_disconnect_event(pmlan_private pmpriv)
 }
 
 /**
+ *  @brief This function iterates over station list and notifies
+ *         mac address of each sta to respective event handler.
+ *
+ *  @param priv   A pointer to mlan_private structure
+ *  @event_id     A reference to mlan event
+ *  @return       N/A
+ */
+static void wlan_notify_stations(mlan_private *priv, mlan_event_id event_id)
+{
+	sta_node *sta_ptr;
+	t_u8 event_buf[128];
+	mlan_event *pevent = (mlan_event *)event_buf;
+	t_u8 *pbuf;
+
+	ENTER();
+	sta_ptr = (sta_node *)util_peek_list(
+		priv->adapter->pmoal_handle, &priv->sta_list,
+		priv->adapter->callbacks.moal_spin_lock,
+		priv->adapter->callbacks.moal_spin_unlock);
+
+	if (!sta_ptr) {
+		LEAVE();
+		return;
+	}
+
+	while (sta_ptr != (sta_node *)&priv->sta_list) {
+		memset(priv->adapter, event_buf, 0, sizeof(event_buf));
+		pevent->bss_index = priv->bss_index;
+		pevent->event_id = event_id;
+		pevent->event_len = MLAN_MAC_ADDR_LENGTH + 2;
+		pbuf = (t_u8 *)pevent->event_buf;
+		/* reason field set to 0, Unspecified */
+		memcpy_ext(priv->adapter, pbuf + 2, sta_ptr->mac_addr,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		wlan_recv_event(priv, pevent->event_id, pevent);
+		sta_ptr = sta_ptr->pnext;
+	}
+
+	LEAVE();
+	return;
+}
+
+/**
  *  @brief This function will parse the TDLS event for further wlan action
  *
  *  @param priv     A pointer to mlan_private
@@ -334,6 +377,75 @@ static void wlan_send_tdls_tear_down_request(pmlan_private priv)
 	return;
 }
 
+/**
+ *  @brief This function will handle the generic NAN event for further wlan
+ * action based on the Event subtypes
+ *
+ *  @param pmpriv     A pointer to mlan_private
+ *  @param evt_buf    A pointer to mlan_event
+ *  @param pmbuf    A pointer to mlan buffer
+ *
+ *  @return         N/A
+ */
+static void wlan_process_nan_event(pmlan_private pmpriv, pmlan_buffer pmbuf)
+{
+	t_u8 *evt_buf = MNULL;
+	mlan_event *pevent;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	event_nan_generic *nan_event =
+		(event_nan_generic *)(pmbuf->pbuf + pmbuf->data_offset +
+				      sizeof(mlan_event_id));
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+
+	ENTER();
+
+	ret = pcb->moal_malloc(pmadapter->pmoal_handle, MAX_EVENT_SIZE,
+			       MLAN_MEM_DEF, &evt_buf);
+	if (ret != MLAN_STATUS_SUCCESS || !evt_buf) {
+		LEAVE();
+		return;
+	}
+
+	pevent = (pmlan_event)evt_buf;
+
+	pevent->bss_index = pmpriv->bss_index;
+	if (wlan_le16_to_cpu(nan_event->event_sub_type) ==
+		    NAN_EVT_SUBTYPE_SD_EVENT ||
+	    wlan_le16_to_cpu(nan_event->event_sub_type) ==
+		    NAN_EVT_SUBTYPE_SDF_TX_DONE) {
+		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
+		pevent->event_len = pmbuf->data_len;
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
+		wlan_recv_event(pmpriv, pevent->event_id, pevent);
+		pcb->moal_mfree(pmadapter->pmoal_handle, evt_buf);
+	} else {
+		t_u8 test_mac[MLAN_MAC_ADDR_LENGTH] = {0x00, 0x11, 0x22,
+						       0x33, 0x44, 0x55};
+		pevent->event_id = MLAN_EVENT_ID_DRV_CONNECTED;
+		pevent->event_len = MLAN_MAC_ADDR_LENGTH;
+		memcpy_ext(pmpriv->adapter, (t_u8 *)pevent->event_buf, test_mac,
+			   MLAN_MAC_ADDR_LENGTH, pevent->event_len);
+		wlan_ralist_add(pmpriv, test_mac);
+		memcpy_ext(pmpriv->adapter,
+			   pmpriv->curr_bss_params.bss_descriptor.mac_address,
+			   test_mac, MLAN_MAC_ADDR_LENGTH,
+			   MLAN_MAC_ADDR_LENGTH);
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_CONNECTED, pevent);
+		if (pmpriv->port_ctrl_mode == MTRUE)
+			pmpriv->port_open = MTRUE;
+		pmpriv->media_connected = MTRUE;
+		PRINTM_NETINTF(MEVENT, pmpriv);
+		PRINTM(MEVENT, "nan interface - opened\n");
+		pcb->moal_mfree(pmadapter->pmoal_handle, evt_buf);
+	}
+
+	LEAVE();
+	return;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -377,10 +489,6 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 		else
 #endif
 			wlan_11h_check_update_radar_det_state(priv);
-#if defined(USB)
-		if (IS_USB(pmadapter->card_type))
-			wlan_resync_usb_port(pmadapter);
-#endif
 	}
 
 	if (priv->port_ctrl_mode == MTRUE) {
@@ -887,6 +995,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_clean_txrx(pmpriv);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_ADHOC_LINK_LOST,
 				MNULL);
+		/* Notify IBSS disconnect handler to delete stations if any. */
+		wlan_notify_stations(pmpriv, MLAN_EVENT_ID_FW_IBSS_DISCONNECT);
 		break;
 	case EVENT_ASSOC_REQ_IE:
 		pmpriv->assoc_req_size = pmbuf->data_len - sizeof(eventcause);
@@ -932,10 +1042,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_PORT_RELEASE, MNULL);
 		/* Send OBSS scan param to the application */
 		wlan_2040_coex_event(pmpriv);
-#if defined(USB)
-		if (IS_USB(pmadapter->card_type))
-			wlan_resync_usb_port(pmadapter);
-#endif
 		break;
 
 	case EVENT_STOP_TX:
@@ -1296,8 +1402,22 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 
 	case EVENT_IBSS_STATION_CONNECT:
+		pevent->bss_index = pmpriv->bss_index;
+		pevent->event_id = MLAN_EVENT_ID_FW_IBSS_CONNECT;
+		pevent->event_len = pmbuf->data_len;
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
+		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
 	case EVENT_IBSS_STATION_DISCONNECT:
+		pevent->bss_index = pmpriv->bss_index;
+		pevent->event_id = MLAN_EVENT_ID_FW_IBSS_DISCONNECT;
+		pevent->event_len = pmbuf->data_len;
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
+		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
 	case EVENT_SAD_REPORT: {
 #ifdef DEBUG_LEVEL1
@@ -1338,6 +1458,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_BT_COEX_WLAN_PARA_CHANGE:
 		PRINTM(MEVENT, "EVENT: BT coex wlan param update\n");
 		wlan_bt_coex_wlan_param_update_event(pmpriv, pmbuf);
+		break;
+	case EVENT_NAN_GENERIC:
+		PRINTM(MEVENT, "EVENT: NAN_GENERIC_EVENT\n");
+		wlan_process_nan_event(pmpriv, pmbuf);
 		break;
 
 #if defined(PCIE)

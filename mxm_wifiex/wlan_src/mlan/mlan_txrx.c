@@ -89,7 +89,85 @@ done:
 	LEAVE();
 	return ret;
 }
+Stats_mcast_drv_t gmcast_stats = {0};
+/* This flag is used to protect the mcast drv stat update
+ * when it's value is copied to provide to mlanutl
+ * MTRUE = Update is allowed
+ * MFALSE = Update is not allowed
+ */
+t_u8 mcast_drv_update_allow_flag = MTRUE;
+#define DEST_MAC_OFFSET 10
+#define CYCLE_START 1
+#define FIVE_SEC 5000000 /* 1000000 usec = 1sec*/
+/**
+ *  @brief This function calculates the cycle delta and driver time delta
+ *  for Mcast packets
+ *
+ *  @param pmadapter    A pointer to pmlan_adapter structure
+ *  @param pmbuf   A pointer to the mlan_buffer for process
+ *
+ *  @return         Nothing
+ */
+void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
+					   pmlan_buffer pmbuf)
+{
+	static t_u32 prev_mcast_sec = 0;
+	static t_u32 prev_mcast_usec = 0;
+	t_u32 curr_ts_sec = 0;
+	t_u32 curr_ts_usec = 0;
+	t_u64 cycle_delta = 0;
+	t_u64 profile_delta = 0;
 
+	if (mcast_drv_update_allow_flag == MFALSE)
+		return;
+	/* Take current time */
+	if (pmadapter && pmadapter->pmoal_handle)
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &curr_ts_sec, &curr_ts_usec);
+	else
+		PRINTM(MERROR, "ERR: pmadapter or pmoal_handle NULL\n",
+		       __func__);
+
+	if (curr_ts_sec || curr_ts_usec) {
+		/* Calculate profile delta */
+		profile_delta = (curr_ts_sec - pmbuf->in_ts_sec) * 1000000;
+		profile_delta += (t_s32)(curr_ts_usec - pmbuf->in_ts_usec);
+
+		if ((profile_delta >= 0) && (profile_delta <= 1000))
+			gmcast_stats.spent_time_under_1000usec++;
+		else if ((profile_delta > 1000) && (profile_delta <= 2000))
+			gmcast_stats.spent_time_over_1000usec++;
+		else if ((profile_delta > 2000) && (profile_delta <= 3000))
+			gmcast_stats.spent_time_over_2000usec++;
+		else if (profile_delta > 3000)
+			gmcast_stats.spent_time_over_3000usec++;
+	}
+	/* Process the start cycle data */
+	cycle_delta = (pmbuf->in_ts_sec - prev_mcast_sec) * 1000000;
+	cycle_delta += (t_s32)(pmbuf->in_ts_usec - prev_mcast_usec);
+
+	/* If start cycle delta is more than 5 sec ignore*/
+	if ((pmbuf->u.mc_tx_info.mc_pkt_flags & (1 << CYCLE_START)) &&
+	    (cycle_delta < FIVE_SEC)) {
+		if ((cycle_delta >= 0) && (cycle_delta <= 2300))
+			gmcast_stats.cycle_recv_under_2300usec++;
+		if ((cycle_delta > 2300) && (cycle_delta <= 2900))
+			gmcast_stats.cycle_recv_in_time++;
+		if ((cycle_delta > 2900) && (cycle_delta <= 3500))
+			gmcast_stats.cycle_recv_over_2900usec++;
+		if ((cycle_delta > 3500) && (cycle_delta <= 5000))
+			gmcast_stats.cycle_recv_over_3500usec++;
+		if ((cycle_delta > 5000) && (cycle_delta <= 10000))
+			gmcast_stats.cycle_recv_over_5000usec++;
+		if ((cycle_delta > 10000) && (cycle_delta <= 15000))
+			gmcast_stats.cycle_recv_over_10000usec++;
+		if (cycle_delta > 15000)
+			gmcast_stats.cycle_recv_over_15000usec++;
+	}
+	/* Update the last received mcast cycle value */
+	prev_mcast_sec = pmbuf->in_ts_sec;
+	prev_mcast_usec = pmbuf->in_ts_usec;
+}
 /**
  *  @brief This function checks the conditions and sends packet to device
  *
@@ -112,6 +190,7 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 #ifdef STA_SUPPORT
 	PTxPD plocal_tx_pd = MNULL;
 #endif
+	t_u8 dest_mac_first_octet = 0;
 
 	ENTER();
 	head_ptr = (t_u8 *)priv->ops.process_txpd(priv, pmbuf);
@@ -124,6 +203,11 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
 		plocal_tx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
 #endif
+	dest_mac_first_octet = *(head_ptr + priv->intf_hr_len + sizeof(TxPD) +
+				 DEST_MAC_OFFSET);
+
+	if (dest_mac_first_octet & 0x01)
+		wlan_drv_mcast_cycle_delay_calulation(pmadapter, pmbuf);
 	if (pmadapter->tp_state_on)
 		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
 							pmbuf, 4);

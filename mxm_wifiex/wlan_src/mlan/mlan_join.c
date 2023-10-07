@@ -839,6 +839,14 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	ap_mfpc = ((*prsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
 	ap_mfpr = ((*prsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
 
+	/* Check for negative case
+	 * If WPA3SAE AP has PMF=0, block the association */
+	if ((*akm_type == AssocAgentAuth_Wpa3Sae) && (!ap_mfpc && !ap_mfpr)) {
+		PRINTM(MERROR,
+		       "RSNE: WPA3-SAE AP with incorrect PMF setting, can't associate to AP\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
 	if ((!ap_mfpc && !ap_mfpr && pmpriv->pmfcfg.mfpr) ||
 	    ((!ap_mfpc) && ap_mfpr) ||
 	    (ap_mfpc && ap_mfpr && (!pmpriv->pmfcfg.mfpc))) {
@@ -1627,21 +1635,22 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	assoc_logger_data *assoc_succ;
 	mlan_ds_bss *bss;
 	IEEEtypes_MgmtHdr_t *hdr;
+	t_u16 sub_type = 0;
 
 	ENTER();
 
-	if (pmpriv->curr_bss_params.host_mlme) {
-		hdr = (IEEEtypes_MgmtHdr_t *)&resp->params;
-		if (!memcmp(pmpriv->adapter, hdr->BssId,
-			    pmpriv->pattempted_bss_desc->mac_address,
-			    MLAN_MAC_ADDR_LENGTH))
-			passoc_rsp = (IEEEtypes_AssocRsp_t
-					      *)((t_u8 *)(&resp->params) +
+	hdr = (IEEEtypes_MgmtHdr_t *)&resp->params;
+	sub_type = IEEE80211_GET_FC_MGMT_FRAME_SUBTYPE(hdr->FrmCtl);
+	if (!memcmp(pmpriv->adapter, hdr->BssId,
+		    pmpriv->pattempted_bss_desc->mac_address,
+		    MLAN_MAC_ADDR_LENGTH) &&
+	    ((sub_type == SUBTYPE_ASSOC_RESP) ||
+	     (sub_type == SUBTYPE_REASSOC_RESP))) {
+		passoc_rsp =
+			(IEEEtypes_AssocRsp_t *)((t_u8 *)(&resp->params) +
 						 sizeof(IEEEtypes_MgmtHdr_t));
-		else
-			passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
+		pmpriv->curr_bss_params.host_mlme = MTRUE;
 	} else
-
 		passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
 	passoc_rsp->status_code = wlan_le16_to_cpu(passoc_rsp->status_code);
 	if (pmpriv->media_connected == MTRUE)
@@ -2185,6 +2194,19 @@ mlan_status wlan_cmd_802_11_ad_hoc_start(mlan_private *pmpriv,
 			wlan_cpu_to_le16(prsn_ie_tlv->header.len);
 	}
 
+	if (pmpriv->curr_bss_params.host_mlme) {
+		MrvlIEtypes_HostMlme_t *host_mlme_tlv =
+			(MrvlIEtypes_HostMlme_t *)pos;
+		host_mlme_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_HOST_MLME);
+		host_mlme_tlv->header.len = sizeof(host_mlme_tlv->host_mlme);
+		host_mlme_tlv->host_mlme = MTRUE;
+		pos += sizeof(host_mlme_tlv->header) +
+		       host_mlme_tlv->header.len;
+		cmd_append_size += sizeof(MrvlIEtypes_HostMlme_t);
+		host_mlme_tlv->header.len =
+			wlan_cpu_to_le16(host_mlme_tlv->header.len);
+	}
 	cmd->size = (t_u16)wlan_cpu_to_le16(
 		(t_u16)(sizeof(HostCmd_DS_802_11_AD_HOC_START) + S_DS_GEN +
 			cmd_append_size));
@@ -2478,6 +2500,20 @@ mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
 			prsn_ie_tlv->header.len =
 				wlan_cpu_to_le16(prsn_ie_tlv->header.len);
 		}
+	}
+
+	if (pmpriv->curr_bss_params.host_mlme) {
+		MrvlIEtypes_HostMlme_t *host_mlme_tlv =
+			(MrvlIEtypes_HostMlme_t *)pos;
+		host_mlme_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_HOST_MLME);
+		host_mlme_tlv->header.len = sizeof(host_mlme_tlv->host_mlme);
+		host_mlme_tlv->host_mlme = MTRUE;
+		pos += sizeof(host_mlme_tlv->header) +
+		       host_mlme_tlv->header.len;
+		cmd_append_size += sizeof(MrvlIEtypes_HostMlme_t);
+		host_mlme_tlv->header.len =
+			wlan_cpu_to_le16(host_mlme_tlv->header.len);
 	}
 
 	cmd->size = (t_u16)wlan_cpu_to_le16(
