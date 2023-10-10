@@ -1509,19 +1509,7 @@ static mlan_status wlan_dnld_sleep_confirm_cmd(mlan_adapter *pmadapter)
 			cmd_len + pmadapter->ops.intf_header_len;
 #endif
 
-	if (pmbuf)
-		ret = pmadapter->ops.host_to_card(pmpriv, MLAN_TYPE_CMD, pmbuf,
-						  MNULL);
-
-#ifdef USB
-	if (IS_USB(pmadapter->card_type) && (ret != MLAN_STATUS_PENDING))
-		wlan_free_mlan_buffer(pmadapter, pmbuf);
-#endif
-	if (ret == MLAN_STATUS_FAILURE) {
-		PRINTM(MERROR, "SLEEP_CFM: failed\n");
-		pmadapter->dbg.num_cmd_sleep_cfm_host_to_card_failure++;
-		goto done;
-	} else {
+	if (pmbuf) {
 		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP)
 			pmadapter->ps_state = PS_STATE_SLEEP_CFM;
 #ifdef STA_SUPPORT
@@ -1558,8 +1546,19 @@ static mlan_status wlan_dnld_sleep_confirm_cmd(mlan_adapter *pmadapter)
 			else
 				PRINTM(MEVENT, "+");
 		}
-	}
 
+		ret = pmadapter->ops.host_to_card(pmpriv, MLAN_TYPE_CMD, pmbuf,
+						  MNULL);
+	}
+#ifdef USB
+	if (IS_USB(pmadapter->card_type) && (ret != MLAN_STATUS_PENDING))
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
+#endif
+	if (ret == MLAN_STATUS_FAILURE) {
+		PRINTM(MERROR, "SLEEP_CFM: failed\n");
+		pmadapter->dbg.num_cmd_sleep_cfm_host_to_card_failure++;
+		goto done;
+	}
 done:
 	LEAVE();
 	return ret;
