@@ -2269,10 +2269,6 @@ poll_fw:
 		LEAVE();
 		return ret;
 	}
-#ifdef SD9177
-	if (IS_SD9177(pmadapter->card_type))
-		wlan_mdelay(pmadapter, 1000);
-#endif
 done:
 
 	/* re-enable host interrupt for mlan after fw dnld is successful */

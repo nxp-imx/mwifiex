@@ -232,6 +232,49 @@ static t_u16 woal_update_card_type(t_void *card)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 /**
+ * @brief Function to program scratch register to ask device to clear ADMA
+ *
+ * @param handle    A pointer to moal_handle structure
+ *
+ * @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+
+static mlan_status woal_reset_adma(moal_handle *handle)
+{
+	int tries = 0;
+	int ret = MLAN_STATUS_SUCCESS;
+	t_u32 value;
+	t_u32 reset_reg = handle->card_info->fw_reset_reg;
+	t_u8 reset_adma_val = 0x97;
+
+	if (handle->ops.write_reg(handle, reset_reg, reset_adma_val) !=
+	    MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to write register.\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	for (tries = 0; tries < 100; ++tries) {
+		ret = handle->ops.read_reg(handle, reset_reg, &value);
+		if (value == 0) {
+			break;
+		}
+		moal_usleep_range(handle, 100, 200);
+	}
+
+	if (value == 0) {
+		PRINTM(MMSG, "%s:ADMA reset done\n", __func__);
+		ret = MLAN_STATUS_SUCCESS;
+	} else {
+		PRINTM(MERROR, "%s:ADMA reset failed(value:%x)\n", __func__,
+		       value);
+		ret = MLAN_STATUS_FAILURE;
+	}
+done:
+	return ret;
+}
+
+/**
  * @brief Function to process pre/post PCIe function level reset
  *
  * @param handle    A pointer to moal_handle structure
@@ -290,6 +333,7 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
 	woal_clean_up(handle);
+	mlan_ioctl(handle->pmlan_adapter, NULL);
 
 	/* Shutdown firmware */
 	handle->init_wait_q_woken = MFALSE;
@@ -830,6 +874,12 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 		}
 	}
 	handle->surprise_removed = MTRUE;
+	// TODO: Can add more chips once the related code has been ported to fw
+	// v18
+	if (IS_PCIE9097(handle->card_type) || IS_PCIE9098(handle->card_type)) {
+		woal_reset_adma(handle);
+	}
+
 	woal_do_flr(handle, true, true);
 	if (ref_handle) {
 		ref_handle->surprise_removed = MTRUE;
@@ -934,6 +984,12 @@ static void woal_pcie_reset_notify(struct pci_dev *pdev, bool prepare)
 		 * Note. FW might not be healthy.
 		 */
 		handle->surprise_removed = MTRUE;
+		// TODO: Can add more chips once the related code has been
+		// ported to fw v18
+		if (IS_PCIE9097(handle->card_type) ||
+		    IS_PCIE9098(handle->card_type)) {
+			woal_reset_adma(handle);
+		}
 		woal_do_flr(handle, prepare, true);
 		if (ref_handle) {
 			ref_handle->surprise_removed = MTRUE;

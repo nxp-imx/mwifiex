@@ -395,6 +395,8 @@ enum _mlan_act_ioctl {
 	MLAN_ACT_RESET,
 	MLAN_ACT_DEFAULT
 };
+#define MLAN_ACT_PASN_KEY_DNLD 7
+#define MLAN_ACT_PASN_SET_KEY 0
 /** Enumeration for generic enable/disable */
 enum _mlan_act_generic { MLAN_ACT_DISABLE = 0, MLAN_ACT_ENABLE = 1 };
 
@@ -2380,6 +2382,8 @@ typedef struct _mlan_debug_info {
 	t_u8 tx_lock_flag;
 	/** Corresponds to port_open member of mlan_private */
 	t_u8 port_open;
+	/** Corresponds to tx_pause member of mlan_private */
+	t_u8 tx_pause;
 	/** bypass pkt count */
 	t_u32 bypass_pkt_count;
 	/** Corresponds to scan_processing member of mlan_adapter */

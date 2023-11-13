@@ -3127,14 +3127,14 @@ static t_u8 wlan_get_chan_rssi(mlan_adapter *pmadapter, t_u8 channel,
 	for (i = 0; i < (int)pmadapter->num_in_scan_table; i++) {
 		if (pmadapter->pscan_table[i].channel == channel) {
 			if (rssi == 0)
-				rssi = (t_s32)pmadapter->pscan_table[i].rssi;
+				rssi = (t_u8)pmadapter->pscan_table[i].rssi;
 			else {
 				if (min_flag)
-					rssi = MIN(
+					rssi = (t_u8)MIN(
 						rssi,
 						pmadapter->pscan_table[i].rssi);
 				else
-					rssi = MAX(
+					rssi = (t_u8)MAX(
 						rssi,
 						pmadapter->pscan_table[i].rssi);
 			}

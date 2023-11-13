@@ -4591,6 +4591,15 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		return -EBUSY;
 	}
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	/* This check is to prevent the situation where
+	 * new scan request comes while Auth is not completed */
+	if (priv->auth_flag & HOST_MLME_AUTH_PENDING) {
+		PRINTM(MCMND, "Block scan as auth is pending\n");
+		LEAVE();
+		return -EAGAIN;
+	}
+#endif
 	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 	priv->phandle->scan_request = request;
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
@@ -8043,12 +8052,13 @@ static int woal_send_tdls_action_frame(struct wiphy *wiphy,
 
 	pmbuf = woal_alloc_mlan_buffer(
 		priv->phandle,
-		MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE + sizeof(pkt_len) +
+		((int)((MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
+			sizeof(pkt_len) +
 			max(sizeof(struct ieee80211_mgmt),
-			    sizeof(struct ieee80211_tdls_data)) +
-			50 + /* supported rates */
-			sizeof(IEEEtypes_ExtCap_t) + /* ext capab */
-			extra_ies_len + sizeof(IEEEtypes_tdls_linkie));
+			    sizeof(struct ieee80211_tdls_data))) +
+		       50 + /* supported rates */
+		       sizeof(IEEEtypes_ExtCap_t) + /* ext capab */
+		       extra_ies_len + sizeof(IEEEtypes_tdls_linkie))));
 	if (!pmbuf) {
 		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
 		ret = -ENOMEM;
@@ -10433,7 +10443,8 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		PRINTM(MIOCTL, "Follow countryIE provided by AP.\n");
 	}
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && CFG80211_VERSION_CODE < KERNEL_VERSION(6, 1, 39)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if CFG80211_VERSION_CODE <= KERNEL_VERSION(6, 1, 38)
 	/*REGULATORY_IGNORE_STALE_KICKOFF: the regulatory core will _not_ make
 	 * sure all interfaces on this wiphy reside on allowed channels. If this
 	 * flag is not set, upon a regdomain change, the interfaces are given a
@@ -10441,7 +10452,18 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 	 * allowed channel.*/
 	wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
 #endif
+#endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+#if CFG80211_VERSION_CODE <= KERNEL_VERSION(6, 3, 12)
+	/*REGULATORY_IGNORE_STALE_KICKOFF: the regulatory core will _not_ make
+	 * sure all interfaces on this wiphy reside on allowed channels. If this
+	 * flag is not set, upon a regdomain change, the interfaces are given a
+	 * grace period (currently 60 seconds) to disconnect or move to an
+	 * allowed channel.*/
+	wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
+#endif
+#endif
 	memset(&priv->phandle->country_code, 0,
 	       sizeof(priv->phandle->country_code));
 	priv->phandle->dfs_region = NXP_DFS_UNKNOWN;

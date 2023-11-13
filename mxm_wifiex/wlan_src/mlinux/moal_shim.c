@@ -4588,8 +4588,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		tx_status_event *tx_status =
 			(tx_status_event *)(pmevent->event_buf + 4);
 		struct tx_status_info *tx_info = NULL;
-		PRINTM(MINFO,
-		       "Receive Tx status: tx_token=%d, pkt_type=0x%x, status=%d tx_seq_num=%d\n",
+		PRINTM(MEVENT,
+		       "Wlan: Tx status: tx_token=%d, pkt_type=0x%x, status=%d priv->tx_seq_num=%d\n",
 		       tx_status->tx_token_id, tx_status->packet_type,
 		       tx_status->status, priv->tx_seq_num);
 		spin_lock_irqsave(&priv->tx_stat_lock, flag);

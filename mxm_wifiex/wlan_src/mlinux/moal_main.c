@@ -5593,6 +5593,7 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 	if (dev->reg_state == NETREG_REGISTERED)
 		unregister_netdev(dev);
 
+	woal_sched_timeout(100);
 	if (priv->mclist_workqueue) {
 		flush_workqueue(priv->mclist_workqueue);
 		destroy_workqueue(priv->mclist_workqueue);
@@ -6690,6 +6691,7 @@ void woal_mlan_debug_info(moal_private *priv)
 	       info->sleep_pd);
 	PRINTM(MERROR, "tx_lock_flag = %d\n", info->tx_lock_flag);
 	PRINTM(MERROR, "port_open = %d\n", info->port_open);
+	PRINTM(MERROR, "tx_pause = %d\n", info->tx_pause);
 	PRINTM(MERROR, "scan_processing = %d\n", info->scan_processing);
 	PRINTM(MERROR, "scan_state = 0x%x\n", info->scan_state);
 	for (i = 0; i < (int)info->ralist_num; i++) {
@@ -6761,6 +6763,12 @@ void woal_tx_timeout(struct net_device *dev
 	priv->num_tx_timeout++;
 	PRINTM(MERROR, "%lu : %s (bss=%d): Tx timeout (%d)\n", jiffies,
 	       dev->name, priv->bss_index, priv->num_tx_timeout);
+	PRINTM(MERROR, "num_tx_pkts = %lu\n", priv->stats.tx_packets);
+	PRINTM(MERROR, "tx_pending = %d\n",
+	       atomic_read(&priv->phandle->tx_pending));
+	if (priv->num_tx_timeout < NUM_TX_TIMEOUT_THRESHOLD)
+		woal_mlan_debug_info(priv);
+
 	woal_set_trans_start(dev);
 
 	if (priv->num_tx_timeout == NUM_TX_TIMEOUT_THRESHOLD &&
@@ -10384,6 +10392,7 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_lock_flag = %d\n",
 			info->tx_lock_flag);
 	ptr += snprintf(ptr, MAX_BUF_LEN, "port_open = %d\n", info->port_open);
+	ptr += snprintf(ptr, MAX_BUF_LEN, "tx_pause = %d\n", info->tx_pause);
 	ptr += snprintf(ptr, MAX_BUF_LEN, "scan_processing = %d\n",
 			info->scan_processing);
 	ptr += snprintf(ptr, MAX_BUF_LEN, "scan_state = %d\n",

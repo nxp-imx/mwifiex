@@ -555,6 +555,28 @@ void woal_sdio_remove(struct sdio_func *func)
 		PRINTM(MINFO, "SDIO func=%d\n", func->num);
 		card = sdio_get_drvdata(func);
 		if (card) {
+			/* We need to advance the time to set surprise_removed
+			 * to MTRUE as fast as possible to avoid race condition
+			 * with woal_sdio_interrupt()
+			 *
+			 * @todo: Due to woal_sdio_interrupt() is called in
+			 * Linux's work queue, cannot be suspended to impact
+			 * other works. Need a lock in these two functions:
+			 * woal_sdio_remove() waits until woal_sdio_interrupt
+			 * ends. woal_sdio_interrupt() returns if
+			 * woal_sdio_remove() is running.
+			 */
+			if (card->handle != NULL) {
+				card->handle->surprise_removed = MTRUE;
+
+				/* check if woal_sdio_interrupt() is running */
+				while (card->handle->main_state !=
+				       MOAL_END_MAIN_PROCESS)
+					woal_sched_timeout(2); /* wait until
+								  woal_sdio_interrupt
+								  ends */
+			}
+
 #ifdef IMX_SUPPORT
 			woal_unregist_oob_wakeup_irq(card->handle);
 #endif /* IMX_SUPPORT */

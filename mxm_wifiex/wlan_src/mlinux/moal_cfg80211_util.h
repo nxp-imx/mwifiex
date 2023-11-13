@@ -616,6 +616,21 @@ typedef enum wifi_attr {
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
+enum mrvl_wlan_vendor_attr_secure_ranging_ctx {
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION = 1,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR = 2,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR = 3,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE = 4,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK = 5,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER = 6,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED = 7,
+
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX =
+		MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST - 1,
+};
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
@@ -708,6 +723,7 @@ enum vendor_sub_command {
 	sub_cmd_dfs_capability = 0x0005,
 	sub_cmd_set_scan_mac_oui = 0x0007,
 	sub_cmd_set_scan_band = 0x0008,
+	sub_cmd_secure_ranging_ctx = 0x0009,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,

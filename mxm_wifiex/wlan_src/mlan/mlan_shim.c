@@ -1495,6 +1495,22 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 }
 
 /**
+ *  @brief clean up txrx
+ *
+ *  @param adapter	A pointer to mlan_adapter structure
+ *
+ *  @return		N/A
+ */
+static t_void wlan_free_txrx(pmlan_adapter pmadapter)
+{
+	t_u8 i;
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_clean_txrx(pmadapter->priv[i]);
+	}
+}
+
+/**
  *  @brief MLAN ioctl handler
  *
  *  @param adapter	A pointer to mlan_adapter structure
@@ -1512,8 +1528,9 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 	ENTER();
 
 	if (pioctl_req == MNULL) {
-		PRINTM(MMSG, "Cancel all pending cmd!\n");
+		PRINTM(MMSG, "Cancel all pending cmd and txrx queue\n");
 		wlan_cancel_all_pending_cmd(pmadapter, MFALSE);
+		wlan_free_txrx(pmadapter);
 		goto exit;
 	}
 	pmpriv = pmadapter->priv[pioctl_req->bss_index];

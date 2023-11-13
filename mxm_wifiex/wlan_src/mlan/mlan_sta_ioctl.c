@@ -3122,6 +3122,7 @@ static mlan_status wlan_sec_ioctl_encrypt_key(pmlan_adapter pmadapter,
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if ((pioctl_req->action == MLAN_ACT_SET) ||
+	    (pioctl_req->action == MLAN_ACT_PASN_KEY_DNLD) ||
 	    (pioctl_req->action == MLAN_ACT_CLEAR)) {
 		if (sec->param.encrypt_key.is_wapi_key)
 			status = wlan_sec_ioctl_set_wapi_key(pmadapter,

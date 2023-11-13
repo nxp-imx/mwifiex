@@ -3703,8 +3703,8 @@ void wlan_dump_ralist(mlan_private *priv)
 	tx_pkts_queued =
 		util_scalar_read(pmadapter->pmoal_handle,
 				 &priv->wmm.tx_pkts_queued, MNULL, MNULL);
-	PRINTM(MERROR, "bss_index = %d, tx_pkts_queued = %d\n", priv->bss_index,
-	       tx_pkts_queued);
+	PRINTM(MERROR, "bss_index = %d, tx_pkts_queued = %d tx_pause\n",
+	       priv->bss_index, tx_pkts_queued, priv->tx_pause);
 	if (!tx_pkts_queued)
 		return;
 	for (i = 0; i < MAX_NUM_TID; i++) {

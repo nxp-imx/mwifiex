@@ -3535,6 +3535,15 @@ mlan_status wlan_11h_ioctl_chan_dfs_state(pmlan_adapter pmadapter,
 				wlan_11h_add_dfs_timestamp(
 					pmadapter, DFS_TS_REPR_NOP_START,
 					ds_11hcfg->param.ch_dfs_state.channel);
+			} else if (ds_11hcfg->param.ch_dfs_state.dfs_state ==
+				   DFS_AVAILABLE) {
+				if (MFALSE ==
+				    wlan_11h_is_channel_under_nop(
+					    pmadapter,
+					    ds_11hcfg->param.ch_dfs_state
+						    .channel))
+					PRINTM(MINFO,
+					       "Channel is not in NOP\n");
 			}
 			wlan_set_chan_dfs_state(
 				priv, BAND_A,

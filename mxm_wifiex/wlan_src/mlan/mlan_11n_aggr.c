@@ -170,20 +170,47 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 }
 
 /**
+ *  @brief check if UAP AMSDU packet need forward out to connected peers
+ *
+ *  @param priv       A pointer to mlan_private
+ *
+ *  @return			  MTRUE--packet need forward
+ *
+ */
+static t_u8 wlan_uap_check_forward(mlan_private *priv, Eth803Hdr_t *hdr)
+{
+	/** include multicast packet */
+	if (hdr->dest_addr[0] & 0x01)
+		return MTRUE;
+	/** include unicast packet to another station */
+	if (wlan_get_station_entry(priv, hdr->dest_addr))
+		return MTRUE;
+	return MFALSE;
+}
+
+/**
  *  @brief Get number of aggregated packets
  *
+ *  @param priv		A pointer to mlan_private structure
  *  @param data			A pointer to packet data
  *  @param total_pkt_len	Total packet length
+ *  @param forward      A pointer forward flag
  *
  *  @return			Number of packets
  */
-static int wlan_11n_get_num_aggrpkts(t_u8 *data, int total_pkt_len)
+static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
+				     int total_pkt_len, t_u8 *forward)
 {
 	int pkt_count = 0, pkt_len, pad;
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
 
+	t_u8 forward_flag = MFALSE;
+
 	ENTER();
 	while (total_pkt_len >= hdr_len) {
+		if (priv->bss_role == MLAN_BSS_ROLE_UAP &&
+		    wlan_uap_check_forward(priv, (Eth803Hdr_t *)data))
+			forward_flag = MTRUE;
 		/* Length will be in network format, change it to host */
 		pkt_len = mlan_ntohs(
 			(*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH))));
@@ -199,6 +226,7 @@ static int wlan_11n_get_num_aggrpkts(t_u8 *data, int total_pkt_len)
 		total_pkt_len -= pkt_len + pad + sizeof(Eth803Hdr_t);
 		++pkt_count;
 	}
+	*forward = forward_flag;
 	LEAVE();
 	return pkt_count;
 }
@@ -229,6 +257,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u8 rfc1042_eth_hdr[MLAN_MAC_ADDR_LENGTH] = {0xaa, 0xaa, 0x03,
 						      0x00, 0x00, 0x00};
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
+	t_u8 forward = MFALSE;
 	t_u8 eapol_type[2] = {0x88, 0x8e};
 	t_u8 tdls_action_type[2] = {0x89, 0x0d};
 	t_u32 in_ts_sec, in_ts_usec;
@@ -237,6 +266,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u32 out_copy_ts_sec, out_copy_ts_usec;
 	t_u32 copy_delay = 0;
 	t_u32 delay = 0;
+	t_u8 num_subframes = 0;
 
 	ENTER();
 
@@ -270,7 +300,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	if (pmadapter->tp_state_on)
 		pmadapter->callbacks.moal_get_system_time(
 			pmadapter->pmoal_handle, &in_ts_sec, &in_ts_usec);
-	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
+	num_subframes = pmbuf->use_count =
+		wlan_11n_get_num_aggrpkts(priv, data, total_pkt_len, &forward);
 
 	// rx_trace 7
 	if (pmadapter->tp_state_on) {
@@ -282,13 +313,13 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	if (pmadapter->tp_state_drop_point == 7 /*RX_DROP_P3*/)
 		goto done;
 	prx_pkt = (RxPacketHdr_t *)data;
-	if (pmbuf->pdesc && !memcmp(pmadapter, prx_pkt->eth803_hdr.dest_addr,
-				    priv->curr_addr, MLAN_MAC_ADDR_LENGTH)) {
+	/**  check if packet need send to host only */
+	if (pmbuf->pdesc && !forward) {
 		if (pmadapter->callbacks.moal_recv_amsdu_packet) {
 			ret = pmadapter->callbacks.moal_recv_amsdu_packet(
 				pmadapter->pmoal_handle, pmbuf);
 			if (ret == MLAN_STATUS_PENDING) {
-				priv->msdu_in_rx_amsdu_cnt += pmbuf->use_count;
+				priv->msdu_in_rx_amsdu_cnt += num_subframes;
 				priv->amsdu_rx_cnt++;
 				return ret;
 			}
