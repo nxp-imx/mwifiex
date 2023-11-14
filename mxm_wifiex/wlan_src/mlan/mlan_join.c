@@ -672,7 +672,7 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u8 preference_selected;
 	t_u8 cipher_selected_id;
 #if 0 // defined(ENABLE_GCMP_SUPPORT)
-      //  embedded supplicant doesn't support GCMP yet
+      // embedded supplicant doesn't support GCMP yet
 	t_u8 cipher_preference[11] = {0, 0, 1, 0, 2, 0, 0, 0, 4, 5, 3};
 #else
 	t_u8 cipher_preference[5] = {0, 0, 1, 0, 2};

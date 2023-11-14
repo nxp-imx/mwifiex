@@ -5380,9 +5380,8 @@ mlan_status wlan_process_csi_event(pmlan_private pmpriv)
 				  MLAN_MEM_DEF, &evt_buf);
 	if ((status == MLAN_STATUS_SUCCESS) && evt_buf) {
 		t_u16 csi_sig;
-		pcsi_record_ds csi_record =
-			(pcsi_record_ds)(pmbuf->pbuf + pmbuf->data_offset +
-					 sizeof(eventcause));
+		pcsi_record_ds csi_record = (pcsi_record_ds)(
+			pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause));
 		/* Check CSI signature */
 		csi_sig = csi_record->CSI_Sign;
 		if (csi_sig != CSI_SIGNATURE) {

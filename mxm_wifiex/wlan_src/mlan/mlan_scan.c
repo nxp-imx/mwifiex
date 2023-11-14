@@ -904,9 +904,8 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 			 * compensates for any TLVs that were appended
 			 * before the channel list.
 			 */
-			pscan_cfg_out->tlv_buf_len =
-				(t_u32)((t_u8 *)pchan_tlv_out -
-					pscan_cfg_out->tlv_buf);
+			pscan_cfg_out->tlv_buf_len = (t_u32)(
+				(t_u8 *)pchan_tlv_out - pscan_cfg_out->tlv_buf);
 
 			/* Add the size of the channel tlv header and the data
 			 * length */
@@ -1247,10 +1246,9 @@ static mlan_status wlan_scan_setup_scan_config(
 				(MrvlIEtypes_WildCardSsIdParamSet_t *)ptlv_pos;
 			pwildcard_ssid_tlv->header.type =
 				wlan_cpu_to_le16(TLV_TYPE_WILDCARDSSID);
-			pwildcard_ssid_tlv->header.len =
-				(t_u16)(ssid_len +
-					sizeof(pwildcard_ssid_tlv
-						       ->max_ssid_length));
+			pwildcard_ssid_tlv->header.len = (t_u16)(
+				ssid_len +
+				sizeof(pwildcard_ssid_tlv->max_ssid_length));
 			pwildcard_ssid_tlv->max_ssid_length =
 				puser_scan_in->ssid_list[ssid_idx].max_len;
 
@@ -2057,9 +2055,8 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 				pbss_entry->pwpa_ie =
 					(IEEEtypes_VendorSpecific_t *)
 						pcurrent_ptr;
-				pbss_entry->wpa_offset =
-					(t_u16)(pcurrent_ptr -
-						pbss_entry->pbeacon_buf);
+				pbss_entry->wpa_offset = (t_u16)(
+					pcurrent_ptr - pbss_entry->pbeacon_buf);
 				HEXDUMP("InterpretIE: Resp WPA_IE",
 					(t_u8 *)pbss_entry->pwpa_ie,
 					((*(pbss_entry->pwpa_ie)).vend_hdr.len +
@@ -2135,9 +2132,8 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 					   osen_oui, sizeof(osen_oui))) {
 				pbss_entry->posen_ie =
 					(IEEEtypes_Generic_t *)pcurrent_ptr;
-				pbss_entry->osen_offset =
-					(t_u16)(pcurrent_ptr -
-						pbss_entry->pbeacon_buf);
+				pbss_entry->osen_offset = (t_u16)(
+					pcurrent_ptr - pbss_entry->pbeacon_buf);
 				HEXDUMP("InterpretIE: Resp OSEN_IE",
 					(t_u8 *)pbss_entry->posen_ie,
 					(*(pbss_entry->posen_ie)).ieee_hdr.len +
@@ -2312,15 +2308,13 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 			case HE_CAPABILITY:
 				pbss_entry->phe_cap =
 					(IEEEtypes_HECap_t *)pcurrent_ptr;
-				pbss_entry->he_cap_offset =
-					(t_u16)(pcurrent_ptr -
-						pbss_entry->pbeacon_buf);
+				pbss_entry->he_cap_offset = (t_u16)(
+					pcurrent_ptr - pbss_entry->pbeacon_buf);
 				break;
 			case HE_OPERATION:
 				pbss_entry->phe_oprat = pext_tlv;
-				pbss_entry->he_oprat_offset =
-					(t_u16)(pcurrent_ptr -
-						pbss_entry->pbeacon_buf);
+				pbss_entry->he_oprat_offset = (t_u16)(
+					pcurrent_ptr - pbss_entry->pbeacon_buf);
 				break;
 			default:
 				break;
@@ -3133,14 +3127,14 @@ static t_u8 wlan_get_chan_rssi(mlan_adapter *pmadapter, t_u8 channel,
 	for (i = 0; i < (int)pmadapter->num_in_scan_table; i++) {
 		if (pmadapter->pscan_table[i].channel == channel) {
 			if (rssi == 0)
-				rssi = (t_s32)pmadapter->pscan_table[i].rssi;
+				rssi = (t_u8)pmadapter->pscan_table[i].rssi;
 			else {
 				if (min_flag)
-					rssi = MIN(
+					rssi = (t_u8)MIN(
 						rssi,
 						pmadapter->pscan_table[i].rssi);
 				else
-					rssi = MAX(
+					rssi = (t_u8)MAX(
 						rssi,
 						pmadapter->pscan_table[i].rssi);
 			}
@@ -4984,10 +4978,10 @@ mlan_status wlan_cmd_802_11_scan_ext(mlan_private *pmpriv,
 			else
 				pext_scan_cmd->ext_scan_type = EXT_SCAN_DEFAULT;
 		} else {
-			pcmd->size = wlan_cpu_to_le16((
-				t_u16)(sizeof(pext_scan_cmd->ext_scan_type) +
-				       (t_u16)(sizeof(pext_scan_cmd->reserved)) +
-				       S_DS_GEN));
+			pcmd->size = wlan_cpu_to_le16((t_u16)(
+				sizeof(pext_scan_cmd->ext_scan_type) +
+				(t_u16)(sizeof(pext_scan_cmd->reserved)) +
+				S_DS_GEN));
 			pext_scan_cmd->ext_scan_type = EXT_SCAN_CANCEL;
 			LEAVE();
 			return MLAN_STATUS_SUCCESS;
@@ -5767,8 +5761,8 @@ static mlan_status wlan_parse_ext_scan_result(mlan_private *pmpriv,
 			 */
 			if (pscan_info_tlv) {
 				/* RSSI is 2 byte long */
-				bss_new_entry->rssi = -(t_s32)(wlan_le16_to_cpu(
-					pscan_info_tlv->rssi));
+				bss_new_entry->rssi = -(t_s32)(
+					wlan_le16_to_cpu(pscan_info_tlv->rssi));
 				PRINTM(MINFO, "EXT_SCAN: RSSI=%d\n",
 				       bss_new_entry->rssi);
 				memcpy_ext(pmpriv->adapter, &tsf_val,
@@ -6444,9 +6438,8 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		pwildcard_ssid_tlv = (MrvlIEtypes_WildCardSsIdParamSet_t *)tlv;
 		pwildcard_ssid_tlv->header.type =
 			wlan_cpu_to_le16(TLV_TYPE_WILDCARDSSID);
-		pwildcard_ssid_tlv->header.len =
-			(t_u16)(ssid_len +
-				sizeof(pwildcard_ssid_tlv->max_ssid_length));
+		pwildcard_ssid_tlv->header.len = (t_u16)(
+			ssid_len + sizeof(pwildcard_ssid_tlv->max_ssid_length));
 		pwildcard_ssid_tlv->max_ssid_length =
 			bg_scan_in->ssid_list[ssid_idx].max_len;
 		memcpy_ext(pmadapter, pwildcard_ssid_tlv->ssid,

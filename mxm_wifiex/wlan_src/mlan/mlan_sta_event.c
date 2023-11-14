@@ -663,17 +663,9 @@ static void wlan_process_sta_tx_pause_event(pmlan_private priv,
 			PRINTM(MCMND, "TxPause: " MACSTR " pause=%d, pkts=%d\n",
 			       MAC2STR(tx_pause_tlv->peermac),
 			       tx_pause_tlv->tx_pause, tx_pause_tlv->pkt_cnt);
-
-			if (bssid &&
-			    !memcmp(priv->adapter, bssid, tx_pause_tlv->peermac,
-				    MLAN_MAC_ADDR_LENGTH)) {
-				if (tx_pause_tlv->tx_pause)
-					priv->tx_pause = MTRUE;
-				else
-					priv->tx_pause = MFALSE;
-			} else {
-				status = wlan_get_tdls_link_status(
-					priv, tx_pause_tlv->peermac);
+			status = wlan_get_tdls_link_status(
+				priv, tx_pause_tlv->peermac);
+			if (status != TDLS_NOT_SETUP) {
 				if (MTRUE == wlan_is_tdls_link_setup(status)) {
 					sta_ptr = wlan_get_station_entry(
 						priv, tx_pause_tlv->peermac);
@@ -692,6 +684,11 @@ static void wlan_process_sta_tx_pause_event(pmlan_private priv,
 						}
 					}
 				}
+			} else {
+				if (tx_pause_tlv->tx_pause)
+					priv->tx_pause = MTRUE;
+				else
+					priv->tx_pause = MFALSE;
 			}
 		}
 		tlv_buf_left -= (sizeof(MrvlIEtypesHeader_t) + tlv_len);

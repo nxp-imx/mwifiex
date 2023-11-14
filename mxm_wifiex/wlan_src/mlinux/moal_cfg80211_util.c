@@ -146,6 +146,23 @@ static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
 	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
 	[ATTR_SCAN_BAND_SET] = {.type = NLA_U8},
 };
+static const struct nla_policy woal_secure_ranging_ctx_policy
+	[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX + 1] = {
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR] =
+			{.type = NLA_STRING, .len = ETH_ALEN},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR] =
+			{.type = NLA_STRING, .len = ETH_ALEN},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK] =
+			{.type = NLA_STRING, .len = 32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER] =
+			{.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED] =
+			{.type = NLA_STRING, .len = 48},
+};
 // clang-format off
 static const struct nla_policy
         woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
@@ -2899,11 +2916,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u64 inter_msec = 0;
 	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
 	moal_handle *handle = priv->phandle;
-	if (!priv->media_connected) {
-		PRINTM(MERROR,
-		       "Block get_link_statistics in disconnected state!\n");
-		return -EINVAL;
-	}
 
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
@@ -3931,6 +3943,181 @@ static int woal_cfg80211_subcmd_set_scan_mac_oui(struct wiphy *wiphy,
 	PRINTM(MCMND, "random_mac is " FULL_MACSTR "\n",
 	       FULL_MAC2STR(priv->random_mac));
 done:
+	LEAVE();
+	return ret;
+}
+/**
+ * @brief vendor command to start
+ *     woal_cfg80211_subcmd_secure_ranging_ctx
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  fail otherwise
+ */
+static int woal_cfg80211_subcmd_secure_ranging_ctx(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	moal_private *priv;
+	struct net_device *dev;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_sec_cfg *sec = NULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int type, rem;
+	t_u32 action = 0;
+	int key_len = 0;
+	int peer_addr_set = 0;
+	t_u8 peer_addr[ETH_ALEN];
+	t_u8 own_addr[ETH_ALEN];
+	t_u32 cipher = 0;
+	t_u32 sha_type = 0;
+	t_u8 key[MLAN_MAX_KEY_LENGTH] = {0};
+	t_u8 *ltf_keyseed = NULL;
+	t_u8 bcast_addr[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	const struct nlattr *iter;
+
+	ENTER();
+
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+	if (!priv) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	nla_for_each_attr (iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION:
+			action = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR:
+			moal_memcpy_ext(priv->phandle, own_addr, nla_data(iter),
+					nla_len(iter), ETH_ALEN);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR:
+			moal_memcpy_ext(priv->phandle, peer_addr,
+					nla_data(iter), nla_len(iter),
+					ETH_ALEN);
+			peer_addr_set = 1;
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE:
+			sha_type = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK:
+			moal_memcpy_ext(priv->phandle, key, nla_data(iter),
+					nla_len(iter), MLAN_MAX_KEY_LENGTH);
+			key_len = nla_len(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER:
+			cipher = nla_get_u32(iter);
+			break;
+		case MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED:
+			moal_memcpy_ext(priv->phandle, ltf_keyseed,
+					nla_data(iter), nla_len(iter), 48);
+			break;
+		default:
+			PRINTM(MERROR, "Unknown type: %d\n", type);
+			ret = -EINVAL;
+		}
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	sec = (mlan_ds_sec_cfg *)req->pbuf;
+	sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY;
+	req->req_id = MLAN_IOCTL_SEC_CFG;
+	if (action == MLAN_ACT_PASN_SET_KEY) {
+		req->action = MLAN_ACT_PASN_KEY_DNLD;
+		if (key_len) {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.key_material,
+					key, key_len, MLAN_MAX_KEY_LENGTH);
+			sec->param.encrypt_key.key_len = key_len;
+		}
+		if (peer_addr_set) {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.mac_addr,
+					peer_addr, ETH_ALEN,
+					MLAN_MAC_ADDR_LENGTH);
+			if (memcmp(sec->param.encrypt_key.mac_addr, bcast_addr,
+				   ETH_ALEN) == 0)
+				sec->param.encrypt_key.key_flags =
+					KEY_FLAG_GROUP_KEY;
+			else
+				sec->param.encrypt_key.key_flags =
+					KEY_FLAG_SET_TX_KEY;
+		} else {
+			moal_memcpy_ext(priv->phandle,
+					sec->param.encrypt_key.mac_addr,
+					bcast_addr, ETH_ALEN,
+					MLAN_MAC_ADDR_LENGTH);
+			sec->param.encrypt_key.key_flags =
+				KEY_FLAG_GROUP_KEY | KEY_FLAG_SET_TX_KEY;
+		}
+
+#if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
+		if (cipher == WLAN_CIPHER_SUITE_GCMP)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_GCMP;
+#endif
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		else if (cipher == WLAN_CIPHER_SUITE_GCMP_256)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_GCMP_256;
+#endif
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		if (cipher == WLAN_CIPHER_SUITE_CCMP_256)
+			sec->param.encrypt_key.key_flags |= KEY_FLAG_CCMP_256;
+#endif
+
+		if (cipher == WLAN_CIPHER_SUITE_AES_CMAC
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+		    || cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128 ||
+		    cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256
+#endif
+		) {
+			sec->param.encrypt_key.key_flags |=
+				KEY_FLAG_AES_MCAST_IGTK;
+
+#if KERNEL_VERSION(4, 0, 0) <= CFG80211_VERSION_CODE
+			if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_128;
+			else if (cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256)
+				sec->param.encrypt_key.key_flags |=
+					KEY_FLAG_GMAC_256;
+#endif
+		}
+	} else {
+		req->action = MLAN_ACT_CLEAR;
+		sec->param.encrypt_key.key_len = MLAN_MAX_KEY_LENGTH;
+		sec->param.encrypt_key.key_index = MLAN_KEY_INDEX_UNICAST;
+		sec->param.encrypt_key.key_flags = KEY_FLAG_REMOVE_KEY;
+		moal_memcpy_ext(priv->phandle, sec->param.encrypt_key.mac_addr,
+				(u8 *)peer_addr, ETH_ALEN,
+				MLAN_MAC_ADDR_LENGTH);
+		memset(sec->param.encrypt_key.key_material, 0,
+		       sizeof(sec->param.encrypt_key.key_material));
+	}
+	/* Send IOCTL request to MLAN */
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
 	LEAVE();
 	return ret;
 }
@@ -5487,6 +5674,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = woal_attr_policy,
 		.maxattr = ATTR_WIFI_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_secure_ranging_ctx,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_secure_ranging_ctx,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_secure_ranging_ctx_policy,
+		.maxattr = MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX,
 #endif
 	},
 	{

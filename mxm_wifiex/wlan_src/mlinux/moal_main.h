@@ -166,6 +166,10 @@ Change log:
 #define IMX_ANDROID_13 0
 #define IMX_ANDROID_12_BACKPORT 0
 
+#if defined(IMX_SUPPORT)
+
+#if defined(IMX_ANDROID)
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1
@@ -173,6 +177,8 @@ Change log:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
 #undef IMX_ANDROID_12_BACKPORT
 #define IMX_ANDROID_12_BACKPORT 1
+#endif
+#endif
 #endif
 
 /**
@@ -387,13 +393,11 @@ typedef enum _MOAL_HARDWARE_STATUS {
 enum { MOAL_NO_WAIT, MOAL_IOCTL_WAIT, MOAL_IOCTL_WAIT_TIMEOUT };
 
 /** moal_main_state */
-enum {
-	MOAL_STATE_IDLE,
-	MOAL_RECV_INT,
-	MOAL_ENTER_WORK_QUEUE,
-	MOAL_START_MAIN_PROCESS,
-	MOAL_END_MAIN_PROCESS
-};
+enum { MOAL_STATE_IDLE,
+       MOAL_RECV_INT,
+       MOAL_ENTER_WORK_QUEUE,
+       MOAL_START_MAIN_PROCESS,
+       MOAL_END_MAIN_PROCESS };
 
 /** HostCmd_Header */
 typedef struct _HostCmd_Header {
@@ -2170,8 +2174,7 @@ extern t_u8 ru_signal_52[9];
 				y = (y + 1) - TONE_MAX_USERS_242;                 \
 			} else {                                                  \
 				tone = (y == 2) ? RU_TONE_106 :                   \
-				       (y == 1) ? 0 :                             \
-						  RU_TONE_106;                    \
+						  (y == 1) ? 0 : RU_TONE_106;     \
 			}                                                         \
 		} else if (x == RU_40_242_TONE) {                                 \
 			if (!y) {                                                 \

@@ -465,6 +465,7 @@ mlan_status wlan_get_info_debug_info(pmlan_adapter pmadapter,
 		debug_info->qos_cfg = pmpriv->wmm_qosinfo;
 		debug_info->tx_lock_flag = pmadapter->tx_lock_flag;
 		debug_info->port_open = pmpriv->port_open;
+		debug_info->tx_pause = pmpriv->tx_pause;
 		debug_info->bypass_pkt_count = pmadapter->bypass_pkt_count;
 		debug_info->scan_processing = pmadapter->scan_processing;
 		debug_info->scan_state = pmadapter->scan_state;

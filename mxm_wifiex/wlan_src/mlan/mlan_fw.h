@@ -1219,7 +1219,7 @@ enum host_cmd_id {
 #define FW_CAPINFO_EXT_CHAN_TRACK MBIT(13)
 /** FW cap info bit 14: 6G Support */
 #define FW_CAPINFO_EXT_6G MBIT(14)
-/** FW cap info bit 16: 6G Support */
+/** FW cap info bit 16: Tx mgmt pkt with command*/
 #define FW_CAPINFO_EXT_CMD_TX_DATA MBIT(16)
 /** FW cap info bit 19: security rgpower table */
 #define FW_CAPINFO_EXT_SEC_RG_POWER MBIT(19)
@@ -1261,8 +1261,10 @@ enum host_cmd_id {
 	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_CHAN_TRACK)
 /** Check if 6G supported by firmware */
 #define IS_FW_SUPPORT_6G(_adapter) (_adapter->fw_cap_ext & FW_CAPINFO_EXT_6G)
+/** Check if transmit mgmt pkt through command supported by firmware */
 #define IS_FW_SUPPORT_CMD_TX_DATA(_adapter)                                    \
 	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_CMD_TX_DATA)
+/** Check if security rgpower table supported by firmware */
 #define IS_FW_SUPPORT_SEC_RG_POWER(_adapter)                                   \
 	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_SEC_RG_POWER)
 

@@ -163,10 +163,9 @@ enum logger_attributes {
 
 /* Below events refer to the wifi_connectivity_event ring and shall be supported
  */
-enum {
-	WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
-	WIFI_EVENT_AUTH_COMPLETE,
-	WIFI_EVENT_ASSOC_COMPLETE,
+enum { WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
+       WIFI_EVENT_AUTH_COMPLETE,
+       WIFI_EVENT_ASSOC_COMPLETE,
 };
 
 enum {
@@ -176,13 +175,11 @@ enum {
 	RING_BUFFER_ENTRY_FLAGS_HAS_TIMESTAMP = (1 << (1))
 };
 
-enum {
-	ENTRY_TYPE_CONNECT_EVENT = 1,
-	ENTRY_TYPE_PKT,
-	ENTRY_TYPE_WAKE_LOCK,
-	ENTRY_TYPE_POWER_EVENT,
-	ENTRY_TYPE_DATA
-};
+enum { ENTRY_TYPE_CONNECT_EVENT = 1,
+       ENTRY_TYPE_PKT,
+       ENTRY_TYPE_WAKE_LOCK,
+       ENTRY_TYPE_POWER_EVENT,
+       ENTRY_TYPE_DATA };
 
 /** WiFi ring buffer entry structure */
 typedef struct {
@@ -509,10 +506,9 @@ int woal_packet_fate_monitor(moal_private *priv,
 #define APF_FRAME_HEADER_SIZE 14
 #define PACKET_FILTER_MAX_LEN 1024
 
-enum {
-	PACKET_FILTER_STATE_INIT = 0,
-	PACKET_FILTER_STATE_STOP,
-	PACKET_FILTER_STATE_START,
+enum { PACKET_FILTER_STATE_INIT = 0,
+       PACKET_FILTER_STATE_STOP,
+       PACKET_FILTER_STATE_START,
 };
 
 enum wifi_attr_packet_filter {
@@ -620,6 +616,21 @@ typedef enum wifi_attr {
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
+enum mrvl_wlan_vendor_attr_secure_ranging_ctx {
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION = 1,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR = 2,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR = 3,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE = 4,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK = 5,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER = 6,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED = 7,
+
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX =
+		MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST - 1,
+};
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
@@ -712,6 +723,7 @@ enum vendor_sub_command {
 	sub_cmd_dfs_capability = 0x0005,
 	sub_cmd_set_scan_mac_oui = 0x0007,
 	sub_cmd_set_scan_band = 0x0008,
+	sub_cmd_secure_ranging_ctx = 0x0009,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,

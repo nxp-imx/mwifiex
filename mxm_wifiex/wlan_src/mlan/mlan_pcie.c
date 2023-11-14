@@ -4542,24 +4542,21 @@ mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv)
 		/* Send the ring base addresses and count to firmware */
 		host_spec.txbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->txbd_ring_pbase));
-		host_spec.txbd_addr_hi = wlan_cpu_to_le32((
-			t_u32)(((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >>
-			       32));
+		host_spec.txbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >> 32));
 		host_spec.txbd_count =
 			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
 		host_spec.rxbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->rxbd_ring_pbase));
-		host_spec.rxbd_addr_hi = wlan_cpu_to_le32((
-			t_u32)(((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >>
-			       32));
+		host_spec.rxbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >> 32));
 		host_spec.rxbd_count =
 			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
 		host_spec.evtbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->evtbd_ring_pbase));
-		host_spec.evtbd_addr_hi =
-			wlan_cpu_to_le32((t_u32)(((t_u64)pmadapter->pcard_pcie
-							  ->evtbd_ring_pbase) >>
-						 32));
+		host_spec.evtbd_addr_hi = wlan_cpu_to_le32((t_u32)(
+			((t_u64)pmadapter->pcard_pcie->evtbd_ring_pbase) >>
+			32));
 		host_spec.evtbd_count = wlan_cpu_to_le32(MLAN_MAX_EVT_BD);
 
 		ret = wlan_prepare_cmd(pmpriv,

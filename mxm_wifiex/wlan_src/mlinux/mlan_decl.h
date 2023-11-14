@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "423.p1"
+#define MLAN_RELEASE_VERSION "423.p6"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -950,34 +950,29 @@ enum mlan_channel_type {
 };
 
 /** channel band */
-enum {
-	BAND_2GHZ = 0,
-	BAND_5GHZ = 1,
-	BAND_6GHZ = 2,
-	BAND_4GHZ = 3,
+enum { BAND_2GHZ = 0,
+       BAND_5GHZ = 1,
+       BAND_6GHZ = 2,
+       BAND_4GHZ = 3,
 };
 
 /** channel offset */
-enum {
-	SEC_CHAN_NONE = 0,
-	SEC_CHAN_ABOVE = 1,
-	SEC_CHAN_5MHZ = 2,
-	SEC_CHAN_BELOW = 3
-};
+enum { SEC_CHAN_NONE = 0,
+       SEC_CHAN_ABOVE = 1,
+       SEC_CHAN_5MHZ = 2,
+       SEC_CHAN_BELOW = 3 };
 
 /** channel bandwidth */
-enum {
-	CHAN_BW_20MHZ = 0,
-	CHAN_BW_10MHZ,
-	CHAN_BW_40MHZ,
-	CHAN_BW_80MHZ,
+enum { CHAN_BW_20MHZ = 0,
+       CHAN_BW_10MHZ,
+       CHAN_BW_40MHZ,
+       CHAN_BW_80MHZ,
 };
 
 /** scan mode */
-enum {
-	SCAN_MODE_MANUAL = 0,
-	SCAN_MODE_ACS,
-	SCAN_MODE_USER,
+enum { SCAN_MODE_MANUAL = 0,
+       SCAN_MODE_ACS,
+       SCAN_MODE_USER,
 };
 
 /** DFS state */

@@ -718,6 +718,13 @@ static mlan_status wlan_uap_bss_ioctl_deauth_sta(pmlan_adapter pmadapter,
 	ENTER();
 
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
+
+	/*
+	 * Clean up station's ralist, to stop and flush pending traffic
+	 * before uAP sending deauth command to FW.
+	 */
+	wlan_wmm_delete_peer_ralist(pmpriv, bss->param.deauth_param.mac_addr);
+
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_STA_DEAUTH,
 			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
 			       (t_void *)&bss->param.deauth_param);
@@ -1042,7 +1049,8 @@ wlan_uap_sec_ioctl_set_encrypt_key(pmlan_adapter pmadapter,
 
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
-	if ((pioctl_req->action != MLAN_ACT_SET)) {
+	if ((pioctl_req->action != MLAN_ACT_SET) &&
+	    (pioctl_req->action != MLAN_ACT_PASN_KEY_DNLD)) {
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
 		LEAVE();
 		return MLAN_STATUS_FAILURE;

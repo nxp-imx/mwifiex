@@ -583,8 +583,8 @@ static mlan_status wlan_get_rd_port(mlan_adapter *pmadapter, t_u8 *pport)
 	} else {
 		if (pmadapter->pcard_sd->mp_rd_bitmap &
 		    (1 << pmadapter->pcard_sd->curr_rd_port)) {
-			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(~(
-				1 << pmadapter->pcard_sd->curr_rd_port));
+			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(
+				~(1 << pmadapter->pcard_sd->curr_rd_port));
 			*pport = pmadapter->pcard_sd->curr_rd_port;
 
 			/* hw rx wraps round only after port (MAX_PORT-1) */
@@ -2269,10 +2269,6 @@ poll_fw:
 		LEAVE();
 		return ret;
 	}
-#ifdef SD9177
-	if (IS_SD9177(pmadapter->card_type))
-		wlan_mdelay(pmadapter, 1000);
-#endif
 done:
 
 	/* re-enable host interrupt for mlan after fw dnld is successful */
