@@ -2671,7 +2671,11 @@ void woal_host_mlme_process_assoc_resp(moal_private *priv,
 	struct cfg80211_bss *bss = NULL;
 	unsigned long flags;
 	u8 *assoc_req_buf = NULL;
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	struct cfg80211_rx_assoc_resp_data resp = {
+		.uapsd_queues = -1,
+	};
+#elif CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 	struct cfg80211_rx_assoc_resp resp = {
 		.uapsd_queues = -1,
 	};

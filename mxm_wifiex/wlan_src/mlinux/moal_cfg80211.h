@@ -431,7 +431,13 @@ int woal_cfg80211_set_coalesce(struct wiphy *wiphy,
 			       struct cfg80211_coalesce *coalesce);
 #endif
 
-#if KERNEL_VERSION(3, 4, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 7, 0) <= CFG80211_VERSION_CODE
+int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_ap_settings *params);
+
+int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_ap_update *info);
+#elif KERNEL_VERSION(3, 4, 0) <= CFG80211_VERSION_CODE
 int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct cfg80211_ap_settings *params);
 

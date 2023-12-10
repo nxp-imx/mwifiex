@@ -2865,7 +2865,18 @@ done:
 	return ret;
 }
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+/**
+ * @brief set AP or GO parameter
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param dev             A pointer to net_device structure
+ * @param info            A pointer to cfg80211_ap_update structure
+ * @return                0 -- success, otherwise fail
+ */
+int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_ap_update *info)
+#elif CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 /**
  * @brief set AP or GO parameter
  *
@@ -2890,6 +2901,9 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 #endif
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	struct cfg80211_beacon_data *params = &info->beacon;
+#endif
 	int ret = 0;
 
 	ENTER();
@@ -3696,6 +3710,10 @@ void woal_cac_timer_func(void *context)
 static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 {
 	chan_band_info uap_channel;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	struct cfg80211_ap_update *info = container_of(&priv->beacon_after,
+					struct cfg80211_ap_update, beacon);
+#endif
 	t_u8 chan2Offset = SEC_CHAN_NONE;
 	ENTER();
 	woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
@@ -3703,8 +3721,13 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 		PRINTM(MERROR, "%s: stop uap failed \n", __func__);
 		goto done;
 	}
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	if (woal_cfg80211_set_beacon(priv->wdev->wiphy, priv->netdev, info)) {
+#else
 	if (woal_cfg80211_set_beacon(priv->wdev->wiphy, priv->netdev,
 				     &priv->beacon_after)) {
+#endif
 		PRINTM(MERROR, "%s: set mgmt ies failed \n", __func__);
 		goto done;
 	}
@@ -3999,6 +4022,10 @@ int woal_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	t_u32 chsw_msec;
 	mlan_uap_bss_param *bss_cfg = NULL;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	struct cfg80211_ap_update *info = container_of(&params->beacon_csa,
+					struct cfg80211_ap_update, beacon);
+#endif
 
 	ENTER();
 
@@ -4034,7 +4061,11 @@ int woal_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	}
 
 	woal_clear_all_mgmt_ies(priv, MOAL_IOCTL_WAIT);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 7, 0)
+	if (woal_cfg80211_set_beacon(wiphy, dev, info)) {
+#else
 	if (woal_cfg80211_set_beacon(wiphy, dev, &params->beacon_csa)) {
+#endif
 		PRINTM(MERROR, "%s: setting csa mgmt ies failed\n", __func__);
 		goto done;
 	}
