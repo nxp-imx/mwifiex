@@ -27,4 +27,11 @@
 
 mlan_status woal_register_uap_cfg80211(struct net_device *dev, t_u8 bss_type);
 
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
+				       struct cfg80211_chan_def *chandef);
+#endif
+#endif
+
 #endif /* _MOAL_UAP_CFG80211_H_ */

@@ -2590,7 +2590,7 @@ mlan_status wlan_ret_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
  *
  *  @return             MLAN_STATUS_SUCCESS
  */
-mlan_status wlan_ret_ipv6_ra_offload(pmlan_private pmpriv,
+static mlan_status wlan_ret_ipv6_ra_offload(pmlan_private pmpriv,
 				     HostCmd_DS_COMMAND *resp,
 				     mlan_ioctl_req *pioctl_buf)
 {

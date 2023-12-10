@@ -275,7 +275,7 @@ static t_u8 woal_get_bonded_channels(t_u8 pri_chan, t_u8 bw, t_u8 *chan_list)
  *
  *  @return  N/A
  */
-t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan, t_u8 bw,
+static t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan, t_u8 bw,
 				   dfs_state_t dfs_state)
 {
 	t_u8 n_chan;
@@ -1116,7 +1116,7 @@ static t_bool wlan_11h_is_slave_active_on_dfs_chan(mlan_private *priv)
  *    - MTRUE if radar detection is required
  *    - MFALSE otherwise
  */
-t_bool wlan_11h_is_radar_channel(mlan_private *priv, t_u8 channel)
+static t_bool wlan_11h_is_radar_channel(mlan_private *priv, t_u8 channel)
 {
 	t_bool required = MFALSE;
 

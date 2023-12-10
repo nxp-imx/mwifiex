@@ -26,6 +26,7 @@ Change log:
 ********************************************************/
 
 #include "moal_main.h"
+#include "moal_eth_ioctl.h"
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
 #endif
@@ -63,9 +64,6 @@ static char *szModes[] = {
 	"Auto",
 };
 #endif
-
-mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
-			    int *user_data_len);
 
 /********************************************************
 		Global Variables
@@ -455,7 +453,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 }
 #endif
 
-void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
+static void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
 {
 	int ret = 0;
 	int data[4] = {0};
@@ -519,7 +517,7 @@ void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
 	return;
 }
 
-mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
+static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 {
 	moal_private *priv = NULL;
 	mlan_ioctl_req *req = NULL;

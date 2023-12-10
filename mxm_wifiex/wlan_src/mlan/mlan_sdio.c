@@ -2426,7 +2426,7 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
  *  @param pmadapter    A pointer to mlan_adapter structure
  *  @return             N/A
  */
-void wlan_dump_mp_registers(pmlan_adapter pmadapter)
+static void wlan_dump_mp_registers(pmlan_adapter pmadapter)
 {
 	t_u32 mp_wr_bitmap;
 	t_bool new_mode = pmadapter->pcard_sd->supports_sdio_new_mode;

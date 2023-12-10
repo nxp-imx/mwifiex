@@ -1142,7 +1142,7 @@ done:
  *
  * @return      An invalid ring id for failure or valid ring id on success.
  */
-int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
+static int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
 {
 	int id;
 	wifi_ring_buffer *ring;
@@ -1172,7 +1172,7 @@ int woal_get_ring_id_by_name(moal_private *priv, char *ring_name)
  *
  * @return      0: success  1: fail
  */
-int woal_start_logging(moal_private *priv, char *ring_name, int log_level,
+static int woal_start_logging(moal_private *priv, char *ring_name, int log_level,
 		       int flags, int time_intval, int threshold)
 {
 	int ret = 0;
@@ -1452,7 +1452,7 @@ static t_u32 woal_get_ring_next_entry(wifi_ring_buffer *ring, t_u32 offset)
  *
  * @return      data length
  */
-int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
+static int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
 			t_s32 buf_len)
 {
 	t_s32 r_len = 0;
@@ -1499,7 +1499,7 @@ int woal_ring_pull_data(moal_private *priv, int ring_id, void *data,
  *
  * @return      0: success  1: fail
  */
-int woal_ring_buffer_data_vendor_event(moal_private *priv, int ring_id,
+static int woal_ring_buffer_data_vendor_event(moal_private *priv, int ring_id,
 				       t_u8 *data, int len,
 				       wifi_ring_buffer_status *ring_status)
 {
@@ -1588,7 +1588,7 @@ done:
  *
  * @return void
  */
-void woal_ring_poll_worker(struct work_struct *work)
+static void woal_ring_poll_worker(struct work_struct *work)
 {
 	struct delayed_work *d_work = to_delayed_work(work);
 	wifi_ring_buffer *ring_info =
@@ -1659,7 +1659,7 @@ exit:
  *
  * @return      0: success  -1: fail
  */
-int woal_ring_push_data(moal_private *priv, int ring_id,
+static int woal_ring_push_data(moal_private *priv, int ring_id,
 			wifi_ring_buffer_entry *hdr, void *data)
 {
 	unsigned long flags;
@@ -2073,7 +2073,7 @@ done:
  *
  * @return      0: success  1: fail
  */
-int woal_wake_reason_vendor_event(moal_private *priv,
+static int woal_wake_reason_vendor_event(moal_private *priv,
 				  mlan_ds_hs_wakeup_reason wake_reason)
 {
 	struct wiphy *wiphy = NULL;
@@ -2206,7 +2206,7 @@ done:
  *
  * @return      0: success  1: fail
  */
-int woal_packet_fate_vendor_event(moal_private *priv,
+static int woal_packet_fate_vendor_event(moal_private *priv,
 				  packet_fate_packet_type pkt_type, t_u8 fate,
 				  frame_type payload_type, t_u32 drv_ts_usec,
 				  t_u32 fw_ts_usec, t_u8 *data, t_u32 len)
@@ -2529,7 +2529,7 @@ done:
  * @return non-zero if packet should be passed to AP, zero if
  *         packet should be dropped.
  */
-int process_packet(const t_u8 *program, t_u32 program_len, const t_u8 *packet,
+static int process_packet(const t_u8 *program, t_u32 program_len, const t_u8 *packet,
 		   t_u32 packet_len, t_u32 filter_age)
 {
 	/* Program counter */

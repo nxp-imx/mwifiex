@@ -255,7 +255,7 @@ done:
  *
  *  @return             N/A
  */
-t_void wlan_flush_ext_cmd_pending_queue(pmlan_adapter pmadapter)
+static t_void wlan_flush_ext_cmd_pending_queue(pmlan_adapter pmadapter)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
 	HostCmd_DS_COMMAND *pcmd = MNULL;
@@ -2205,7 +2205,7 @@ done:
  *
  *  @return             N/A
  */
-void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter, t_u16 cmd_no)
+static void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter, t_u16 cmd_no)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
 	ENTER();
@@ -2981,7 +2981,7 @@ t_void wlan_cancel_pending_ioctl(pmlan_adapter pmadapter,
  *
  *  @return           N/A
  */
-t_void wlan_fill_hal_wifi_rate(pmlan_private pmpriv, mlan_wifi_rate *pmlan_rate,
+static t_void wlan_fill_hal_wifi_rate(pmlan_private pmpriv, mlan_wifi_rate *pmlan_rate,
 			       wifi_rate *prate)
 {
 	t_u8 index = 0;

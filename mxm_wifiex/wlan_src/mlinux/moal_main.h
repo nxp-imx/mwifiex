@@ -3896,9 +3896,10 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str);
 /** Get channel list */
 mlan_status woal_get_channel_list(moal_private *priv, t_u8 wait_option,
 				  mlan_chan_list *chanlist);
+#endif
 mlan_status woal_11d_check_ap_channel(moal_private *priv, t_u8 wait_option,
 				      mlan_ssid_bssid *ssid_bssid);
-#endif
+
 /** Set/Get retry count */
 mlan_status woal_set_get_retry(moal_private *priv, t_u32 action,
 			       t_u8 wait_option, int *value);

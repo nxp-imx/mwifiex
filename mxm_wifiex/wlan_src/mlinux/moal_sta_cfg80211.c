@@ -25,7 +25,7 @@
 #include "moal_sta_cfg80211.h"
 #include "moal_eth_ioctl.h"
 #ifdef UAP_SUPPORT
-#include "moal_uap.h"
+#include "moal_uap_cfg80211.h"
 #endif
 #include <linux/sort.h>
 
@@ -281,13 +281,6 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      struct cfg80211_disassoc_request *req);
-#endif
-
-#ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
-int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
-				       struct cfg80211_chan_def *chandef);
-#endif
 #endif
 
 /** cfg80211 operations */
@@ -2165,7 +2158,7 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
  *  @return       MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING
  *                  -- success, otherwise fail
  */
-mlan_status woal_request_set_host_mlme(moal_private *priv)
+static mlan_status woal_request_set_host_mlme(moal_private *priv)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
@@ -3848,7 +3841,7 @@ static int compare(const void *lhs, const void *rhs)
  *
  *  @return                 N/A
  */
-t_u32 woal_get_chan_rule_flags(mlan_ds_custom_reg_domain *custom_reg,
+static t_u32 woal_get_chan_rule_flags(mlan_ds_custom_reg_domain *custom_reg,
 			       t_u8 channel)
 {
 	t_u16 num_chan = 0;
@@ -4424,7 +4417,7 @@ static t_u8 woal_is_uap_scan_result_expired(moal_private *priv)
  *
  *  @return             MTRUE/MFALSE;
  */
-t_u8 wlan_check_scan_table_ageout(moal_private *priv)
+static t_u8 wlan_check_scan_table_ageout(moal_private *priv)
 {
 	mlan_scan_resp scan_resp;
 	wifi_timeval t;

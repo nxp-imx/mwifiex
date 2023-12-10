@@ -4789,7 +4789,7 @@ static mlan_status wlan_misc_ioctl_ips_cfg(pmlan_adapter pmadapter,
  *
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_misc_ioctl_ipv6_ra_offload(pmlan_adapter pmadapter,
+static mlan_status wlan_misc_ioctl_ipv6_ra_offload(pmlan_adapter pmadapter,
 					    mlan_ioctl_req *pioctl_req)
 {
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];

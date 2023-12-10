@@ -2221,7 +2221,7 @@ static int woal_uap_get_dfs_chan(t_u8 pri_chan, t_u8 bw,
  *
  * @return                N/A
  */
-void woal_set_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
+static void woal_set_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
 {
 	int index;
 	mlan_ds_11h_chan_dfs_state ch_dfs_state;

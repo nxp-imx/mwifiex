@@ -484,7 +484,7 @@ static mlan_status wlan_cmd_mfg_config_trigger_frame(pmlan_private pmpriv,
  *  @return             MLAN_STATUS_SUCCESS
  */
 
-mlan_status wlan_cmd_mfg_he_tb_tx(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+static mlan_status wlan_cmd_mfg_he_tb_tx(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				  t_u16 action, t_void *pdata_buf)
 {
 	struct mfg_Cmd_HE_TBTx_t *mcmd =
@@ -2990,7 +2990,7 @@ mlan_status wlan_cmd_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
  *  @return             N/A
  */
 
-mlan_status wlan_cmd_ipv6_ra_offload(mlan_private *pmpriv,
+static mlan_status wlan_cmd_ipv6_ra_offload(mlan_private *pmpriv,
 				     HostCmd_DS_COMMAND *pcmd, t_u16 cmd_action,
 				     void *pdata_buf)
 {

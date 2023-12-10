@@ -1898,7 +1898,7 @@ done:
  *
  *  @return    binded net_device pointer or NULL if not found
  */
-struct net_device *moal_get_netdev_from_stalist(moal_private *priv, t_u16 aid)
+static struct net_device *moal_get_netdev_from_stalist(moal_private *priv, t_u16 aid)
 {
 	station_node *sta_node = NULL;
 
@@ -2570,7 +2570,7 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
  *
  *  @return         N/A
  */
-void woal_rgpower_key_mismatch_event(moal_private *priv)
+static void woal_rgpower_key_mismatch_event(moal_private *priv)
 {
 	struct woal_event *evt;
 	unsigned long flags;

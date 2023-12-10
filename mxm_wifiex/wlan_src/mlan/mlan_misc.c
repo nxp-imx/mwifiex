@@ -3583,7 +3583,7 @@ mlan_status wlan_misc_multi_ap_cfg(pmlan_adapter pmadapter,
  *
  *  @return        MTRUE/MFALSE
  */
-t_u8 wlan_check_beacon_prot_supported(mlan_private *pmpriv,
+static t_u8 wlan_check_beacon_prot_supported(mlan_private *pmpriv,
 				      BSSDescriptor_t *pbss_desc)
 {
 	if (pbss_desc && pbss_desc->pext_cap) {

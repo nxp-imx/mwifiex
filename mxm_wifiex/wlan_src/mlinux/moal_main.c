@@ -6324,7 +6324,7 @@ int woal_close(struct net_device *dev)
  *
  *  @return        0 --success, otherwise fail
  */
-void woal_disable_ampdu(moal_private *priv)
+static void woal_disable_ampdu(moal_private *priv)
 {
 	mlan_ds_11n_aggr_prio_tbl aggr_prio_tbl;
 	int i;
@@ -7588,7 +7588,7 @@ done:
  *  @param pmbuf     A mlan buffer
  *  @return          N/A
  */
-void woal_send_tx_pkt_to_mon_if(moal_private *priv, pmlan_buffer pmbuf)
+static void woal_send_tx_pkt_to_mon_if(moal_private *priv, pmlan_buffer pmbuf)
 {
 	struct ieee80211_hdr *dot11_hdr = NULL;
 	struct radiotap_info *rt = NULL;
@@ -11574,7 +11574,7 @@ t_void woal_rx_work_queue(struct work_struct *work)
  *
  *  @return        N/A
  */
-void woal_pcie_rx_data_task(unsigned long data)
+static void woal_pcie_rx_data_task(unsigned long data)
 {
 	moal_handle *handle = (moal_handle *)data;
 	wifi_timeval start_timeval;
@@ -11619,7 +11619,7 @@ void woal_pcie_rx_data_task(unsigned long data)
  *
  *  @return        N/A
  */
-t_void woal_pcie_tx_complete_task(unsigned long data)
+static t_void woal_pcie_tx_complete_task(unsigned long data)
 {
 	moal_handle *handle = (moal_handle *)data;
 	ENTER();
@@ -11775,7 +11775,7 @@ t_void woal_pcie_delayed_tx_work(struct work_struct *work)
  *  @return        skb buffer
  */
 
-struct sk_buff *woal_skb_dequeue_spinlock(struct sk_buff_head *list)
+static struct sk_buff *woal_skb_dequeue_spinlock(struct sk_buff_head *list)
 {
 	struct sk_buff *result;
 
@@ -11792,7 +11792,7 @@ struct sk_buff *woal_skb_dequeue_spinlock(struct sk_buff_head *list)
  *
  *  @return        N/A
  */
-t_void woal_tx_work_handler(struct work_struct *work)
+static t_void woal_tx_work_handler(struct work_struct *work)
 {
 	moal_handle *handle = container_of(work, moal_handle, tx_work);
 	moal_private *priv = NULL;

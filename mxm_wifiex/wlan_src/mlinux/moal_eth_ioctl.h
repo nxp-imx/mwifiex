@@ -413,6 +413,10 @@ int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data,
 #else
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 #endif
+
+mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
+			    int *user_data_len);
+
 /*
  * For android private commands, fixed value of ioctl is used.
  * Internally commands are differentiated using strings.

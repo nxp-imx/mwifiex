@@ -2204,7 +2204,7 @@ int wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 *rate_bitmap, int size)
  *
  *  @return                 BAND_B|BAND_G|BAND_A
  */
-t_u16 wlan_convert_config_bands(t_u16 config_bands)
+static t_u16 wlan_convert_config_bands(t_u16 config_bands)
 {
 	t_u16 bands = 0;
 	if (config_bands & BAND_B)

@@ -108,7 +108,7 @@ t_u8 mcast_drv_update_allow_flag = MTRUE;
  *
  *  @return         Nothing
  */
-void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
+static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 					   pmlan_buffer pmbuf)
 {
 	static t_u32 prev_mcast_sec = 0;
