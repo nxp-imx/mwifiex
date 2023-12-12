@@ -318,9 +318,6 @@ static mlan_status wlan_get_info_bss_info(pmlan_adapter pmadapter,
 	info->param.bss_info.max_power_level = pmpriv->max_tx_power_level;
 	info->param.bss_info.min_power_level = pmpriv->min_tx_power_level;
 
-	/* AdHoc state */
-	info->param.bss_info.adhoc_state = pmpriv->adhoc_state;
-
 	/* Last beacon NF */
 	info->param.bss_info.bcn_nf_last = pmpriv->bcn_nf_last;
 
@@ -777,9 +774,7 @@ static mlan_status wlan_bss_ioctl_get_channel_list(pmlan_adapter pmadapter,
 		return MLAN_STATUS_FAILURE;
 	}
 	if ((wlan_11d_is_enabled(pmpriv) && pmpriv->media_connected == MTRUE) &&
-	    ((pmpriv->bss_mode == MLAN_BSS_MODE_INFRA) ||
-	     (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS &&
-	      pmpriv->adhoc_state != ADHOC_STARTED))) {
+	    ((pmpriv->bss_mode == MLAN_BSS_MODE_INFRA))) {
 		t_u8 chan_no;
 		t_u16 band;
 
@@ -902,8 +897,6 @@ static mlan_status wlan_bss_ioctl_channel(pmlan_adapter pmadapter,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	if (pmadapter->adhoc_start_band & BAND_A)
-		pmadapter->adhoc_start_band = BAND_G | BAND_B;
 	if (bss->param.bss_chan.channel) {
 		if (bss->param.bss_chan.channel <= MAX_CHANNEL_BAND_B)
 			cfp = wlan_find_cfp_by_band_and_channel(
@@ -914,7 +907,6 @@ static mlan_status wlan_bss_ioctl_channel(pmlan_adapter pmadapter,
 				pmadapter, BAND_A,
 				(t_u16)bss->param.bss_chan.channel);
 			if (cfp) {
-				pmadapter->adhoc_start_band = BAND_A;
 			}
 		}
 	} else {
@@ -925,7 +917,6 @@ static mlan_status wlan_bss_ioctl_channel(pmlan_adapter pmadapter,
 			cfp = wlan_find_cfp_by_band_and_freq(
 				pmadapter, BAND_A, bss->param.bss_chan.freq);
 			if (cfp) {
-				pmadapter->adhoc_start_band = BAND_A;
 			}
 		}
 	}
@@ -936,8 +927,6 @@ static mlan_status wlan_bss_ioctl_channel(pmlan_adapter pmadapter,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	pmpriv->adhoc_channel = (t_u8)cfp->channel;
-	pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
 	bss->param.bss_chan.channel = cfp->channel;
 	bss->param.bss_chan.freq = cfp->freq;
 
@@ -1105,65 +1094,6 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 			goto start_ssid_done;
 		}
 	} else {
-		/* Adhoc mode */
-		/* If the requested SSID matches current SSID, return */
-		if (bss->param.ssid_bssid.ssid.ssid_len &&
-		    (!wlan_ssid_cmp(pmadapter,
-				    &pmpriv->curr_bss_params.bss_descriptor.ssid,
-				    &bss->param.ssid_bssid.ssid))) {
-			ret = MLAN_STATUS_SUCCESS;
-			goto start_ssid_done;
-		}
-
-		/* Exit Adhoc mode first */
-		PRINTM(MINFO, "Sending Adhoc Stop\n");
-		ret = wlan_disconnect(pmpriv, MNULL, MNULL);
-		if (ret)
-			goto start_ssid_done;
-
-		pmpriv->adhoc_is_link_sensed = MFALSE;
-
-		if (!bss->param.ssid_bssid.idx ||
-		    bss->param.ssid_bssid.idx > pmadapter->num_in_scan_table) {
-			/* Search for the requested network in the scan table */
-			if (bss->param.ssid_bssid.ssid.ssid_len) {
-				i = wlan_find_ssid_in_list(
-					pmpriv, &bss->param.ssid_bssid.ssid,
-					MNULL, MLAN_BSS_MODE_IBSS);
-			} else {
-				i = wlan_find_bssid_in_list(
-					pmpriv,
-					(t_u8 *)&bss->param.ssid_bssid.bssid,
-					MLAN_BSS_MODE_IBSS);
-			}
-		} else {
-			/* use bsslist index number to assoicate */
-			i = wlan_is_network_compatible(
-				pmpriv, bss->param.ssid_bssid.idx - 1,
-				pmpriv->bss_mode);
-		}
-
-		if (i >= 0) {
-			PRINTM(MINFO,
-			       "Network found in scan list ... joining ...\n");
-			pmpriv->curr_chan_flags =
-				bss->param.ssid_bssid.channel_flags;
-			ret = wlan_adhoc_join(pmpriv, pioctl_req,
-					      &pmadapter->pscan_table[i]);
-			if (ret)
-				goto start_ssid_done;
-		} else { /* i >= 0 */
-			PRINTM(MINFO,
-			       "Network not found in the list, "
-			       "creating adhoc with ssid = %s\n",
-			       bss->param.ssid_bssid.ssid.ssid);
-			pmpriv->curr_chan_flags =
-				bss->param.ssid_bssid.channel_flags;
-			ret = wlan_adhoc_start(pmpriv, pioctl_req,
-					       &bss->param.ssid_bssid.ssid);
-			if (ret)
-				goto start_ssid_done;
-		}
 	}
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -1199,50 +1129,6 @@ static mlan_status wlan_bss_ioctl_stop(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Set/Get IBSS channel
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success,
- * otherwise fail
- */
-static mlan_status wlan_bss_ioctl_ibss_channel(pmlan_adapter pmadapter,
-					       pmlan_ioctl_req pioctl_req)
-{
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	t_u16 cmd_action;
-
-	ENTER();
-
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		if (pmpriv->media_connected == MFALSE) {
-			bss->param.bss_chan.channel = pmpriv->adhoc_channel;
-			goto exit;
-		}
-		cmd_action = HostCmd_ACT_GEN_GET;
-	} else {
-		cmd_action = HostCmd_ACT_GEN_SET;
-		pmpriv->adhoc_channel = (t_u8)bss->param.bss_chan.channel;
-		pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
-	}
-
-	/* Send request to firmware */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_RF_CHANNEL,
-			       cmd_action, 0, (t_void *)pioctl_req,
-			       &bss->param.bss_chan.channel);
-	if (ret == MLAN_STATUS_SUCCESS)
-		ret = MLAN_STATUS_PENDING;
-
-exit:
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set/Get Listen Interval
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -1267,65 +1153,6 @@ static mlan_status wlan_bss_ioctl_listen_interval(pmlan_adapter pmadapter,
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
-}
-
-/*
- *  @brief Set/Get beacon interval
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_SUCCESS --success
- */
-static mlan_status wlan_bss_ioctl_beacon_interval(pmlan_adapter pmadapter,
-						  pmlan_ioctl_req pioctl_req)
-{
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	ENTER();
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		bss->param.bcn_interval = pmpriv->beacon_period;
-		if (pmpriv->media_connected == MTRUE)
-			bss->param.bcn_interval =
-				pmpriv->curr_bss_params.bss_descriptor
-					.beacon_period;
-	} else
-		pmpriv->beacon_period = (t_u16)bss->param.bcn_interval;
-	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Set/Get ATIM window
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_SUCCESS --success
- */
-static mlan_status wlan_bss_ioctl_atim_window(pmlan_adapter pmadapter,
-					      pmlan_ioctl_req pioctl_req)
-{
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_bss *bss = MNULL;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	ENTER();
-	bss = (mlan_ds_bss *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		bss->param.atim_window = pmpriv->atim_window;
-		if (pmpriv->media_connected == MTRUE)
-			bss->param.atim_window =
-				pmpriv->curr_bss_params.bss_descriptor
-					.atim_window;
-	} else
-		pmpriv->atim_window = (t_u16)bss->param.atim_window;
-
-	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
-	LEAVE();
-	return ret;
 }
 
 /**
@@ -1526,6 +1353,10 @@ static mlan_status wlan_bss_ioctl(pmlan_adapter pmadapter,
 	switch (bss->sub_command) {
 	case MLAN_OID_BSS_HOST_MLME:
 		pmpriv->curr_bss_params.host_mlme = MTRUE;
+		memcpy_ext(pmpriv->adapter,
+			   &pmpriv->curr_bss_params.attemp_bssid,
+			   &bss->param.bssid, MLAN_MAC_ADDR_LENGTH,
+			   MLAN_MAC_ADDR_LENGTH);
 		break;
 	case MLAN_OID_BSS_START:
 		status = wlan_bss_ioctl_start(pmadapter, pioctl_req);
@@ -1554,15 +1385,6 @@ static mlan_status wlan_bss_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_BSS_FIND_BSSID:
 		status = wlan_bss_ioctl_find_bssid(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_IBSS_BCN_INTERVAL:
-		status = wlan_bss_ioctl_beacon_interval(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_IBSS_ATIM_WINDOW:
-		status = wlan_bss_ioctl_atim_window(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_IBSS_CHANNEL:
-		status = wlan_bss_ioctl_ibss_channel(pmadapter, pioctl_req);
 		break;
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	case MLAN_OID_BSS_ROLE:
@@ -1634,10 +1456,7 @@ wlan_rate_ioctl_get_supported_rate(pmlan_adapter pmadapter,
 			rate->param.rates);
 	else
 		wlan_get_active_data_rates(pmpriv, pmpriv->bss_mode,
-					   (pmpriv->bss_mode ==
-					    MLAN_BSS_MODE_INFRA) ?
-						   pmpriv->config_bands :
-						   pmadapter->adhoc_start_band,
+					   pmpriv->config_bands,
 					   rate->param.rates);
 	pioctl_req->data_read_written =
 		MLAN_SUPPORTED_RATES + MLAN_SUB_COMMAND_SIZE;
@@ -3774,7 +3593,6 @@ static mlan_status wlan_11h_channel_check_req(pmlan_adapter pmadapter,
 {
 	pmlan_private pmpriv = MNULL;
 	mlan_status ret = MLAN_STATUS_FAILURE;
-	t_u8 chan_width = CHAN_BW_20MHZ;
 	Band_Config_t bandcfg;
 
 	ENTER();
@@ -3788,56 +3606,6 @@ static mlan_status wlan_11h_channel_check_req(pmlan_adapter pmadapter,
 	}
 
 	memset(pmadapter, &bandcfg, 0, sizeof(Band_Config_t));
-	pmpriv->adhoc_state = ADHOC_STARTING;
-
-	if ((pmadapter->adhoc_start_band & BAND_A)) {
-		if (pmpriv->intf_state_11h.adhoc_auto_sel_chan)
-			pmpriv->adhoc_channel =
-				wlan_11h_get_adhoc_start_channel(pmpriv);
-
-		/*
-		 * Check if the region and channel requires a channel
-		 * availability check.
-		 */
-		if (wlan_11h_radar_detect_required(pmpriv,
-						   pmpriv->adhoc_channel) &&
-		    !wlan_11h_is_channel_under_nop(pmadapter,
-						   pmpriv->adhoc_channel)) {
-			/*
-			 * Radar detection is required for this channel, make
-			 * sure 11h is activated in the firmware
-			 */
-			ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
-			ret = wlan_11h_config_master_radar_det(pmpriv, MTRUE);
-			ret = wlan_11h_check_update_radar_det_state(pmpriv);
-
-			/* Check for radar on the channel */
-			if ((pmadapter->chan_bandwidth ==
-			     CHANNEL_BW_40MHZ_ABOVE) ||
-			    (pmadapter->chan_bandwidth ==
-			     CHANNEL_BW_40MHZ_BELOW)) {
-				chan_width = CHAN_BW_40MHZ;
-				if (pmadapter->chanrpt_param_bandcfg) {
-					bandcfg.chan2Offset =
-						pmadapter->chan_bandwidth;
-				}
-			} else if (pmadapter->chan_bandwidth ==
-				   CHANNEL_BW_80MHZ)
-				chan_width = CHAN_BW_80MHZ;
-			if (pmadapter->chanrpt_param_bandcfg) {
-				bandcfg.chanWidth = chan_width;
-				bandcfg.chanBand = BAND_5GHZ;
-			} else {
-				*((t_u8 *)&bandcfg) = chan_width;
-			}
-
-			ret = wlan_11h_issue_radar_detect(pmpriv, pioctl_req,
-							  pmpriv->adhoc_channel,
-							  bandcfg);
-			if (ret == MLAN_STATUS_SUCCESS)
-				ret = MLAN_STATUS_PENDING;
-		}
-	}
 
 	LEAVE();
 	return ret;
@@ -4654,8 +4422,7 @@ static mlan_status wlan_misc_ioctl_cfp_code_cfg(pmlan_adapter pmadapter,
 		else
 			pmadapter->region_code = 0;
 		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
-					 pmadapter->config_bands |
-						 pmadapter->adhoc_start_band)) {
+					 pmadapter->config_bands)) {
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -5378,6 +5145,7 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_RF_TEST_CONFIG_TRIGGER_FRAME:
 	case MLAN_OID_MISC_RF_TEST_TX_FRAME:
 	case MLAN_OID_MISC_RF_TEST_HE_POWER:
+	case MLAN_OID_MISC_OTP_MAC_RD_WR:
 		status = wlan_misc_ioctl_rf_test_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_ARB_CONFIG:
@@ -5510,6 +5278,15 @@ mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 
 	if (pmadapter->scan_block && pioctl_req->action == MLAN_ACT_SET) {
 		PRINTM(MERROR, "Scan is blocked during association...\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	if (pmadapter->remain_on_channel
+#ifdef WIFI_DIRECT_SUPPORT
+	    && (pmpriv->bss_type != MLAN_BSS_TYPE_WIFIDIRECT)
+#endif
+	) {
+		PRINTM(MERROR, "Scan is blocked during remain on channel...\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}

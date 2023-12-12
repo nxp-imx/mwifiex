@@ -1569,8 +1569,7 @@ mlan_status wlan_11d_cfg_domain_info(pmlan_adapter pmadapter,
 	else
 		pmadapter->region_code = 0;
 	if (wlan_set_regiontable(pmpriv, pmadapter->region_code,
-				 pmadapter->config_bands |
-					 pmadapter->adhoc_start_band)) {
+				 pmadapter->config_bands)) {
 		PRINTM(MIOCTL, "Fail to set regiontabl\n");
 		goto done;
 	}
@@ -1625,8 +1624,7 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 		else
 			pmadapter->region_code = 0;
 		if (wlan_set_regiontable(pmpriv, pmadapter->region_code,
-					 pmadapter->config_bands |
-						 pmadapter->adhoc_start_band)) {
+					 pmadapter->config_bands)) {
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}

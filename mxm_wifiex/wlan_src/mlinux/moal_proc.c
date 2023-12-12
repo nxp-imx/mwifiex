@@ -803,6 +803,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	if (!strncmp(databuf, "trigger_frame=", strlen("trigger_frame=")) &&
 	    count > strlen("trigger_frame="))
 		cmd = MFG_CMD_CONFIG_TRIGGER_FRAME;
+	if (!strncmp(databuf,
+		     "otp_mac_addr_rd_wr=", strlen("otp_mac_add_rd_wr=")) &&
+	    count > strlen("otp_mac_addr_rd_wr=")) {
+		cmd = MFG_CMD_OTP_MAC_ADD;
+	}
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
 		     handle, cmd, (const char *)databuf, (size_t)count,
@@ -1047,6 +1052,14 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 					   .basic_trig_user_info.pref_ac);
 		}
 		seq_printf(sfp, "\n");
+		seq_printf(sfp, "otp_mac_add_rd_wr=");
+		seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x \n",
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[0],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[1],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[2],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[3],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[4],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[5]);
 	}
 	// Read current antcfg configuration
 	woal_priv_get_tx_rx_ant(sfp, priv);

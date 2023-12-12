@@ -157,50 +157,6 @@ static t_u32 wlan_11h_get_random_num(pmlan_adapter pmadapter)
 }
 
 /**
- *  @brief Convert an IEEE formatted IE to 16-bit ID/Len NXP
- *         proprietary format
- *
- *  @param pmadapter Pointer to mlan_adapter
- *  @param pout_buf Output parameter: Buffer to output NXP formatted IE
- *  @param pin_ie   Pointer to IEEE IE to be converted to NXP format
- *
- *  @return         Number of bytes output to pout_buf parameter return
- */
-static t_u32 wlan_11h_convert_ieee_to_mrvl_ie(mlan_adapter *pmadapter,
-					      t_u8 *pout_buf,
-					      const t_u8 *pin_ie)
-{
-	MrvlIEtypesHeader_t mrvl_ie_hdr;
-	t_u8 *ptmp_buf = pout_buf;
-
-	ENTER();
-	/* Assign the Element Id and Len to the NXP struct attributes */
-	mrvl_ie_hdr.type = wlan_cpu_to_le16(pin_ie[0]);
-	mrvl_ie_hdr.len = wlan_cpu_to_le16(pin_ie[1]);
-
-	/* If the element ID is zero, return without doing any copying */
-	if (!mrvl_ie_hdr.type) {
-		LEAVE();
-		return 0;
-	}
-
-	/* Copy the header to the buffer pointer */
-	memcpy_ext(pmadapter, ptmp_buf, &mrvl_ie_hdr, sizeof(mrvl_ie_hdr),
-		   sizeof(mrvl_ie_hdr));
-
-	/* Increment the temp buffer pointer by the size appended */
-	ptmp_buf += sizeof(mrvl_ie_hdr);
-
-	/* Append the data section of the IE; length given by the IEEE IE length
-	 */
-	memcpy_ext(pmadapter, ptmp_buf, pin_ie + 2, pin_ie[1], pin_ie[1]);
-
-	LEAVE();
-	/* Return the number of bytes appended to pout_buf */
-	return (t_u32)(sizeof(mrvl_ie_hdr) + pin_ie[1]);
-}
-
-/**
  *  @brief find all bonded channel.
  *
  *  @param pri_chan   primary channel
@@ -310,88 +266,6 @@ t_void wlan_11h_reset_dfs_checking_chan_dfs_state(mlan_private *priv,
 	}
 	LEAVE();
 }
-
-#ifdef STA_SUPPORT
-/**
- *  @brief Setup the IBSS DFS element passed to the firmware in adhoc start
- *         and join commands
- *
- *  The DFS Owner and recovery fields are set to be our MAC address and
- *    a predetermined constant recovery value.  If we are joining an adhoc
- *    network, these values are replaced with the existing IBSS values.
- *    They are valid only when starting a new IBSS.
- *
- *  The IBSS DFS Element is variable in size based on the number of
- *    channels supported in our current region.
- *
- *  @param priv Private driver information structure
- *  @param pdfs Output parameter: Pointer to the IBSS DFS element setup by
- *              this function.
- *
- *  @return
- *    - Length of the returned element in pdfs output parameter
- *    - 0 if returned element is not setup
- */
-static t_u32 wlan_11h_set_ibss_dfs_ie(mlan_private *priv,
-				      IEEEtypes_IBSS_DFS_t *pdfs)
-{
-	t_u8 num_chans = 0;
-	MeasRptBasicMap_t initial_map;
-	mlan_adapter *adapter = priv->adapter;
-
-	ENTER();
-
-	memset(adapter, pdfs, 0x00, sizeof(IEEEtypes_IBSS_DFS_t));
-
-	/*
-	 * A basic measurement report is included with each channel in the
-	 *   map field.  Initial value for the map for each supported channel
-	 *   is with only the unmeasured bit set.
-	 */
-	memset(adapter, &initial_map, 0x00, sizeof(initial_map));
-	initial_map.unmeasured = 1;
-
-	/* Set the DFS Owner and recovery interval fields */
-	memcpy_ext(adapter, pdfs->dfs_owner, priv->curr_addr,
-		   sizeof(pdfs->dfs_owner), sizeof(pdfs->dfs_owner));
-	pdfs->dfs_recovery_interval = WLAN_11H_DEFAULT_DFS_RECOVERY_INTERVAL;
-
-	for (; (num_chans < adapter->parsed_region_chan.no_of_chan) &&
-	       (num_chans < WLAN_11H_MAX_IBSS_DFS_CHANNELS);
-	     num_chans++) {
-		pdfs->channel_map[num_chans].channel_number =
-			adapter->parsed_region_chan.chan_pwr[num_chans].chan;
-
-		/*
-		 * Set the initial map field with a basic measurement
-		 */
-		pdfs->channel_map[num_chans].rpt_map = initial_map;
-	}
-
-	/*
-	 * If we have an established channel map, include it and return
-	 *   a valid DFS element
-	 */
-	if (num_chans) {
-		PRINTM(MINFO, "11h: Added %d channels to IBSS DFS Map\n",
-		       num_chans);
-
-		pdfs->element_id = IBSS_DFS;
-		pdfs->len = (sizeof(pdfs->dfs_owner) +
-			     sizeof(pdfs->dfs_recovery_interval) +
-			     num_chans * sizeof(IEEEtypes_ChannelMap_t));
-
-		LEAVE();
-		return pdfs->len + sizeof(pdfs->len) + sizeof(pdfs->element_id);
-	}
-
-	/* Ensure the element is zeroed out for an invalid return */
-	memset(adapter, pdfs, 0x00, sizeof(IEEEtypes_IBSS_DFS_t));
-
-	LEAVE();
-	return 0;
-}
-#endif
 
 /**
  *  @brief Setup the Supported Channel IE sent in association requests
@@ -939,113 +813,7 @@ static t_u32 wlan_11h_process_infra_join(mlan_private *priv, t_u8 **ppbuffer,
 	return ret_len;
 }
 
-/**
- *  @brief Utility function to process a start or join to an adhoc network
- *
- *  Add the elements to the TLV buffer needed in the start/join adhoc commands:
- *       - IBSS DFS IE
- *       - Quiet IE
- *
- *  Also send the local constraint to the firmware in a TPC_INFO command.
- *
- *  @param priv          Private driver information structure
- *  @param ppbuffer      Output parameter: Pointer to the TLV output buffer,
- *                       modified on return to point after the appended 11h TLVs
- *  @param channel       Channel on which we are starting/joining the IBSS
- *  @param p11h_bss_info Pointer to the 11h BSS information for this network
- *                       that was parsed out of the scan response.  NULL
- *                       indicates we are starting the adhoc network
- *
- *  @return              Integer number of bytes appended to the TLV output
- *                       buffer (ppbuffer)
- */
-static t_u32 wlan_11h_process_adhoc(mlan_private *priv, t_u8 **ppbuffer,
-				    t_u32 channel,
-				    wlan_11h_bss_info_t *p11h_bss_info)
-{
-	IEEEtypes_IBSS_DFS_t dfs_elem;
-	t_u32 size_appended;
-	t_u32 ret_len = 0;
-	t_s8 local_constraint = 0;
-	mlan_adapter *adapter = priv->adapter;
-
-	ENTER();
-
-#ifdef STA_SUPPORT
-	/* Format our own IBSS DFS Element.  Include our channel map fields */
-	wlan_11h_set_ibss_dfs_ie(priv, &dfs_elem);
-#endif
-
-	if (p11h_bss_info) {
-		/*
-		 * Copy the DFS Owner/Recovery Interval from the BSS
-		 * we are joining
-		 */
-		memcpy_ext(adapter, dfs_elem.dfs_owner,
-			   p11h_bss_info->ibss_dfs.dfs_owner,
-			   sizeof(dfs_elem.dfs_owner),
-			   sizeof(dfs_elem.dfs_owner));
-		dfs_elem.dfs_recovery_interval =
-			p11h_bss_info->ibss_dfs.dfs_recovery_interval;
-	}
-
-	/* Append the dfs element to the TLV buffer */
-	size_appended = wlan_11h_convert_ieee_to_mrvl_ie(
-		adapter, (t_u8 *)*ppbuffer, (t_u8 *)&dfs_elem);
-
-	HEXDUMP("11h: IBSS-DFS", (t_u8 *)*ppbuffer, size_appended);
-	*ppbuffer += size_appended;
-	ret_len += size_appended;
-
-	/*
-	 * Check to see if we are joining a network.  Join is indicated by the
-	 *   BSS Info pointer being valid (not NULL)
-	 */
-	if (p11h_bss_info) {
-		/*
-		 * If there was a quiet element, include it in
-		 * adhoc join command
-		 */
-		if (p11h_bss_info->quiet.element_id == QUIET) {
-			size_appended = wlan_11h_convert_ieee_to_mrvl_ie(
-				adapter, (t_u8 *)*ppbuffer,
-				(t_u8 *)&p11h_bss_info->quiet);
-			HEXDUMP("11h: Quiet", (t_u8 *)*ppbuffer, size_appended);
-			*ppbuffer += size_appended;
-			ret_len += size_appended;
-		}
-
-		/* Copy the local constraint from the network */
-		local_constraint =
-			p11h_bss_info->power_constraint.local_constraint;
-	} else {
-		/*
-		 * If we are the adhoc starter, we can add a quiet element
-		 */
-		if (adapter->state_11h.quiet_ie.quiet_period) {
-			size_appended = wlan_11h_convert_ieee_to_mrvl_ie(
-				adapter, (t_u8 *)*ppbuffer,
-				(t_u8 *)&adapter->state_11h.quiet_ie);
-			HEXDUMP("11h: Quiet", (t_u8 *)*ppbuffer, size_appended);
-			*ppbuffer += size_appended;
-			ret_len += size_appended;
-		}
-		/* Use the local_constraint configured in the driver state */
-		local_constraint = adapter->state_11h.usr_def_power_constraint;
-	}
-
-	PRINTM(MINFO, "WEILIE 1: ppbuffer = %p\n", *ppbuffer);
-
-	ret_len += wlan_11h_set_local_power_constraint_tlv(
-		ppbuffer, (t_u8)channel, (t_u8)local_constraint,
-		(t_u8)priv->adapter->state_11h.min_tx_power_capability,
-		(t_u8)priv->adapter->state_11h.max_tx_power_capability);
-	PRINTM(MINFO, "WEILIE 2: ppbuffer = %p\n", *ppbuffer);
-
-	LEAVE();
-	return ret_len;
-}
-
+#if defined(UAP_SUPPORT)
 /**
  *  @brief Return whether the driver has enabled 11h for the interface
  *
@@ -1064,6 +832,7 @@ static t_bool wlan_11h_is_enabled(mlan_private *priv)
 	LEAVE();
 	return priv->intf_state_11h.is_11h_enabled;
 }
+#endif
 
 /**
  *  @brief Return whether the device has activated slave radar detection.
@@ -1150,11 +919,6 @@ static t_bool wlan_11h_is_master_active_on_dfs_chan(mlan_private *priv)
 	ENTER();
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
 		/* Ad-hoc creator */
-		if (((priv->media_connected == MTRUE) ||
-		     (priv->adhoc_state == ADHOC_STARTING)) &&
-		    (priv->adapter->adhoc_start_band & BAND_A) &&
-		    wlan_11h_radar_detect_required(priv, priv->adhoc_channel))
-			ret = MTRUE;
 	} else if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 		/* UAP */
 #ifdef UAP_SUPPORT
@@ -1183,13 +947,6 @@ static t_bool wlan_11h_is_dfs_master(mlan_private *priv)
 	ENTER();
 	/* UAP: all are master */
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-		ret = MTRUE;
-
-	/* STA: only ad-hoc creator is master */
-	else if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) &&
-		 (priv->bss_mode == MLAN_BSS_MODE_IBSS) &&
-		 (priv->adhoc_state == ADHOC_STARTED ||
-		  priv->adhoc_state == ADHOC_STARTING))
 		ret = MTRUE;
 
 	/* all other cases = slave interface */
@@ -2367,98 +2124,6 @@ t_void wlan_11h_priv_init(mlan_private *pmpriv)
 }
 
 /**
- *  @brief Retrieve a randomly selected starting channel if needed for 11h
- *
- *  If 11h is enabled and an A-Band channel start band preference
- *    configured in the driver, the start channel must be random in order
- *    to meet with
- *
- *  @param priv  Private driver information structure
- *
- *  @return      Starting channel
- */
-t_u8 wlan_11h_get_adhoc_start_channel(mlan_private *priv)
-{
-	t_u8 start_chn;
-	mlan_adapter *adapter = priv->adapter;
-	t_u32 region;
-	t_u32 rand_entry;
-	region_chan_t *chn_tbl;
-	t_u8 rand_tries = 0;
-
-	ENTER();
-
-	/*
-	 * Set start_chn to the Default.  Used if 11h is disabled or the band
-	 *   does not require 11h support.
-	 */
-	start_chn = DEFAULT_AD_HOC_CHANNEL;
-
-	/*
-	 * Check that we are looking for a channel in the A Band
-	 */
-	if ((adapter->adhoc_start_band & BAND_A)) {
-		/*
-		 * Set default to the A Band default.
-		 * Used if random selection fails
-		 * or if 11h is not enabled
-		 */
-		start_chn = DEFAULT_AD_HOC_CHANNEL_A;
-
-		/*
-		 * Check that 11h is enabled in the driver
-		 */
-		if (wlan_11h_is_enabled(priv)) {
-			/*
-			 * Search the region_channel tables for a channel table
-			 *   that is marked for the A Band.
-			 */
-			for (region = 0; (region < MAX_REGION_CHANNEL_NUM);
-			     region++) {
-				chn_tbl = &adapter->region_channel[region];
-
-				/* Check if table is valid and marked for A Band
-				 */
-				if (chn_tbl->valid &&
-				    chn_tbl->region == adapter->region_code &&
-				    chn_tbl->band & BAND_A) {
-					/*
-					 * Set the start channel.  Get a random
-					 * number and use it to pick an entry
-					 * in the table between 0 and the number
-					 * of channels in the table (NumCFP).
-					 */
-					do {
-						rand_entry =
-							wlan_11h_get_random_num(
-								adapter) %
-							chn_tbl->num_cfp;
-						start_chn =
-							(t_u8)chn_tbl
-								->pcfp[rand_entry]
-								.channel;
-					} while (
-						(wlan_11h_is_channel_under_nop(
-							 adapter, start_chn) ||
-						 ((adapter->state_rdh.stage ==
-						   RDH_GET_INFO_CHANNEL) &&
-						  wlan_11h_radar_detect_required(
-							  priv, start_chn))) &&
-						(++rand_tries <
-						 MAX_RANDOM_CHANNEL_RETRIES));
-				}
-			}
-		}
-	}
-
-	PRINTM(MINFO, "11h: %s: AdHoc Channel set to %u\n",
-	       wlan_11h_is_enabled(priv) ? "Enabled" : "Disabled", start_chn);
-
-	LEAVE();
-	return start_chn;
-}
-
-/**
  *  @brief Retrieve channel closed for operation by Channel Switch Announcement
  *
  *  After receiving CSA, we must not transmit in any form on the original
@@ -2746,93 +2411,6 @@ mlan_status wlan_11h_check_chan_report(mlan_private *priv, t_u8 chan)
 }
 
 /**
- *  @brief Process an TLV buffer for a pending BSS Adhoc start command.
- *
- *  Activate 11h functionality in the firmware if driver has is enabled
- *    for 11h (configured by the application via IOCTL).
- *
- *  @param priv          Private driver information structure
- *  @param ppbuffer      Output parameter: Pointer to the TLV output buffer,
- *                       modified on return to point after the appended 11h TLVs
- *  @param pcap_info     Pointer to the capability info for the BSS to join
- *  @param channel       Channel on which we are starting the IBSS
- *  @param p11h_bss_info Input/Output parameter: Pointer to the 11h BSS
- *                       information for this network that we are establishing.
- *                       11h sensed flag set on output if warranted.
- *
- *  @return
- *      - MLAN_STATUS_SUCCESS if 11h is disabled
- *      - Integer number of bytes appended to the TLV output buffer (ppbuffer)
- *      - < 0 for error (e.g. radar detected on channel)
- */
-t_s32 wlan_11h_process_start(mlan_private *priv, t_u8 **ppbuffer,
-			     IEEEtypes_CapInfo_t *pcap_info, t_u32 channel,
-			     wlan_11h_bss_info_t *p11h_bss_info)
-{
-	mlan_adapter *adapter = priv->adapter;
-	t_s32 ret = MLAN_STATUS_SUCCESS;
-	t_bool is_dfs_chan = MFALSE;
-
-	ENTER();
-	if (wlan_11h_is_enabled(priv) &&
-	    ((adapter->adhoc_start_band & BAND_A))) {
-		if (!wlan_fw_11d_is_enabled(priv)) {
-			/* No use having 11h enabled without 11d enabled */
-			if (wlan_11d_enable(priv, MNULL, ENABLE_11D)) {
-				ret = MLAN_STATUS_FAILURE;
-				LEAVE();
-				return ret;
-			}
-#ifdef STA_SUPPORT
-			if (wlan_11d_create_dnld_countryinfo(
-				    priv, adapter->adhoc_start_band))
-				PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
-#endif
-		}
-
-		/*
-		 * Activate 11h functions in firmware,
-		 * turns on capability bit
-		 */
-		wlan_11h_activate(priv, MNULL, MTRUE);
-		pcap_info->spectrum_mgmt = MTRUE;
-
-		/* If using a DFS channel, enable radar detection. */
-		is_dfs_chan = wlan_11h_radar_detect_required(priv, channel);
-		if (is_dfs_chan) {
-			if (!wlan_11h_is_master_radar_det_active(priv))
-				wlan_11h_config_master_radar_det(priv, MTRUE);
-		}
-		wlan_11h_check_update_radar_det_state(priv);
-
-		/* Set flag indicating this BSS we are starting is using 11h */
-		p11h_bss_info->sensed_11h = MTRUE;
-
-		if (is_dfs_chan) {
-			/* check if this channel is under NOP */
-			if (wlan_11h_is_channel_under_nop(adapter, channel))
-				ret = MLAN_STATUS_FAILURE;
-			/* check last channel report, if this channel is free of
-			 * radar */
-			if (ret == MLAN_STATUS_SUCCESS)
-				ret = wlan_11h_check_chan_report(priv, channel);
-		}
-		if (ret == MLAN_STATUS_SUCCESS)
-			ret = wlan_11h_process_adhoc(priv, ppbuffer, channel,
-						     MNULL);
-		else
-			ret = MLAN_STATUS_FAILURE;
-	} else {
-		/* Deactivate 11h functions in the firmware */
-		wlan_11h_activate(priv, MNULL, MFALSE);
-		pcap_info->spectrum_mgmt = MFALSE;
-		wlan_11h_check_update_radar_det_state(priv);
-	}
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Process an TLV buffer for a pending BSS Join command for
  *         both adhoc and infra networks
  *
@@ -2912,22 +2490,12 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
 		}
 		wlan_11h_check_update_radar_det_state(priv);
 
-		if (pcap_info->ibss) {
-			PRINTM(MINFO, "11h: Adhoc join: Sensed\n");
-			ret = wlan_11h_process_adhoc(priv, ppbuffer, channel,
-						     p11h_bss_info);
-		} else {
+		{
 			PRINTM(MINFO, "11h: Infra join: Sensed\n");
 			ret = wlan_11h_process_infra_join(
 				priv, ppbuffer, band, channel, p11h_bss_info);
 		}
 	} else {
-		if (pcap_info->ibss) {
-			/* Deactivate 11h functions in the firmware */
-			wlan_11h_activate(priv, MNULL, MFALSE);
-			pcap_info->spectrum_mgmt = MFALSE;
-			wlan_11h_check_update_radar_det_state(priv);
-		}
 	}
 
 	LEAVE();
@@ -3139,17 +2707,6 @@ mlan_status wlan_11h_process_bss_elem(mlan_adapter *pmadapter,
 			   sizeof(IEEEtypes_Quiet_t));
 		p11h_bss_info->quiet.len =
 			MIN(element_len, (sizeof(IEEEtypes_Quiet_t) -
-					  sizeof(IEEEtypes_Header_t)));
-		break;
-
-	case IBSS_DFS:
-		PRINTM(MINFO, "11h: Ibss Dfs IE Found\n");
-		p11h_bss_info->sensed_11h = MTRUE;
-		memcpy_ext(pmadapter, &p11h_bss_info->ibss_dfs, pelement,
-			   element_len + sizeof(IEEEtypes_Header_t),
-			   sizeof(IEEEtypes_IBSS_DFS_t));
-		p11h_bss_info->ibss_dfs.len =
-			MIN(element_len, (sizeof(IEEEtypes_IBSS_DFS_t) -
 					  sizeof(IEEEtypes_Header_t)));
 		break;
 
@@ -4205,12 +3762,10 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 					pmpriv->uap_state_chan_cb.bandcfg);
 		else
 #endif
-			pstate_rdh->new_channel =
-				wlan_11h_get_adhoc_start_channel(pmpriv);
 
-		if (!pstate_rdh->new_channel ||
-		    (pstate_rdh->new_channel ==
-		     pstate_rdh->curr_channel)) { /* report error */
+			if (!pstate_rdh->new_channel ||
+			    (pstate_rdh->new_channel ==
+			     pstate_rdh->curr_channel)) { /* report error */
 			PRINTM(MERROR,
 			       "%s():  ERROR - Failed to choose new_chan"
 			       " (!= curr_chan) !!\n",
@@ -4294,9 +3849,7 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 				t_u16 bcn_dtim_msec;
 
 				/* adhoc creator */
-				if (wlan_11h_is_dfs_master(pmpriv)) {
-					bcn_pd_msec = pmpriv->beacon_period;
-				} else {
+				{
 					bcn_pd_msec = pmpriv->curr_bss_params
 							      .bss_descriptor
 							      .beacon_period;
@@ -4460,12 +4013,6 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 #endif
 #ifdef STA_SUPPORT
 			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_STA) {
-				if (wlan_11h_is_dfs_master(pmpriv)) {
-					/* Save ad-hoc creator state before stop
-					 * clears it */
-					pmpriv->adhoc_state_prev =
-						pmpriv->adhoc_state;
-				}
 				if (pmpriv->media_connected == MTRUE) {
 					wlan_disconnect(pmpriv, MNULL, MNULL);
 					break; /* leads to exit case */
@@ -4567,56 +4114,6 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 			}
 #endif
 #ifdef STA_SUPPORT
-			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_STA) {
-				/* Check previous state to find former
-				 * Ad-hoc creator interface. Set new
-				 * state to Starting, so it'll be seen
-				 * as a DFS master. */
-				if (pmpriv->adhoc_state_prev == ADHOC_STARTED) {
-					pmpriv->adhoc_state = ADHOC_STARTING;
-					pmpriv->adhoc_state_prev = ADHOC_IDLE;
-				}
-				if (wlan_11h_is_dfs_master(pmpriv)) {
-					/* set new adhoc channel here */
-					pmpriv->adhoc_channel =
-						pstate_rdh->new_channel;
-					if (wlan_11h_radar_detect_required(
-						    pmpriv,
-						    pstate_rdh->new_channel)) {
-						/* Radar detection is required
-						   for this channel, make sure
-						   11h is activated in the
-						   firmware */
-						ret = wlan_11h_activate(
-							pmpriv, MNULL, MTRUE);
-						if (ret)
-							break;
-						ret = wlan_11h_config_master_radar_det(
-							pmpriv, MTRUE);
-						if (ret)
-							break;
-						ret = wlan_11h_check_update_radar_det_state(
-							pmpriv);
-						if (ret)
-							break;
-					}
-					ret = wlan_prepare_cmd(
-						pmpriv,
-						HostCmd_CMD_802_11_AD_HOC_START,
-						HostCmd_ACT_GEN_SET, 0, MNULL,
-						&pmpriv->adhoc_last_start_ssid);
-					break; /* leads to exit case */
-				}
-
-				/* NOTE:  DON'T reconnect slave STA intfs -
-				 * infra/adhoc_joiner Do we want to return to
-				 * same AP/network (on radar channel)? If want
-				 * to connect back, depend on either:
-				 *     1. driver's reassoc thread
-				 *     2. wpa_supplicant, or other user-space
-				 * app
-				 */
-			}
 #endif
 		}
 

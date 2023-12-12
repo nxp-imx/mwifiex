@@ -205,7 +205,6 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_11N_CFG_REJECT_ADDBA_REQ = 0x000C000D,
 	MLAN_OID_11N_CFG_COEX_RX_WINSIZE = 0x000C000E,
 	MLAN_OID_11N_CFG_TX_AGGR_CTRL = 0x000C000F,
-	MLAN_OID_11N_CFG_IBSS_AMPDU_PARAM = 0x000C0010,
 	MLAN_OID_11N_CFG_MIN_BA_THRESHOLD = 0x000C0011,
 
 	/* 802.11d Configuration Group */
@@ -381,6 +380,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_EDMAC_CONFIG = 0x00200093,
 	MLAN_OID_MISC_GPIO_CFG = 0x00200094,
 	MLAN_OID_MISC_REGION_POWER_CFG = 0x00200095,
+	MLAN_OID_MISC_OTP_MAC_RD_WR = 0x00200097,
 };
 
 /** Sub command size */
@@ -403,9 +403,8 @@ enum _mlan_act_generic { MLAN_ACT_DISABLE = 0, MLAN_ACT_ENABLE = 1 };
 /** Enumeration for scan mode */
 enum _mlan_scan_mode {
 	MLAN_SCAN_MODE_UNCHANGED = 0,
-	MLAN_SCAN_MODE_BSS,
-	MLAN_SCAN_MODE_IBSS,
-	MLAN_SCAN_MODE_ANY
+	MLAN_SCAN_MODE_BSS = 1,
+	MLAN_SCAN_MODE_ANY = 3
 };
 
 /** Enumeration for scan type */
@@ -633,8 +632,8 @@ typedef struct _mlan_ds_scan {
 /** Enumeration for BSS mode */
 enum _mlan_bss_mode {
 	MLAN_BSS_MODE_INFRA = 1,
-	MLAN_BSS_MODE_IBSS,
-	MLAN_BSS_MODE_AUTO
+	MLAN_BSS_MODE_IBSS = 2,
+	MLAN_BSS_MODE_AUTO = 3
 };
 
 /** Maximum key length */
@@ -1369,6 +1368,7 @@ typedef struct _mlan_ds_bss {
 		/** STA info for MLAN_OID_UAP_ADD_STATION */
 		mlan_ds_sta_info sta_info;
 #endif
+
 	} param;
 } mlan_ds_bss, *pmlan_ds_bss;
 
@@ -1425,10 +1425,6 @@ enum _mlan_band_def {
 typedef struct _mlan_ds_band_cfg {
 	/** Infra band */
 	t_u32 config_bands;
-	/** Ad-hoc start band */
-	t_u32 adhoc_start_band;
-	/** Ad-hoc start channel */
-	t_u32 adhoc_channel;
 	/** fw supported band */
 	t_u32 fw_bands;
 } mlan_ds_band_cfg;
@@ -1560,13 +1556,6 @@ typedef struct _mlan_ds_snmp_mib {
 /** Status Information Group */
 /*-----------------------------------------------------------------*/
 /** Enumeration for ad-hoc status */
-enum _mlan_adhoc_status {
-	ADHOC_IDLE,
-	ADHOC_STARTED,
-	ADHOC_JOINED,
-	ADHOC_COALESCED,
-	ADHOC_STARTING
-};
 
 typedef struct _mlan_ds_get_stats_org {
 	/** Statistics counter */
@@ -2205,8 +2194,6 @@ typedef struct _mlan_bss_info {
 	t_s32 max_power_level;
 	/** Min power level in dBm */
 	t_s32 min_power_level;
-	/** Adhoc state */
-	t_u32 adhoc_state;
 	/** NF of last beacon */
 	t_s32 bcn_nf_last;
 	/** wep status */
@@ -3844,14 +3831,6 @@ typedef struct _mlan_ds_reject_addba_req {
 	t_u32 conditions;
 } mlan_ds_reject_addba_req, *pmlan_ds_reject_addba_req;
 
-/** Type definition of mlan_ds_ibss_ampdu_param */
-typedef struct _mlan_ds_ibss_ampdu_param {
-	/** ampdu priority table */
-	t_u8 ampdu[MAX_NUM_TID];
-	/** rx amdpdu setting */
-	t_u8 addba_reject[MAX_NUM_TID];
-} mlan_ds_ibss_ampdu_param, *pmlan_ds_ibss_ampdu_param;
-
 /** Type definition of mlan_ds_11n_cfg for MLAN_IOCTL_11N_CFG */
 typedef struct _mlan_ds_11n_cfg {
 	/** Sub-command */
@@ -3888,8 +3867,6 @@ typedef struct _mlan_ds_11n_cfg {
 		t_u32 coex_rx_winsize;
 		/** Control TX AMPDU configuration */
 		t_u32 txaggrctrl;
-		/** aggrprirotity table for MLAN_OID_11N_CFG_IBSS_AMPDU_PARAM */
-		mlan_ds_ibss_ampdu_param ibss_ampdu;
 		/** Minimum BA Threshold for MLAN_OID_11N_CFG_MIN_BA_THRESHOLD
 		 */
 		t_u8 min_ba_threshold;
@@ -4034,6 +4011,7 @@ typedef struct _mlan_ds_11ax_cfg {
 
 #define MRVL_DOT11AX_ENABLE_SR_TLV_ID (PROPRIETARY_TLV_BASE_ID + 322)
 #define MRVL_DOT11AX_OBSS_PD_OFFSET_TLV_ID (PROPRIETARY_TLV_BASE_ID + 323)
+#define NXP_6E_INBAND_FRAMES_TLV_ID (PROPRIETARY_TLV_BASE_ID + 345) // 0x0159
 
 /** Type definition of mlan_11axcmdcfg_obss_pd_offset for MLAN_OID_11AX_CMD_CFG
  */
@@ -5789,6 +5767,8 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 #define MFG_CMD_RADIO_MODE_CFG 0x1211
 #define MFG_CMD_CONFIG_MAC_HE_TB_TX 0x110A
 #define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
+#define MFG_CMD_OTP_MAC_ADD 0x108C
+
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
 	/** MFG command code */
@@ -6083,6 +6063,19 @@ typedef MLAN_PACK_START struct _mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t {
 	mfg_cmd_IEEETypes_BasicHETrigUserInfo_t basic_trig_user_info;
 } MLAN_PACK_END mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t;
 
+typedef MLAN_PACK_START struct _mfg_cmd_otp_mac_addr_rd_wr_t {
+	/** MFG command code */
+	t_u32 mfg_cmd;
+	/** Action */
+	t_u16 action;
+	/** Device ID */
+	t_u16 device_id;
+	/** MFG Error code */
+	t_u32 error;
+	/** Destination MAC Address */
+	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END mfg_cmd_otp_mac_addr_rd_wr_t;
+
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** length */
 	t_u16 length;
@@ -6108,13 +6101,15 @@ typedef struct _mlan_ds_mc_aggr_cfg {
 	 * bit 0 MC aggregation
 	 * bit 1 packet expiry
 	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
+	 * bit 3 CTS2Self duration offset
+	 * bit 6 UC non aggregation*/
 	t_u8 enable_bitmap;
 	/* 1 valid, 0 invalid
 	 * bit 0 MC aggregation
 	 * bit 1 packet expiry
 	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
+	 * bit 3 CTS2Self duration offset
+	 * bit 6 UC non aggregation*/
 	t_u8 mask_bitmap;
 	/** CTS2Self duration offset */
 	t_u16 cts2self_offset;
@@ -6331,6 +6326,7 @@ typedef struct _mlan_ds_misc_cfg {
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
 		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
+		mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;

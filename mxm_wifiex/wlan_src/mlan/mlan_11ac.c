@@ -1443,12 +1443,7 @@ void wlan_update_11ac_cap(mlan_private *pmpriv)
  */
 t_u8 wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GAC);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AAC);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAC);
 		else if (bss_band & BAND_A)

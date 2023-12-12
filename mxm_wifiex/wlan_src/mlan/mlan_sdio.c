@@ -3013,7 +3013,9 @@ exit:
 	return ret;
 }
 
-#if (defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177))
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
+	defined(SD8978)
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -3074,7 +3076,9 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
-#if (defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177))
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
+	defined(SD8978)
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
 #endif

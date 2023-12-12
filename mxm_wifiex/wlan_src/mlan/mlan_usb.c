@@ -424,6 +424,11 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 		FWSeqNum++;
 		PRINTM(MINFO, ".\n");
 
+		/* Add FW ending check for secure download */
+		if (((DnldCmd == FW_CMD_21) && (DataLength == 0)) ||
+		    (TotalBytes >= pmfw->fw_len))
+			break;
+
 	} while ((DnldCmd != FW_HAS_LAST_BLOCK) && retries && mic_retry);
 
 cleanup:
@@ -581,8 +586,9 @@ wlan_usb_copy_buf_to_aggr(pmlan_adapter pmadapter,
 	pmlan_buffer pmbuf_aggr = MNULL;
 	t_u8 i, use_count;
 	pmlan_buffer pmbuf_curr, pmbuf_next;
-	pmbuf_aggr = wlan_alloc_mlan_buffer(pmadapter, pusb_tx_aggr->aggr_len,
-					    0, MOAL_MALLOC_BUFFER);
+	pmbuf_aggr = wlan_alloc_mlan_buffer(
+		pmadapter, pusb_tx_aggr->aggr_len, 0,
+		MOAL_MEM_FLAG_DIRTY | MOAL_MALLOC_BUFFER);
 	if (pmbuf_aggr) {
 		pmbuf_curr = pusb_tx_aggr->pmbuf_aggr;
 		pmbuf_aggr->bss_index = pmbuf_curr->bss_index;
@@ -1305,7 +1311,8 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		return MLAN_STATUS_FAILURE;
 	}
 	if (type == MLAN_TYPE_CMD
-#if (defined(USB9098) || defined(USB9097) || defined(USBIW624))
+#if defined(USB9098) || defined(USB9097) || defined(USBIW624) ||               \
+	defined(USB8997) || defined(USB8978)
 	    || type == MLAN_TYPE_VDLL
 #endif
 	) {

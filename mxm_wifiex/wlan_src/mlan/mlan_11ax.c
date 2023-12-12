@@ -629,12 +629,7 @@ t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,
 	t_u16 bss_band = pbss_desc->bss_band;
 	if (pbss_desc->disable_11n)
 		return MFALSE;
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GAX);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AAX);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAX);
 		else if (bss_band & BAND_A)

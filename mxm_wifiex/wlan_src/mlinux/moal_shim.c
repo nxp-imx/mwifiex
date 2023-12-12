@@ -55,6 +55,8 @@ Change log:
 
 #endif /*defined(PCIE) || defined(SDIO)*/
 
+#define NXP_ETH_P_WAPI 0x88B4
+
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -107,7 +109,12 @@ mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf)
 		if (flag & MLAN_MEM_DMA)
 			mem_flag |= GFP_DMA;
 	}
-	*ppbuf = kzalloc(size, mem_flag);
+
+	if (flag & MLAN_MEM_FLAG_DIRTY)
+		*ppbuf = kmalloc(size, mem_flag);
+	else
+		*ppbuf = kzalloc(size, mem_flag);
+
 	if (*ppbuf == NULL) {
 		PRINTM(MERROR, "%s: allocate memory (%d bytes) failed!\n",
 		       __func__, (int)size);
@@ -241,7 +248,6 @@ mlan_status moal_mfree_consistent(t_void *pmoal, t_u32 size, t_u8 *pbuf,
 
 	if (!pbuf || !card)
 		return MLAN_STATUS_FAILURE;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	dma_free_coherent(&card->dev->dev, size, pbuf, buf_pa);
 #else
@@ -272,7 +278,6 @@ mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
 
 	if (!card)
 		return MLAN_STATUS_FAILURE;
-
 		/* Init memory to device */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	dma = dma_map_single(&card->dev->dev, pbuf, size, flag);
@@ -287,7 +292,6 @@ mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
 		PRINTM(MERROR, "Tx ring: failed to dma_map_single\n");
 		return MLAN_STATUS_FAILURE;
 	}
-
 	*pbuf_pa = dma;
 	return MLAN_STATUS_SUCCESS;
 }
@@ -311,7 +315,6 @@ mlan_status moal_unmap_memory(t_void *pmoal, t_u8 *pbuf, t_u64 buf_pa,
 
 	if (!card)
 		return MLAN_STATUS_FAILURE;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	dma_unmap_single(&card->dev->dev, buf_pa, size, flag);
 #else
@@ -2236,7 +2239,16 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				priv->deauth_evt_cnt = 0;
 #endif
+			} else if (ntohs(ethh->h_proto) == NXP_ETH_P_WAPI) {
+				PRINTM(MEVENT,
+				       "wlan: %s Rx WAPI pkt from " MACSTR "\n",
+				       priv->netdev->name,
+				       MAC2STR(ethh->h_source));
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+				priv->deauth_evt_cnt = 0;
+#endif
 			}
+
 #ifdef UAP_SUPPORT
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 			if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
@@ -2715,10 +2727,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 
 #if defined(STA_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
-	struct station_info *sinfo = NULL;
 #endif
 #endif
-	char concat_str[64], peer_mac_str[20];
 #if defined(STA_WEXT) || defined(UAP_WEXT)
 #if defined(STA_SUPPORT) || defined(UAP_WEXT)
 #if defined(UAP_SUPPORT) || defined(STA_WEXT)
@@ -2826,33 +2836,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 	switch (pmevent->event_id) {
 #ifdef STA_SUPPORT
-	case MLAN_EVENT_ID_FW_ADHOC_LINK_SENSED:
-		priv->is_adhoc_link_sensed = MTRUE;
-		if (!netif_carrier_ok(priv->netdev))
-			netif_carrier_on(priv->netdev);
-		woal_wake_queue(priv->netdev);
-#ifdef STA_WEXT
-		if (IS_STA_WEXT(cfg80211_wext))
-			woal_send_iwevcustom_event(priv,
-						   CUS_EVT_ADHOC_LINK_SENSED);
-#endif
-		woal_broadcast_event(priv, CUS_EVT_ADHOC_LINK_SENSED,
-				     strlen(CUS_EVT_ADHOC_LINK_SENSED));
-		break;
-
-	case MLAN_EVENT_ID_FW_ADHOC_LINK_LOST:
-		woal_stop_queue(priv->netdev);
-		if (netif_carrier_ok(priv->netdev))
-			netif_carrier_off(priv->netdev);
-		priv->is_adhoc_link_sensed = MFALSE;
-#ifdef STA_WEXT
-		if (IS_STA_WEXT(cfg80211_wext))
-			woal_send_iwevcustom_event(priv,
-						   CUS_EVT_ADHOC_LINK_LOST);
-#endif
-		woal_broadcast_event(priv, CUS_EVT_ADHOC_LINK_LOST,
-				     strlen(CUS_EVT_ADHOC_LINK_LOST));
-		break;
 
 	case MLAN_EVENT_ID_DRV_CONNECTED:
 #ifdef STA_WEXT
@@ -4413,82 +4396,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	case MLAN_EVENT_ID_DRV_PASSTHRU:
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
-		break;
-	case MLAN_EVENT_ID_FW_IBSS_CONNECT:
-		PRINTM(MINFO, "STA Connect attempt\n");
-		DBG_HEXDUMP(MCMD_D, "IBSS Connect", pmevent->event_buf,
-			    pmevent->event_len);
-		memset(concat_str, 0, sizeof(concat_str));
-		snprintf(peer_mac_str, sizeof(peer_mac_str),
-			 "%02x%02x%02x%02x%02x%02x", *(pmevent->event_buf + 6),
-			 *(pmevent->event_buf + 7), *(pmevent->event_buf + 8),
-			 *(pmevent->event_buf + 9), *(pmevent->event_buf + 10),
-			 *(pmevent->event_buf + 11));
-
-		peer_mac_str[ETH_ALEN * 2] = '\0';
-
-#if defined(STA_CFG80211)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
-		if (IS_STA_CFG80211(cfg80211_wext)) {
-			sinfo = kzalloc(sizeof(struct station_info),
-					GFP_KERNEL);
-
-			if (sinfo) {
-				/* Notify user space about new station */
-				cfg80211_new_sta(priv->netdev,
-						 pmevent->event_buf + 6, sinfo,
-						 GFP_KERNEL);
-				kfree(sinfo);
-			} else {
-				PRINTM(MERROR,
-				       "IBSS:Failed to allocate memory to new station");
-			}
-		}
-#endif
-#endif
-		snprintf(concat_str, sizeof(concat_str), "%s%s",
-			 CUS_EVT_IBSS_CONNECT_ATTEMPT, peer_mac_str);
-		woal_broadcast_event(priv, concat_str, strlen(concat_str));
-#ifdef STA_WEXT
-#ifdef STA_SUPPORT
-		if (IS_STA_WEXT(cfg80211_wext)) {
-			woal_send_iwevcustom_event(priv, concat_str);
-		}
-#endif
-#endif
-		break;
-	case MLAN_EVENT_ID_FW_IBSS_DISCONNECT:
-		PRINTM(MINFO, "STA Disconnect attempt\n");
-		DBG_HEXDUMP(MCMD_D, "IBSS DisConnect", pmevent->event_buf,
-			    pmevent->event_len);
-		memset(concat_str, 0, sizeof(concat_str));
-		snprintf(peer_mac_str, sizeof(peer_mac_str),
-			 "%02x%02x%02x%02x%02x%02x", *(pmevent->event_buf + 6),
-			 *(pmevent->event_buf + 7), *(pmevent->event_buf + 8),
-			 *(pmevent->event_buf + 9), *(pmevent->event_buf + 10),
-			 *(pmevent->event_buf + 11));
-
-		peer_mac_str[ETH_ALEN * 2] = '\0';
-
-		snprintf(concat_str, sizeof(concat_str), "%s%s",
-			 CUS_EVT_IBSS_DISCONNECT_ATTEMPT, peer_mac_str);
-		woal_broadcast_event(priv, concat_str, strlen(concat_str));
-#ifdef STA_WEXT
-#ifdef STA_SUPPORT
-		if (IS_STA_WEXT(cfg80211_wext)) {
-			woal_send_iwevcustom_event(priv, concat_str);
-		}
-#endif
-#endif
-
-#if defined(STA_CFG80211)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
-		if (IS_STA_CFG80211(cfg80211_wext)) {
-			cfg80211_del_sta(priv->netdev, pmevent->event_buf + 6,
-					 GFP_KERNEL);
-		}
-#endif
-#endif
 		break;
 	case MLAN_EVENT_ID_DRV_ASSOC_FAILURE_REPORT:
 		PRINTM(MINFO, "Assoc result\n");

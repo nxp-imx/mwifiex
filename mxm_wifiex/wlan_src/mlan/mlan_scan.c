@@ -408,16 +408,6 @@ static t_s32 wlan_find_best_network_in_list(mlan_private *pmpriv)
 	for (i = 0; i < pmadapter->num_in_scan_table; i++) {
 		switch (mode) {
 		case MLAN_BSS_MODE_INFRA:
-		case MLAN_BSS_MODE_IBSS:
-			if (wlan_is_network_compatible(pmpriv, i, mode) >= 0) {
-				if (SCAN_RSSI(pmadapter->pscan_table[i].rssi) >
-				    best_rssi) {
-					best_rssi = SCAN_RSSI(
-						pmadapter->pscan_table[i].rssi);
-					best_net = i;
-				}
-			}
-			break;
 		case MLAN_BSS_MODE_AUTO:
 		default:
 			if (SCAN_RSSI(pmadapter->pscan_table[i].rssi) >
@@ -497,12 +487,7 @@ static t_u8 wlan_scan_create_channel_list(
 		       "create_channel_list: region=%d band=%d num_cfp=%d\n",
 		       pscan_region->region, pscan_region->band,
 		       pscan_region->num_cfp);
-		if ((puser_scan_in &&
-		     (puser_scan_in->bss_mode == MLAN_SCAN_MODE_IBSS)) ||
-		    pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-			band = pmadapter->adhoc_start_band;
-		else
-			band = pmpriv->config_bands;
+		band = pmpriv->config_bands;
 		if (!wlan_is_band_compatible(band, pscan_region->band))
 			continue;
 
@@ -1380,12 +1365,8 @@ static mlan_status wlan_scan_setup_scan_config(
 	/* Append rates tlv */
 	memset(pmadapter, rates, 0, sizeof(rates));
 
-	rates_size = wlan_get_supported_rates(
-		pmpriv, pmpriv->bss_mode,
-		(pmpriv->bss_mode == MLAN_BSS_MODE_INFRA) ?
-			pmpriv->config_bands :
-			pmadapter->adhoc_start_band,
-		rates);
+	rates_size = wlan_get_supported_rates(pmpriv, pmpriv->bss_mode,
+					      pmpriv->config_bands, rates);
 
 	prates_tlv = (MrvlIEtypes_RatesParamSet_t *)ptlv_pos;
 	prates_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_RATES);
@@ -1723,7 +1704,6 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 	IEEEtypes_FhParamSet_t *pfh_param_set;
 	IEEEtypes_DsParamSet_t *pds_param_set;
 	IEEEtypes_CfParamSet_t *pcf_param_set;
-	IEEEtypes_IbssParamSet_t *pibss_param_set;
 	IEEEtypes_CapInfo_t *pcap_info;
 	WLAN_802_11_FIXED_IEs fixed_ie;
 	t_u8 *pcurrent_ptr;
@@ -1856,10 +1836,7 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 		pbss_entry->privacy = Wlan802_11PrivFilterAcceptAll;
 	}
 
-	if (pcap_info->ibss == 1)
-		pbss_entry->bss_mode = MLAN_BSS_MODE_IBSS;
-	else
-		pbss_entry->bss_mode = MLAN_BSS_MODE_INFRA;
+	pbss_entry->bss_mode = MLAN_BSS_MODE_INFRA;
 
 	if (pcap_info->spectrum_mgmt == 1) {
 		PRINTM(MINFO, "InterpretIE: 11h- Spectrum Management "
@@ -1958,20 +1935,6 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 					      sizeof(IEEEtypes_Header_t)));
 			break;
 
-		case IBSS_PARAM_SET:
-			pibss_param_set =
-				(IEEEtypes_IbssParamSet_t *)pcurrent_ptr;
-			pbss_entry->atim_window =
-				wlan_le16_to_cpu(pibss_param_set->atim_window);
-			memcpy_ext(pmadapter,
-				   &pbss_entry->ss_param_set.ibss_param_set,
-				   pibss_param_set, total_ie_len,
-				   sizeof(IEEEtypes_IbssParamSet_t));
-			pbss_entry->ss_param_set.ibss_param_set.len = MIN(
-				element_len, (sizeof(IEEEtypes_IbssParamSet_t) -
-					      sizeof(IEEEtypes_Header_t)));
-			break;
-
 		/* Handle Country Info IE */
 		case COUNTRY_INFO:
 			pcountry_info =
@@ -2009,7 +1972,6 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 		case TPC_REPORT:
 		case CHANNEL_SWITCH_ANN:
 		case QUIET:
-		case IBSS_DFS:
 		case SUPPORTED_CHANNELS:
 		case TPC_REQUEST:
 			wlan_11h_process_bss_elem(
@@ -6199,12 +6161,7 @@ static t_u8 wlan_bgscan_create_channel_list(
 			if (radio_type && (pscan_region->band != BAND_A))
 				continue;
 		}
-		if ((pbg_scan_in &&
-		     (pbg_scan_in->bss_type == MLAN_SCAN_MODE_IBSS)) ||
-		    pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-			band = pmadapter->adhoc_start_band;
-		else
-			band = pmpriv->config_bands;
+		band = pmpriv->config_bands;
 		if (!wlan_is_band_compatible(band, pscan_region->band))
 			continue;
 		for (next_chan = 0; next_chan < pscan_region->num_cfp;
@@ -6463,11 +6420,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 				   bg_scan_in->chan_list[chan_idx].chan_number;
 		     chan_idx++) {
 			radio_type = bg_scan_in->chan_list[chan_idx].radio_type;
-			if (bg_scan_in->bss_type == MLAN_SCAN_MODE_IBSS ||
-			    pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-				band = pmadapter->adhoc_start_band;
-			else
-				band = pmpriv->config_bands;
+			band = pmpriv->config_bands;
 			if (!wlan_is_band_compatible(
 				    band, radio_type_to_band(radio_type)))
 				continue;
@@ -6869,7 +6822,7 @@ t_s32 wlan_find_ssid_in_list(mlan_private *pmpriv, mlan_802_11_ssid *ssid,
 			     t_u8 *bssid, t_u32 mode)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
-	t_s32 net = -1, j;
+	t_s32 net = -1;
 	t_u8 best_rssi = 0;
 	t_u32 i;
 
@@ -6897,24 +6850,6 @@ t_s32 wlan_find_ssid_in_list(mlan_private *pmpriv, mlan_802_11_ssid *ssid,
 
 			switch (mode) {
 			case MLAN_BSS_MODE_INFRA:
-			case MLAN_BSS_MODE_IBSS:
-				j = wlan_is_network_compatible(pmpriv, i, mode);
-
-				if (j >= 0) {
-					if (SCAN_RSSI(pmadapter->pscan_table[i]
-							      .rssi) >
-					    best_rssi) {
-						best_rssi = SCAN_RSSI(
-							pmadapter
-								->pscan_table[i]
-								.rssi);
-						net = i;
-					}
-				} else {
-					if (net == -1)
-						net = j;
-				}
-				break;
 			case MLAN_BSS_MODE_AUTO:
 			default:
 				/*
@@ -6980,10 +6915,6 @@ t_s32 wlan_find_bssid_in_list(mlan_private *pmpriv, t_u8 *bssid, t_u32 mode)
 				continue;
 			switch (mode) {
 			case MLAN_BSS_MODE_INFRA:
-			case MLAN_BSS_MODE_IBSS:
-				net = wlan_is_network_compatible(pmpriv, i,
-								 mode);
-				break;
 			default:
 				net = i;
 				break;

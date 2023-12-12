@@ -413,10 +413,13 @@ Change log:
 #define HOST_INTR_CMD_DONE MBIT(2)
 /** Event ready interrupt for host */
 #define HOST_INTR_EVENT_RDY MBIT(3)
+/** Command download interrupt for host */
+#define HOST_INTR_CMD_DNLD MBIT(7)
+
 /** Interrupt mask for host */
 #define HOST_INTR_MASK                                                         \
 	(HOST_INTR_DNLD_DONE | HOST_INTR_UPLD_RDY | HOST_INTR_CMD_DONE |       \
-	 HOST_INTR_EVENT_RDY)
+	 HOST_INTR_EVENT_RDY | HOST_INTR_CMD_DNLD)
 
 /** Lower 32bits command address holding register */
 #define REG_CMD_ADDR_LO PCIE_SCRATCH_0_REG
@@ -469,9 +472,6 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
 
 /** Set PCIE host buffer configurations */
 mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv);
-
-/** Init write pointer */
-mlan_status wlan_pcie_init_fw(pmlan_adapter pmadapter);
 
 #if defined(PCIE8997) || defined(PCIE8897)
 /** Prepare command PCIE host buffer config */

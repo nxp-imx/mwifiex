@@ -3055,6 +3055,7 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	 * remain_on_channel_cfg in order to receive action frame from peer
 	 * device
 	 */
+
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 		if (ieee80211_is_probe_resp(
 			    ((struct ieee80211_mgmt *)buf)->frame_control)) {

@@ -979,30 +979,6 @@ t_u16 region_code_index[MRVDRV_MAX_REGION_CODE] = {0x00, 0x10, 0x20, 0x30, 0x40,
 t_u16 cfp_code_index_a[MRVDRV_MAX_CFP_CODE_A] = {0x1, 0x2, 0x3, 0x4, 0x5};
 
 /**
- * The rates supported for ad-hoc B mode
- */
-t_u8 AdhocRates_B[B_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0};
-
-/**
- * The rates supported for ad-hoc G mode
- */
-t_u8 AdhocRates_G[G_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
-
-/**
- * The rates supported for ad-hoc BG mode
- */
-t_u8 AdhocRates_BG[BG_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0x0c,
-					  0x12, 0x18, 0x24, 0x30, 0x48,
-					  0x60, 0x6c, 0x00};
-
-/**
- * The rates supported in A mode for ad-hoc
- */
-t_u8 AdhocRates_A[A_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
-
-/**
  * The rates supported in A mode (used for BAND_A)
  */
 t_u8 SupportedRates_A[A_SUPPORTED_RATES] = {0x0c, 0x12, 0x18, 0x24, 0xb0,
@@ -2266,30 +2242,6 @@ t_u32 wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 			PRINTM(MINFO, "Band: Infra A\n");
 			k = wlan_copy_rates(rates, k, SupportedRates_A,
 					    sizeof(SupportedRates_A));
-		}
-	} else {
-		/* Adhoc. mode */
-		if (bands == BAND_B) {
-			/* B only */
-			PRINTM(MINFO, "Band: Adhoc B\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_B,
-					    sizeof(AdhocRates_B));
-		} else if (bands == BAND_G) {
-			/* G only */
-			PRINTM(MINFO, "Band: Adhoc G\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_G,
-					    sizeof(AdhocRates_G));
-
-		} else if (bands & BAND_A) {
-			/* support A */
-			PRINTM(MINFO, "Band: Adhoc A\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_A,
-					    sizeof(AdhocRates_A));
-
-		} else {
-			PRINTM(MINFO, "Band: Adhoc BG\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_BG,
-					    sizeof(AdhocRates_BG));
 		}
 	}
 

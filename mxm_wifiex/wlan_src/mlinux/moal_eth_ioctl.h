@@ -215,6 +215,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_TX_BF_CAP "httxbfcap"
 #ifdef SDIO
 #define PRIV_CMD_SDIO_CLOCK "sdioclock"
+#define PRIV_CMD_SDIO_BUSWIDTH "sdiobuswidth"
 #endif
 #ifdef SDIO
 #define PRIV_CMD_MPA_CTRL "mpactrl"
@@ -560,6 +561,7 @@ typedef struct woal_priv_addba {
 #define ACTION_REMOVE 3
 
 #define MC_AGGR_CTRL MBIT(0)
+#define UC_NONAGGR_CTRL MBIT(6)
 /* mcast_aggr_group */
 typedef struct _mcast_aggr_group {
 	/** action */

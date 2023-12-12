@@ -164,6 +164,7 @@ Change log:
 #define CFG80211_VERSION_CODE MAX(LINUX_VERSION_CODE, COMPAT_VERSION_CODE)
 
 #define IMX_ANDROID_13 0
+#define IMX_ANDROID_14 0
 #define IMX_ANDROID_12_BACKPORT 0
 
 #if defined(IMX_SUPPORT)
@@ -173,6 +174,10 @@ Change log:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
 #define IMX_ANDROID_13 1
+#ifdef ANDROID_14_SUPPORT
+#undef IMX_ANDROID_14
+#define IMX_ANDROID_14 1
+#endif
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 41)
 #undef IMX_ANDROID_12_BACKPORT
@@ -809,10 +814,6 @@ out:
 /** Custom event : OBSS scan parameter */
 #define CUS_EVT_OBSS_SCAN_PARAM "EVENT=OBSS_SCAN_PARAM"
 
-/** Custom event : AdHoc link sensed */
-#define CUS_EVT_ADHOC_LINK_SENSED "EVENT=ADHOC_LINK_SENSED"
-/** Custom event : AdHoc link lost */
-#define CUS_EVT_ADHOC_LINK_LOST "EVENT=ADHOC_LINK_LOST"
 /** Custom event : MIC failure, unicast */
 #define CUS_EVT_MLME_MIC_ERR_UNI "MLME-MICHAELMICFAILURE.indication unicast"
 /** Custom event : MIC failure, multicast */
@@ -900,11 +901,6 @@ mlan_status woal_do_dfs_cac(moal_private *priv,
 
 /** Custom indiciation message sent to the application layer for WMM changes */
 #define WMM_CONFIG_CHANGE_INDICATION "WMM_CONFIG_CHANGE.indication"
-
-/** Custom event : IBSS STA connect attempt */
-#define CUS_EVT_IBSS_CONNECT_ATTEMPT "EVENT=IBSS_CONNECT_ATTEMPT_"
-/** Custom event : IBSS STA dis-connect attempt */
-#define CUS_EVT_IBSS_DISCONNECT_ATTEMPT "EVENT=IBSS_DISCONNECT_ATTEMPT_"
 
 #define CUS_EVT_FW_DUMP_DONE "EVENT=FW_DUMP_DONE"
 
@@ -1385,6 +1381,8 @@ struct rf_test_mode_data {
 	t_u8 bssid[ETH_ALEN];
 	/* Trigger frame config values */
 	mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
+	/* OTP frame data */
+	mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 };
 
 /** Number of samples in histogram (/proc/mwlan/adapterX/mlan0/histogram).*/
@@ -1808,6 +1806,8 @@ struct _moal_private {
 	t_u32 num_mcast_addr;
 	/** enable mc_aggr */
 	t_u8 enable_mc_aggr;
+	/** enable uc_nonaggr */
+	t_u8 enable_uc_nonaggr;
 	/** tcp list */
 	struct list_head tdls_list;
 	/** tdls spin lock */
@@ -1935,6 +1935,8 @@ typedef struct _card_info {
 #if defined(SDIO) || defined(PCIE)
 	t_u32 fw_reset_reg;
 	t_u8 fw_reset_val;
+	t_u32 fw_wakeup_reg;
+	t_u8 fw_wakeup_val;
 #endif
 	t_u8 sniffer_support;
 	t_u8 per_pkt_cfg_support;
@@ -2347,6 +2349,7 @@ typedef struct _moal_if_ops {
 	mlan_status (*get_fw_name)(moal_handle *handle);
 	void (*dump_fw_info)(moal_handle *handle);
 	int (*dump_reg_info)(moal_handle *handle, t_u8 *buf);
+	void (*card_reset)(moal_handle *handle);
 	void (*reg_dbg)(moal_handle *handle);
 	t_u8 (*is_second_mac)(moal_handle *handle);
 } moal_if_ops;
@@ -2399,6 +2402,7 @@ enum ext_mod_params {
 	EXT_TX_SKB_CLONE,
 	EXT_PMQOS,
 	EXT_CHAN_TRACK,
+	EXT_DMCS,
 	EXT_MAX_PARAM,
 };
 
@@ -2637,6 +2641,7 @@ struct _moal_handle {
 	/** STATUS variables */
 	MOAL_HARDWARE_STATUS hardware_status;
 	BOOLEAN fw_reload;
+	BOOLEAN fw_reseting;
 	/** POWER MANAGEMENT AND PnP SUPPORT */
 	BOOLEAN surprise_removed;
 	/** Firmware release number */
@@ -3671,6 +3676,7 @@ mlan_status woal_set_rgpower_table(moal_handle *handle);
 void woal_terminate_workqueue(moal_handle *handle);
 void woal_flush_workqueue(moal_handle *handle);
 void woal_queue_rx_task(moal_handle *handle);
+void woal_flush_evt_queue(moal_handle *handle);
 /** initializes firmware */
 mlan_status woal_init_fw(moal_handle *handle);
 /** frees the structure of moal_handle */
@@ -3941,9 +3947,6 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option);
 /** Find best network to connect */
 mlan_status woal_find_best_network(moal_private *priv, t_u8 wait_option,
 				   mlan_ssid_bssid *ssid_bssid);
-/** Set Ad-Hoc channel */
-mlan_status woal_change_adhoc_chan(moal_private *priv, int channel,
-				   t_u8 wait_option);
 
 /** Get scan table */
 mlan_status woal_get_scan_table(moal_private *priv, t_u8 wait_option,
@@ -4113,6 +4116,7 @@ void woal_fill_mlan_buffer(moal_private *priv, mlan_buffer *pmbuf,
 moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_num,
 				 t_u8 bss_type);
 void woal_clean_up(moal_handle *handle);
+void woal_send_auto_recovery_complete_event(moal_handle *handle);
 void woal_remove_interface(moal_handle *handle, t_u8 bss_index);
 void woal_set_multicast_list(struct net_device *dev);
 mlan_status woal_request_fw(moal_handle *handle);

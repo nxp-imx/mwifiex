@@ -1176,18 +1176,6 @@ typedef struct _mlan_private {
 	/** ATIM window */
 	t_u16 atim_window;
 
-	/** AdHoc channel */
-	t_u8 adhoc_channel;
-	/** AdHoc link sensed flag */
-	t_u8 adhoc_is_link_sensed;
-	/** AdHoc operating state */
-	t_u8 adhoc_state;
-#if defined(STA_SUPPORT)
-	/** AdHoc operating state backup */
-	t_u8 adhoc_state_prev;
-	/** AdHoc previous ssid used for Start */
-	mlan_802_11_ssid adhoc_last_start_ssid;
-#endif
 	mlan_ds_11h_chan_rep_req chan_rep_req;
 	/** FSM variable for 11d support */
 	wlan_802_11d_state_t state_11d;
@@ -1276,10 +1264,6 @@ typedef struct _mlan_private {
 	tx_aggr_t aggr_prio_tbl[MAX_NUM_TID];
 	/** Pointer to the priorities for AMSDU/AMPDU table*/
 	t_u8 addba_reject[MAX_NUM_TID];
-	/** Pointer to the priorities for AMSDU/AMPDU table*/
-	t_u8 ibss_ampdu[MAX_NUM_TID];
-	/** Pointer to the priorities for AMSDU/AMPDU table*/
-	t_u8 ibss_addba_reject[MAX_NUM_TID];
 	/** Struct to store ADDBA parameters */
 	add_ba_param_t add_ba_param;
 	/**  user rx_win_size */
@@ -1948,6 +1932,10 @@ typedef struct _mlan_init_para {
 #endif
 	t_u8 ext_scan;
 	t_u8 mcs32;
+	/** antcfg */
+	t_u32 antcfg;
+	/** dmcs*/
+	t_u8 dmcs;
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -2199,7 +2187,7 @@ typedef struct _mlan_pcie_card {
 	/** rx interrupt pending */
 	t_u8 rx_pending;
 	/** pending num of tx ring buffer in firmware */
-	t_u8 txbd_pending;
+	t_u16 txbd_pending;
 	/** Write pointer for TXBD ring */
 	t_u32 txbd_wrptr;
 	/** Shadow copy of TXBD read pointer */
@@ -2336,6 +2324,8 @@ typedef struct _adapter_operations {
 	mlan_status (*disable_host_int)(mlan_adapter *pmadapter);
 	/** enable host interrupt */
 	mlan_status (*enable_host_int)(mlan_adapter *pmadapter);
+	/** select host interrupt */
+	mlan_status (*select_host_int)(mlan_adapter *pmadapter);
 	/**Interface header length*/
 	t_u32 intf_header_len;
 } mlan_adapter_operations;
@@ -2660,8 +2650,6 @@ struct _mlan_adapter {
 
 	/** F/W supported bands */
 	t_u16 fw_bands;
-	/** User selected band to start adhoc network */
-	t_u16 adhoc_start_band;
 	/** User selected bands */
 	t_u16 config_bands;
 	/** Pointer to channel list last sent to the firmware for scanning */
@@ -3053,6 +3041,8 @@ mlan_status wlan_misc_ssu(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req);
 #endif
 
 mlan_status wlan_misc_csi(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req);
+mlan_status wlan_cmd_csi(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			 t_u16 cmd_action, t_u16 *pdata_buf);
 mlan_status wlan_process_csi_event(pmlan_private pmpriv);
 
 mlan_status wlan_misc_hal_phy_cfg(pmlan_adapter pmadapter,
@@ -3222,6 +3212,7 @@ t_u8 wlan_check_last_packet_indication(pmlan_private priv);
 #define MOAL_ALLOC_MLAN_BUFFER MBIT(0)
 #define MOAL_MALLOC_BUFFER MBIT(1)
 #define MOAL_MEM_FLAG_ATOMIC MBIT(2)
+#define MOAL_MEM_FLAG_DIRTY MBIT(3)
 
 #ifdef PCIE
 /* This defines the direction arg to the DMA mapping routines. */
@@ -3376,6 +3367,7 @@ mlan_status wlan_radio_ioctl_radio_ctl(pmlan_adapter pmadapter,
 
 mlan_status wlan_radio_ioctl_ant_cfg(pmlan_adapter pmadapter,
 				     pmlan_ioctl_req pioctl_req);
+mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg);
 
 mlan_status wlan_cmd_tx_rate_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				 t_u16 cmd_action, t_void *pdata_buf,
@@ -3420,6 +3412,10 @@ mlan_status wlan_ret_dmcs_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 #if defined(PCIE)
 mlan_status wlan_cmd_ssu(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 			 t_u16 cmd_action, t_u16 *pdata_buf);
+#endif
+#ifdef PCIE
+/** Init write pointer */
+mlan_status wlan_pcie_init_fw(pmlan_adapter pmadapter);
 #endif
 
 /** send get hw spec command to firmware */
@@ -3594,29 +3590,6 @@ t_u16 radio_type_to_band(t_u8 chanBand);
 /** Disconnect */
 mlan_status wlan_disconnect(mlan_private *pmpriv, mlan_ioctl_req *pioctl_req,
 			    mlan_deauth_param *deauth_param);
-
-/** Ad-Hoc start */
-mlan_status wlan_adhoc_start(mlan_private *pmpriv, t_void *pioctl_buf,
-			     mlan_802_11_ssid *padhoc_ssid);
-
-/** Ad-Hoc join */
-mlan_status wlan_adhoc_join(mlan_private *pmpriv, t_void *pioctl_buf,
-			    BSSDescriptor_t *pBSSDesc);
-
-/** Ad-Hoc start command handler */
-mlan_status wlan_cmd_802_11_ad_hoc_start(mlan_private *pmpriv,
-					 HostCmd_DS_COMMAND *cmd,
-					 t_void *pdata_buf);
-
-/** Ad-Hoc command handler */
-mlan_status wlan_cmd_802_11_ad_hoc_join(mlan_private *pmpriv,
-					HostCmd_DS_COMMAND *cmd,
-					t_void *pdata_buf);
-
-/** Handler for Ad-Hoc commands */
-mlan_status wlan_ret_802_11_ad_hoc(mlan_private *pmpriv,
-				   HostCmd_DS_COMMAND *resp,
-				   t_void *pioctl_buf);
 
 /** Handler for bgscan query commands */
 mlan_status wlan_cmd_802_11_bg_scan_query(mlan_private *pmpriv,

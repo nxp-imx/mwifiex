@@ -68,16 +68,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_802_11_DISASSOCIATE, 0x0026),
 	/** Host Command ID : MAC control */
 	ENUM_ELEMENT(HostCmd_CMD_MAC_CONTROL, 0x0028),
-	/** Host Command ID : 802.11 Ad-Hoc start */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_AD_HOC_START, 0x002b),
-	/** Host Command ID : 802.11 Ad-Hoc join */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_AD_HOC_JOIN, 0x002c),
 
 	/** Host Command ID : 802.11 key material */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_KEY_MATERIAL, 0x005e),
 
-	/** Host Command ID : 802.11 Ad-Hoc stop */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_AD_HOC_STOP, 0x0040),
 	/** Host Command ID : GPIO Configuration */
 	ENUM_ELEMENT(HostCmd_CMD_GPIO_CFG, 0x0041),
 
@@ -145,9 +139,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : KEEP ALIVE command */
 	ENUM_ELEMENT(HostCmd_CMD_AUTO_TX, 0x0082),
-
-	/** Host Command ID : 802.11 IBSS coalescing status */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_IBSS_COALESCING_STATUS, 0x0083),
 
 	/** Host Command ID : Memory access */
 	ENUM_ELEMENT(HostCmd_CMD_MEM_ACCESS, 0x0086),
@@ -461,6 +452,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID: Tx Frame */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_TX_FRAME, 0x0283),
+	/** Host Command ID: PCIE ADMA INIT */
+	ENUM_ELEMENT(HostCmd_CMD_PCIE_ADMA_INIT, 0x0284),
 
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)

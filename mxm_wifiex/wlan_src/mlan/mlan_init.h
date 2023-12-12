@@ -46,6 +46,8 @@ Change log:
 #define FW_CMD_7 0x00000007
 /** CMD id for CMD10 */
 #define FW_CMD_10 0x0000000a
+/** CMD id for CMD21 */
+#define FW_CMD_21 0x00000015
 
 /** Firmware data transmit size */
 #define FW_DATA_XMIT_SIZE (sizeof(FWHeader) + DataLength + sizeof(t_u32))

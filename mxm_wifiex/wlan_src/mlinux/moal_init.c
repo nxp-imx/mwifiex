@@ -66,6 +66,8 @@ static int beacon_hints;
 #endif
 static int cfg80211_drcs;
 
+static int dmcs;
+
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int host_mlme = 1;
@@ -1330,8 +1332,21 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       moal_extflg_isset(handle, EXT_CFG80211_DRCS) ?
 				       "on" :
 				       "off");
-		} else if (strncmp(line, "drcs_chantime_mode",
-				   strlen("drcs_chantime_mode")) == 0) {
+		} else if (strncmp(line, "dmcs", strlen("dmcs")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_DMCS);
+			else
+				moal_extflg_clear(handle, EXT_DMCS);
+			PRINTM(MMSG, "dmcs %s\n",
+			       moal_extflg_isset(handle, EXT_DMCS) ? "on" :
+								     "off");
+		}
+
+		else if (strncmp(line, "drcs_chantime_mode",
+				 strlen("drcs_chantime_mode")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1813,6 +1828,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 #endif
 	if (cfg80211_drcs)
 		moal_extflg_set(handle, EXT_CFG80211_DRCS);
+	if (dmcs)
+		moal_extflg_set(handle, EXT_DMCS);
+
 	handle->params.drcs_chantime_mode = drcs_chantime_mode;
 	if (params)
 		handle->params.drcs_chantime_mode = params->drcs_chantime_mode;
@@ -2184,6 +2202,11 @@ void woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				PRINTM(MIOCTL, "cfg80211_drcs=0x%x\n", data);
 				cfg80211_drcs = data;
+			}
+		} else if (!strncmp(prop->name, "dmcs", strlen("dmcs"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "dmcs=0x%x\n", data);
+				dmcs = data;
 			}
 		}
 #endif
@@ -2893,6 +2916,9 @@ MODULE_PARM_DESC(
 module_param(cfg80211_drcs, int, 0);
 MODULE_PARM_DESC(cfg80211_drcs,
 		 "1: Enable DRCS support; 0: Disable DRCS support");
+
+module_param(dmcs, int, 0);
+MODULE_PARM_DESC(dmcs, "1: Enable dynamic mapping; 0: Disable dynamic mapping");
 
 module_param(roamoffload_in_hs, int, 0);
 MODULE_PARM_DESC(

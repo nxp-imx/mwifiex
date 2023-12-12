@@ -662,20 +662,16 @@ static int woal_uap_sdcmd52_rw(struct net_device *dev, struct ifreq *req)
 	if (!param.action) {
 		PRINTM(MINFO, "Cmd52 read, func=%d, reg=0x%08X\n", func, reg);
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			data = sdio_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
 		else
 			data = sdio_f0_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_readb: reading register 0x%X failed\n",
@@ -698,20 +694,16 @@ static int woal_uap_sdcmd52_rw(struct net_device *dev, struct ifreq *req)
 		PRINTM(MINFO, "Cmd52 write, func=%d, reg=0x%08X, data=0x%02X\n",
 		       func, reg, data);
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			sdio_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
 		else
 			sdio_f0_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_writeb: writing register 0x%X failed\n",

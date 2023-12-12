@@ -47,9 +47,6 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 	/** Card Event definition : MIC error unicast */
 	ENUM_ELEMENT(EVENT_MIC_ERR_UNICAST, 0x000e),
 
-	/** Card Event definition : Ad-Hoc BCN lost */
-	ENUM_ELEMENT(EVENT_ADHOC_BCN_LOST, 0x0011),
-
 	/** Card Event definition : Stop Tx */
 	ENUM_ELEMENT(EVENT_STOP_TX, 0x0013),
 	/** Card Event definition : Start Tx */
@@ -78,14 +75,6 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 	ENUM_ELEMENT(EVENT_RSSI_HIGH, 0x001c),
 	/** Card Event definition : Beacon SNR high */
 	ENUM_ELEMENT(EVENT_SNR_HIGH, 0x001d),
-
-	/** Card Event definition : IBSS coalsced */
-	ENUM_ELEMENT(EVENT_IBSS_COALESCED, 0x001e),
-
-	/** Event definition : IBSS station connected */
-	ENUM_ELEMENT(EVENT_IBSS_STATION_CONNECT, 0x0020),
-	/** Event definition : IBSS station dis-connected */
-	ENUM_ELEMENT(EVENT_IBSS_STATION_DISCONNECT, 0x0021),
 
 	/** Card Event definition : Data RSSI low */
 	ENUM_ELEMENT(EVENT_DATA_RSSI_LOW, 0x0024),

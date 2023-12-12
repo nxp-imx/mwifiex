@@ -150,6 +150,10 @@ typedef struct _pcie_service_card {
 	struct pci_dev *dev;
 	/** moal_handle structure pointer */
 	moal_handle *handle;
+	/** reset work*/
+	struct work_struct reset_work;
+	/** work flag */
+	t_u8 work_flags;
 	/** I/O memory regions pointer to the bus */
 	void __iomem *pci_mmap;
 	/** I/O memory regions pointer to the bus */

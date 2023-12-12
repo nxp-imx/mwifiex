@@ -45,6 +45,11 @@ Change log:
 #define BYTE_MODE 0
 #endif
 
+/** SDIO bus width 1 bit mode */
+#define SDIO_BUS_WIDTH_1 1
+/** SDIO bus width 4 bit mode */
+#define SDIO_BUS_WIDTH_4 4
+
 #ifndef FIXED_ADDRESS
 /** Fixed address mode */
 #define FIXED_ADDRESS 0
@@ -174,6 +179,7 @@ mlan_status woal_sdiommc_bus_register(void);
 void woal_sdiommc_bus_unregister(void);
 
 int woal_sdio_set_bus_clock(moal_handle *handle, t_u8 option);
+int woal_sdio_set_buswidth(moal_handle *handle, t_u8 bus_width);
 
 #ifdef SDIO_SUSPEND_RESUME
 #ifdef MMC_PM_FUNC_SUSPENDED
@@ -188,14 +194,18 @@ int woal_sdio_resume(struct device *dev);
 
 #ifdef SDIO_MMC
 /** Structure: SDIO MMC card */
-struct sdio_mmc_card {
+typedef struct _sdio_mmc_card {
 	/** sdio_func structure pointer */
 	struct sdio_func *func;
 	/** moal_handle structure pointer */
 	moal_handle *handle;
+	/** reset work*/
+	struct work_struct reset_work;
+	/** work flag */
+	t_u8 work_flags;
 	/** saved host clock value */
 	unsigned int host_clock;
-};
+} sdio_mmc_card;
 void woal_sdio_reset_hw(moal_handle *handle);
 #endif /* SDIO_MMC */
 

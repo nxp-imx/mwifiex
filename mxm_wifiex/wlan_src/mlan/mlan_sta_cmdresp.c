@@ -174,11 +174,6 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 		/*
 		 * We do not re-try enter-ps command in ad-hoc mode.
 		 */
-		if (wlan_le16_to_cpu(pm->action) == EN_AUTO_PS &&
-		    (wlan_le16_to_cpu(pm->params.auto_ps.ps_bitmap) &
-		     BITMAP_STA_PS) &&
-		    pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-			pmadapter->ps_mode = Wlan802_11PowerModeCAM;
 	} break;
 	case HostCmd_CMD_802_11_SCAN_EXT:
 	case HostCmd_CMD_802_11_SCAN:
@@ -1270,28 +1265,6 @@ static mlan_status wlan_ret_802_11_deauthenticate(pmlan_private pmpriv,
 }
 
 /**
- *  @brief This function handles the command response of ad_hoc_stop
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param resp         A pointer to HostCmd_DS_COMMAND
- *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
- *
- *  @return        MLAN_STATUS_SUCCESS
- */
-static mlan_status wlan_ret_802_11_ad_hoc_stop(pmlan_private pmpriv,
-					       HostCmd_DS_COMMAND *resp,
-					       mlan_ioctl_req *pioctl_buf)
-{
-	ENTER();
-
-	wlan_reset_connect_state(pmpriv, MTRUE);
-	if (pmpriv->adapter->state_rdh.stage == RDH_STOP_INTFS)
-		wlan_11h_radar_detected_callback((t_void *)pmpriv);
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
  *  @brief This function handles the command response of key_material
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -1556,68 +1529,6 @@ static mlan_status wlan_ret_802_11_rf_channel(pmlan_private pmpriv,
 		bss = (mlan_ds_bss *)pioctl_buf->pbuf;
 		bss->param.bss_chan.channel = new_channel;
 	}
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
- *  @brief Handle the ibss_coalescing_status resp
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param resp         A pointer to HostCmd_DS_COMMAND
- *
- *  @return             MLAN_STATUS_SUCCESS
- */
-static mlan_status wlan_ret_ibss_coalescing_status(pmlan_private pmpriv,
-						   HostCmd_DS_COMMAND *resp)
-{
-	HostCmd_DS_802_11_IBSS_STATUS *pibss_coal_resp =
-		&(resp->params.ibss_coalescing);
-	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0, 0, 0, 0, 0, 0};
-
-	ENTER();
-
-	if (wlan_le16_to_cpu(pibss_coal_resp->action) == HostCmd_ACT_GEN_SET) {
-		LEAVE();
-		return MLAN_STATUS_SUCCESS;
-	}
-
-	PRINTM(MINFO, "New BSSID " MACSTR "\n",
-	       MAC2STR(pibss_coal_resp->bssid));
-
-	/* If rsp has MNULL BSSID, Just return..... No Action */
-	if (!memcmp(pmpriv->adapter, pibss_coal_resp->bssid, zero_mac,
-		    MLAN_MAC_ADDR_LENGTH)) {
-		PRINTM(MMSG, "New BSSID is MNULL\n");
-		LEAVE();
-		return MLAN_STATUS_SUCCESS;
-	}
-
-	/* If BSSID is diff, modify current BSS parameters */
-	if (memcmp(pmpriv->adapter,
-		   pmpriv->curr_bss_params.bss_descriptor.mac_address,
-		   pibss_coal_resp->bssid, MLAN_MAC_ADDR_LENGTH)) {
-		/* BSSID */
-		memcpy_ext(pmpriv->adapter,
-			   pmpriv->curr_bss_params.bss_descriptor.mac_address,
-			   pibss_coal_resp->bssid, MLAN_MAC_ADDR_LENGTH,
-			   sizeof(pmpriv->curr_bss_params.bss_descriptor
-					  .mac_address));
-
-		/* Beacon Interval and ATIM window */
-		pmpriv->curr_bss_params.bss_descriptor.beacon_period =
-			wlan_le16_to_cpu(pibss_coal_resp->beacon_interval);
-		pmpriv->curr_bss_params.bss_descriptor.atim_window =
-			wlan_le16_to_cpu(pibss_coal_resp->atim_window);
-
-		/* ERP Information */
-		pmpriv->curr_bss_params.bss_descriptor.erp_flags =
-			(t_u8)wlan_le16_to_cpu(
-				pibss_coal_resp->use_g_rate_protect);
-
-		pmpriv->adhoc_state = ADHOC_COALESCED;
-	}
-
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -3084,6 +2995,40 @@ static mlan_status wlan_ret_mfg_he_tb_tx(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function prepares command resp of MFG CMD OTP RW
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+
+static mlan_status wlan_ret_mfg_otp_rw(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mfg_cmd_otp_mac_addr_rd_wr_t *cfg = MNULL;
+	mfg_cmd_otp_mac_addr_rd_wr_t *mcmd =
+		(mfg_cmd_otp_mac_addr_rd_wr_t *)&resp->params
+			.mfg_otp_mac_addr_rd_wr;
+
+	ENTER();
+	if (!pioctl_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+	cfg = (mfg_cmd_otp_mac_addr_rd_wr_t *)&misc->param
+		      .mfg_otp_mac_addr_rd_wr;
+	memcpy_ext(pmpriv->adapter, &(cfg->mac_addr[0]), &(mcmd->mac_addr[0]),
+		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command resp of MFG Cmd
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3100,9 +3045,8 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		(struct mfg_cmd_generic_cfg *)&resp->params.mfg_generic_cfg;
 	struct mfg_cmd_generic_cfg *cfg = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#ifdef SD9177
 	mlan_adapter *pmadapter = pmpriv->adapter;
-#endif
+	t_u16 card_type = pmadapter->card_type;
 
 	ENTER();
 	if (!pioctl_buf) {
@@ -3123,6 +3067,9 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		ret = wlan_ret_mfg_config_trigger_frame(pmpriv, resp,
 							pioctl_buf);
 		goto cmd_mfg_done;
+	case MFG_CMD_OTP_MAC_ADD:
+		ret = wlan_ret_mfg_otp_rw(pmpriv, resp, pioctl_buf);
+		goto cmd_mfg_done;
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:
 	case MFG_CMD_TX_ANT:
@@ -3142,19 +3089,17 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	cfg = (struct mfg_cmd_generic_cfg *)&misc->param.mfg_generic_cfg;
 
 	cfg->error = wlan_le32_to_cpu(mcmd->error);
-
-#ifdef SD9177
-	if (IS_SD9177(pmadapter->card_type) &&
+	card_type = card_type & 0xff;
+	if (((card_type == CARD_TYPE_9098) || (card_type == CARD_TYPE_9097) ||
+	     (card_type == CARD_TYPE_9177) || (card_type == CARD_TYPE_IW624) ||
+	     (card_type == CARD_TYPE_AW693)) &&
 	    (wlan_le32_to_cpu(mcmd->mfg_cmd) == MFG_CMD_RFPWR)) {
 		//! TX_POWER was multipied by 16 while passing to fw
 		//! So It is needed to divide by 16 for user vals understanding.
 		cfg->data1 = (wlan_le32_to_cpu(mcmd->data1) >> 4);
 	} else {
-#endif
 		cfg->data1 = wlan_le32_to_cpu(mcmd->data1);
-#ifdef SD9177
 	}
-#endif
 
 	cfg->data2 = wlan_le32_to_cpu(mcmd->data2);
 	cfg->data3 = wlan_le32_to_cpu(mcmd->data3);
@@ -3317,12 +3262,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_DISASSOCIATE:
 		ret = wlan_ret_802_11_deauthenticate(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_802_11_AD_HOC_START:
-	case HostCmd_CMD_802_11_AD_HOC_JOIN:
-		ret = wlan_ret_802_11_ad_hoc(pmpriv, resp, pioctl_buf);
-		break;
-	case HostCmd_CMD_802_11_AD_HOC_STOP:
-		ret = wlan_ret_802_11_ad_hoc_stop(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_802_11_GET_LOG:
 		ret = wlan_ret_get_log(pmpriv, resp, pioctl_buf);
@@ -3469,8 +3408,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_WMM_PARAM_CONFIG:
 		ret = wlan_ret_wmm_param_config(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_802_11_IBSS_COALESCING_STATUS:
-		ret = wlan_ret_ibss_coalescing_status(pmpriv, resp);
 		break;
 	case HostCmd_CMD_MGMT_IE_LIST:
 		ret = wlan_ret_mgmt_ie_list(pmpriv, resp, pioctl_buf);

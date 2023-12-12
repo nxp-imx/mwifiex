@@ -80,7 +80,6 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	DS_PARAM_SET = 3,
 	CF_PARAM_SET = 4,
 
-	IBSS_PARAM_SET = 6,
 	COUNTRY_INFO = 7,
 	POWER_CONSTRAINT = 32,
 	POWER_CAPABILITY = 33,
@@ -89,7 +88,6 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	CHANNEL_SWITCH_ANN = 37,
 	EXTEND_CHANNEL_SWITCH_ANN = 60,
 	QUIET = 40,
-	IBSS_DFS = 41,
 	MEASUREMENT_REQUEST = 38,
 	MEASUREMENT_REPORT = 39,
 	SUPPORTED_CHANNELS = 36,
@@ -391,15 +389,14 @@ typedef MLAN_PACK_START struct _IEEEtypes_CapInfo_t {
 	t_u8 privacy : 1;
 	t_u8 cf_poll_rqst : 1;
 	t_u8 cf_pollable : 1;
-	t_u8 ibss : 1;
+	t_u8 rsrvd4 : 1;
 	t_u8 ess : 1;
 } MLAN_PACK_END IEEEtypes_CapInfo_t, *pIEEEtypes_CapInfo_t;
 #else
 typedef MLAN_PACK_START struct _IEEEtypes_CapInfo_t {
 	/** Capability Bit Map : ESS */
 	t_u8 ess : 1;
-	/** Capability Bit Map : IBSS */
-	t_u8 ibss : 1;
+	t_u8 rsrvd4 : 1;
 	/** Capability Bit Map : CF pollable */
 	t_u8 cf_pollable : 1;
 	/** Capability Bit Map : CF poll request */
@@ -455,22 +452,10 @@ typedef MLAN_PACK_START struct _IEEEtypes_CfParamSet_t {
 	t_u16 cfp_duration_remaining;
 } MLAN_PACK_END IEEEtypes_CfParamSet_t, *pIEEEtypes_CfParamSet_t;
 
-/** IEEEtypes_IbssParamSet_t */
-typedef MLAN_PACK_START struct _IEEEtypes_IbssParamSet_t {
-	/** Element ID */
-	t_u8 element_id;
-	/** Length */
-	t_u8 len;
-	/** ATIM window value in milliseconds */
-	t_u16 atim_window;
-} MLAN_PACK_END IEEEtypes_IbssParamSet_t, *pIEEEtypes_IbssParamSet_t;
-
 /** IEEEtypes_SsParamSet_t */
 typedef MLAN_PACK_START union _IEEEtypes_SsParamSet_t {
 	/** SS parameter : CF parameter set */
 	IEEEtypes_CfParamSet_t cf_param_set;
-	/** SS parameter : IBSS parameter set */
-	IEEEtypes_IbssParamSet_t ibss_param_set;
 } MLAN_PACK_END IEEEtypes_SsParamSet_t, *pIEEEtypes_SsParamSet_t;
 
 /** IEEEtypes_FhParamSet_t */
@@ -1492,8 +1477,6 @@ typedef MLAN_PACK_START struct {
 
 /** Maximum number of subbands in the IEEEtypes_SupportedChannels_t structure */
 #define WLAN_11H_MAX_SUBBANDS 6
-/** Maximum number of DFS channels configured in IEEEtypes_IBSS_DFS_t */
-#define WLAN_11H_MAX_IBSS_DFS_CHANNELS 25
 
 /**  IEEE Power Constraint element (7.3.2.15) */
 typedef MLAN_PACK_START struct {
@@ -1642,24 +1625,6 @@ typedef MLAN_PACK_START struct {
 
 } MLAN_PACK_END IEEEtypes_ChannelMap_t;
 
-/*  IEEE IBSS DFS Element (7.3.2.24) */
-/**
- *  IBSS DFS element included in ad hoc beacons and probe responses.
- *    Provides information regarding the IBSS DFS Owner as well as the
- *    originating STAs supported channels and basic measurement results.
- */
-typedef MLAN_PACK_START struct {
-	t_u8 element_id; /**< IEEE Element ID = 41 */
-	t_u8 len; /**< Element length after id and len */
-	t_u8 dfs_owner[MLAN_MAC_ADDR_LENGTH]; /**< DFS Owner STA Address */
-	t_u8 dfs_recovery_interval; /**< DFS Recovery time in TBTTs */
-
-	/** Variable length map field, one Map entry for each supported channel
-	 */
-	IEEEtypes_ChannelMap_t channel_map[WLAN_11H_MAX_IBSS_DFS_CHANNELS];
-
-} MLAN_PACK_END IEEEtypes_IBSS_DFS_t;
-
 /* 802.11h BSS information kept for each BSSID received in scan results */
 /**
  * IEEE BSS information needed from scan results for later processing in
@@ -1676,7 +1641,6 @@ typedef struct {
 	IEEEtypes_ChanSwitchAnn_t chan_switch_ann; /**< Channel Switch
 						      Announcement IE */
 	IEEEtypes_Quiet_t quiet; /**< Quiet IE */
-	IEEEtypes_IBSS_DFS_t ibss_dfs; /**< IBSS DFS Element IE */
 
 } wlan_11h_bss_info_t;
 

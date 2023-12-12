@@ -169,9 +169,6 @@ static t_u8 wlan_is_cmd_allowed_during_scan(t_u16 cmd_id)
 	case HostCmd_CMD_802_11_ASSOCIATE:
 	case HostCmd_CMD_802_11_DEAUTHENTICATE:
 	case HostCmd_CMD_802_11_DISASSOCIATE:
-	case HostCmd_CMD_802_11_AD_HOC_START:
-	case HostCmd_CMD_802_11_AD_HOC_JOIN:
-	case HostCmd_CMD_802_11_AD_HOC_STOP:
 	case HostCmd_CMD_11N_ADDBA_REQ:
 	case HostCmd_CMD_11N_ADDBA_RSP:
 	case HostCmd_CMD_11N_DELBA:
@@ -739,7 +736,9 @@ static t_u8 *wlan_strchr(t_u8 *s, int c)
 	while (*pos != '\0') {
 		if (*pos == (t_u8)c)
 			return pos;
-		pos++;
+		if (!wlan_secure_add(pos, 1, pos, TYPE_PTR)) {
+			PRINTM(MERROR, "pos is invalid\n");
+		}
 	}
 	return MNULL;
 }
@@ -1201,9 +1200,6 @@ static t_u32 wlan_get_cmd_timeout(t_u16 cmd_id)
 	case HostCmd_CMD_802_11_ASSOCIATE:
 	case HostCmd_CMD_802_11_DEAUTHENTICATE:
 	case HostCmd_CMD_802_11_DISASSOCIATE:
-	case HostCmd_CMD_802_11_AD_HOC_START:
-	case HostCmd_CMD_802_11_AD_HOC_JOIN:
-	case HostCmd_CMD_802_11_AD_HOC_STOP:
 	case HostCmd_CMD_11N_ADDBA_REQ:
 	case HostCmd_CMD_11N_ADDBA_RSP:
 	case HostCmd_CMD_11N_DELBA:
@@ -4443,6 +4439,55 @@ mlan_status wlan_cmd_ssu(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 #endif
 
 /**
+ * @brief This function enable/disable CSI support.
+ *
+ * @param pmpriv       A pointer to mlan_private structure
+ * @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ * @param cmd_action   The action: GET or SET
+ * @param pdata_buf    A pointer to data buffer
+ *
+ * @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_csi(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			 t_u16 cmd_action, t_u16 *pdata_buf)
+{
+	HostCmd_DS_CSI_CFG *csi_cfg_cmd = &cmd->params.csi_params;
+	mlan_ds_csi_params *csi_params = MNULL;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_CSI);
+	cmd->size = sizeof(HostCmd_DS_CSI_CFG) + S_DS_GEN;
+	csi_cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
+	switch (cmd_action) {
+	case CSI_CMD_ENABLE:
+		csi_params = (mlan_ds_csi_params *)pdata_buf;
+		csi_cfg_cmd->head_id = wlan_cpu_to_le32(csi_params->head_id);
+		csi_cfg_cmd->tail_id = wlan_cpu_to_le32(csi_params->tail_id);
+		csi_cfg_cmd->chip_id = csi_params->chip_id;
+		csi_cfg_cmd->csi_filter_cnt = csi_params->csi_filter_cnt;
+		if (csi_cfg_cmd->csi_filter_cnt > CSI_FILTER_MAX)
+			csi_cfg_cmd->csi_filter_cnt = CSI_FILTER_MAX;
+		memcpy_ext(pmpriv->adapter, (t_u8 *)csi_cfg_cmd->csi_filter,
+			   (t_u8 *)csi_params->csi_filter,
+			   sizeof(mlan_csi_filter_t) *
+				   csi_cfg_cmd->csi_filter_cnt,
+			   sizeof(csi_cfg_cmd->csi_filter));
+		DBG_HEXDUMP(MCMD_D, "Enable CSI", csi_cfg_cmd,
+			    sizeof(HostCmd_DS_CSI_CFG));
+		break;
+	case CSI_CMD_DISABLE:
+		DBG_HEXDUMP(MCMD_D, "Disable CSI", csi_cfg_cmd,
+			    sizeof(HostCmd_DS_CSI_CFG));
+	default:
+		break;
+	}
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  * @brief This function prepares command of dmcs config.
  *
  * @param pmpriv       A pointer to mlan_private structure
@@ -5010,7 +5055,6 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 		}
 	}
 #endif
-
 #ifdef STA_SUPPORT
 	if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
 		ret = wlan_prepare_cmd(pmpriv_sta,
@@ -5041,6 +5085,18 @@ mlan_status wlan_adapter_init_cmd(pmlan_adapter pmadapter)
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
+	}
+
+	if (pmadapter->init_para.antcfg)
+		wlan_handle_antcfg(pmpriv, pmadapter->init_para.antcfg);
+
+	if (pmadapter->init_para.dmcs) {
+		mlan_ds_misc_mapping_policy dmcs_policy;
+		dmcs_policy.subcmd = 0;
+		dmcs_policy.mapping_policy = pmadapter->init_para.dmcs;
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DMCS_CONFIG,
+				       HostCmd_ACT_GEN_SET, 0, (t_void *)MNULL,
+				       &dmcs_policy);
 	}
 
 #define DEF_AUTO_NULL_PKT_PERIOD 30
@@ -5347,6 +5403,31 @@ mlan_status wlan_process_vdll_event(pmlan_private pmpriv, pmlan_buffer pevent)
 		break;
 	case VDLL_IND_TYPE_SEC_ERR_ID:
 		PRINTM(MERROR, "VDLL_IND (SECURE ERR).\n");
+		break;
+	case VDLL_IND_TYPE_INTF_RESET:
+		PRINTM(MEVENT, "VDLL_IND (INTF_RESET)\n");
+#ifdef PCIE8997
+		/* For PCIe PFU, need to reset both Tx and Rx rd/wrptr */
+		if (IS_PCIE8997(pmadapter->card_type)) {
+			pmadapter->pcard_pcie->txbd_wrptr = 0;
+			pmadapter->pcard_pcie->txbd_rdptr = 0;
+			pmadapter->pcard_pcie->rxbd_wrptr =
+				pmadapter->pcard_pcie->reg
+					->txrx_rw_ptr_rollover_ind;
+			pmadapter->pcard_pcie->rxbd_rdptr = 0;
+		}
+#endif
+#if defined(SD8997) || defined(SD8987) || defined(SD8978)
+		/* For SDIO, need to reset wr_port only */
+		if (IS_SD8997(pmadapter->card_type) ||
+		    IS_SD8987(pmadapter->card_type) ||
+		    IS_SD8978(pmadapter->card_type)) {
+			pmadapter->pcard_sd->curr_wr_port =
+				pmadapter->pcard_sd->reg->start_wr_port;
+			pmadapter->pcard_sd->mpa_tx.start_port =
+				pmadapter->pcard_sd->reg->start_wr_port;
+		}
+#endif
 		break;
 	default:
 		PRINTM(MERROR, "unknow vdll ind type=%d\n", ind->type);
@@ -6119,14 +6200,7 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 						BAND_GAC;
 			}
 		}
-		pmadapter->adhoc_start_band = BAND_A;
-		pmpriv->adhoc_channel = DEFAULT_AD_HOC_CHANNEL_A;
-	} else if (pmadapter->fw_bands & BAND_G) {
-		pmadapter->adhoc_start_band = BAND_G | BAND_B;
-		pmpriv->adhoc_channel = DEFAULT_AD_HOC_CHANNEL;
-	} else if (pmadapter->fw_bands & BAND_B) {
-		pmadapter->adhoc_start_band = BAND_B;
-		pmpriv->adhoc_channel = DEFAULT_AD_HOC_CHANNEL;
+	} else {
 	}
 #endif /* STA_SUPPORT */
 
@@ -6358,6 +6432,12 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
 					      sizeof(MrvlIEtypesHeader_t));
 	}
+#ifdef PCIE
+	if (IS_PCIE(pmadapter->card_type) &&
+	    IS_FW_SUPPORT_RX_SW_INT(pmadapter)) {
+		pmadapter->ops.select_host_int(pmadapter);
+	}
+#endif
 	if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
 				 pmadapter->fw_bands)) {
 		if (pioctl_req)
@@ -9572,7 +9652,11 @@ mlan_status wlan_ret_led_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	mlan_led_cfg->enable = resp->params.ledcntrcfg.enable;
 	left_len = cmdrsp_len - (S_DS_GEN + sizeof(HostCmd_DS_CMD_LED_CFG));
 
-	tlv = (t_u8 *)resp + (S_DS_GEN + sizeof(HostCmd_DS_CMD_LED_CFG));
+	if (!wlan_secure_add(&resp, (S_DS_GEN + sizeof(HostCmd_DS_CMD_LED_CFG)),
+			     &tlv, TYPE_PTR)) {
+		PRINTM(MERROR, "tlv is invalid\n");
+	}
+
 	for (i = 0; i < MAX_FW_STATES; i++) {
 		mlan_led_cfg->misc_led_behvr[i].firmwarestate = *tlv;
 		tlv++;

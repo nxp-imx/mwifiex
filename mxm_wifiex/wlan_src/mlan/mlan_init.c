@@ -497,13 +497,7 @@ mlan_status wlan_init_priv(pmlan_private priv)
 #ifdef UAP_SUPPORT
 	priv->num_drop_pkts = 0;
 #endif
-#if defined(STA_SUPPORT)
-	priv->adhoc_state_prev = ADHOC_IDLE;
-	memset(pmadapter, &priv->adhoc_last_start_ssid, 0,
-	       sizeof(priv->adhoc_last_start_ssid));
-#endif
 	priv->atim_window = 0;
-	priv->adhoc_state = ADHOC_IDLE;
 	priv->tx_power_level = 0;
 	priv->max_tx_power_level = 0;
 	priv->min_tx_power_level = 0;
@@ -582,8 +576,6 @@ mlan_status wlan_init_priv(pmlan_private priv)
 		priv->addba_reject[i] = ADDBA_RSP_STATUS_ACCEPT;
 	priv->addba_reject[6] = ADDBA_RSP_STATUS_REJECT;
 	priv->addba_reject[7] = ADDBA_RSP_STATUS_REJECT;
-	memcpy_ext(priv->adapter, priv->ibss_addba_reject, priv->addba_reject,
-		   sizeof(priv->addba_reject), sizeof(priv->ibss_addba_reject));
 	priv->max_amsdu = 0;
 #ifdef STA_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
@@ -943,7 +935,6 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->null_pkt_interval = 0;
 	pmadapter->fw_bands = 0;
 	pmadapter->config_bands = 0;
-	pmadapter->adhoc_start_band = 0;
 	pmadapter->pscan_channels = MNULL;
 	pmadapter->fw_release_number = 0;
 	pmadapter->fw_cap_info = 0;
@@ -1576,26 +1567,7 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 						BAND_AAC;
 			}
 		}
-		pmadapter->adhoc_start_band = BAND_A;
-		for (i = 0; i < pmadapter->priv_num; i++) {
-			if (pmadapter->priv[i])
-				pmadapter->priv[i]->adhoc_channel =
-					DEFAULT_AD_HOC_CHANNEL_A;
-		}
-	} else if (pmadapter->fw_bands & BAND_G) {
-		pmadapter->adhoc_start_band = BAND_G | BAND_B;
-		for (i = 0; i < pmadapter->priv_num; i++) {
-			if (pmadapter->priv[i])
-				pmadapter->priv[i]->adhoc_channel =
-					DEFAULT_AD_HOC_CHANNEL;
-		}
-	} else if (pmadapter->fw_bands & BAND_B) {
-		pmadapter->adhoc_start_band = BAND_B;
-		for (i = 0; i < pmadapter->priv_num; i++) {
-			if (pmadapter->priv[i])
-				pmadapter->priv[i]->adhoc_channel =
-					DEFAULT_AD_HOC_CHANNEL;
-		}
+	} else {
 	}
 #endif /* STA_SUPPORT */
 	for (i = 0; i < pmadapter->priv_num; i++) {
@@ -2122,10 +2094,11 @@ mlan_status wlan_init_fw_complete(pmlan_adapter pmadapter)
 	if (status == MLAN_STATUS_SUCCESS) {
 		pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA);
 		if (pmpriv) {
-			status = wlan_prepare_cmd(pmpriv,
-						  HostCmd_CMD_WMM_PARAM_CONFIG,
-						  HostCmd_ACT_GEN_SET, 0, MNULL,
-						  &pmadapter->ac_params);
+			status =
+				wlan_prepare_cmd(pmpriv,
+						 HostCmd_CMD_WMM_PARAM_CONFIG,
+						 HostCmd_ACT_GEN_SET_DEFAULT, 0,
+						 MNULL, &pmadapter->ac_params);
 			if (status != MLAN_STATUS_SUCCESS)
 				PRINTM(MERROR,
 				       "ERR: wlan_prepare_cmd returned status=0x%x\n",

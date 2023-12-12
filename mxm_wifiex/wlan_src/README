@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel from 2.6.32 to 6.5.4.
+	The driver code supports Linux kernel from 2.6.32 to 6.6.2.
 
 2) FOR DRIVER INSTALL
 
@@ -1065,6 +1065,13 @@
     echo "trigger_frame=1 0 1 2 5484 0 256 0 0 0 1 0 0 0 1 60 1 0 65535 0 511 5 0 61 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
     echo "tx_frame=1 0x1102 0xabababab 200" >/proc/mwlan/adapter0/config
 
+
+    OTP Read/Write
+    Example: Read OTP MAC address.
+    echo "otp_mac_add_rd_wr=0"  > /proc/mwlan/adapter0/config
+
+    Example: Write OTP MAC addres.
+    echo "otp_mac_add_rd_wr=1 AA:BB:CC:DD:EE:FF"  > /proc/mwlan/adapter0/config
 
 #endif
 

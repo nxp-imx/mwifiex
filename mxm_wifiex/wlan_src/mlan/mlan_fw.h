@@ -153,10 +153,6 @@ extern t_u8 SupportedRates_G[G_SUPPORTED_RATES];
 extern t_u8 SupportedRates_BG[BG_SUPPORTED_RATES];
 extern t_u8 SupportedRates_A[A_SUPPORTED_RATES];
 extern t_u8 SupportedRates_N[N_SUPPORTED_RATES];
-extern t_u8 AdhocRates_G[G_SUPPORTED_RATES];
-extern t_u8 AdhocRates_B[B_SUPPORTED_RATES];
-extern t_u8 AdhocRates_BG[BG_SUPPORTED_RATES];
-extern t_u8 AdhocRates_A[A_SUPPORTED_RATES];
 
 /** Default auto deep sleep mode */
 #define DEFAULT_AUTO_DS_MODE MTRUE
@@ -315,8 +311,6 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_PHY_DS 0x0003
 /** TLV type : CF */
 #define TLV_TYPE_CF 0x0004
-/** TLV type : IBSS */
-#define TLV_TYPE_IBSS 0x0006
 
 /** TLV type : Domain */
 #define TLV_TYPE_DOMAIN 0x0007
@@ -1175,12 +1169,6 @@ enum host_cmd_id {
 /** fw_cap_info bit23 for firmware roaming*/
 #define FW_ROAMING_SUPPORT MBIT(23)
 
-/** fw_cap_info bit25 for adhoc support*/
-#define FW_CAPINFO_ADHOC_SUPPORT MBIT(25)
-/** Check if adhoc is supported by firmware */
-#define IS_FW_SUPPORT_ADHOC(_adapter)                                          \
-	(_adapter->fw_cap_info & FW_CAPINFO_ADHOC_SUPPORT)
-
 /** Check if supplicant is supported by firmware */
 #define IS_FW_SUPPORT_SUPPLICANT(_adapter)                                     \
 	(_adapter->fw_cap_info & FW_CAPINFO_SUPPLICANT_SUPPORT)
@@ -1223,6 +1211,8 @@ enum host_cmd_id {
 #define FW_CAPINFO_EXT_CMD_TX_DATA MBIT(16)
 /** FW cap info bit 19: security rgpower table */
 #define FW_CAPINFO_EXT_SEC_RG_POWER MBIT(19)
+/** FW cap info bit 20: RX_SW_INT */
+#define FW_CAPINFO_EXT_RX_SW_INT MBIT(20)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -1267,6 +1257,8 @@ enum host_cmd_id {
 /** Check if security rgpower table supported by firmware */
 #define IS_FW_SUPPORT_SEC_RG_POWER(_adapter)                                   \
 	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_SEC_RG_POWER)
+#define IS_FW_SUPPORT_RX_SW_INT(_adapter)                                      \
+	(_adapter->fw_cap_ext & FW_CAPINFO_EXT_RX_SW_INT)
 
 /** MrvlIEtypes_PrevBssid_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_PrevBssid_t {
@@ -1511,8 +1503,6 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_ACT_MAC_STRICT_PROTECTION_ENABLE 0x0400
 /** MAC action : Force 11n protection disable */
 #define HostCmd_ACT_MAC_FORCE_11N_PROTECTION_OFF 0x0800
-/** MAC action : Ad-Hoc G protection on */
-#define HostCmd_ACT_MAC_ADHOC_G_PROTECTION_ON 0x2000
 /** MAC action : Static-Dynamic BW enable */
 #define HostCmd_ACT_MAC_STATIC_DYNAMIC_BW_ENABLE MBIT(16)
 /** MAC action : Dynamic BW */
@@ -1521,8 +1511,6 @@ typedef enum _ENH_PS_MODES {
 /* Define action or option for HostCmd_CMD_802_11_SCAN */
 /** Scan type : BSS */
 #define HostCmd_BSS_MODE_BSS 0x0001
-/** Scan type : IBSS */
-#define HostCmd_BSS_MODE_IBSS 0x0002
 /** Scan type : Any */
 #define HostCmd_BSS_MODE_ANY 0x0003
 
@@ -2302,12 +2290,6 @@ typedef MLAN_PACK_START struct _CfParamSet_t {
 	t_u16 cfp_duration_remaining;
 } MLAN_PACK_END CfParamSet_t;
 
-/** IbssParamSet_t */
-typedef MLAN_PACK_START struct _IbssParamSet_t {
-	/** ATIM window value */
-	t_u16 atim_window;
-} MLAN_PACK_END IbssParamSet_t;
-
 /** MrvlIEtypes_SsParamSet_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_SsParamSet_t {
 	/** Header */
@@ -2316,8 +2298,6 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_SsParamSet_t {
 	union {
 		/** CF parameter set */
 		CfParamSet_t cf_param_set[1];
-		/** IBSS parameter set */
-		IbssParamSet_t ibss_param_set[1];
 	} cf_ibss;
 } MLAN_PACK_END MrvlIEtypes_SsParamSet_t;
 
@@ -2868,8 +2848,7 @@ typedef MLAN_PACK_START struct __ps_param {
 	t_u16 bcn_miss_timeout;
 	/** local listen interval */
 	t_u16 local_listen_interval;
-	/** Adhoc awake period */
-	t_u16 adhoc_wake_period;
+	t_u16 rsrvd;
 	/** mode - (0x01 - firmware to automatically choose PS_POLL or NULL
 	 * mode, 0x02 - PS_POLL, 0x03 - NULL mode )
 	 */
@@ -3162,13 +3141,15 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MC_AGGR_CFG {
 	 * bit 0 MC aggregation
 	 * bit 1 packet expiry
 	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
+	 * bit 3 CTS2Self duration offset
+	 * bit 6 UC non aggregation*/
 	t_u8 enable_bitmap;
 	/* 1 valid, 0 invalid
 	 * bit 0 MC aggregation
 	 * bit 1 packet expiry
 	 * bit 2 CTS2Self
-	 * bit 3 CTS2Self duration offset*/
+	 * bit 3 CTS2Self duration offset
+	 * bit 6 UC non aggregation*/
 	t_u8 mask_bitmap;
 	/** CTS2Self duration offset */
 	t_u16 cts2self_offset;
@@ -3339,88 +3320,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_ASSOCIATE_RSP {
 	/** Association response structure */
 	IEEEtypes_AssocRsp_t assoc_rsp;
 } MLAN_PACK_END HostCmd_DS_802_11_ASSOCIATE_RSP;
-
-/** HostCmd_DS_802_11_AD_HOC_START*/
-typedef MLAN_PACK_START struct _HostCmd_DS_802_11_AD_HOC_START {
-	/** AdHoc SSID */
-	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
-	/** BSS mode */
-	t_u8 bss_mode;
-	/** Beacon period */
-	t_u16 beacon_period;
-	/** DTIM period */
-	t_u8 dtim_period;
-	/** SS parameter set */
-	IEEEtypes_SsParamSet_t ss_param_set;
-	/** PHY parameter set */
-	IEEEtypes_PhyParamSet_t phy_param_set;
-	/** Reserved field */
-	t_u16 reserved1;
-	/** Capability information */
-	IEEEtypes_CapInfo_t cap;
-	/** Supported data rates */
-	t_u8 DataRate[HOSTCMD_SUPPORTED_RATES];
-} MLAN_PACK_END HostCmd_DS_802_11_AD_HOC_START;
-
-/**  HostCmd_CMD_802_11_AD_HOC_START response */
-typedef MLAN_PACK_START struct _HostCmd_DS_802_11_AD_HOC_START_RESULT {
-	/** Padding */
-	t_u8 pad[3];
-	/** AdHoc BSSID */
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	/** Padding to sync with FW structure*/
-	t_u8 pad2[2];
-	/** Result */
-	t_u8 result;
-} MLAN_PACK_END HostCmd_DS_802_11_AD_HOC_START_RESULT;
-
-/**  HostCmd_CMD_802_11_AD_HOC_START response */
-typedef MLAN_PACK_START struct _HostCmd_DS_802_11_AD_HOC_JOIN_RESULT {
-	/** Result */
-	t_u8 result;
-} MLAN_PACK_END HostCmd_DS_802_11_AD_HOC_JOIN_RESULT;
-
-/** AdHoc_BssDesc_t */
-typedef MLAN_PACK_START struct _AdHoc_BssDesc_t {
-	/** BSSID */
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	/** SSID */
-	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
-	/** BSS mode */
-	t_u8 bss_mode;
-	/** Beacon period */
-	t_u16 beacon_period;
-	/** DTIM period */
-	t_u8 dtim_period;
-	/** Timestamp */
-	t_u8 time_stamp[8];
-	/** Local time */
-	t_u8 local_time[8];
-	/** PHY parameter set */
-	IEEEtypes_PhyParamSet_t phy_param_set;
-	/** SS parameter set */
-	IEEEtypes_SsParamSet_t ss_param_set;
-	/** Capability information */
-	IEEEtypes_CapInfo_t cap;
-	/** Supported data rates */
-	t_u8 data_rates[HOSTCMD_SUPPORTED_RATES];
-
-	/*
-	 *  DO NOT ADD ANY FIELDS TO THIS STRUCTURE.
-	 *  It is used in the Adhoc join command and will cause a
-	 *  binary layout mismatch with the firmware
-	 */
-} MLAN_PACK_END AdHoc_BssDesc_t;
-
-/** HostCmd_DS_802_11_AD_HOC_JOIN */
-typedef MLAN_PACK_START struct _HostCmd_DS_802_11_AD_HOC_JOIN {
-	/** AdHoc BSS descriptor */
-	AdHoc_BssDesc_t bss_descriptor;
-	/** Reserved field */
-	t_u16 reserved1;
-	/** Reserved field */
-	t_u16 reserved2;
-} MLAN_PACK_END HostCmd_DS_802_11_AD_HOC_JOIN;
 
 #if defined(SDIO)
 /** Interrupt Raising Edge */
@@ -4150,8 +4049,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_TX_POWER {
 
 /** Connection type infra */
 #define CONNECTION_TYPE_INFRA 0
-/** Connection type adhoc */
-#define CONNECTION_TYPE_ADHOC 1
 #ifdef WIFI_DIRECT_SUPPORT
 /** BSS Mode: WIFIDIRECT Client */
 #define BSS_MODE_WIFIDIRECT_CLIENT 0
@@ -5505,22 +5402,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_ANTENNA {
 	/** Rx antenna mode Bit0:1, Bit1:2, Bit0-1:1+2, 0xffff: diversity */
 	t_u16 rx_antenna_mode;
 } MLAN_PACK_END HostCmd_DS_802_11_RF_ANTENNA;
-
-/** HostCmd_DS_802_11_IBSS_STATUS */
-typedef MLAN_PACK_START struct _HostCmd_DS_802_11_IBSS_STATUS {
-	/** Action */
-	t_u16 action;
-	/** Enable */
-	t_u16 enable;
-	/** BSSID */
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	/** Beacon interval */
-	t_u16 beacon_interval;
-	/** ATIM window interval */
-	t_u16 atim_window;
-	/** User G rate protection */
-	t_u16 use_g_rate_protect;
-} MLAN_PACK_END HostCmd_DS_802_11_IBSS_STATUS;
 
 /** HostCmd_DS_MGMT_IE_LIST_CFG */
 typedef MLAN_PACK_START struct _HostCmd_DS_MGMT_IE_LIST {
@@ -7873,14 +7754,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_802_11_ASSOCIATE_RSP associate_rsp;
 		/** Deauthenticate */
 		HostCmd_DS_802_11_DEAUTHENTICATE deauth;
-		/** Ad-Hoc start */
-		HostCmd_DS_802_11_AD_HOC_START adhoc_start;
-		/** Ad-Hoc start result */
-		HostCmd_DS_802_11_AD_HOC_START_RESULT adhoc_start_result;
-		/** Ad-Hoc join result */
-		HostCmd_DS_802_11_AD_HOC_JOIN_RESULT adhoc_join_result;
-		/** Ad-Hoc join */
-		HostCmd_DS_802_11_AD_HOC_JOIN adhoc_join;
 		/** Domain information */
 		HostCmd_DS_802_11D_DOMAIN_INFO domain_info;
 		/** Domain information response */
@@ -7936,8 +7809,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_802_11_SUPPLICANT_PROFILE esupplicant_profile;
 		/** Extended version */
 		HostCmd_DS_VERSION_EXT verext;
-		/** Adhoc Coalescing */
-		HostCmd_DS_802_11_IBSS_STATUS ibss_coalescing;
 		/** Mgmt IE list configuration */
 		HostCmd_DS_MGMT_IE_LIST_CFG mgmt_ie_list;
 		/** TDLS configuration command */
@@ -8068,6 +7939,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		struct mfg_Cmd_HE_TBTx_t mfg_he_power;
 		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
+		mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
 		HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG dot11mc_unassoc_ftm_cfg;
 		HostCmd_DS_HAL_PHY_CFG hal_phy_cfg_params;
@@ -8126,6 +7998,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Secure_Boot_Uuid_t {
 #define VDLL_IND_TYPE_ERR_ID 3
 /** notify vdll download error: Secure error */
 #define VDLL_IND_TYPE_SEC_ERR_ID 4
+/** req host side interface reset */
+#define VDLL_IND_TYPE_INTF_RESET 5
 
 /** vdll indicate event structure */
 typedef MLAN_PACK_START struct _vdll_ind {

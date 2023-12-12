@@ -98,14 +98,6 @@ static t_u16 SupportedInfraBand[] = {
 	BAND_A | BAND_AN | BAND_AAC | BAND_AAX,
 };
 
-/** Bands supported in Ad-Hoc mode */
-static t_u16 SupportedAdhocBand[] = {
-	BAND_B,
-	BAND_B | BAND_G,
-	BAND_G,
-	BAND_A,
-};
-
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -723,11 +715,9 @@ static int woal_setget_priv_bandcfg(moal_private *priv, t_u8 *respbuf,
 {
 	int ret = 0;
 	unsigned int i;
-	int data[3];
+	int data[1];
 	int user_data_len = 0;
 	t_u32 infra_band = 0;
-	t_u32 adhoc_band = 0;
-	t_u32 adhoc_channel = 0;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_radio_cfg *radio_cfg = NULL;
 	mlan_ds_band_cfg *band_cfg = NULL;
@@ -787,35 +777,9 @@ static int woal_setget_priv_bandcfg(moal_private *priv, t_u8 *respbuf,
 			goto error;
 		}
 
-		/* Set Adhoc band */
-		if (user_data_len >= 2) {
-			adhoc_band = data[1];
-			for (i = 0; i < (sizeof(SupportedAdhocBand) /
-					 sizeof(SupportedAdhocBand[0]));
-			     i++)
-				if (adhoc_band == SupportedAdhocBand[i])
-					break;
-			if (i == sizeof(SupportedAdhocBand)) {
-				ret = -EINVAL;
-				goto error;
-			}
-		}
-
-		/* Set Adhoc channel */
-		if (user_data_len >= 3) {
-			adhoc_channel = data[2];
-			if (adhoc_channel == 0) {
-				/* Check if specified adhoc channel is non-zero
-				 */
-				ret = -EINVAL;
-				goto error;
-			}
-		}
 		/* Set config_bands and adhoc_start_band values to MLAN */
 		req->action = MLAN_ACT_SET;
 		radio_cfg->param.band_cfg.config_bands = infra_band;
-		radio_cfg->param.band_cfg.adhoc_start_band = adhoc_band;
-		radio_cfg->param.band_cfg.adhoc_channel = adhoc_channel;
 	}
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -5842,9 +5806,6 @@ static int woal_priv_set_bss_mode(moal_private *priv, t_u8 *respbuf,
 	case MW_MODE_INFRA:
 		bss->param.bss_mode = MLAN_BSS_MODE_INFRA;
 		break;
-	case MW_MODE_ADHOC:
-		bss->param.bss_mode = MLAN_BSS_MODE_IBSS;
-		break;
 	case MW_MODE_AUTO:
 		bss->param.bss_mode = MLAN_BSS_MODE_AUTO;
 		break;
@@ -6984,8 +6945,12 @@ static int woal_priv_regrdwr(moal_private *priv, t_u8 *respbuf,
 		if (*(char *)(space_ind + 1) == '-') {
 			is_negative_val = MTRUE;
 			arguments[space_ind + 1 - arguments] = '\0';
-			strncat(arguments, space_ind + 2,
-				(strlen(respbuf) * sizeof(char)) - 1);
+			if (strlen(respbuf) > 1) {
+				strncat(arguments, space_ind + 2,
+					(strlen(respbuf) * sizeof(char)) - 1);
+			} else {
+				PRINTM(MERROR, "strlen(respbuf) is invalid\n");
+			}
 		}
 	}
 	parse_arguments(arguments, data, ARRAY_SIZE(data), &user_data_len);
@@ -7230,20 +7195,16 @@ static int woal_priv_sdcmd52rw(moal_private *priv, t_u8 *respbuf,
 
 	if (!rw) {
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			data = sdio_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
 		else
 			data = sdio_f0_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_readb: reading register 0x%X failed\n",
@@ -7262,20 +7223,16 @@ static int woal_priv_sdcmd52rw(moal_private *priv, t_u8 *respbuf,
 #endif /* SDIO_MMC */
 	} else {
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			sdio_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
 		else
 			sdio_f0_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_writeb: writing register 0x%X failed\n",
@@ -8149,34 +8106,28 @@ static int woal_priv_wmm_delts_req_ioctl(moal_private *priv, t_u8 *respbuf,
 
 	memset(&delts_ioctl, 0x00, sizeof(delts_ioctl));
 
-	if ((int)strlen(respbuf) > header_len) {
-		copy_len = MIN(strlen(data_ptr), sizeof(delts_ioctl));
-		moal_memcpy_ext(priv->phandle, (t_u8 *)&delts_ioctl, data_ptr,
-				copy_len, sizeof(delts_ioctl));
+	moal_memcpy_ext(priv->phandle, (t_u8 *)&delts_ioctl, data_ptr,
+			sizeof(delts_ioctl), sizeof(delts_ioctl));
+	cfg->param.delts.status_code = (t_u32)delts_ioctl.ieee_reason_code;
+	cfg->param.delts.ie_data_len = (t_u8)delts_ioctl.ie_data_len;
 
-		cfg->param.delts.status_code =
-			(t_u32)delts_ioctl.ieee_reason_code;
-		cfg->param.delts.ie_data_len = (t_u8)delts_ioctl.ie_data_len;
+	moal_memcpy_ext(priv->phandle, cfg->param.delts.ie_data,
+			delts_ioctl.ie_data, cfg->param.delts.ie_data_len,
+			MLAN_WMM_TSPEC_SIZE);
 
-		moal_memcpy_ext(priv->phandle, cfg->param.delts.ie_data,
-				delts_ioctl.ie_data,
-				cfg->param.delts.ie_data_len,
-				MLAN_WMM_TSPEC_SIZE);
-
-		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-		if (status != MLAN_STATUS_SUCCESS) {
-			ret = -EFAULT;
-			goto done;
-		}
-
-		/* Return the firmware command result back to the application
-		 * layer */
-		delts_ioctl.cmd_result = cfg->param.delts.result;
-		copy_len = sizeof(delts_ioctl);
-		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)&delts_ioctl,
-				copy_len, respbuflen);
-		ret = copy_len;
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
 	}
+
+	/* Return the firmware command result back to the application
+	 * layer */
+	delts_ioctl.cmd_result = cfg->param.delts.result;
+	copy_len = sizeof(delts_ioctl);
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)&delts_ioctl, copy_len,
+			respbuflen);
+	ret = copy_len;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -11036,6 +10987,49 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ * @brief               Turn on/off the sdio clock
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ * @return              Number of bytes written, negative for failure.
+ */
+static int woal_priv_sdio_buswidth_ioctl(moal_private *priv, t_u8 *respbuf,
+					 t_u32 respbuflen)
+{
+	int ret = 0;
+	int data = 0;
+	int user_data_len = 0, header_len = 0;
+
+	ENTER();
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_SDIO_BUSWIDTH);
+	if ((int)strlen(respbuf) == header_len) {
+		PRINTM(MERROR, "Don't support get operation\n");
+		ret = -EINVAL;
+		goto done;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, &data, 1, &user_data_len);
+
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of parameters\n");
+			ret = -EINVAL;
+			goto done;
+		}
+	}
+	if ((data != SDIO_BUS_WIDTH_1) && (data != SDIO_BUS_WIDTH_4)) {
+		ret = -EINVAL;
+		goto done;
+	}
+	ret = woal_sdio_set_buswidth(priv->phandle, data);
+done:
+	LEAVE();
+	return ret;
+}
 #endif
 
 #ifdef SDIO
@@ -13199,6 +13193,12 @@ static int woal_priv_mc_aggr_cfg(moal_private *priv, t_u8 *respbuf,
 		else
 			priv->enable_mc_aggr = MFALSE;
 	}
+	if (mc_cfg->mask_bitmap & UC_NONAGGR_CTRL) {
+		if (mc_cfg->enable_bitmap & UC_NONAGGR_CTRL)
+			priv->enable_uc_nonaggr = MTRUE;
+		else
+			priv->enable_uc_nonaggr = MFALSE;
+	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
@@ -14263,18 +14263,15 @@ static int woal_priv_cmd53rdwr(moal_private *priv, t_u8 *respbuf,
 	       reg, mode, blklen, blknum);
 
 	if (!rw) {
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
-		if (sdio_readsb(
-			    ((struct sdio_mmc_card *)priv->phandle->card)->func,
-			    respbuf, reg, total_len)) {
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
+		if (sdio_readsb(((sdio_mmc_card *)priv->phandle->card)->func,
+				respbuf, reg, total_len)) {
 			PRINTM(MERROR,
 			       "sdio_readsb: reading memory 0x%x failed\n",
 			       reg);
 			goto done;
 		}
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		ret = total_len;
 	} else {
 		int pos = 0;
@@ -14285,16 +14282,13 @@ static int woal_priv_cmd53rdwr(moal_private *priv, t_u8 *respbuf,
 		/* Copy/duplicate the pattern to data buffer */
 		for (pos = 0; pos < (int)total_len; pos++)
 			data[pos] = buf[11 + (pos % pattern_len)];
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
-		if (sdio_writesb(
-			    ((struct sdio_mmc_card *)priv->phandle->card)->func,
-			    reg, data, total_len))
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
+		if (sdio_writesb(((sdio_mmc_card *)priv->phandle->card)->func,
+				 reg, data, total_len))
 			PRINTM(MERROR,
 			       "sdio_writesb: writing memory 0x%x failed\n",
 			       reg);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 	}
 
 done:
@@ -14660,8 +14654,8 @@ static int woal_priv_gpiocfg(moal_private *priv, t_u8 *respbuf,
 	gpio_cfg = (mlan_ds_gpio_cfg_ops *)&misc->param.gpio_cfg_ops;
 	if (req->action == MLAN_ACT_GET) {
 		moal_memcpy_ext(priv->phandle, respbuf, gpio_cfg,
-				sizeof(gpio_cfg), respbuflen);
-		ret = sizeof(gpio_cfg);
+				sizeof(*gpio_cfg), respbuflen);
+		ret = sizeof(*gpio_cfg);
 	}
 
 done:
@@ -20541,6 +20535,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Turn on/off the sdio clock */
 			len = woal_priv_sdio_clock_ioctl(priv, buf,
 							 priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_SDIO_BUSWIDTH,
+				    strlen(PRIV_CMD_SDIO_BUSWIDTH)) == 0) {
+			/* change sdio buswidth */
+			len = woal_priv_sdio_buswidth_ioctl(priv, buf,
+							    priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_MPA_CTRL,
 				    strlen(PRIV_CMD_MPA_CTRL)) == 0) {

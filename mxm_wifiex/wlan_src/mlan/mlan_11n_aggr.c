@@ -319,6 +319,12 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			ret = pmadapter->callbacks.moal_recv_amsdu_packet(
 				pmadapter->pmoal_handle, pmbuf);
 			if (ret == MLAN_STATUS_PENDING) {
+#ifdef USB
+				if (IS_USB(pmadapter->card_type))
+					pmadapter->callbacks.moal_recv_complete(
+						pmadapter->pmoal_handle, MNULL,
+						pmadapter->rx_data_ep, ret);
+#endif
 				priv->msdu_in_rx_amsdu_cnt += num_subframes;
 				priv->amsdu_rx_cnt++;
 				return ret;
@@ -507,8 +513,9 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
 	if (pmbuf_src) {
 		pmbuf_aggr = wlan_alloc_mlan_buffer(
-			pmadapter, pmadapter->tx_buf_size, 0,
-			MOAL_MALLOC_BUFFER | MOAL_MEM_FLAG_ATOMIC);
+			pmadapter, pmadapter->tx_buf_size, headroom,
+			MOAL_MEM_FLAG_DIRTY | MOAL_MALLOC_BUFFER |
+				MOAL_MEM_FLAG_ATOMIC);
 		if (!pmbuf_aggr) {
 			PRINTM(MERROR, "Error allocating mlan_buffer\n");
 			pmadapter->callbacks.moal_spin_unlock(

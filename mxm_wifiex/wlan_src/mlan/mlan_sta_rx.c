@@ -661,7 +661,8 @@ done:
 #ifdef USB
 	else if (IS_USB(pmadapter->card_type))
 		pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle,
-							MNULL, MLAN_USB_EP_DATA,
+							MNULL,
+							pmadapter->rx_data_ep,
 							MLAN_STATUS_SUCCESS);
 #endif
 	LEAVE();

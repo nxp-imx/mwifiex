@@ -240,31 +240,6 @@ static const struct iw_priv_args woal_private_args[] = {
 ********************************************************/
 
 /**
- *  @brief Compare two SSIDs
- *
- *  @param ssid1    A pointer to ssid to compare
- *  @param ssid2    A pointer to ssid to compare
- *
- *  @return         0--ssid is same, otherwise is different
- */
-static t_s32 woal_ssid_cmp(mlan_802_11_ssid *ssid1, mlan_802_11_ssid *ssid2)
-{
-	ENTER();
-
-	if (!ssid1 || !ssid2) {
-		LEAVE();
-		return -1;
-	}
-	if (ssid1->ssid_len != ssid2->ssid_len) {
-		LEAVE();
-		return -1;
-	}
-
-	LEAVE();
-	return memcmp(ssid1->ssid, ssid2->ssid, ssid1->ssid_len);
-}
-
-/**
  *  @brief Sort Channels
  *
  *  @param freq                 A pointer to iw_freq structure
@@ -466,10 +441,6 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		ret = -EFAULT;
 		goto done;
 	}
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_change_adhoc_chan(priv, bss->param.bss_chan.channel,
-				   MOAL_IOCTL_WAIT))
-		ret = -EFAULT;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -561,9 +532,6 @@ static int woal_set_bss_mode(struct net_device *dev,
 	switch (*uwrq) {
 	case IW_MODE_INFRA:
 		bss->param.bss_mode = MLAN_BSS_MODE_INFRA;
-		break;
-	case IW_MODE_ADHOC:
-		bss->param.bss_mode = MLAN_BSS_MODE_IBSS;
 		break;
 	case IW_MODE_AUTO:
 		bss->param.bss_mode = MLAN_BSS_MODE_AUTO;
@@ -2984,7 +2952,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 	mlan_scan_resp scan_resp;
 	mlan_bss_info bss_info;
 	BSSDescriptor_t *scan_table;
-	mlan_ds_get_signal rssi;
 	t_u16 buf_size = 16 + 256 * 2;
 	char *buf = NULL;
 	char *ptr;
@@ -3090,9 +3057,7 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 
 		/* Add mode */
 		iwe.cmd = SIOCGIWMODE;
-		if (scan_table[i].bss_mode == MLAN_BSS_MODE_IBSS)
-			iwe.u.mode = IW_MODE_ADHOC;
-		else if (scan_table[i].bss_mode == MLAN_BSS_MODE_INFRA)
+		if (scan_table[i].bss_mode == MLAN_BSS_MODE_INFRA)
 			iwe.u.mode = IW_MODE_MASTER;
 		else
 			iwe.u.mode = IW_MODE_AUTO;
@@ -3119,18 +3084,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		else
 			iwe.u.qual.noise = bss_info.bcn_nf_last;
 
-		if ((bss_info.bss_mode == MLAN_BSS_MODE_IBSS) &&
-		    !woal_ssid_cmp(&bss_info.ssid, &scan_table[i].ssid) &&
-		    bss_info.adhoc_state == ADHOC_STARTED) {
-			memset(&rssi, 0, sizeof(mlan_ds_get_signal));
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_get_signal_info(priv, MOAL_IOCTL_WAIT,
-						 &rssi)) {
-				ret = -EFAULT;
-				break;
-			}
-			iwe.u.qual.level = rssi.data_rssi_avg;
-		}
 		iwe.u.qual.qual =
 			woal_rssi_to_quality((t_s16)(iwe.u.qual.level - 0x100));
 		iwe.len = IW_EV_QUAL_LEN;
@@ -3165,15 +3118,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 			iwe.u.bitrate.value =
 				(scan_table[i].supported_rates[j] & 0x7f) *
 				500000;
-			iwe.len = IW_EV_PARAM_LEN;
-			current_val = IWE_STREAM_ADD_VALUE(info, current_ev,
-							   current_val, end_buf,
-							   &iwe, iwe.len);
-		}
-		if ((bss_info.bss_mode == MLAN_BSS_MODE_IBSS) &&
-		    !woal_ssid_cmp(&bss_info.ssid, &scan_table[i].ssid) &&
-		    bss_info.adhoc_state == ADHOC_STARTED) {
-			iwe.u.bitrate.value = 22 * 500000;
 			iwe.len = IW_EV_PARAM_LEN;
 			current_val = IWE_STREAM_ADD_VALUE(info, current_ev,
 							   current_val, end_buf,

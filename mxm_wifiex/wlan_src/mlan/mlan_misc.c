@@ -1063,12 +1063,18 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 			(t_u32)(sizeof(mlan_buffer) + data_len + DMA_ALIGNMENT);
 		if (malloc_flag & MOAL_MEM_FLAG_ATOMIC)
 			mem_flags |= MLAN_MEM_FLAG_ATOMIC;
+		if (malloc_flag & MOAL_MEM_FLAG_DIRTY)
+			mem_flags |= MLAN_MEM_FLAG_DIRTY;
 		ret = pcb->moal_malloc(pmadapter->pmoal_handle, buf_size,
 				       mem_flags, (t_u8 **)&pmbuf);
 		if ((ret != MLAN_STATUS_SUCCESS) || !pmbuf) {
 			pmbuf = MNULL;
 			goto exit;
 		}
+
+		if (malloc_flag & MOAL_MEM_FLAG_DIRTY)
+			memset(pmadapter, pmbuf, 0x00,
+			       sizeof(*pmbuf) + head_room);
 
 		pmbuf->pdesc = MNULL;
 		/* Align address */
@@ -1233,7 +1239,8 @@ mlan_status wlan_bss_ioctl_bss_role(pmlan_adapter pmadapter,
 #if defined(WIFI_DIRECT_SUPPORT)
 	t_u8 bss_mode;
 #endif
-	t_u8 i, global_band = 0;
+	t_u8 i;
+	t_u16 global_band = 0;
 	int j;
 
 	ENTER();
@@ -1293,19 +1300,15 @@ mlan_status wlan_bss_ioctl_bss_role(pmlan_adapter pmadapter,
 		}
 
 		if (global_band != pmadapter->config_bands) {
-			if (wlan_set_regiontable(
-				    pmpriv, (t_u8)pmadapter->region_code,
-				    global_band |
-					    pmadapter->adhoc_start_band)) {
+			if (wlan_set_regiontable(pmpriv,
+						 (t_u8)pmadapter->region_code,
+						 global_band)) {
 				pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 				LEAVE();
 				return MLAN_STATUS_FAILURE;
 			}
 
-			if (wlan_11d_set_universaltable(
-				    pmpriv,
-				    global_band |
-					    pmadapter->adhoc_start_band)) {
+			if (wlan_11d_set_universaltable(pmpriv, global_band)) {
 				pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 				LEAVE();
 				return MLAN_STATUS_FAILURE;
@@ -3328,11 +3331,17 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 		}
 #endif
 		if (priv->bss_role == MLAN_BSS_ROLE_STA) {
+			/* Igone DeAuth/DisAssoc frame from OLD AP during
+			 * Roaming */
 			if (priv->curr_bss_params.host_mlme) {
-				if (memcmp(pmadapter, pieee_pkt_hdr->addr3,
-					   (t_u8 *)priv->curr_bss_params
-						   .bss_descriptor.mac_address,
-					   MLAN_MAC_ADDR_LENGTH)) {
+				if ((memcmp(pmadapter, pieee_pkt_hdr->addr3,
+					    (t_u8 *)priv->curr_bss_params
+						    .bss_descriptor.mac_address,
+					    MLAN_MAC_ADDR_LENGTH)) ||
+				    !memcmp(pmadapter, pieee_pkt_hdr->addr3,
+					    (t_u8 *)priv->curr_bss_params
+						    .prev_bssid,
+					    MLAN_MAC_ADDR_LENGTH)) {
 					PRINTM(MCMND,
 					       "Dropping Deauth frame from other bssid: type=%d " MACSTR
 					       "\n",
@@ -4284,6 +4293,127 @@ exit:
 }
 
 /**
+ *  @brief Set antenna configuration
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return     MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
+{
+	mlan_ds_ant_cfg ant_cfg;
+	mlan_ds_ant_cfg_1x1 ant_cfg_1x1;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	ENTER();
+
+	memset(pmadapter, &ant_cfg, 0, sizeof(ant_cfg));
+	memset(pmadapter, &ant_cfg_1x1, 0, sizeof(ant_cfg_1x1));
+	if (IS_STREAM_2X2(pmadapter->feature_control)) {
+		if (IS_CARD9098(pmadapter->card_type) ||
+		    IS_CARD9097(pmadapter->card_type) ||
+		    IS_CARDIW624(pmadapter->card_type) ||
+		    IS_CARDAW693(pmadapter->card_type)) {
+			ant_cfg.tx_antenna = ant_cfg.rx_antenna = init_antcfg;
+		} else {
+			ant_cfg.tx_antenna = (init_antcfg & 0x0030) >> 4;
+			ant_cfg.rx_antenna = init_antcfg & 0x0003;
+		}
+	} else
+		ant_cfg_1x1.antenna = init_antcfg;
+
+	/* User input validation */
+	if (IS_STREAM_2X2(pmadapter->feature_control)) {
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		if (IS_CARD9098(pmadapter->card_type) ||
+		    IS_CARD9097(pmadapter->card_type) ||
+		    IS_CARDAW693(pmadapter->card_type) ||
+		    IS_CARDIW624(pmadapter->card_type)) {
+			ant_cfg.tx_antenna &= 0x0303;
+			ant_cfg.rx_antenna &= 0x0303;
+			/** 2G antcfg TX */
+			if (ant_cfg.tx_antenna & 0x00FF) {
+				pmadapter->user_htstream &= ~0xF0;
+				pmadapter->user_htstream |=
+					(bitcount(ant_cfg.tx_antenna & 0x00FF)
+					 << 4);
+			}
+			/* 5G antcfg tx */
+			if (ant_cfg.tx_antenna & 0xFF00) {
+				pmadapter->user_htstream &= ~0xF000;
+				pmadapter->user_htstream |=
+					(bitcount(ant_cfg.tx_antenna & 0xFF00)
+					 << 12);
+			}
+			/* 2G antcfg RX */
+			if (ant_cfg.rx_antenna & 0x00FF) {
+				pmadapter->user_htstream &= ~0xF;
+				pmadapter->user_htstream |=
+					bitcount(ant_cfg.rx_antenna & 0x00FF);
+			}
+			/* 5G antcfg RX */
+			if (ant_cfg.rx_antenna & 0xFF00) {
+				pmadapter->user_htstream &= ~0xF00;
+				pmadapter->user_htstream |=
+					(bitcount(ant_cfg.rx_antenna & 0xFF00)
+					 << 8);
+			}
+			PRINTM(MCMND,
+			       "user_htstream=0x%x, tx_antenna=0x%x >rx_antenna=0x%x\n",
+			       pmadapter->user_htstream, ant_cfg.tx_antenna,
+			       ant_cfg.rx_antenna);
+		} else {
+#endif
+			ant_cfg.tx_antenna &= 0x0003;
+			ant_cfg.rx_antenna &= 0x0003;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		}
+#endif
+		if (!ant_cfg.tx_antenna ||
+		    bitcount(ant_cfg.tx_antenna & 0x00FF) >
+			    pmadapter->number_of_antenna ||
+		    bitcount(ant_cfg.tx_antenna & 0xFF00) >
+			    pmadapter->number_of_antenna) {
+			PRINTM(MERROR, "Invalid TX antenna setting: 0x%x\n",
+			       ant_cfg.tx_antenna);
+			goto exit;
+		}
+		if (ant_cfg.rx_antenna) {
+			if (bitcount(ant_cfg.rx_antenna & 0x00FF) >
+				    pmadapter->number_of_antenna ||
+			    bitcount(ant_cfg.rx_antenna & 0xFF00) >
+				    pmadapter->number_of_antenna) {
+				PRINTM(MERROR,
+				       "Invalid RX antenna setting: 0x%x\n",
+				       ant_cfg.rx_antenna);
+				goto exit;
+			}
+		} else
+			ant_cfg.rx_antenna = ant_cfg.tx_antenna;
+	} else if (!ant_cfg_1x1.antenna ||
+		   ((ant_cfg_1x1.antenna != RF_ANTENNA_AUTO) &&
+		    (ant_cfg_1x1.antenna & 0xFFFC))) {
+		PRINTM(MERROR, "Invalid antenna setting\n");
+		goto exit;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_RF_ANTENNA,
+			       HostCmd_ACT_GEN_SET, 0, MNULL,
+			       (IS_STREAM_2X2(pmadapter->feature_control)) ?
+				       (t_void *)&ant_cfg :
+				       (t_void *)&ant_cfg_1x1);
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Get rate bitmap
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -4456,11 +4586,7 @@ static mlan_status wlan_rate_ioctl_set_rate_value(pmlan_adapter pmadapter,
 	} else {
 		memset(pmadapter, rates, 0, sizeof(rates));
 		wlan_get_active_data_rates(pmpriv, pmpriv->bss_mode,
-					   (pmpriv->bss_mode ==
-					    MLAN_BSS_MODE_INFRA) ?
-						   pmpriv->config_bands :
-						   pmadapter->adhoc_start_band,
-					   rates);
+					   pmpriv->config_bands, rates);
 		rate = rates;
 		for (i = 0; (rate[i] && i < WLAN_SUPPORTED_RATES); i++) {
 			PRINTM(MINFO, "Rate=0x%X  Wanted=0x%X\n", rate[i],
@@ -6154,8 +6280,7 @@ mlan_status wlan_misc_ioctl_region(pmlan_adapter pmadapter,
 		pmadapter->cfp_code_bg = misc->param.region_code;
 		pmadapter->cfp_code_a = misc->param.region_code;
 		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
-					 pmadapter->config_bands |
-						 pmadapter->adhoc_start_band)) {
+					 pmadapter->config_bands)) {
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 			ret = MLAN_STATUS_FAILURE;
 		}
@@ -6738,8 +6863,6 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 {
 	t_u32 i, global_band = 0;
 	t_u32 infra_band = 0;
-	t_u32 adhoc_band = 0;
-	t_u32 adhoc_channel = 0;
 	mlan_ds_radio_cfg *radio_cfg = MNULL;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
@@ -6748,8 +6871,6 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 	radio_cfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		infra_band = radio_cfg->param.band_cfg.config_bands;
-		adhoc_band = radio_cfg->param.band_cfg.adhoc_start_band;
-		adhoc_channel = radio_cfg->param.band_cfg.adhoc_channel;
 
 		/* SET Infra band */
 		if ((infra_band | pmadapter->fw_bands) & ~pmadapter->fw_bands) {
@@ -6757,15 +6878,6 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
-
-		/* SET Ad-hoc Band */
-		if ((adhoc_band | pmadapter->fw_bands) & ~pmadapter->fw_bands) {
-			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-			LEAVE();
-			return MLAN_STATUS_FAILURE;
-		}
-		if (!adhoc_band)
-			adhoc_band = pmadapter->adhoc_start_band;
 
 		for (i = 0; i < pmadapter->priv_num; i++) {
 			if (pmadapter->priv[i] &&
@@ -6778,14 +6890,13 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 		global_band |= infra_band;
 
 		if (wlan_set_regiontable(pmpriv, (t_u8)pmadapter->region_code,
-					 global_band | adhoc_band)) {
+					 global_band)) {
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
 #ifdef STA_SUPPORT
-		if (wlan_11d_set_universaltable(pmpriv,
-						global_band | adhoc_band)) {
+		if (wlan_11d_set_universaltable(pmpriv, global_band)) {
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_FAIL;
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
@@ -6794,51 +6905,12 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 		pmpriv->config_bands = infra_band;
 		pmadapter->config_bands = global_band;
 
-		pmadapter->adhoc_start_band = adhoc_band;
-		pmpriv->intf_state_11h.adhoc_auto_sel_chan = MFALSE;
-
 #ifdef STA_SUPPORT
-		/*
-		 * If no adhoc_channel is supplied verify if the existing
-		 * adhoc channel compiles with new adhoc_band
-		 */
-		if (!adhoc_channel) {
-			if (!wlan_find_cfp_by_band_and_channel(
-				    pmadapter, pmadapter->adhoc_start_band,
-				    pmpriv->adhoc_channel)) {
-				/* Pass back the default channel */
-				radio_cfg->param.band_cfg.adhoc_channel =
-					DEFAULT_AD_HOC_CHANNEL;
-				if ((pmadapter->adhoc_start_band & BAND_A)) {
-					radio_cfg->param.band_cfg.adhoc_channel =
-						DEFAULT_AD_HOC_CHANNEL_A;
-				}
-			}
-		} else {
-			/* Return error if adhoc_band and adhoc_channel
-			 * combination is invalid
-			 */
-			if (!wlan_find_cfp_by_band_and_channel(
-				    pmadapter, pmadapter->adhoc_start_band,
-				    (t_u16)adhoc_channel)) {
-				pioctl_req->status_code =
-					MLAN_ERROR_INVALID_PARAMETER;
-				LEAVE();
-				return MLAN_STATUS_FAILURE;
-			}
-			pmpriv->adhoc_channel = (t_u8)adhoc_channel;
-		}
-
 #endif
 
 	} else {
 		/* Infra Bands   */
 		radio_cfg->param.band_cfg.config_bands = pmpriv->config_bands;
-		/* Adhoc Band    */
-		radio_cfg->param.band_cfg.adhoc_start_band =
-			pmadapter->adhoc_start_band;
-		/* Adhoc Channel */
-		radio_cfg->param.band_cfg.adhoc_channel = pmpriv->adhoc_channel;
 		/* FW support Bands */
 		radio_cfg->param.band_cfg.fw_bands = pmadapter->fw_bands;
 		PRINTM(MINFO, "Global config band = %d\n",
@@ -7298,6 +7370,21 @@ mlan_status wlan_misc_ioctl_rf_test_cfg(pmlan_adapter pmadapter,
 				       cmd_action, 0, (t_void *)pioctl_req,
 				       &(pmisc->param.mfg_he_power));
 		break;
+
+	case MLAN_OID_MISC_OTP_MAC_RD_WR:
+		if (pioctl_req->action == MLAN_ACT_SET)
+			cmd_action = HostCmd_ACT_GEN_SET;
+		else if (pioctl_req->action == MLAN_ACT_GET)
+			cmd_action = HostCmd_ACT_GEN_GET;
+		else {
+			PRINTM(MERROR, "Unsupported cmd_action\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_MFG_COMMAND,
+				       cmd_action, 0, (t_void *)pioctl_req,
+				       &(pmisc->param.mfg_otp_mac_addr_rd_wr));
+		break;
 	}
 
 	if (ret == MLAN_STATUS_SUCCESS)
@@ -7581,8 +7668,7 @@ mlan_status wlan_misc_ioctl_country_code(pmlan_adapter pmadapter,
 		else
 			pmadapter->region_code = 0;
 		if (wlan_set_regiontable(pmpriv, pmadapter->region_code,
-					 pmadapter->config_bands |
-						 pmadapter->adhoc_start_band)) {
+					 pmadapter->config_bands)) {
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
 			goto done;

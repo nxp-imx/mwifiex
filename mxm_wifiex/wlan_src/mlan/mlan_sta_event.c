@@ -63,49 +63,6 @@ static t_void wlan_handle_disconnect_event(pmlan_private pmpriv)
 }
 
 /**
- *  @brief This function iterates over station list and notifies
- *         mac address of each sta to respective event handler.
- *
- *  @param priv   A pointer to mlan_private structure
- *  @event_id     A reference to mlan event
- *  @return       N/A
- */
-static void wlan_notify_stations(mlan_private *priv, mlan_event_id event_id)
-{
-	sta_node *sta_ptr;
-	t_u8 event_buf[128];
-	mlan_event *pevent = (mlan_event *)event_buf;
-	t_u8 *pbuf;
-
-	ENTER();
-	sta_ptr = (sta_node *)util_peek_list(
-		priv->adapter->pmoal_handle, &priv->sta_list,
-		priv->adapter->callbacks.moal_spin_lock,
-		priv->adapter->callbacks.moal_spin_unlock);
-
-	if (!sta_ptr) {
-		LEAVE();
-		return;
-	}
-
-	while (sta_ptr != (sta_node *)&priv->sta_list) {
-		memset(priv->adapter, event_buf, 0, sizeof(event_buf));
-		pevent->bss_index = priv->bss_index;
-		pevent->event_id = event_id;
-		pevent->event_len = MLAN_MAC_ADDR_LENGTH + 2;
-		pbuf = (t_u8 *)pevent->event_buf;
-		/* reason field set to 0, Unspecified */
-		memcpy_ext(priv->adapter, pbuf + 2, sta_ptr->mac_addr,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-		wlan_recv_event(priv, pevent->event_id, pevent);
-		sta_ptr = sta_ptr->pnext;
-	}
-
-	LEAVE();
-	return;
-}
-
-/**
  *  @brief This function will parse the TDLS event for further wlan action
  *
  *  @param priv     A pointer to mlan_private
@@ -538,12 +495,6 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	priv->is_data_rate_auto = MTRUE;
 	priv->data_rate = 0;
 
-	if (priv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		priv->adhoc_state = ADHOC_IDLE;
-		priv->adhoc_is_link_sensed = MFALSE;
-		priv->intf_state_11h.adhoc_auto_sel_chan = MTRUE;
-	}
-
 	if (drv_disconnect) {
 		/* Free Tx and Rx packets, report disconnect to upper layer */
 		wlan_clean_txrx(priv);
@@ -822,9 +773,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_LINK_SENSED:
 		PRINTM(MEVENT, "EVENT: LINK_SENSED\n");
-		pmpriv->adhoc_is_link_sensed = MTRUE;
-		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_ADHOC_LINK_SENSED,
-				MNULL);
 		break;
 
 	case EVENT_DEAUTHENTICATED:
@@ -986,15 +934,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_INIT_DONE:
 		break;
 
-	case EVENT_ADHOC_BCN_LOST:
-		PRINTM(MEVENT, "EVENT: ADHOC_BCN_LOST\n");
-		pmpriv->adhoc_is_link_sensed = MFALSE;
-		wlan_clean_txrx(pmpriv);
-		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_ADHOC_LINK_LOST,
-				MNULL);
-		/* Notify IBSS disconnect handler to delete stations if any. */
-		wlan_notify_stations(pmpriv, MLAN_EVENT_ID_FW_IBSS_DISCONNECT);
-		break;
 	case EVENT_ASSOC_REQ_IE:
 		pmpriv->assoc_req_size = pmbuf->data_len - sizeof(eventcause);
 		evt_buf =
@@ -1262,12 +1201,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: Pre-Beacon Lost\n");
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_PRE_BCN_LOST, MNULL);
 		break;
-	case EVENT_IBSS_COALESCED:
-		PRINTM(MEVENT, "EVENT: IBSS_COALESCED\n");
-		ret = wlan_prepare_cmd(
-			pmpriv, HostCmd_CMD_802_11_IBSS_COALESCING_STATUS,
-			HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
-		break;
 	case EVENT_ADDBA:
 		PRINTM(MEVENT, "EVENT: ADDBA Request\n");
 		if (pmpriv->media_connected == MTRUE &&
@@ -1398,24 +1331,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_process_sta_tx_pause_event(priv, pmbuf);
 		break;
 
-	case EVENT_IBSS_STATION_CONNECT:
-		pevent->bss_index = pmpriv->bss_index;
-		pevent->event_id = MLAN_EVENT_ID_FW_IBSS_CONNECT;
-		pevent->event_len = pmbuf->data_len;
-		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
-			   pevent->event_len);
-		wlan_recv_event(pmpriv, pevent->event_id, pevent);
-		break;
-	case EVENT_IBSS_STATION_DISCONNECT:
-		pevent->bss_index = pmpriv->bss_index;
-		pevent->event_id = MLAN_EVENT_ID_FW_IBSS_DISCONNECT;
-		pevent->event_len = pmbuf->data_len;
-		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
-			   pevent->event_len);
-		wlan_recv_event(pmpriv, pevent->event_id, pevent);
-		break;
 	case EVENT_SAD_REPORT: {
 #ifdef DEBUG_LEVEL1
 		t_u8 *pevt_dat =

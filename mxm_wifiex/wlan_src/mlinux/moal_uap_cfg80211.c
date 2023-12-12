@@ -107,7 +107,15 @@ static int woal_deauth_assoc_station(moal_private *priv, u8 *mac_addr,
 		LEAVE();
 		return -EINVAL;
 	}
-
+#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
+	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
+		cfg80211_del_sta(priv->netdev, mac_addr, GFP_KERNEL);
+#endif
+	if (priv->media_connected == MFALSE) {
+		PRINTM(MINFO, "cfg80211: Media not connected!\n");
+		LEAVE();
+		return 0;
+	}
 	ioctl_req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
 		sizeof(mlan_ds_get_info) +
 		(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
@@ -138,11 +146,6 @@ static int woal_deauth_assoc_station(moal_private *priv, u8 *mac_addr,
 			PRINTM(MMSG, "wlan: deauth station " MACSTR "\n",
 			       MAC2STR(mac_addr));
 			ret = woal_deauth_station(priv, mac_addr, reason_code);
-#if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
-				cfg80211_del_sta(priv->netdev, mac_addr,
-						 GFP_KERNEL);
-#endif
 			break;
 		}
 	}
@@ -1741,6 +1744,11 @@ static int woal_cfg80211_add_vlan_vir_if(struct wiphy *wiphy,
 	struct net_device *ndev = NULL;
 
 	ENTER();
+	if (!priv) {
+		PRINTM(MFATAL, "Error:woal_get_priv returned NULL\n");
+		ret = -EFAULT;
+		goto fail;
+	}
 	ASSERT_RTNL();
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 #ifndef MAX_WMM_QUEUE
@@ -2323,6 +2331,8 @@ void woal_remove_virtual_interface(moal_handle *handle)
 	moal_private *priv = NULL;
 	int vir_intf = 0;
 	int i = 0;
+	moal_handle *ref_handle = NULL;
+	int ref_vir_intf = 0;
 #endif
 	ENTER();
 	rtnl_lock();
@@ -2351,6 +2361,38 @@ void woal_remove_virtual_interface(moal_handle *handle)
 				vir_intf++;
 			}
 		}
+	}
+	if (handle->pref_mac) {
+		ref_handle = (moal_handle *)handle->pref_mac;
+		for (i = 0; i < ref_handle->priv_num; i++) {
+			priv = ref_handle->priv[i];
+			if (priv) {
+				if (priv->bss_virtual &&
+				    priv->wdev->wiphy == handle->wiphy) {
+					PRINTM(MCMND,
+					       "Remove virtual interfaces from pref mac %s\n",
+					       priv->netdev->name);
+#ifdef CONFIG_PROC_FS
+					/* Remove proc debug */
+					woal_debug_remove(priv);
+					woal_proc_remove(priv);
+#endif /* CONFIG_PROC_FS */
+					netif_device_detach(priv->netdev);
+					if (priv->netdev->reg_state ==
+					    NETREG_REGISTERED)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+						cfg80211_unregister_netdevice(
+							priv->netdev);
+#else
+						unregister_netdevice(
+							priv->netdev);
+#endif
+					ref_handle->priv[i] = NULL;
+					ref_vir_intf++;
+				}
+			}
+		}
+		ref_handle->priv_num -= ref_vir_intf;
 	}
 #endif
 	if (handle->mon_if) {
@@ -2726,7 +2768,7 @@ int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 
 	ENTER();
 
-	PRINTM(MMSG, "wlan: Starting AP\n");
+	PRINTM(MMSG, "wlan: %s Starting AP\n", dev->name);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	/* cancel previous remain on channel to avoid firmware hang */
 	if (priv->phandle->remain_on_channel) {
@@ -2859,7 +2901,7 @@ int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 			goto done;
 		}
 	}
-	PRINTM(MMSG, "wlan: AP started\n");
+	PRINTM(MMSG, "wlan: %s AP started\n", dev->name);
 done:
 	LEAVE();
 	return ret;
@@ -2983,7 +3025,7 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 
 	ENTER();
 
-	if (priv->phandle->driver_status) {
+	if (priv->phandle->driver_status || priv->phandle->surprise_removed) {
 		PRINTM(MERROR,
 		       "Block  woal_cfg80211_del_beacon in abnormal driver state\n");
 		LEAVE();
@@ -2995,7 +3037,7 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 #endif
 #endif
 	priv->uap_host_based = MFALSE;
-	PRINTM(MMSG, "wlan: Stoping AP\n");
+	PRINTM(MMSG, "wlan: %s Stopping AP\n", dev->name);
 #ifdef STA_SUPPORT
 	woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 #endif
@@ -3078,7 +3120,7 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		priv->vlan_sta_list[i] = NULL;
 	}
 #endif
-	PRINTM(MMSG, "wlan: AP stopped\n");
+	PRINTM(MMSG, "wlan: %s AP stopped\n", dev->name);
 done:
 	LEAVE();
 	return ret;
@@ -3215,12 +3257,6 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		return 0;
 	}
 #endif
-
-	if (priv->media_connected == MFALSE) {
-		PRINTM(MINFO, "cfg80211: Media not connected!\n");
-		LEAVE();
-		return 0;
-	}
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	if (param) {

@@ -61,14 +61,6 @@ static t_u8 SupportedInfraBand[] = {
 	BAND_A | BAND_AN | BAND_AAC,
 };
 
-/** Bands supported in Ad-Hoc mode */
-static t_u8 SupportedAdhocBand[] = {
-	BAND_B,
-	BAND_B | BAND_G,
-	BAND_G,
-	BAND_A,
-};
-
 /********************************************************
 			Local Functions
 ********************************************************/
@@ -1460,11 +1452,9 @@ static int woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 {
 	int ret = 0;
 	unsigned int i;
-	int data[3];
+	int data[1];
 	int user_data_len = wrq->u.data.length, copy_len;
 	t_u32 infra_band = 0;
-	t_u32 adhoc_band = 0;
-	t_u32 adhoc_channel = 0;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_radio_cfg *radio_cfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -1505,11 +1495,6 @@ static int woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 		}
 		/* Infra Band */
 		data[0] = radio_cfg->param.band_cfg.config_bands;
-		/* Adhoc Band */
-		data[1] = radio_cfg->param.band_cfg.adhoc_start_band;
-		/* Adhoc Channel */
-		data[2] = radio_cfg->param.band_cfg.adhoc_channel;
-		wrq->u.data.length = 3;
 
 		if (copy_to_user(wrq->u.data.pointer, data,
 				 sizeof(int) * wrq->u.data.length)) {
@@ -1533,33 +1518,9 @@ static int woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 			goto error;
 		}
 
-		/* Set Adhoc band */
-		if (user_data_len >= 2) {
-			adhoc_band = data[1];
-			for (i = 0; i < sizeof(SupportedAdhocBand); i++)
-				if (adhoc_band == SupportedAdhocBand[i])
-					break;
-			if (i == sizeof(SupportedAdhocBand)) {
-				ret = -EINVAL;
-				goto error;
-			}
-		}
-
-		/* Set Adhoc channel */
-		if (user_data_len >= 3) {
-			adhoc_channel = data[2];
-			if (adhoc_channel == 0) {
-				/* Check if specified adhoc channel is non-zero
-				 */
-				ret = -EINVAL;
-				goto error;
-			}
-		}
 		/* Set config_bands and adhoc_start_band values to MLAN */
 		req->action = MLAN_ACT_SET;
 		radio_cfg->param.band_cfg.config_bands = infra_band;
-		radio_cfg->param.band_cfg.adhoc_start_band = adhoc_band;
-		radio_cfg->param.band_cfg.adhoc_channel = adhoc_channel;
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 		if (status != MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
@@ -4911,20 +4872,16 @@ static int woal_cmd52rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 
 	if (!rw) {
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			data = sdio_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
 		else
 			data = sdio_f0_readb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_readb: reading register 0x%X failed\n",
@@ -4943,20 +4900,16 @@ static int woal_cmd52rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 #endif
 	} else {
 #ifdef SDIO_MMC
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			sdio_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
 		else
 			sdio_f0_writeb(
-				((struct sdio_mmc_card *)priv->phandle->card)
-					->func,
+				((sdio_mmc_card *)priv->phandle->card)->func,
 				data, reg, &ret);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (ret) {
 			PRINTM(MERROR,
 			       "sdio_writeb: writing register 0x%X failed\n",
@@ -5018,8 +4971,8 @@ static int woal_cmd53rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 		ret = -EFAULT;
 		goto done;
 	}
-	if (wrq->u.data.length > WOAL_2K_BYTES) {
-		PRINTM(MERROR, "Data lengh is too large!\n");
+	if (wrq->u.data.length == 0 || wrq->u.data.length > WOAL_2K_BYTES) {
+		PRINTM(MERROR, "Data lengh is invalid!\n");
 		ret = -EINVAL;
 		goto done;
 	}
@@ -5053,16 +5006,13 @@ static int woal_cmd53rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 	       reg, mode, blklen, blknum);
 
 	if (!rw) {
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
-		if (sdio_readsb(
-			    ((struct sdio_mmc_card *)priv->phandle->card)->func,
-			    data, reg, total_len))
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
+		if (sdio_readsb(((sdio_mmc_card *)priv->phandle->card)->func,
+				data, reg, total_len))
 			PRINTM(MERROR,
 			       "sdio_readsb: reading memory 0x%x failed\n",
 			       reg);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 
 		if (copy_to_user(wrq->u.data.pointer, data, total_len)) {
 			PRINTM(MINFO, "Copy to user failed\n");
@@ -5080,16 +5030,13 @@ static int woal_cmd53rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 		for (pos = 0; pos < (int)total_len; pos++)
 			data[pos] = buf[11 + (pos % pattern_len)];
 
-		sdio_claim_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
-		if (sdio_writesb(
-			    ((struct sdio_mmc_card *)priv->phandle->card)->func,
-			    reg, data, total_len))
+		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
+		if (sdio_writesb(((sdio_mmc_card *)priv->phandle->card)->func,
+				 reg, data, total_len))
 			PRINTM(MERROR,
 			       "sdio_writesb: writing memory 0x%x failed\n",
 			       reg);
-		sdio_release_host(
-			((struct sdio_mmc_card *)priv->phandle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)priv->phandle->card)->func);
 	}
 
 done:
@@ -7094,8 +7041,6 @@ void woal_ioctl_get_bss_resp(moal_private *priv, mlan_ds_bss *bss)
 	case MLAN_OID_BSS_MODE:
 		if (bss->param.bss_mode == MLAN_BSS_MODE_INFRA)
 			mode = IW_MODE_INFRA;
-		else if (bss->param.bss_mode == MLAN_BSS_MODE_IBSS)
-			mode = IW_MODE_ADHOC;
 		else
 			mode = IW_MODE_AUTO;
 		priv->w_stats.status = mode;

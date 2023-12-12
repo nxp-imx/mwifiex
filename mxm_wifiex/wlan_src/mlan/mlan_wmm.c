@@ -1838,8 +1838,6 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 				priv->aggr_prio_tbl[i].ampdu_ap =
 					priv->aggr_prio_tbl[i].ampdu_user =
 						tos_to_tid_inv[i];
-				priv->ibss_ampdu[i] =
-					priv->aggr_prio_tbl[i].ampdu_user;
 				priv->wmm.pkts_queued[i] = 0;
 				priv->wmm.pkts_paused[i] = 0;
 				priv->wmm.tid_tbl_ptr[i].ra_list_curr = MNULL;
@@ -1851,13 +1849,10 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 			priv->aggr_prio_tbl[6].ampdu_ap =
 				priv->aggr_prio_tbl[6].ampdu_user =
 					BA_STREAM_NOT_ALLOWED;
-			priv->ibss_ampdu[6] = BA_STREAM_NOT_ALLOWED;
 
 			priv->aggr_prio_tbl[7].ampdu_ap =
 				priv->aggr_prio_tbl[7].ampdu_user =
 					BA_STREAM_NOT_ALLOWED;
-			priv->ibss_ampdu[7] = BA_STREAM_NOT_ALLOWED;
-
 			priv->add_ba_param.timeout =
 				MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
 #ifdef STA_SUPPORT

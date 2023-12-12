@@ -623,75 +623,6 @@ static mlan_status wlan_11n_ioctl_addba_reject(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Set/get ibss ampdu param
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_SUCCESS --success, otherwise fail
- */
-static mlan_status wlan_11n_ioctl_ibss_ampdu_param(pmlan_adapter pmadapter,
-						   pmlan_ioctl_req pioctl_req)
-{
-	int i = 0;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_11n_cfg *cfg = MNULL;
-
-	ENTER();
-
-	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
-
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		PRINTM(MINFO, "Get IBSS AMPDU param\n");
-		for (i = 0; i < MAX_NUM_TID; i++) {
-			cfg->param.ibss_ampdu.ampdu[i] = pmpriv->ibss_ampdu[i];
-			cfg->param.ibss_ampdu.addba_reject[i] =
-				pmpriv->ibss_addba_reject[i];
-		}
-	} else {
-		for (i = 0; i < MAX_NUM_TID; i++) {
-			/* For AMPDU  RX*/
-			if (cfg->param.ibss_ampdu.addba_reject[i] >
-			    ADDBA_RSP_STATUS_REJECT) {
-				pioctl_req->status_code =
-					MLAN_ERROR_INVALID_PARAMETER;
-				ret = MLAN_STATUS_FAILURE;
-				break;
-			}
-			pmpriv->ibss_addba_reject[i] =
-				cfg->param.ibss_ampdu.addba_reject[i];
-			/* For AMPDU TX*/
-			if ((cfg->param.ibss_ampdu.ampdu[i] > HIGH_PRIO_TID) &&
-			    (cfg->param.ibss_ampdu.ampdu[i] !=
-			     BA_STREAM_NOT_ALLOWED)) {
-				pioctl_req->status_code =
-					MLAN_ERROR_INVALID_PARAMETER;
-				ret = MLAN_STATUS_FAILURE;
-				break;
-			}
-			pmpriv->ibss_ampdu[i] = cfg->param.ibss_ampdu.ampdu[i];
-		}
-		PRINTM(MMSG, "IBSS addba reject: %d %d %d %d %d %d %d %d\n",
-		       pmpriv->ibss_addba_reject[0],
-		       pmpriv->ibss_addba_reject[1],
-		       pmpriv->ibss_addba_reject[2],
-		       pmpriv->ibss_addba_reject[3],
-		       pmpriv->ibss_addba_reject[4],
-		       pmpriv->ibss_addba_reject[5],
-		       pmpriv->ibss_addba_reject[6],
-		       pmpriv->ibss_addba_reject[7]);
-		PRINTM(MMSG, "IBSS ampdu %d %d %d %d %d %d %d %d\n",
-		       pmpriv->ibss_ampdu[0], pmpriv->ibss_ampdu[1],
-		       pmpriv->ibss_ampdu[2], pmpriv->ibss_ampdu[3],
-		       pmpriv->ibss_ampdu[4], pmpriv->ibss_ampdu[5],
-		       pmpriv->ibss_ampdu[6], pmpriv->ibss_ampdu[7]);
-	}
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set/Get Minimum BA Threshold
  *
  *  @param pmadapter   A pointer to mlan_adapter structure
@@ -2552,10 +2483,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	else
 		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
-		usr_dot_11ac_bw = BW_FOLLOW_VHTCAP;
-	else
-		usr_dot_11ac_bw = pmpriv->usr_dot_11ac_bw;
+	usr_dot_11ac_bw = pmpriv->usr_dot_11ac_bw;
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G | BAND_A)) &&
 	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
@@ -2778,9 +2706,6 @@ mlan_status wlan_11n_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_11N_CFG_TX_AGGR_CTRL:
 		status = wlan_11n_ioctl_txaggrctrl(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_11N_CFG_IBSS_AMPDU_PARAM:
-		status = wlan_11n_ioctl_ibss_ampdu_param(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_11N_CFG_MIN_BA_THRESHOLD:
 		status = wlan_11n_ioctl_min_ba_threshold_cfg(pmadapter,
@@ -3239,12 +3164,7 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
  */
 t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AN);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);
 		else if (bss_band & BAND_A)

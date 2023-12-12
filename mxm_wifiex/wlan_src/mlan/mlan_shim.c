@@ -326,6 +326,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->card_rev = pmdevice->card_rev;
 	pmadapter->init_para.uap_max_sta = pmdevice->uap_max_sta;
 	pmadapter->init_para.mcs32 = pmdevice->mcs32;
+	pmadapter->init_para.antcfg = pmdevice->antcfg;
+	pmadapter->init_para.dmcs = pmdevice->dmcs;
 
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
@@ -1456,6 +1458,8 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	    (eth_type == MLAN_ETHER_PKT_TYPE_WAPI) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
+	    /* Adding the Ucast/Mcast pkt to bypass queue when flag is set*/
+	    || (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT)
 
 	) {
 		if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {

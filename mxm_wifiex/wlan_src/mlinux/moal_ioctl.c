@@ -3,7 +3,7 @@
  * @brief This file contains ioctl function to MLAN
  *
  *
- * Copyright 2008-2022 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -4146,7 +4146,7 @@ int woal_enable_hs(moal_private *priv)
 				     HS_ACTIVE_TIMEOUT);
 #ifdef SDIO_MMC
 	if (IS_SD(handle->card_type)) {
-		sdio_claim_host(((struct sdio_mmc_card *)handle->card)->func);
+		sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
 	}
 #endif
 
@@ -4177,7 +4177,7 @@ int woal_enable_hs(moal_private *priv)
 #endif /* SDIO_SUSPEND_RESUME*/
 #ifdef SDIO_MMC
 	if (IS_SD(handle->card_type)) {
-		sdio_release_host(((struct sdio_mmc_card *)handle->card)->func);
+		sdio_release_host(((sdio_mmc_card *)handle->card)->func);
 	}
 #endif
 	if (hs_actived != MTRUE) {
@@ -4500,11 +4500,12 @@ int woal_reg_rx_mgmt_ind(moal_private *priv, t_u16 action,
 
 	ret = woal_request_ioctl(priv, req, wait_option);
 
-	if (req->action == MLAN_ACT_GET)
+	if ((ret == MLAN_STATUS_SUCCESS) && (req->action == MLAN_ACT_GET)) {
 		moal_memcpy_ext(priv->phandle, pmgmt_subtype_mask,
 				&misc->param.mgmt_subtype_mask,
 				sizeof(misc->param.mgmt_subtype_mask),
 				sizeof(misc->param.mgmt_subtype_mask));
+	}
 
 	if (ret != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -5396,100 +5397,6 @@ done:
 		handle->scan_priv = NULL;
 		MOAL_REL_SEMAPHORE(&handle->async_sem);
 	}
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Change Adhoc Channel
- *
- *  @param priv         A pointer to moal_private structure
- *  @param channel      The channel to be set.
- *  @param wait_option  wait_option
- *
- *  @return             MLAN_STATUS_SUCCESS--success, MLAN_STATUS_FAILURE--fail
- */
-mlan_status woal_change_adhoc_chan(moal_private *priv, int channel,
-				   t_u8 wait_option)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_bss_info bss_info;
-	mlan_ds_bss *bss = NULL;
-	mlan_ioctl_req *req = NULL;
-
-	ENTER();
-
-	memset(&bss_info, 0, sizeof(bss_info));
-
-	/* Get BSS information */
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_bss_info(priv, wait_option, &bss_info)) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	if (bss_info.bss_mode == MLAN_BSS_MODE_INFRA) {
-		ret = MLAN_STATUS_SUCCESS;
-		goto done;
-	}
-
-	/* Allocate an IOCTL request buffer */
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Get current channel */
-	bss = (mlan_ds_bss *)req->pbuf;
-	bss->sub_command = MLAN_OID_IBSS_CHANNEL;
-	req->req_id = MLAN_IOCTL_BSS;
-	req->action = MLAN_ACT_GET;
-
-	/* Send IOCTL request to MLAN */
-	ret = woal_request_ioctl(priv, req, wait_option);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-
-	if (bss->param.bss_chan.channel == (unsigned int)channel) {
-		ret = MLAN_STATUS_SUCCESS;
-		goto done;
-	}
-	PRINTM(MINFO, "Updating Channel from %d to %d\n",
-	       (int)bss->param.bss_chan.channel, channel);
-
-	if (bss_info.media_connected != MTRUE) {
-		ret = MLAN_STATUS_SUCCESS;
-		goto done;
-	}
-
-	/* Do disonnect*/
-	bss->sub_command = MLAN_OID_BSS_STOP;
-	memset((t_u8 *)&bss->param.bssid, 0, ETH_ALEN);
-
-	/* Send IOCTL request to MLAN */
-	ret = woal_request_ioctl(priv, req, wait_option);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-
-	/* Do specific SSID scanning */
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_request_scan(priv, wait_option, &bss_info.ssid)) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	/* Start/Join Adhoc network */
-	bss->sub_command = MLAN_OID_BSS_START;
-	memset(&bss->param.ssid_bssid, 0, sizeof(mlan_ssid_bssid));
-	moal_memcpy_ext(priv->phandle, &bss->param.ssid_bssid.ssid,
-			&bss_info.ssid, sizeof(mlan_802_11_ssid),
-			sizeof(mlan_802_11_ssid));
-
-	/* Send IOCTL request to MLAN */
-	ret = woal_request_ioctl(priv, req, wait_option);
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
 	LEAVE();
 	return ret;
 }
@@ -7217,7 +7124,6 @@ mlan_status woal_set_band(moal_private *priv, char *pband)
 	req->action = MLAN_ACT_SET;
 	memset(&radio_cfg->param.band_cfg, 0, sizeof(mlan_ds_band_cfg));
 	radio_cfg->param.band_cfg.config_bands = band;
-	radio_cfg->param.band_cfg.adhoc_start_band = band;
 	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 
 done:
@@ -8239,6 +8145,7 @@ void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info)
 #define TRIGGER_FRAME_STR_LEN 250
 #define HE_TB_TX_STR_LEN 30
 #define MAX_RADIO_MODE 21
+#define OTP_RDWR_LEN 50
 
 /*
  *  @brief Parse mfg cmd radio mode string
@@ -8942,6 +8849,68 @@ mlan_status woal_process_rf_test_mode(moal_handle *handle, t_u32 mode)
 	return ret;
 }
 
+/*
+ *  @brief Parse mfg cmd otp rdwr
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *  @param s        A pointer to user buffer
+ *  @param len      Length of user buffer
+ *  @param d        A pointer to mfg_cmd_generic_cfg struct
+ *  @return         0 on success, -EINVAL otherwise
+ */
+
+static int parse_otp_mac_addr_rd_wr_string(const char *s, size_t len,
+					   mfg_cmd_otp_mac_addr_rd_wr_t *d)
+{
+	int ret = MLAN_STATUS_SUCCESS;
+	char *string = NULL;
+	char *tmp = NULL;
+	char *pos = NULL;
+	gfp_t flag;
+	int i = 0;
+
+	ENTER();
+	if (!s || !d) {
+		LEAVE();
+		return -EINVAL;
+	}
+
+	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
+	string = kzalloc(OTP_RDWR_LEN, flag);
+	if (string == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	moal_memcpy_ext(NULL, string, s + strlen("otp_mac_addr_rd_wr="),
+			len - strlen("otp_mac_addr_rd_wr="), OTP_RDWR_LEN - 1);
+
+	tmp = string;
+	pos = strsep(&string, " \t");
+	d->action = (t_u16)woal_string_to_number(pos);
+	if (d->action == MFALSE)
+		goto done;
+
+	pos = strsep(&string, " \t");
+	if (pos) {
+		char *begin, *end;
+		begin = pos;
+		for (i = 0; i < MLAN_MAC_ADDR_LENGTH; i++) {
+			end = woal_strsep(&begin, ':', '/');
+			if (end)
+				d->mac_addr[i] = woal_atox(end);
+		}
+	}
+
+	if (d->action > 1)
+		ret = -EINVAL;
+
+done:
+	kfree(tmp);
+	LEAVE();
+	return ret;
+}
+
 /**
  *  @brief This function sends RF test mode command in firmware
  *
@@ -9028,6 +8997,13 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		if (parse_trigger_frame_string(
 			    buffer, len, &misc->param.mfg_tx_trigger_config))
 			err = MTRUE;
+		break;
+	case MFG_CMD_OTP_MAC_ADD:
+		misc->sub_command = MLAN_OID_MISC_OTP_MAC_RD_WR;
+		if (parse_otp_mac_addr_rd_wr_string(
+			    buffer, len, &misc->param.mfg_otp_mac_addr_rd_wr)) {
+			err = MTRUE;
+		}
 		break;
 	default:
 		err = MTRUE;
@@ -9176,6 +9152,14 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			misc->param.mfg_tx_trigger_config.trig_user_info_field;
 		handle->rf_data->mfg_tx_trigger_config.basic_trig_user_info =
 			misc->param.mfg_tx_trigger_config.basic_trig_user_info;
+		break;
+	case MFG_CMD_OTP_MAC_ADD:
+		handle->rf_data->mfg_otp_mac_addr_rd_wr.action =
+			misc->param.mfg_otp_mac_addr_rd_wr.action;
+		for (i = 0; i < ETH_ALEN; i++) {
+			handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[i] =
+				misc->param.mfg_otp_mac_addr_rd_wr.mac_addr[i];
+		}
 		break;
 	}
 done:

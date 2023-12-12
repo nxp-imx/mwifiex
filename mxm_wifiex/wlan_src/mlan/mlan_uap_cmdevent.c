@@ -5121,6 +5121,9 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_edmac_cfg(pmpriv, cmd_ptr, cmd_action,
 					 pdata_buf);
 		break;
+	case HostCmd_CMD_CSI:
+		ret = wlan_cmd_csi(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -5545,6 +5548,15 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_TX_FRAME:
 		break;
 	case HostCmd_CMD_EDMAC_CFG:
+		break;
+	case HostCmd_CMD_CSI:
+		if (resp->params.csi_params.action == CSI_CMD_ENABLE) {
+			pmadapter->csi_enabled = 1;
+			PRINTM(MCMND, "CSI ENABLE cmdresp\n");
+		} else {
+			pmadapter->csi_enabled = 0;
+			PRINTM(MCMND, "CSI DISABLE cmdresp\n");
+		}
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",

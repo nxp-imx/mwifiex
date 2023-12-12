@@ -94,9 +94,6 @@ extern void wlan_11h_cleanup(mlan_adapter *pmadapter);
 /** Initialize the 11h interface structure */
 extern void wlan_11h_priv_init(mlan_private *pmpriv);
 
-/** Get an initial random channel to start an adhoc network on */
-extern t_u8 wlan_11h_get_adhoc_start_channel(mlan_private *priv);
-
 /** Get channel that has been closed via Channel Switch Announcement */
 extern t_u8 wlan_11h_get_csa_closed_channel(mlan_private *priv);
 
