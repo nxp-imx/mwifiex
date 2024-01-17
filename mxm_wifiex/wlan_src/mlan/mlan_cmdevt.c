@@ -556,7 +556,11 @@ static t_void wlan_dump_info(mlan_adapter *pmadapter, t_u8 reason)
 	PRINTM(MERROR, "tx_lock_flag = %d\n", pmadapter->tx_lock_flag);
 	PRINTM(MERROR, "scan_processing = %d\n", pmadapter->scan_processing);
 	PRINTM(MERROR, "scan_state = 0x%x\n", pmadapter->scan_state);
-	PRINTM(MERROR, "bypass_pkt_count=%d\n", pmadapter->bypass_pkt_count);
+	PRINTM(MERROR, "bypass_pkt_count=%d\n",
+	       util_scalar_read(pmadapter->pmoal_handle,
+				&pmadapter->bypass_pkt_count,
+				pmadapter->callbacks.moal_spin_lock,
+				pmadapter->callbacks.moal_spin_unlock));
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
@@ -1355,6 +1359,12 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 
 	if (pcmd->command == HostCmd_CMD_802_11_SCAN_EXT)
 		pmadapter->scan_state |= wlan_get_ext_scan_state(pcmd);
+
+	if (pmpriv->bss_mode == MLAN_BSS_MODE_INFRA &&
+	    pmpriv->media_connected &&
+	    (pcmd->command == HostCmd_CMD_802_11_DEAUTHENTICATE ||
+	     pcmd->command == HostCmd_CMD_802_11_DISASSOCIATE))
+		wlan_clean_txrx(pmpriv);
 
 	PRINTM_GET_SYS_TIME(MCMND, &sec, &usec);
 	PRINTM_NETINTF(MCMND, pmpriv);
@@ -2763,6 +2773,13 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag)
 			pmadapter->curr_cmd = MNULL;
 			wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 		}
+	}
+
+	if (pmadapter->cmd_timer_is_set) {
+		pcb->moal_stop_timer(pmadapter->pmoal_handle,
+				     pmadapter->pmlan_cmd_timer);
+		/* Cancel command timeout timer */
+		pmadapter->cmd_timer_is_set = MFALSE;
 	}
 
 	/* Cancel all pending command */
@@ -5461,8 +5478,9 @@ mlan_status wlan_process_csi_event(pmlan_private pmpriv)
 				  MLAN_MEM_DEF, &evt_buf);
 	if ((status == MLAN_STATUS_SUCCESS) && evt_buf) {
 		t_u16 csi_sig;
-		pcsi_record_ds csi_record = (pcsi_record_ds)(
-			pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause));
+		pcsi_record_ds csi_record =
+			(pcsi_record_ds)(pmbuf->pbuf + pmbuf->data_offset +
+					 sizeof(eventcause));
 		/* Check CSI signature */
 		csi_sig = csi_record->CSI_Sign;
 		if (csi_sig != CSI_SIGNATURE) {
@@ -5966,6 +5984,56 @@ mlan_status wlan_cmd_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd)
 }
 
 #ifdef SDIO
+/**
+ *  @brief This function prepares command of sdio rx aggr command.
+ *
+ *  @param pcmd         A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
+
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_sdio_rx_aggr_cfg(HostCmd_DS_COMMAND *pcmd,
+				      t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_SDIO_SP_RX_AGGR_CFG *cfg = &pcmd->params.sdio_rx_aggr;
+
+	pcmd->command = wlan_cpu_to_le16(HostCmd_CMD_SDIO_SP_RX_AGGR_CFG);
+	pcmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_SDIO_SP_RX_AGGR_CFG) +
+				      S_DS_GEN);
+	cfg->action = cmd_action;
+	if (pdata_buf && (cmd_action == HostCmd_ACT_GEN_SET))
+		cfg->enable = *(t_u8 *)pdata_buf;
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of sdio rx aggr command
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_ret_sdio_rx_aggr_cfg(pmlan_private pmpriv,
+				      HostCmd_DS_COMMAND *resp)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	HostCmd_DS_SDIO_SP_RX_AGGR_CFG *cfg = &resp->params.sdio_rx_aggr;
+
+	pmadapter->pcard_sd->sdio_rx_aggr_enable = cfg->enable;
+	pmadapter->pcard_sd->sdio_rx_block_size =
+		wlan_le16_to_cpu(cfg->sdio_block_size);
+	PRINTM(MMSG, "SDIO rx aggr: %d block_size=%d\n", cfg->enable,
+	       pmadapter->pcard_sd->sdio_rx_block_size);
+	if (!pmadapter->pcard_sd->sdio_rx_block_size)
+		pmadapter->pcard_sd->sdio_rx_aggr_enable = MFALSE;
+	if (pmadapter->pcard_sd->sdio_rx_aggr_enable) {
+		pmadapter->pcard_sd->max_sp_rx_size = SDIO_CMD53_MAX_SIZE;
+		wlan_re_alloc_sdio_rx_mpa_buffer(pmadapter);
+	}
+	return MLAN_STATUS_SUCCESS;
+}
 #endif
 
 /**
@@ -6314,6 +6382,22 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
+		if ((pmadapter->fw_cap_info & SDIO_SP_RX_AGGR_ENABLE) &&
+		    pmadapter->pcard_sd->sdio_rx_aggr_enable) {
+			t_u8 sdio_sp_rx_aggr = MTRUE;
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_SDIO_SP_RX_AGGR_CFG,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       &sdio_sp_rx_aggr);
+			if (ret) {
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
+		} else {
+			pmadapter->pcard_sd->sdio_rx_aggr_enable = MFALSE;
+			PRINTM(MCMND, "FW: SDIO rx aggr disabled 0x%x\n",
+			       pmadapter->fw_cap_info);
+		}
 	}
 #endif
 #ifdef STA_SUPPORT
@@ -6413,6 +6497,8 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			fw_cap_tlv = (MrvlIEtypes_fw_cap_info_t *)tlv;
 			pmadapter->fw_cap_info =
 				wlan_le32_to_cpu(fw_cap_tlv->fw_cap_info);
+			pmadapter->fw_cap_info &=
+				pmadapter->init_para.dev_cap_mask;
 			pmadapter->fw_cap_ext =
 				wlan_le32_to_cpu(fw_cap_tlv->fw_cap_ext);
 			PRINTM(MCMND, "fw_cap_info=0x%x fw_cap_ext=0x%x\n",

@@ -5005,10 +5005,12 @@ void woal_cfg80211_free_bands(struct wiphy *wiphy)
  *
  * @param priv           A pointer moal_private structure
  * @param reason_code    disconnect reason code
+ * @param bssid          A pointer to bssid
+ *
  *
  * @return          N/A
  */
-void woal_deauth_event(moal_private *priv, int reason_code)
+void woal_deauth_event(moal_private *priv, int reason_code, u8 *bssid)
 {
 	struct woal_event *evt;
 	unsigned long flags;
@@ -5022,7 +5024,9 @@ void woal_deauth_event(moal_private *priv, int reason_code)
 	}
 	evt->priv = priv;
 	evt->type = WOAL_EVENT_DEAUTH;
-	evt->reason_code = reason_code;
+	evt->deauth_info.reason_code = reason_code;
+	moal_memcpy_ext(priv->phandle, evt->deauth_info.mac_addr, bssid,
+			MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	INIT_LIST_HEAD(&evt->link);
 	spin_lock_irqsave(&handle->evt_lock, flags);
 	list_add_tail(&evt->link, &handle->evt_queue);

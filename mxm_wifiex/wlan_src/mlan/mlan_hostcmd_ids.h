@@ -271,6 +271,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_PACKET_AGGR_OVER_HOST_INTERFACE, 0x0117),
 
 #ifdef SDIO
+	/** Host Command ID : SDIO single port RX aggr */
+	ENUM_ELEMENT(HostCmd_CMD_SDIO_SP_RX_AGGR_CFG, 0x0223),
 #endif
 
 	/** Host Command ID : Extended scan support */

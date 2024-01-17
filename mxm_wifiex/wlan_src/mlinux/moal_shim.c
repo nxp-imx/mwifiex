@@ -2955,10 +2955,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 
 		if (!is_zero_timeval(priv->phandle->scan_time_start)) {
 			woal_get_monotonic_time(&priv->phandle->scan_time_end);
-			priv->phandle->scan_time += (t_u64)(
-				timeval_to_usec(priv->phandle->scan_time_end) -
-				timeval_to_usec(
-					priv->phandle->scan_time_start));
+			priv->phandle->scan_time +=
+				(t_u64)(timeval_to_usec(
+						priv->phandle->scan_time_end) -
+					timeval_to_usec(
+						priv->phandle->scan_time_start));
 			PRINTM(MINFO,
 			       "%s : start_timeval=%d:%d end_timeval=%d:%d inter=%llu scan_time=%llu\n",
 			       __func__,
@@ -3293,6 +3294,12 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 					0,
 #endif
 					GFP_KERNEL);
+/* sending becon_loss event will help supplicant to roam to other APs if
+ * available on the same Network */
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+				cfg80211_cqm_beacon_loss_notify(priv->netdev,
+								GFP_KERNEL);
+#endif
 			}
 			priv->last_event |= EVENT_PRE_BCN_LOST;
 		}

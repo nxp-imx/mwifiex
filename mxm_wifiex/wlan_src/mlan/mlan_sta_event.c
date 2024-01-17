@@ -811,6 +811,12 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 
 	case EVENT_LINK_LOST:
+		if (pmpriv->curr_bss_params.host_mlme &&
+		    !pmpriv->assoc_rsp_size) {
+			PRINTM(MMSG,
+			       "wlan: skip link lost event before associate complete\n");
+			break;
+		}
 		if (pmbuf && (pmbuf->data_len >=
 			      sizeof(eventcause) + sizeof(Event_Link_Lost))) {
 			link_lost_evt = (Event_Link_Lost *)(pmbuf->pbuf +

@@ -278,7 +278,14 @@ typedef t_s32 t_sval;
 
 #ifdef PCIE
 /* Interrupt type */
-enum { RX_DATA, RX_EVENT, TX_COMPLETE, RX_CMD_RESP, RX_CMD_DNLD };
+enum {
+	RX_DATA,
+	RX_EVENT,
+	TX_COMPLETE,
+	RX_CMD_RESP,
+	RX_CMD_DNLD,
+	RX_DATA_DELAY
+};
 #endif
 #ifdef USB
 #define MLAN_USB_BLOCK_SIZE (512)
@@ -388,6 +395,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_IW624 0x0b
 /** Black bird card type */
 #define CARD_TYPE_AW693 0x0c
+/** IW615 card type */
+#define CARD_TYPE_IW615 0x0c
 
 /** 9098 A0 reverion num */
 #define CHIP_9098_REV_A0 1
@@ -423,6 +432,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_SDIW624 (CARD_TYPE_IW624 | (INTF_SD << 8))
 /** SD_IW624 card type */
 #define CARD_TYPE_SDAW693 (CARD_TYPE_AW693 | (INTF_SD << 8))
+/** SD_IW615 card type */
+#define CARD_TYPE_SDIW615 (CARD_TYPE_IW615 | (INTF_SD << 8))
 
 #define IS_SD8887(ct) (CARD_TYPE_SD8887 == (ct))
 #define IS_SD8897(ct) (CARD_TYPE_SD8897 == (ct))
@@ -436,6 +447,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_SD8801(ct) (CARD_TYPE_SD8801 == (ct))
 #define IS_SDIW624(ct) (CARD_TYPE_SDIW624 == (ct))
 #define IS_SDAW693(ct) (CARD_TYPE_SDAW693 == (ct))
+#define IS_SDIW615(ct) (CARD_TYPE_SDIW615 == (ct))
 
 /** SD8887 Card */
 #define CARD_SD8887 "SD8887"
@@ -461,6 +473,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SDIW624 "SDIW624"
 /** SDAW693 Card */
 #define CARD_SDAW693 "SDAW693"
+/** SDIW615 Card */
+#define CARD_SDIW615 "SDIW615"
 #endif
 
 #ifdef PCIE
@@ -519,6 +533,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_USB9097 (CARD_TYPE_9097 | (INTF_USB << 8))
 /** USBIW624 card type */
 #define CARD_TYPE_USBIW624 (CARD_TYPE_IW624 | (INTF_USB << 8))
+/** USBIW615 card type */
+#define CARD_TYPE_USBIW615 (CARD_TYPE_IW615 | (INTF_USB << 8))
 
 #define IS_USB8801(ct) (CARD_TYPE_USB8801 == (ct))
 #define IS_USB8897(ct) (CARD_TYPE_USB8897 == (ct))
@@ -527,6 +543,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_USB9098(ct) (CARD_TYPE_USB9098 == (ct))
 #define IS_USB9097(ct) (CARD_TYPE_USB9097 == (ct))
 #define IS_USBIW624(ct) (CARD_TYPE_USBIW624 == (ct))
+#define IS_USBIW615(ct) (CARD_TYPE_USBIW615 == (ct))
 
 /** USB8801 Card */
 #define CARD_USB8801 "USB8801"
@@ -542,6 +559,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_USB9097 "USBIW620"
 /** USBIW624 Card */
 #define CARD_USBIW624 "USBIW624"
+/** USBIW615 Card */
+#define CARD_USBIW615 "USBIW615"
 #endif
 
 #define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
@@ -555,6 +574,7 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_CARD9177(ct) (CARD_TYPE_9177 == ((ct)&0xf))
 #define IS_CARDIW624(ct) (CARD_TYPE_IW624 == ((ct)&0xf))
 #define IS_CARDAW693(ct) (CARD_TYPE_AW693 == ((ct)&0xf))
+#define IS_CARDIW615(ct) (CARD_TYPE_IW615 == ((ct)&0xf))
 
 typedef struct _card_type_entry {
 	t_u16 card_type;
@@ -714,6 +734,7 @@ typedef enum _mlan_buf_type {
 	MLAN_BUF_TYPE_EVENT,
 	MLAN_BUF_TYPE_RAW_DATA,
 #ifdef SDIO
+	MLAN_BUF_TYPE_SPA_DATA,
 #endif
 } mlan_buf_type;
 
@@ -945,29 +966,34 @@ enum mlan_channel_type {
 };
 
 /** channel band */
-enum { BAND_2GHZ = 0,
-       BAND_5GHZ = 1,
-       BAND_6GHZ = 2,
-       BAND_4GHZ = 3,
+enum {
+	BAND_2GHZ = 0,
+	BAND_5GHZ = 1,
+	BAND_6GHZ = 2,
+	BAND_4GHZ = 3,
 };
 
 /** channel offset */
-enum { SEC_CHAN_NONE = 0,
-       SEC_CHAN_ABOVE = 1,
-       SEC_CHAN_5MHZ = 2,
-       SEC_CHAN_BELOW = 3 };
+enum {
+	SEC_CHAN_NONE = 0,
+	SEC_CHAN_ABOVE = 1,
+	SEC_CHAN_5MHZ = 2,
+	SEC_CHAN_BELOW = 3
+};
 
 /** channel bandwidth */
-enum { CHAN_BW_20MHZ = 0,
-       CHAN_BW_10MHZ,
-       CHAN_BW_40MHZ,
-       CHAN_BW_80MHZ,
+enum {
+	CHAN_BW_20MHZ = 0,
+	CHAN_BW_10MHZ,
+	CHAN_BW_40MHZ,
+	CHAN_BW_80MHZ,
 };
 
 /** scan mode */
-enum { SCAN_MODE_MANUAL = 0,
-       SCAN_MODE_ACS,
-       SCAN_MODE_USER,
+enum {
+	SCAN_MODE_MANUAL = 0,
+	SCAN_MODE_ACS,
+	SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -2646,6 +2672,8 @@ typedef struct _mlan_device {
 	/** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
 #ifdef SDIO
+	/** SDIO Single port rx aggr */
+	t_u8 sdio_rx_aggr_enable;
 	/* see blk_queue_max_segment_size */
 	t_u32 max_seg_size;
 	/* see blk_queue_max_segments */

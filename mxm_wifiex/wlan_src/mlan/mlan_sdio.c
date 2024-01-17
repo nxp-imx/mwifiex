@@ -225,7 +225,7 @@ static const struct _mlan_card_info mlan_card_info_sd8897 = {
 
 #if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
 	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
-	defined(SD8978) || defined(SD9177)
+	defined(SD8978) || defined(SD9177) || defined(SDIW615)
 static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.start_rd_port = 0,
 	.start_wr_port = 0,
@@ -338,6 +338,17 @@ static const struct _mlan_card_info mlan_card_info_sd9098 = {
 #endif
 #ifdef SD9177
 static const struct _mlan_card_info mlan_card_info_sd9177 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SDIW615
+static const struct _mlan_card_info mlan_card_info_sdiw615 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v16_fw_api = 1,
 	.v17_fw_api = 1,
@@ -583,8 +594,8 @@ static mlan_status wlan_get_rd_port(mlan_adapter *pmadapter, t_u8 *pport)
 	} else {
 		if (pmadapter->pcard_sd->mp_rd_bitmap &
 		    (1 << pmadapter->pcard_sd->curr_rd_port)) {
-			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(
-				~(1 << pmadapter->pcard_sd->curr_rd_port));
+			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(~(
+				1 << pmadapter->pcard_sd->curr_rd_port));
 			*pport = pmadapter->pcard_sd->curr_rd_port;
 
 			/* hw rx wraps round only after port (MAX_PORT-1) */
@@ -1044,10 +1055,11 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			check_fw_status = MTRUE;
 	}
 #endif
-#if defined(SD9097) || defined(SD9177) || defined(SDIW624)
+#if defined(SD9097) || defined(SD9177) || defined(SDIW624) || defined(SDIW615)
 	if (IS_SD9097(pmadapter->card_type) ||
 	    IS_SDIW624(pmadapter->card_type) ||
-	    IS_SDAW693(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
+	    IS_SDAW693(pmadapter->card_type) ||
+	    IS_SDIW615(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
 
@@ -1261,6 +1273,32 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 	ENTER();
 
 	switch (upld_typ) {
+	case MLAN_TYPE_SPA_DATA:
+		PRINTM(MINFO, "--- Rx: SPA Data packet ---\n");
+		pmbuf->data_len = pmadapter->upld_len;
+		if (pmadapter->rx_work_flag) {
+			pmbuf->buf_type = MLAN_BUF_TYPE_SPA_DATA;
+			if (lock_flag)
+				pmadapter->callbacks.moal_spin_lock(
+					pmadapter->pmoal_handle,
+					pmadapter->rx_data_queue.plock);
+			util_enqueue_list_tail(pmadapter->pmoal_handle,
+					       &pmadapter->rx_data_queue,
+					       (pmlan_linked_list)pmbuf, MNULL,
+					       MNULL);
+			pmadapter->rx_pkts_queued++;
+			if (lock_flag)
+				pmadapter->callbacks.moal_spin_unlock(
+					pmadapter->pmoal_handle,
+					pmadapter->rx_data_queue.plock);
+		} else {
+			wlan_decode_spa_buffer(pmadapter,
+					       pmbuf->pbuf + pmbuf->data_offset,
+					       pmbuf->data_len);
+			wlan_free_mlan_buffer(pmadapter, pmbuf);
+		}
+		pmadapter->data_received = MTRUE;
+		break;
 	case MLAN_TYPE_DATA:
 		PRINTM(MINFO, "--- Rx: Data packet ---\n");
 		if (pmadapter->upld_len > pmbuf->data_len) {
@@ -1415,7 +1453,7 @@ static mlan_status wlan_receive_single_packet(mlan_adapter *pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	if (pkt_type != MLAN_TYPE_DATA) {
+	if (pkt_type != MLAN_TYPE_DATA && pkt_type != MLAN_TYPE_SPA_DATA) {
 		PRINTM(MERROR,
 		       "receive a wrong pkt from DATA PORT: type=%d, len=%dd\n",
 		       pkt_type, pmbuf->data_len);
@@ -1549,7 +1587,8 @@ static mlan_status wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 			/* copy pkt to deaggr buf */
 			mbuf_deaggr =
 				pmadapter->pcard_sd->mpa_rx.mbuf_arr[pind];
-			if ((pkt_type == MLAN_TYPE_DATA) &&
+			if ((pkt_type == MLAN_TYPE_DATA ||
+			     pkt_type == MLAN_TYPE_SPA_DATA) &&
 			    (pkt_len <=
 			     pmadapter->pcard_sd->mpa_rx.len_arr[pind])) {
 				memcpy_ext(pmadapter,
@@ -1710,7 +1749,8 @@ rx_curr_single:
 			goto done;
 		}
 		if (new_mode || (port != CTRL_PORT)) {
-			if (pkt_type != MLAN_TYPE_DATA) {
+			if (pkt_type != MLAN_TYPE_DATA &&
+			    pkt_type != MLAN_TYPE_SPA_DATA) {
 				PRINTM(MERROR,
 				       "receive a wrong pkt from DATA PORT: type=%d, len=%dd\n",
 				       pkt_type, pmbuf->data_len);
@@ -2404,6 +2444,12 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_sdiw624;
 		break;
 #endif
+#ifdef SDIW615
+	case CARD_TYPE_SDIW615:
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_info = &mlan_card_info_sdiw615;
+		break;
+#endif
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
 		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
@@ -2614,7 +2660,7 @@ static mlan_status wlan_sdio_card_to_host_recovery(mlan_adapter *pmadapter,
 				   pmadapter->pcard_sd->ioport + port)) {
 		PRINTM(MERROR, "Recovery: Fail to do cmd53\n");
 	}
-	if (pkt_type != MLAN_TYPE_DATA) {
+	if (pkt_type != MLAN_TYPE_DATA && pkt_type != MLAN_TYPE_SPA_DATA) {
 		PRINTM(MERROR,
 		       "Recovery: Receive a wrong pkt: type=%d, len=%d\n",
 		       pkt_type, pmadapter->upld_len);
@@ -2624,6 +2670,12 @@ static mlan_status wlan_sdio_card_to_host_recovery(mlan_adapter *pmadapter,
 		// TODO fill the hole in Rx reorder table
 		PRINTM(MDATA, "Recovery: Drop Data packet\n");
 		pmadapter->dbg.num_pkt_dropped++;
+	} else if (pkt_type == MLAN_TYPE_SPA_DATA) {
+		PRINTM(MDATA, "Recovery: SPA Data packet len=%d\n",
+		       pmadapter->upld_len);
+		wlan_decode_spa_buffer(pmadapter, pmadapter->pcard_sd->rx_buf,
+				       pmadapter->upld_len);
+		pmadapter->data_received = MTRUE;
 	}
 	PRINTM(MMSG, "wlan: Success handle rx port=%d, rx_len=%d \n", port,
 	       rx_len);
@@ -2839,7 +2891,7 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
 				    MLAN_SDIO_BLOCK_SIZE;
 			if (rx_len <= SDIO_INTF_HEADER_LEN ||
 			    (rx_blocks * MLAN_SDIO_BLOCK_SIZE) >
-				    ALLOC_BUF_SIZE) {
+				    pmadapter->pcard_sd->mpa_rx.buf_size) {
 				PRINTM(MERROR, "invalid rx_len=%d\n", rx_len);
 				ret = MLAN_STATUS_FAILURE;
 				goto done;
@@ -3015,7 +3067,7 @@ exit:
 
 #if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
 	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
-	defined(SD8978)
+	defined(SD8978) || defined(SDIW615)
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -3078,7 +3130,7 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 
 #if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
 	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
-	defined(SD8978)
+	defined(SD8978) || defined(SDIW615)
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
 #endif
@@ -3089,6 +3141,99 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 
 	LEAVE();
 	return ret;
+}
+
+/**
+ *  @brief Deaggregate single port aggregation packet
+ *
+ *  @param pmadapter  A pointer to mlan_adapter structure
+ *  @param buf	A pointer to aggregated data packet
+ *  @param len
+ *
+ *  @return		N/A
+ */
+void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
+{
+	int total_pkt_len;
+	t_u8 block_num = 0;
+	t_u16 block_size = 0;
+	t_u8 *data;
+	t_u32 pkt_len;
+	mlan_buffer *mbuf_deaggr = MNULL;
+
+	ENTER();
+
+	data = (t_u8 *)buf;
+	total_pkt_len = len;
+	if (total_pkt_len < pmadapter->pcard_sd->sdio_rx_block_size) {
+		PRINTM(MERROR, "Invalid sp aggr packet size=%d\n",
+		       total_pkt_len);
+		goto done;
+	}
+	while (total_pkt_len >=
+	       (OFFSET_OF_SDIO_HEADER + SDIO_INTF_HEADER_LEN)) {
+		block_num = *(data + OFFSET_OF_BLOCK_NUMBER);
+		block_size =
+			pmadapter->pcard_sd->sdio_rx_block_size * block_num;
+		if (block_size > total_pkt_len) {
+			PRINTM(MERROR,
+			       "Error in pkt, block_num=%d, pkt_len=%d\n",
+			       block_num, total_pkt_len);
+			break;
+		}
+		pkt_len = wlan_le16_to_cpu(
+			*(t_u16 *)(data + OFFSET_OF_SDIO_HEADER));
+		if ((pkt_len + OFFSET_OF_SDIO_HEADER) > block_size) {
+			PRINTM(MERROR,
+			       "Error in pkt, pkt_len=%d, block_size=%d\n",
+			       pkt_len, block_size);
+			break;
+		}
+		if (pkt_len > SDIO_INTF_HEADER_LEN) {
+			mbuf_deaggr = wlan_alloc_mlan_buffer(
+				pmadapter, pkt_len - SDIO_INTF_HEADER_LEN,
+				MLAN_RX_HEADER_LEN, MOAL_ALLOC_MLAN_BUFFER);
+		} else {
+			PRINTM(MERROR, "Invalid packet length error\n");
+		}
+
+		if (mbuf_deaggr == MNULL) {
+			PRINTM(MERROR, "Error allocating daggr mlan_buffer\n");
+			break;
+		}
+		memcpy_ext(pmadapter,
+			   mbuf_deaggr->pbuf + mbuf_deaggr->data_offset,
+			   data + OFFSET_OF_SDIO_HEADER + SDIO_INTF_HEADER_LEN,
+			   pkt_len - SDIO_INTF_HEADER_LEN,
+			   pkt_len - SDIO_INTF_HEADER_LEN);
+		mbuf_deaggr->data_len = pkt_len - SDIO_INTF_HEADER_LEN;
+		wlan_handle_rx_packet(pmadapter, mbuf_deaggr);
+		data += block_size;
+		total_pkt_len -= block_size;
+		if (total_pkt_len < pmadapter->pcard_sd->sdio_rx_block_size)
+			break;
+	}
+done:
+	LEAVE();
+	return;
+}
+
+/**
+ *  @brief This function deaggr rx pkt
+ *
+ *  @param pmadapter A pointer to mlan_adapter structure
+ *  @param pmbuf     A pointer to the SDIO mpa data
+ *  @return          N/A
+ */
+t_void wlan_sdio_deaggr_rx_pkt(pmlan_adapter pmadapter, mlan_buffer *pmbuf)
+{
+	if (pmbuf->buf_type == MLAN_BUF_TYPE_SPA_DATA) {
+		wlan_decode_spa_buffer(pmadapter,
+				       pmbuf->pbuf + pmbuf->data_offset,
+				       pmbuf->data_len);
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
+	} else
+		wlan_handle_rx_packet(pmadapter, pmbuf);
 }
 
 /**
@@ -3204,6 +3349,84 @@ mlan_status wlan_free_sdio_mpa_buffers(mlan_adapter *pmadapter)
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function re-allocate rx mpa buffer
+ *
+ *  @param pmadapter       A pointer to mlan_adapter structure
+ *
+ *  @return        MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 buf_size = 0;
+	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
+	t_u32 mpa_rx_buf_size = pmadapter->pcard_sd->mp_tx_aggr_buf_size;
+
+	if (pmadapter->pcard_sd->mpa_rx.buf) {
+		pcb->moal_mfree(pmadapter->pmoal_handle,
+				(t_u8 *)pmadapter->pcard_sd->mpa_rx.head_ptr);
+		pmadapter->pcard_sd->mpa_rx.head_ptr = MNULL;
+		pmadapter->pcard_sd->mpa_rx.buf = MNULL;
+		pmadapter->pcard_sd->mpa_rx.buf_size = 0;
+	}
+	if (pmadapter->pcard_sd->sdio_rx_aggr_enable) {
+		mpa_rx_buf_size = MAX(mpa_rx_buf_size, SDIO_CMD53_MAX_SIZE);
+		/** reallocate rx buffer for recover when single port rx
+		 * aggregation enabled */
+		if (pmadapter->pcard_sd->rx_buffer) {
+			pcb->moal_mfree(pmadapter->pmoal_handle,
+					(t_u8 *)pmadapter->pcard_sd->rx_buffer);
+			pmadapter->pcard_sd->rx_buffer = MNULL;
+			pmadapter->pcard_sd->rx_buf = MNULL;
+		}
+		ret = pmadapter->callbacks.moal_malloc(
+			pmadapter->pmoal_handle,
+			SDIO_CMD53_MAX_SIZE + DMA_ALIGNMENT,
+			MLAN_MEM_DEF | MLAN_MEM_DMA,
+			(t_u8 **)&pmadapter->pcard_sd->rx_buffer);
+
+		if (ret != MLAN_STATUS_SUCCESS ||
+		    !pmadapter->pcard_sd->rx_buffer) {
+			PRINTM(MERROR, "Failed to allocate receive buffer\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto error;
+		}
+		pmadapter->pcard_sd->rx_buf = (t_u8 *)ALIGN_ADDR(
+			pmadapter->pcard_sd->rx_buffer, DMA_ALIGNMENT);
+	}
+	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
+	    (pmadapter->pcard_sd->max_seg_size <
+	     pmadapter->pcard_sd->max_sp_rx_size)) {
+		if (!wlan_secure_add(&mpa_rx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:rx_buf_size overflow \n", __func__);
+
+		ret = pcb->moal_malloc(
+			pmadapter->pmoal_handle, buf_size,
+			MLAN_MEM_DEF | MLAN_MEM_DMA,
+			(t_u8 **)&pmadapter->pcard_sd->mpa_rx.head_ptr);
+		if (ret != MLAN_STATUS_SUCCESS ||
+		    !pmadapter->pcard_sd->mpa_rx.head_ptr) {
+			PRINTM(MERROR,
+			       "Could not allocate buffer for SDIO MP RX aggr\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto error;
+		}
+		pmadapter->pcard_sd->mpa_rx.buf = (t_u8 *)ALIGN_ADDR(
+			pmadapter->pcard_sd->mpa_rx.head_ptr, DMA_ALIGNMENT);
+	} else {
+		PRINTM(MMSG, "wlan: Enable RX SG mode\n");
+		pmadapter->pcard_sd->mpa_rx.head_ptr = MNULL;
+		pmadapter->pcard_sd->mpa_rx.buf = MNULL;
+	}
+	pmadapter->pcard_sd->mpa_rx.buf_size = mpa_rx_buf_size;
+	PRINTM(MMSG, "mpa_rx_buf_size=%d\n", mpa_rx_buf_size);
+error:
+	return ret;
 }
 
 /**
@@ -3390,7 +3613,7 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 	}
 #if defined(SD8997) || defined(SD8977) || defined(SD8987) ||                   \
 	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
-	defined(SD8978) || defined(SD9177)
+	defined(SD8978) || defined(SD9177) || defined(SDIW615)
 	if (MFALSE
 #ifdef SD8997
 	    || IS_SD8997(pmadapter->card_type)
@@ -3412,6 +3635,9 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 #endif
 #ifdef SDIW624
 	    || IS_SDIW624(pmadapter->card_type)
+#endif
+#ifdef SDIW615
+	    || IS_SDIW615(pmadapter->card_type)
 #endif
 #ifdef SD9177
 	    || IS_SD9177(pmadapter->card_type)
@@ -3498,7 +3724,7 @@ static mlan_status wlan_sdio_handle_rx_packet(mlan_adapter *pmadapter,
 {
 	ENTER();
 
-	wlan_handle_rx_packet(pmadapter, pmbuf);
+	wlan_sdio_deaggr_rx_pkt(pmadapter, pmbuf);
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

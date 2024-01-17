@@ -234,8 +234,9 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	}
 
 	/* Offset of actual data */
-	plocal_tx_pd->tx_pkt_offset = (t_u16)(
-		(t_ptr)pmbuf->pbuf + pmbuf->data_offset - (t_ptr)plocal_tx_pd);
+	plocal_tx_pd->tx_pkt_offset =
+		(t_u16)((t_ptr)pmbuf->pbuf + pmbuf->data_offset -
+			(t_ptr)plocal_tx_pd);
 
 	if (!plocal_tx_pd->tx_control) {
 		/* TxCtrl set by user or default */

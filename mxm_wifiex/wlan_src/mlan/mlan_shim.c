@@ -362,6 +362,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 		pmadapter->init_para.mpa_tx_cfg = pmdevice->mpa_tx_cfg;
 		pmadapter->init_para.mpa_rx_cfg = pmdevice->mpa_rx_cfg;
+		pmadapter->pcard_sd->sdio_rx_aggr_enable =
+			pmdevice->sdio_rx_aggr_enable;
 	}
 #endif
 
@@ -1436,6 +1438,7 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
 	mlan_private *pmpriv;
 	t_u16 eth_type = 0;
+	t_u8 ip_protocol = 0;
 	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
 	tdlsStatus_e tdls_status;
 
@@ -1453,9 +1456,21 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	eth_type =
 		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
 						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+
+	/** Identify ICMP packet from ETH_IP packet. ICMP packet in IP header
+	 * Protocol field is 0x01 */
+	if (eth_type == MLAN_ETHER_PKT_TYPE_IP) {
+		ip_protocol = *((t_u8 *)(pmbuf->pbuf + pmbuf->data_offset +
+					 MLAN_ETHER_PKT_TYPE_OFFSET +
+					 MLAN_IP_PROTOCOL_OFFSET));
+	}
+
 	if ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
-	    (eth_type == MLAN_ETHER_PKT_TYPE_WAPI) ||
+	    (eth_type == MLAN_ETHER_PKT_TYPE_WAPI)
+	    /** Send ICMP packet via bypass_txqueue to reduce long ping latency
+	     */
+	    || (ip_protocol == MLAN_IP_PROTOCOL_ICMP) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
 	    /* Adding the Ucast/Mcast pkt to bypass queue when flag is set*/
@@ -1943,11 +1958,20 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 	} else if (type == TX_COMPLETE && !wlan_is_tx_pending(pmadapter)) {
 		LEAVE();
 		return;
+	} else if (type == RX_DATA_DELAY) {
+		PRINTM(MEVENT, "Delay Rx DATA\n");
+		pcb->moal_spin_lock(pmadapter->pmoal_handle,
+				    pmadapter->pmlan_rx_lock);
+		pmadapter->pcard_pcie->rx_pending = MFALSE;
+		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
+				      pmadapter->pmlan_rx_lock);
+		LEAVE();
+		return;
 	}
 	pmadapter->ops.process_int_status(pmadapter, type);
 	switch (type) {
 	case RX_DATA: // Rx Data
-		if (pmadapter->data_received) {
+		if (pmadapter->rx_pkts_queued) {
 			if (pmadapter->napi)
 				mlan_queue_rx_work(pmadapter);
 			else

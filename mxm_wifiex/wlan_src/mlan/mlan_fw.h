@@ -1151,6 +1151,8 @@ enum host_cmd_id {
 #define TLV_TYPE_PREV_BSSID (PROPRIETARY_TLV_BASE_ID + 330)
 
 #ifdef SDIO
+/** fw_cap_info bit16 for sdio sp rx aggr flag*/
+#define SDIO_SP_RX_AGGR_ENABLE MBIT(16)
 
 #endif
 
@@ -1292,7 +1294,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Extension_t {
 	/** Element id extension */
 	t_u8 ext_id;
 	/** payload */
-	t_u8 data[1];
+	t_u8 data[];
 } MLAN_PACK_END MrvlIEtypes_Extension_t, *pMrvlIEtypes_Extension_t;
 
 /* HE MAC Capabilities Information field BIT 1 for TWT Req */
@@ -1635,7 +1637,7 @@ typedef MLAN_PACK_START struct _ie_data {
 	/** IE Length */
 	t_u16 ie_length;
 	/** IE pointer */
-	t_u8 ie_ptr[1];
+	t_u8 ie_ptr[];
 } MLAN_PACK_END tdls_ie_data;
 
 /** Event structure for generic events from TDLS FW */
@@ -1706,7 +1708,7 @@ typedef MLAN_PACK_START struct _WLAN_802_11_VARIABLE_IEs {
 	/** Length */
 	t_u8 length;
 	/** IE data */
-	t_u8 data[1];
+	t_u8 data[];
 } MLAN_PACK_END WLAN_802_11_VARIABLE_IEs;
 
 /** TLV related data structures*/
@@ -2156,7 +2158,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_ChanListParamSet_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** Channel scan parameters */
-	ChanScanParamSet_t chan_scan_param[1];
+	ChanScanParamSet_t chan_scan_param[];
 } MLAN_PACK_END MrvlIEtypes_ChanListParamSet_t;
 
 /** MrvlIEtypes_EESParamSet_t */
@@ -2206,7 +2208,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_ChanBandListParamSet_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** Channel Band parameters */
-	ChanBandParamSet_t chan_band_param[1];
+	ChanBandParamSet_t chan_band_param[];
 } MLAN_PACK_END MrvlIEtypes_ChanBandListParamSet_t;
 
 /** MrvlIEtypes_RatesParamSet_t */
@@ -2214,7 +2216,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RatesParamSet_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** Rates */
-	t_u8 rates[1];
+	t_u8 rates[];
 } MLAN_PACK_END MrvlIEtypes_RatesParamSet_t;
 
 /** _MrvlIEtypes_Bssid_List_t */
@@ -2230,7 +2232,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_SsIdParamSet_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** SSID */
-	t_u8 ssid[1];
+	t_u8 ssid[];
 } MLAN_PACK_END MrvlIEtypes_SsIdParamSet_t;
 
 /**MrvlIEtypes_AssocType_t */
@@ -2264,7 +2266,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_WildCardSsIdParamSet_t {
 	/** Maximum SSID length */
 	t_u8 max_ssid_length;
 	/** SSID */
-	t_u8 ssid[1];
+	t_u8 ssid[];
 } MLAN_PACK_END MrvlIEtypes_WildCardSsIdParamSet_t;
 
 /**TSF data size */
@@ -2275,7 +2277,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TsfTimestamp_t {
 	MrvlIEtypesHeader_t header;
 	/** the length of each TSF data is 8 bytes, could be multiple TSF here
 	 */
-	t_u8 tsf_data[1];
+	t_u8 tsf_data[];
 } MLAN_PACK_END MrvlIEtypes_TsfTimestamp_t;
 
 /** CfParamSet_t */
@@ -2402,7 +2404,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RxBaSync_t {
 	/** bitmap len */
 	t_u16 bitmap_len;
 	/** bitmap */
-	t_u8 bitmap[1];
+	t_u8 bitmap[];
 } MLAN_PACK_END MrvlIEtypes_RxBaSync_t;
 
 /** MrvlIEtypes_RsnParamSet_t */
@@ -2715,7 +2717,7 @@ typedef MLAN_PACK_START struct _MrvlIETypes_ChanTRPCConfig_t {
 	/** channel number */
 	t_u8 chan_num;
 	/** mode groups */
-	mod_group_setting mod_group[1];
+	mod_group_setting mod_group[];
 } MLAN_PACK_END MrvlIETypes_ChanTRPCConfig_t;
 
 /* HostCmd_DS_CHANNEL_TRPC_CONFIG */
@@ -3072,6 +3074,12 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_HW_SPEC {
 } MLAN_PACK_END HostCmd_DS_GET_HW_SPEC;
 
 #ifdef SDIO
+/* HostCmd_DS_SDIO_SP_RX_AGGR_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_SDIO_SP_RX_AGGR_CFG {
+	t_u8 action;
+	t_u8 enable;
+	t_u16 sdio_block_size;
+} MLAN_PACK_END HostCmd_DS_SDIO_SP_RX_AGGR_CFG;
 #endif
 
 /**  HostCmd_DS_802_11_CFG_DATA */
@@ -3172,7 +3180,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_STATS {
 	/** Action */
 	t_u16 action;
 	/** TLV buffer */
-	t_u8 tlv_buffer[1];
+	t_u8 tlv_buffer[];
 } MLAN_PACK_END HostCmd_DS_STATS;
 
 typedef MLAN_PACK_START struct _HostCmd_DS_GET_CH_LOAD {
@@ -4783,7 +4791,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_WmmParamSet_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** WMM IE */
-	t_u8 wmm_ie[1];
+	t_u8 wmm_ie[];
 } MLAN_PACK_END MrvlIEtypes_WmmParamSet_t;
 
 /** MrvlIEtypes_WmmQueueStatus_t */
@@ -6237,7 +6245,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_SYS_CONFIG {
 	/** CMD Action GET/SET*/
 	t_u16 action;
 	/** Tlv buffer */
-	t_u8 tlv_buffer[1];
+	t_u8 tlv_buffer[];
 } MLAN_PACK_END HostCmd_DS_SYS_CONFIG;
 
 /** HostCmd_SYS_CONFIG */
@@ -7688,6 +7696,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Hardware specifications */
 		HostCmd_DS_GET_HW_SPEC hw_spec;
 #ifdef SDIO
+		HostCmd_DS_SDIO_SP_RX_AGGR_CFG sdio_rx_aggr;
 #endif
 		/** Cfg data */
 		HostCmd_DS_802_11_CFG_DATA cfg_data;

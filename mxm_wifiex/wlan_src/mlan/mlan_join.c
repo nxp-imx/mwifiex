@@ -672,7 +672,7 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u8 preference_selected;
 	t_u8 cipher_selected_id;
 #if 0 // defined(ENABLE_GCMP_SUPPORT)
-      // embedded supplicant doesn't support GCMP yet
+      //  embedded supplicant doesn't support GCMP yet
 	t_u8 cipher_preference[11] = {0, 0, 1, 0, 2, 0, 0, 0, 4, 5, 3};
 #else
 	t_u8 cipher_preference[5] = {0, 0, 1, 0, 2};
@@ -1984,7 +1984,6 @@ mlan_status wlan_disconnect(mlan_private *pmpriv, mlan_ioctl_req *pioctl_req,
 		memcpy_ext(pmpriv->adapter, &local_param, deauth_param,
 			   sizeof(*deauth_param), sizeof(local_param));
 	if (pmpriv->media_connected == MTRUE) {
-		wlan_clean_txrx(pmpriv);
 		if (pmpriv->bss_mode == MLAN_BSS_MODE_INFRA) {
 			if (!deauth_param ||
 			    !memcmp(pmpriv->adapter, deauth_param->mac_addr,

@@ -1357,6 +1357,9 @@ static mlan_status wlan_bss_ioctl(pmlan_adapter pmadapter,
 			   &pmpriv->curr_bss_params.attemp_bssid,
 			   &bss->param.bssid, MLAN_MAC_ADDR_LENGTH,
 			   MLAN_MAC_ADDR_LENGTH);
+		/* clear assoc_rsp_size */
+		pmpriv->assoc_rsp_size = 0;
+		pmpriv->assoc_req_size = 0;
 		break;
 	case MLAN_OID_BSS_START:
 		status = wlan_bss_ioctl_start(pmadapter, pioctl_req);
@@ -3223,76 +3226,93 @@ static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
 			     (!memcmp(priv->adapter, pvendor_ie->oui, wpa_oui,
 				      sizeof(wpa_oui)))) ||
 			    (pvendor_ie->element_id == RSN_IE)) {
-			/* IE is a WPA/WPA2 IE so call set_wpa function */
-			ret = wlan_set_wpa_ie_helper(priv, ie_data_ptr, ie_len);
-			priv->wps.session_enable = MFALSE;
-		} else if (pvendor_ie->element_id == WAPI_IE) {
-			/* IE is a WAPI IE so call set_wapi function */
-			ret = wlan_set_wapi_ie(priv, ie_data_ptr, ie_len);
-		} else if ((pvendor_ie->element_id == VENDOR_SPECIFIC_221) &&
-			   (!memcmp(priv->adapter, pvendor_ie->oui, osen_oui,
-				    sizeof(osen_oui)))) {
-			/* IE is a OSEN IE so call set_osen function */
-			ret = wlan_set_osen_ie(priv, ie_data_ptr, ie_len);
-
-		} else if ((pvendor_ie->element_id == WPS_IE) &&
-			   (priv->wps.session_enable == MFALSE) &&
-			   (!memcmp(priv->adapter, pvendor_ie->oui, wps_oui,
-				    sizeof(wps_oui)))) {
-			/*
-			 * Discard first two byte (Element ID and Length)
-			 * because they are not needed in the case of setting
-			 * WPS_IE
-			 */
-			if (pvendor_ie->len > 4) {
-				memcpy_ext(priv->adapter,
-					   (t_u8 *)&priv->wps.wps_ie,
-					   ie_data_ptr, ie_len,
-					   sizeof(IEEEtypes_VendorSpecific_t));
-				HEXDUMP("wps_ie", (t_u8 *)&priv->wps.wps_ie,
-					priv->wps.wps_ie.vend_hdr.len + 2);
-			} else {
-				/* Only wps oui exist, reset driver wps buffer
+				/* IE is a WPA/WPA2 IE so call set_wpa function
 				 */
-				memset(priv->adapter, (t_u8 *)&priv->wps.wps_ie,
-				       0x00, sizeof(priv->wps.wps_ie));
-				PRINTM(MINFO, "wps_ie cleared\n");
-			}
-		} else {
-			/*
-			 * Verify that the passed length is not larger than
-			 * the available space remaining in the buffer
-			 */
-			if (ie_len <
-			    (sizeof(priv->gen_ie_buf) - priv->gen_ie_buf_len)) {
-				/* Test to see if it is a WPS IE, if so, enable
-				 * wps session flag */
-				pvendor_ie =
-					(IEEEtypes_VendorHeader_t *)ie_data_ptr;
-				if ((pvendor_ie->element_id == WPS_IE) &&
-				    (!memcmp(priv->adapter, pvendor_ie->oui,
-					     wps_oui, sizeof(wps_oui)))) {
-					priv->wps.session_enable = MTRUE;
-					PRINTM(MINFO, "WPS Session Enabled.\n");
-				}
+				ret = wlan_set_wpa_ie_helper(priv, ie_data_ptr,
+							     ie_len);
+				priv->wps.session_enable = MFALSE;
+			} else if (pvendor_ie->element_id == WAPI_IE) {
+				/* IE is a WAPI IE so call set_wapi function */
+				ret = wlan_set_wapi_ie(priv, ie_data_ptr,
+						       ie_len);
+			} else if ((pvendor_ie->element_id ==
+				    VENDOR_SPECIFIC_221) &&
+				   (!memcmp(priv->adapter, pvendor_ie->oui,
+					    osen_oui, sizeof(osen_oui)))) {
+				/* IE is a OSEN IE so call set_osen function */
+				ret = wlan_set_osen_ie(priv, ie_data_ptr,
+						       ie_len);
 
-				/* Append the passed data to the end of
-				 * the genIeBuffer */
-				memcpy_ext(priv->adapter,
-					   priv->gen_ie_buf +
-						   priv->gen_ie_buf_len,
-					   ie_data_ptr, ie_len,
-					   MRVDRV_GENIE_BUF_SIZE -
-						   priv->gen_ie_buf_len);
-				/* Increment the stored buffer length by
-				 * the size passed */
-				priv->gen_ie_buf_len += ie_len;
+			} else if ((pvendor_ie->element_id == WPS_IE) &&
+				   (priv->wps.session_enable == MFALSE) &&
+				   (!memcmp(priv->adapter, pvendor_ie->oui,
+					    wps_oui, sizeof(wps_oui)))) {
+				/*
+				 * Discard first two byte (Element ID and
+				 * Length) because they are not needed in the
+				 * case of setting WPS_IE
+				 */
+				if (pvendor_ie->len > 4) {
+					memcpy_ext(
+						priv->adapter,
+						(t_u8 *)&priv->wps.wps_ie,
+						ie_data_ptr, ie_len,
+						sizeof(IEEEtypes_VendorSpecific_t));
+					HEXDUMP("wps_ie",
+						(t_u8 *)&priv->wps.wps_ie,
+						priv->wps.wps_ie.vend_hdr.len +
+							2);
+				} else {
+					/* Only wps oui exist, reset driver wps
+					 * buffer
+					 */
+					memset(priv->adapter,
+					       (t_u8 *)&priv->wps.wps_ie, 0x00,
+					       sizeof(priv->wps.wps_ie));
+					PRINTM(MINFO, "wps_ie cleared\n");
+				}
 			} else {
-				/* Passed data does not fit in the
-				 * remaining buffer space */
-				ret = MLAN_STATUS_FAILURE;
+				/*
+				 * Verify that the passed length is not larger
+				 * than the available space remaining in the
+				 * buffer
+				 */
+				if (ie_len < (sizeof(priv->gen_ie_buf) -
+					      priv->gen_ie_buf_len)) {
+					/* Test to see if it is a WPS IE, if so,
+					 * enable wps session flag */
+					pvendor_ie =
+						(IEEEtypes_VendorHeader_t *)
+							ie_data_ptr;
+					if ((pvendor_ie->element_id ==
+					     WPS_IE) &&
+					    (!memcmp(priv->adapter,
+						     pvendor_ie->oui, wps_oui,
+						     sizeof(wps_oui)))) {
+						priv->wps.session_enable =
+							MTRUE;
+						PRINTM(MINFO,
+						       "WPS Session Enabled.\n");
+					}
+
+					/* Append the passed data to the end of
+					 * the genIeBuffer */
+					memcpy_ext(
+						priv->adapter,
+						priv->gen_ie_buf +
+							priv->gen_ie_buf_len,
+						ie_data_ptr, ie_len,
+						MRVDRV_GENIE_BUF_SIZE -
+							priv->gen_ie_buf_len);
+					/* Increment the stored buffer length by
+					 * the size passed */
+					priv->gen_ie_buf_len += ie_len;
+				} else {
+					/* Passed data does not fit in the
+					 * remaining buffer space */
+					ret = MLAN_STATUS_FAILURE;
+				}
 			}
-		}
 	}
 
 	/* Return MLAN_STATUS_SUCCESS, or MLAN_STATUS_FAILURE for error case */

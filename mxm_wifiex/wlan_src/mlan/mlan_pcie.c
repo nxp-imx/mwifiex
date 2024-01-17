@@ -3167,7 +3167,6 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 
 		event = *((t_u32 *)&pmbuf_evt->pbuf[pmbuf_evt->data_offset +
 						    PCIE_INTF_HEADER_LEN]);
-		pmadapter->event_cause = wlan_le32_to_cpu(event);
 		/* The first 4bytes will be the event transfer header
 		   len is 2 bytes followed by type which is 2 bytes */
 		evt_len = *((t_u16 *)&pmbuf_evt->pbuf[pmbuf_evt->data_offset]);
@@ -3185,7 +3184,13 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 		pmbuf_evt->data_len = evt_len - PCIE_INTF_HEADER_LEN;
 		PRINTM(MINFO, "Event length: %d\n", pmbuf_evt->data_len);
 
+		pcb->moal_spin_lock(pmadapter->pmoal_handle,
+				    pmadapter->pmlan_event_lock);
+		pmadapter->event_cause = wlan_le32_to_cpu(event);
 		pmadapter->event_received = MTRUE;
+		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
+				      pmadapter->pmlan_event_lock);
+
 		pmadapter->pmlan_buffer_event = pmbuf_evt;
 		pmadapter->pcard_pcie->evtbd_rdptr++;
 #if defined(PCIE8997) || defined(PCIE8897)
@@ -3241,18 +3246,27 @@ static void wlan_pcie_process_event(mlan_adapter *pmadapter)
 			    pmadapter->pmlan_event_lock);
 	if (pmadapter->pcie_event_processing || pmadapter->event_received ||
 	    pmadapter->event_cause) {
+		pmadapter->more_event_flag = MTRUE;
 		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 				      pmadapter->pmlan_event_lock);
 		goto exit_event_proc;
 	} else {
 		pmadapter->pcie_event_processing = MTRUE;
+		pmadapter->more_event_flag = MFALSE;
 		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 				      pmadapter->pmlan_event_lock);
 	}
+event_process_start:
 	wlan_pcie_process_event_ready(pmadapter);
 
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmlan_event_lock);
+	if (pmadapter->more_event_flag && !pmadapter->event_cause) {
+		pmadapter->more_event_flag = MFALSE;
+		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
+				      pmadapter->pmlan_event_lock);
+		goto event_process_start;
+	}
 	pmadapter->pcie_event_processing = MFALSE;
 	pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 			      pmadapter->pmlan_event_lock);
@@ -4608,21 +4622,24 @@ mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv)
 		/* Send the ring base addresses and count to firmware */
 		host_spec.txbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->txbd_ring_pbase));
-		host_spec.txbd_addr_hi = wlan_cpu_to_le32((t_u32)(
-			((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >> 32));
+		host_spec.txbd_addr_hi = wlan_cpu_to_le32((
+			t_u32)(((t_u64)pmadapter->pcard_pcie->txbd_ring_pbase) >>
+			       32));
 		host_spec.txbd_count =
 			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
 		host_spec.rxbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->rxbd_ring_pbase));
-		host_spec.rxbd_addr_hi = wlan_cpu_to_le32((t_u32)(
-			((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >> 32));
+		host_spec.rxbd_addr_hi = wlan_cpu_to_le32((
+			t_u32)(((t_u64)pmadapter->pcard_pcie->rxbd_ring_pbase) >>
+			       32));
 		host_spec.rxbd_count =
 			wlan_cpu_to_le32(pmadapter->pcard_pcie->txrx_bd_size);
 		host_spec.evtbd_addr_lo = wlan_cpu_to_le32(
 			(t_u32)(pmadapter->pcard_pcie->evtbd_ring_pbase));
-		host_spec.evtbd_addr_hi = wlan_cpu_to_le32((t_u32)(
-			((t_u64)pmadapter->pcard_pcie->evtbd_ring_pbase) >>
-			32));
+		host_spec.evtbd_addr_hi =
+			wlan_cpu_to_le32((t_u32)(((t_u64)pmadapter->pcard_pcie
+							  ->evtbd_ring_pbase) >>
+						 32));
 		host_spec.evtbd_count = wlan_cpu_to_le32(MLAN_MAX_EVT_BD);
 
 		ret = wlan_prepare_cmd(pmpriv,

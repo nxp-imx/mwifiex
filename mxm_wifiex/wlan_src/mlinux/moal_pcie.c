@@ -331,6 +331,8 @@ static mlan_status woal_do_flr(moal_handle *handle, bool prepare, bool flr_flag)
 
 	if (!prepare)
 		goto perform_init;
+	if (!handle->pmlan_adapter)
+		goto exit;
 
 	/* Reset all interfaces */
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
@@ -415,6 +417,8 @@ perform_init:
 		PRINTM(MFATAL, "Software Init Failed\n");
 		goto err_init_fw;
 	}
+	if (!handle->pmlan_adapter)
+		goto err_init_fw;
 
 #if defined(PCIE9098)
 	if ((card->dev->device == PCIE_DEVICE_ID_88W9098P_FN1) ||
@@ -1700,6 +1704,18 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		drv_ptr += sprintf(drv_ptr, "reg:0x%02x value=0x%08x\n",
 				   config_reg_table[i], value);
 	}
+
+	reg = phandle->card_info->fw_stuck_code_reg;
+	if (reg != 0) {
+		woal_pcie_read_reg(phandle, reg, &value);
+		value = (value & 0xff00) >> 8;
+		if (value) {
+			PRINTM(MERROR, "FW in debug mode (0x%x)\n", value);
+			drv_ptr += sprintf(drv_ptr, "FW in debug mode (0x%x)\n",
+					   value);
+		}
+	}
+
 	drv_ptr += sprintf(drv_ptr, "FW Scrach Registers:\n");
 
 #if defined(PCIE8897) || defined(PCIE8997)
@@ -1849,6 +1865,16 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		PRINTM(MERROR, "reg:0x%02x value=0x%08x\n", config_reg_table[i],
 		       value);
 	}
+
+	reg = phandle->card_info->fw_stuck_code_reg;
+	if (reg != 0) {
+		woal_pcie_read_reg(phandle, reg, &value);
+		value = (value & 0xff00) >> 8;
+		if (value) {
+			PRINTM(MERROR, "FW in debug mode (0x%x)\n", value);
+		}
+	}
+
 	PRINTM(MMSG, "FW Scrach Registers:\n");
 #if defined(PCIE8897) || defined(PCIE8997)
 	if (IS_PCIE8897(phandle->card_type) ||

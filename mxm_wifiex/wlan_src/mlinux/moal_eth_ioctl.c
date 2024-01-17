@@ -13248,8 +13248,8 @@ static int woal_priv_stats(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	ioctl_req->action = stats->action;
 
 	moal_memcpy_ext(priv->phandle, &misc->param.stats, stats,
-			sizeof(mlan_ds_stats) + stats->tlv_len - 1,
-			sizeof(mlan_ds_stats) + stats->tlv_len - 1);
+			sizeof(mlan_ds_stats) + stats->tlv_len,
+			sizeof(mlan_ds_stats) + stats->tlv_len);
 
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -21857,16 +21857,45 @@ handled:
 		if (priv_cmd.used_len <= priv_cmd.total_len) {
 			memset(buf + priv_cmd.used_len, 0,
 			       (size_t)(CMD_BUF_LEN - priv_cmd.used_len));
+#ifdef CONFIG_COMPAT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+			if (copy_to_user(
+				    ((in_compat_syscall()) ?
+					     compat_ptr((uintptr_t)cmd_buf) :
+					     (void __user *)cmd_buf),
+				    buf, priv_cmd.total_len))
+#else
 			if (copy_to_user((void __user *)cmd_buf, buf,
-					 priv_cmd.total_len)) {
+					 priv_cmd.total_len))
+#endif
+#else
+			if (copy_to_user((void __user *)cmd_buf, buf,
+					 priv_cmd.total_len))
+#endif
+			{
 				PRINTM(MERROR,
 				       "%s: failed to copy data to user buffer\n",
 				       __FUNCTION__);
 				ret = -EFAULT;
 				goto done;
 			}
+#ifdef CONFIG_COMPAT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+			if (copy_to_user(
+				    ((in_compat_syscall()) ?
+					     compat_ptr((
+						     uintptr_t)(req->ifr_data)) :
+					     req->ifr_data),
+				    &priv_cmd, sizeof(android_wifi_priv_cmd)))
+#else
 			if (copy_to_user(req->ifr_data, &priv_cmd,
-					 sizeof(android_wifi_priv_cmd))) {
+					 sizeof(android_wifi_priv_cmd)))
+#endif
+#else
+			if (copy_to_user(req->ifr_data, &priv_cmd,
+					 sizeof(android_wifi_priv_cmd)))
+#endif
+			{
 				PRINTM(MERROR,
 				       "%s: failed to copy command header to user buffer\n",
 				       __FUNCTION__);
@@ -22117,11 +22146,12 @@ int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 	int ret = 0;
 
 	ENTER();
-
+#if 0
 #ifdef CONFIG_COMPAT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	if (in_compat_syscall()) /* not implemented yet */
 		return -EOPNOTSUPP;
+#endif
 #endif
 #endif
 

@@ -2456,6 +2456,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	MrvlIETypes_HTCap_t *pht_cap;
 	MrvlIEtypes_ChanListParamSet_t *pchan_list;
+	ChanScanParamSet_t *pchan_param;
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
 	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
@@ -2529,12 +2530,12 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 
 	if (pbss_desc->pht_info) {
 		pchan_list = (MrvlIEtypes_ChanListParamSet_t *)*ppbuffer;
-		memset(pmadapter, pchan_list, 0,
-		       sizeof(MrvlIEtypes_ChanListParamSet_t));
 		pchan_list->header.type = wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
-		pchan_list->header.len =
-			sizeof(MrvlIEtypes_ChanListParamSet_t) -
-			sizeof(MrvlIEtypesHeader_t);
+		pchan_list->header.len = sizeof(ChanScanParamSet_t);
+
+		pchan_param = (ChanScanParamSet_t *)pchan_list->chan_scan_param;
+		memset(pmadapter, pchan_param, 0x00,
+		       sizeof(ChanScanParamSet_t));
 		pchan_list->chan_scan_param[0].chan_number =
 			pbss_desc->pht_info->ht_info.pri_chan;
 		pchan_list->chan_scan_param[0].bandcfg.chanBand =
@@ -2568,11 +2569,14 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		pchan_list->chan_scan_param[0].bandcfg.scanMode =
 			SCAN_MODE_USER;
 		HEXDUMP("ChanList", (t_u8 *)pchan_list,
-			sizeof(MrvlIEtypes_ChanListParamSet_t));
+			sizeof(ChanScanParamSet_t) +
+				sizeof(MrvlIEtypesHeader_t));
 		HEXDUMP("pht_info", (t_u8 *)pbss_desc->pht_info,
 			sizeof(MrvlIETypes_HTInfo_t) - 2);
-		*ppbuffer += sizeof(MrvlIEtypes_ChanListParamSet_t);
-		ret_len += sizeof(MrvlIEtypes_ChanListParamSet_t);
+		*ppbuffer += sizeof(ChanScanParamSet_t) +
+			     sizeof(MrvlIEtypesHeader_t);
+		ret_len += sizeof(ChanScanParamSet_t) +
+			   sizeof(MrvlIEtypesHeader_t);
 		pchan_list->header.len =
 			wlan_cpu_to_le16(pchan_list->header.len);
 	}
@@ -2954,10 +2958,11 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
 	       MAC2STR(peer_mac));
 
-	add_ba_req.block_ack_param_set = (t_u16)(
-		(tid << BLOCKACKPARAM_TID_POS) |
-		(priv->add_ba_param.tx_win_size << BLOCKACKPARAM_WINSIZE_POS) |
-		IMMEDIATE_BLOCK_ACK);
+	add_ba_req.block_ack_param_set =
+		(t_u16)((tid << BLOCKACKPARAM_TID_POS) |
+			(priv->add_ba_param.tx_win_size
+			 << BLOCKACKPARAM_WINSIZE_POS) |
+			IMMEDIATE_BLOCK_ACK);
 	/** enable AMSDU inside AMPDU */
 	if (priv->add_ba_param.tx_amsdu &&
 	    (priv->aggr_prio_tbl[tid].amsdu != BA_STREAM_NOT_ALLOWED))

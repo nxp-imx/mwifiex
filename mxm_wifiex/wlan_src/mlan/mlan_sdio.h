@@ -358,6 +358,10 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter);
 
 mlan_status wlan_send_mp_aggr_buf(mlan_adapter *pmadapter);
 
+mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter);
+
+void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len);
+t_void wlan_sdio_deaggr_rx_pkt(pmlan_adapter pmadapter, mlan_buffer *pmbuf);
 /** Transfer data to card */
 mlan_status wlan_sdio_host_to_card(mlan_adapter *pmadapter, t_u8 type,
 				   mlan_buffer *mbuf, mlan_tx_param *tx_param);

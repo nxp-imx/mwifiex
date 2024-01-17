@@ -466,7 +466,11 @@ mlan_status wlan_get_info_debug_info(pmlan_adapter pmadapter,
 		debug_info->tx_lock_flag = pmadapter->tx_lock_flag;
 		debug_info->port_open = pmpriv->port_open;
 		debug_info->tx_pause = pmpriv->tx_pause;
-		debug_info->bypass_pkt_count = pmadapter->bypass_pkt_count;
+		debug_info->bypass_pkt_count =
+			util_scalar_read(pmadapter->pmoal_handle,
+					 &pmadapter->bypass_pkt_count,
+					 pmadapter->callbacks.moal_spin_lock,
+					 pmadapter->callbacks.moal_spin_unlock);
 		debug_info->scan_processing = pmadapter->scan_processing;
 		debug_info->scan_state = pmadapter->scan_state;
 		debug_info->mlan_processing = pmadapter->mlan_processing;
@@ -591,6 +595,8 @@ mlan_status wlan_get_info_debug_info(pmlan_adapter pmadapter,
 			debug_info->mpa_buf = pmadapter->pcard_sd->mpa_buf;
 			debug_info->mpa_buf_size =
 				pmadapter->pcard_sd->mpa_buf_size;
+			debug_info->sdio_rx_aggr =
+				pmadapter->pcard_sd->sdio_rx_aggr_enable;
 			memcpy_ext(pmadapter, debug_info->mpa_rx_count,
 				   pmadapter->pcard_sd->mpa_rx_count,
 				   sizeof(pmadapter->pcard_sd->mpa_rx_count),
@@ -1711,7 +1717,7 @@ mlan_status wlan_reg_mem_ioctl_reg_rw(pmlan_adapter pmadapter,
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
 	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097) ||          \
-	defined(SD9177)
+	defined(SD9177) || defined(SDIW615) || defined(USBIW615)
 	case MLAN_REG_CIU:
 		cmd_no = HostCmd_CMD_REG_ACCESS;
 		break;
@@ -3338,6 +3344,7 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 					    (t_u8 *)priv->curr_bss_params
 						    .bss_descriptor.mac_address,
 					    MLAN_MAC_ADDR_LENGTH)) ||
+				    !priv->assoc_rsp_size ||
 				    !memcmp(pmadapter, pieee_pkt_hdr->addr3,
 					    (t_u8 *)priv->curr_bss_params
 						    .prev_bssid,
@@ -3352,8 +3359,9 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 				}
 				PRINTM_NETINTF(MMSG, priv);
 				PRINTM(MMSG,
-				       "wlan: HostMlme Disconnected: sub_type=%d\n",
-				       sub_type);
+				       "wlan: HostMlme Disconnected: sub_type=%d " MACSTR
+				       "\n",
+				       sub_type, MAC2STR(pieee_pkt_hdr->addr3));
 				pmadapter->pending_disconnect_priv = priv;
 				wlan_recv_event(
 					priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,

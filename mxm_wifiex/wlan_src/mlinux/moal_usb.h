@@ -98,6 +98,15 @@ Change Log:
 #define USBIW624_PID_2 0x020F
 #endif /* USBIW624 */
 
+#ifdef USBIW615
+/** USB VID 1 */
+#define USBIW615_VID_1 0x0471
+/** USB PID 1 */
+#define USBIW615_PID_1 0x021E
+/** USB PID 2 */
+#define USBIW615_PID_2 0x021F
+#endif /* USBIW615 */
+
 /** Boot state: FW download */
 #define USB_FW_DNLD 1
 /** Boot state: FW ready */
@@ -110,7 +119,8 @@ Change Log:
 #define MVUSB_RX_DATA_URB 6
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USB8801) || defined(USBIW624)
+	defined(USB8978) || defined(USB8801) || defined(USBIW624) ||           \
+	defined(USBIW615)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -174,10 +184,17 @@ Change Log:
 
 #ifdef USBIW624
 #define USBIW624_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
-#define USBUARTIW624_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBUARTIW624_COMBO_FW_NAME "nxp/usbuartiw624_combo.bin"
 #define USBUSBIW624_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
 #define USBIW624_DEFAULT_WLAN_FW_NAME "nxp/usbiw624_wlan.bin"
 #endif /* USBIW624 */
+
+#ifdef USBIW615
+#define USBIW615_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw615_combo.bin"
+#define USBUARTIW615_COMBO_FW_NAME "nxp/usbuartiw615_combo.bin"
+#define USBUSBIW615_COMBO_FW_NAME "nxp/usbusbiw615_combo.bin"
+#define USBIW615_DEFAULT_WLAN_FW_NAME "nxp/usbiw615_wlan.bin"
+#endif /* USBIW615 */
 
 /** urb context */
 typedef struct _urb_context {

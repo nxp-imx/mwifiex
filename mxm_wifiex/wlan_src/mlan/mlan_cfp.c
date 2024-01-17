@@ -691,20 +691,21 @@ static cfp_table_t cfp_table_A[] = {
 /** Number of the CFP tables for 5GHz */
 #define MLAN_CFP_TABLE_SIZE_A (NELEMENTS(cfp_table_A))
 
-enum { RATEID_DBPSK1Mbps, //(0)
-       RATEID_DQPSK2Mbps, //(1)
-       RATEID_CCK5_5Mbps, //(2)
-       RATEID_CCK11Mbps, //(3)
-       RATEID_CCK22Mbps, //(4)
-       RATEID_OFDM6Mbps, //(5)
-       RATEID_OFDM9Mbps, //(6)
-       RATEID_OFDM12Mbps, //(7)
-       RATEID_OFDM18Mbps, //(8)
-       RATEID_OFDM24Mbps, //(9)
-       RATEID_OFDM36Mbps, //(10)
-       RATEID_OFDM48Mbps, //(11)
-       RATEID_OFDM54Mbps, //(12)
-       RATEID_OFDM72Mbps, //(13)
+enum {
+	RATEID_DBPSK1Mbps, //(0)
+	RATEID_DQPSK2Mbps, //(1)
+	RATEID_CCK5_5Mbps, //(2)
+	RATEID_CCK11Mbps, //(3)
+	RATEID_CCK22Mbps, //(4)
+	RATEID_OFDM6Mbps, //(5)
+	RATEID_OFDM9Mbps, //(6)
+	RATEID_OFDM12Mbps, //(7)
+	RATEID_OFDM18Mbps, //(8)
+	RATEID_OFDM24Mbps, //(9)
+	RATEID_OFDM36Mbps, //(10)
+	RATEID_OFDM48Mbps, //(11)
+	RATEID_OFDM54Mbps, //(12)
+	RATEID_OFDM72Mbps, //(13)
 };
 
 static const t_u8 rateUnit_500Kbps[] = {
@@ -1912,9 +1913,9 @@ t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u16 band,
 							(cfp_a + j)
 								->max_tx_power);
 					else
-						tx_power = (t_u8)(
-							(cfp_a + j)
-								->max_tx_power);
+						tx_power =
+							(t_u8)((cfp_a + j)
+								       ->max_tx_power);
 					break;
 				}
 			}

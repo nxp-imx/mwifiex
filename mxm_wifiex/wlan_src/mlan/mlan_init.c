@@ -900,7 +900,7 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 
 	wlan_wmm_init(pmadapter);
 	wlan_init_wmm_param(pmadapter);
-	pmadapter->bypass_pkt_count = 0;
+
 	if (pmadapter->psleep_cfm) {
 		pmadapter->psleep_cfm->buf_type = MLAN_BUF_TYPE_CMD;
 		pmadapter->psleep_cfm->data_len = sizeof(OPT_Confirm_Sleep);
@@ -1188,8 +1188,12 @@ mlan_status wlan_init_lock_list(pmlan_adapter pmadapter)
 			    &pmadapter->rx_data_queue, MTRUE,
 			    pmadapter->callbacks.moal_init_lock);
 	util_scalar_init((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->bypass_pkt_count, 0, MNULL,
+			 pmadapter->callbacks.moal_init_lock);
+	util_scalar_init((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, 0, MNULL,
 			 pmadapter->callbacks.moal_init_lock);
+
 	/* Initialize cmd_free_q */
 	util_init_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->cmd_free_q, MTRUE,
@@ -1298,7 +1302,10 @@ t_void wlan_free_lock_list(pmlan_adapter pmadapter)
 			    &pmadapter->rx_data_queue, pcb->moal_free_lock);
 
 	util_scalar_free((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->bypass_pkt_count, pcb->moal_free_lock);
+	util_scalar_free((t_void *)pmadapter->pmoal_handle,
 			 &pmadapter->pending_bridge_pkts, pcb->moal_free_lock);
+
 	util_free_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->cmd_free_q,
 			    pmadapter->callbacks.moal_free_lock);

@@ -3634,6 +3634,9 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_get_hw_spec(pmpriv, cmd_ptr);
 		break;
 #ifdef SDIO
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		ret = wlan_cmd_sdio_rx_aggr_cfg(cmd_ptr, cmd_action, pdata_buf);
+		break;
 #endif
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_cmd_cfg_data(pmpriv, cmd_ptr, cmd_action, cmd_oid,

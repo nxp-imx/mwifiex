@@ -2940,8 +2940,8 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	ioctl_link_stats_buf = info->param.link_statistic;
 	num_radio = *((t_u32 *)info->param.link_statistic);
 
-	radio_stat = (wifi_radio_stat *)(info->param.link_statistic +
-					 sizeof(num_radio));
+	radio_stat =
+		(wifi_radio_stat *)(ioctl_link_stats_buf + sizeof(num_radio));
 	radio_stat_len = num_radio * sizeof(wifi_radio_stat);
 
 	/* Re-write on_time/tx_time/rx_time/on_time_scan from moal handle */
@@ -2977,8 +2977,9 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 		radio_stat_tmp++;
 	}
 
-	iface_stat = (wifi_iface_stat *)(info->param.link_statistic +
+	iface_stat = (wifi_iface_stat *)(ioctl_link_stats_buf +
 					 sizeof(num_radio) + radio_stat_len);
+
 	iface_stat_len = sizeof(wifi_iface_stat);
 
 	/* could get peer info with separate cmd */

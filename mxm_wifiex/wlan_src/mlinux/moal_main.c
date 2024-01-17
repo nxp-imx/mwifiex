@@ -119,6 +119,7 @@ static struct _card_info card_info_SD8801 = {
 	.scratch_reg = 0x60,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0,
 	.fw_reset_reg = 0x64,
 	.fw_reset_val = 0,
 	.fw_wakeup_reg = 0,
@@ -158,6 +159,7 @@ static struct _card_info card_info_SD8887 = {
 	.scratch_reg = 0x90,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0,
 	.fw_reset_reg = 0x0B6,
 	.fw_reset_val = 1,
 	.fw_wakeup_reg = 0,
@@ -197,6 +199,7 @@ static struct _card_info card_info_SD8897 = {
 	.scratch_reg = 0xc0,
 	.func1_reg_start = 0x04,
 	.func1_reg_end = 0x0b,
+	.fw_stuck_code_reg = 0,
 	.fw_reset_reg = 0x0E8,
 	.fw_reset_val = 1,
 	.fw_wakeup_reg = 0,
@@ -225,6 +228,7 @@ static struct _card_info card_info_PCIE8897 = {
 	.rev_id_reg = 0x0c58,
 	.fw_name = PCIE8897_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE8897_DEFAULT_WLAN_FW_NAME,
+	.fw_stuck_code_reg = 0,
 	.sniffer_support = 0,
 	.per_pkt_cfg_support = 0,
 	.host_mlme_required = 0,
@@ -280,6 +284,7 @@ static struct _card_info card_info_SD8977 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -322,6 +327,7 @@ static struct _card_info card_info_SD8978 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -364,6 +370,7 @@ static struct _card_info card_info_SD8997 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -407,6 +414,7 @@ static struct _card_info card_info_SD9098 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -450,6 +458,7 @@ static struct _card_info card_info_SD9097 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -493,6 +502,7 @@ static struct _card_info card_info_SDIW624 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -536,6 +546,7 @@ static struct _card_info card_info_SD9177 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -546,6 +557,47 @@ static struct _card_info card_info_SD9177 = {
 	.sniffer_support = 1,
 	.per_pkt_cfg_support = 1,
 	.host_mlme_required = 1,
+};
+#endif
+
+#ifdef SDIW615
+static struct _card_info card_info_SDIW615 = {
+	.embedded_supp = 1,
+	.drcs = 1,
+	.go_noa = 1,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.pmic = 1,
+	.cal_data_cfg = 0,
+	.low_power_enable = 0,
+	.rx_rate_max = 412,
+	.histogram_table_num = 3,
+	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
+	.rev_id_reg = 0xc8,
+	.host_strap_reg = 0xf4,
+	.magic_reg = 0xf0,
+	.fw_name = SDIW615_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SDIW615_DEFAULT_WLAN_FW_NAME,
+#ifdef SDIO
+	.dump_fw_info = DUMP_FW_SDIO_V3,
+	.dump_fw_ctrl_reg = 0xf9,
+	.dump_fw_start_reg = 0xf1,
+	.dump_fw_end_reg = 0xf8,
+	.dump_fw_host_ready = 0xcc,
+	.dump_reg.reg_table = {0x08, 0x58, 0x5C, 0x5D, 0x60, 0x61, 0x62, 0x64,
+			       0x65, 0x66, 0x68, 0x69, 0x6a},
+	.dump_reg.reg_table_size = 13,
+	.scratch_reg = 0xe8,
+	.func1_reg_start = 0x10,
+	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
+	.fw_reset_reg = 0x0EE,
+	.fw_reset_val = 0x99,
+	.slew_rate_reg = 0x90002328,
+	.slew_rate_bit_offset = 12,
+#endif
+	.sniffer_support = 1,
+	.per_pkt_cfg_support = 1,
 };
 #endif
 
@@ -566,6 +618,7 @@ static struct _card_info card_info_PCIE8997 = {
 	.magic_reg = 0x0cd4,
 	.fw_name = PCIE8997_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE8997_DEFAULT_WLAN_FW_NAME,
+	.fw_stuck_code_reg = 0xcf8,
 	.fw_reset_reg = 0xcf4,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0x0c48,
@@ -593,6 +646,7 @@ static struct _card_info card_info_PCIE9097 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9097_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9097_DEFAULT_WLAN_FW_NAME,
+	.fw_stuck_code_reg = 0x1c80,
 	.fw_reset_reg = 0x1c94,
 	.fw_reset_val = 0x98,
 	.fw_wakeup_reg = 0x0,
@@ -620,6 +674,7 @@ static struct _card_info card_info_PCIE9098 = {
 	.magic_reg = 0x1c74,
 	.fw_name = PCIE9098_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIE9098_DEFAULT_WLAN_FW_NAME,
+	.fw_stuck_code_reg = 0x1c98,
 	.fw_reset_reg = 0x1c94,
 	.fw_reset_val = 0x98,
 	.fw_wakeup_reg = 0x0,
@@ -648,6 +703,7 @@ static struct _card_info card_info_PCIEIW624 = {
 	.boot_mode_reg = 0x1c8c,
 	.fw_name = PCIEIW624_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = PCIEIW624_DEFAULT_WLAN_FW_NAME,
+	.fw_stuck_code_reg = 0x1c80,
 	.fw_reset_reg = 0x1c94,
 	.fw_reset_val = 0x98,
 	.fw_wakeup_reg = 0x0,
@@ -782,6 +838,26 @@ static struct _card_info card_info_USBIW624 = {
 };
 #endif
 
+#ifdef USBIW615
+static struct _card_info card_info_USBIW615 = {
+	.embedded_supp = 1,
+	.drcs = 1,
+	.go_noa = 1,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.pmic = 1,
+	.cal_data_cfg = 0,
+	.low_power_enable = 0,
+	.rx_rate_max = 412,
+	.feature_control = FEATURE_CTRL_DEFAULT,
+	.histogram_table_num = 3,
+	.fw_name = USBIW615_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = USBIW615_DEFAULT_WLAN_FW_NAME,
+	.sniffer_support = 1,
+	.per_pkt_cfg_support = 1,
+};
+#endif
+
 #ifdef SD8987
 static struct _card_info card_info_SD8987 = {
 	.embedded_supp = 1,
@@ -810,6 +886,7 @@ static struct _card_info card_info_SD8987 = {
 	.scratch_reg = 0xe8,
 	.func1_reg_start = 0x10,
 	.func1_reg_end = 0x17,
+	.fw_stuck_code_reg = 0xEB,
 	.fw_reset_reg = 0x0EE,
 	.fw_reset_val = 0x99,
 	.fw_wakeup_reg = 0,
@@ -1021,7 +1098,8 @@ void woal_clean_up(moal_handle *handle)
 				if (priv->host_mlme)
 					woal_deauth_event(
 						priv,
-						MLAN_REASON_DEAUTH_LEAVING);
+						MLAN_REASON_DEAUTH_LEAVING,
+						priv->cfg_bssid);
 				else
 #endif
 					cfg80211_disconnected(priv->netdev, 0,
@@ -1147,7 +1225,8 @@ static void woal_hang_work_queue(struct work_struct *work)
 				if (priv->host_mlme)
 					woal_deauth_event(
 						priv,
-						MLAN_REASON_DEAUTH_LEAVING);
+						MLAN_REASON_DEAUTH_LEAVING,
+						priv->cfg_bssid);
 				else
 #endif
 					cfg80211_disconnected(priv->netdev, 0,
@@ -2300,6 +2379,8 @@ mlan_status woal_init_sw(moal_handle *handle)
 #endif
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
+		device.sdio_rx_aggr_enable =
+			moal_extflg_isset(handle, EXT_SDIO_RX_AGGR);
 		device.int_mode = (t_u32)moal_extflg_isset(handle, EXT_INTMODE);
 		device.gpio_pin = (t_u32)handle->params.gpiopin;
 #ifdef SDIO_MMC
@@ -2651,9 +2732,11 @@ static t_u32 woal_set_sdio_slew_rate(moal_handle *handle)
 	if ((handle->card_info->slew_rate_reg != 0) &&
 	    (handle->params.slew_rate > 3 || handle->params.slew_rate < 0))
 		return MLAN_STATUS_FAILURE;
-#if defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177)
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SDIW615)
 	if (IS_SD9098(handle->card_type) || IS_SD9097(handle->card_type) ||
-	    IS_SDIW624(handle->card_type) || IS_SD9177(handle->card_type))
+	    IS_SDIW624(handle->card_type) || IS_SDIW615(handle->card_type) ||
+	    IS_SD9177(handle->card_type))
 		reg_type = MLAN_REG_CIU;
 #endif
 
@@ -4237,6 +4320,7 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 			    !IS_USB9098(handle->card_type) &&
 			    !IS_USB9097(handle->card_type) &&
 			    !IS_USBIW624(handle->card_type) &&
+			    !IS_USBIW615(handle->card_type) &&
 			    !IS_USB8978(handle->card_type))
 				ret = woal_reset_usb_dev(handle);
 			goto done;
@@ -6710,6 +6794,8 @@ void woal_tx_timeout(struct net_device *dev
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	t_u8 auto_fw_dump = MFALSE;
+	moal_handle *ref_handle = NULL;
+
 	ENTER();
 
 	priv->num_tx_timeout++;
@@ -6732,6 +6818,9 @@ void woal_tx_timeout(struct net_device *dev
 		woal_mlan_debug_info(priv);
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		priv->phandle->driver_status = MTRUE;
+		ref_handle = (moal_handle *)priv->phandle->pref_mac;
+		if (ref_handle)
+			ref_handle->driver_status = MTRUE;
 		if (!auto_fw_dump && !priv->phandle->fw_dump)
 			woal_process_hang(priv->phandle);
 
@@ -8727,6 +8816,11 @@ static int woal_get_card_info(moal_handle *phandle)
 		phandle->card_info = &card_info_SDIW624;
 		break;
 #endif
+#ifdef SDIW615
+	case CARD_TYPE_SDIW615:
+		phandle->card_info = &card_info_SDIW615;
+		break;
+#endif
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
 		phandle->card_info = &card_info_SD9177;
@@ -8783,6 +8877,11 @@ static int woal_get_card_info(moal_handle *phandle)
 #ifdef USBIW624
 	case CARD_TYPE_USBIW624:
 		phandle->card_info = &card_info_USBIW624;
+		break;
+#endif
+#ifdef USBIW615
+	case CARD_TYPE_USBIW615:
+		phandle->card_info = &card_info_USBIW615;
 		break;
 #endif
 #ifdef SD8987
@@ -9610,7 +9709,8 @@ t_void woal_send_disconnect_to_system(moal_private *priv,
 			   is not valid */
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (priv->host_mlme)
-				woal_deauth_event(priv, reason_code);
+				woal_deauth_event(priv, reason_code,
+						  priv->cfg_bssid);
 			else
 #endif
 				cfg80211_disconnected(priv->netdev, reason_code,
@@ -11320,6 +11420,7 @@ t_void woal_scan_timeout_handler(struct work_struct *work)
 	unsigned long flags;
 	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
 	t_u8 auto_fw_dump = MFALSE;
+	moal_handle *ref_handle = NULL;
 
 	ENTER();
 
@@ -11347,6 +11448,10 @@ t_void woal_scan_timeout_handler(struct work_struct *work)
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}
 			handle->driver_status = MTRUE;
+			ref_handle = (moal_handle *)handle->pref_mac;
+			if (ref_handle)
+				ref_handle->driver_status = MTRUE;
+
 			if (!auto_fw_dump && !handle->fw_dump && priv)
 				woal_process_hang(priv->phandle);
 			wifi_status = WIFI_STATUS_SCAN_TIMEOUT;
@@ -11426,8 +11531,9 @@ t_void woal_evt_work_queue(struct work_struct *work)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		case WOAL_EVENT_DEAUTH:
 			priv = evt->priv;
-			woal_host_mlme_disconnect(evt->priv, evt->reason_code,
-						  priv->cfg_bssid);
+			woal_host_mlme_disconnect(evt->priv,
+						  evt->deauth_info.reason_code,
+						  evt->deauth_info.mac_addr);
 			break;
 
 		case WOAL_EVENT_ASSOC_RESP:
@@ -11556,6 +11662,8 @@ static void woal_pcie_rx_data_task(unsigned long data)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	if (handle->cfg80211_suspend == MTRUE) {
+		mlan_process_pcie_interrupt_cb(handle->pmlan_adapter,
+					       RX_DATA_DELAY);
 		LEAVE();
 		return;
 	}
@@ -11622,6 +11730,8 @@ t_void woal_pcie_rx_work_queue(struct work_struct *work)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	if (handle->cfg80211_suspend == MTRUE) {
+		mlan_process_pcie_interrupt_cb(handle->pmlan_adapter,
+					       RX_DATA_DELAY);
 		LEAVE();
 		return;
 	}

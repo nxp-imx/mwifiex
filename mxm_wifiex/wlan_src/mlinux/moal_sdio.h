@@ -156,18 +156,26 @@ Change log:
 #ifdef SD9177
 #define SD9177_A0 0x00
 #define SD9177_A1 0x01
-#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
-#define SD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
-#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin"
-#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin"
-#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin"
-#define SDUART9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin"
-#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_v1.bin"
-#define SD9177_DEFAULT_WLAN_V1_FW_NAME "nxp/sd_w61x_v1.bin"
-#define SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME "nxp/sduart_nw61x_rftm_v1.bin"
-#define SDSD9177_DEFAULT_RFTM_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_rftm_v1.bin"
-#define SD9177_DEFAULT_RFTM_WLAN_V1_FW_NAME "nxp/sd_w61x_rftm_v1.bin"
+#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin.se"
+#define SD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin.se"
+#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin.se"
+#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin.se"
+#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin.se"
+#define SDUART9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin.se"
+#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_v1.bin.se"
+#define SD9177_DEFAULT_WLAN_V1_FW_NAME "nxp/sd_w61x_v1.bin.se"
+#define SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME                               \
+	"nxp/sduart_nw61x_rftm_v1.bin.se"
+#define SDSD9177_DEFAULT_RFTM_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_rftm_v1.bin.se"
+#define SD9177_DEFAULT_RFTM_WLAN_V1_FW_NAME "nxp/sd_w61x_rftm_v1.bin.se"
 #endif /* SD9177 */
+
+#ifdef SDIW615
+#define SDIW615_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw615_combo.bin"
+#define SDUARTIW615_COMBO_FW_NAME "nxp/sduartiw615_combo.bin"
+#define SDSDIW615_COMBO_FW_NAME "sdsdiw615_combo.bin"
+#define SDIW615_DEFAULT_WLAN_FW_NAME "nxp/sdiw615_wlan.bin"
+#endif /* SDIW615 */
 
 /********************************************************
 		Global Functions

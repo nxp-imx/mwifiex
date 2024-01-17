@@ -380,13 +380,14 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
 
 	if (pmbuf->buf_type != MLAN_BUF_TYPE_RAW_DATA)
 		pmbuf->buf_type = MLAN_BUF_TYPE_DATA;
-	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
-					    priv->bypass_txq.plock);
-	pmadapter->bypass_pkt_count++;
+	util_scalar_increment(pmadapter->pmoal_handle,
+			      &pmadapter->bypass_pkt_count,
+			      pmadapter->callbacks.moal_spin_lock,
+			      pmadapter->callbacks.moal_spin_unlock);
 	util_enqueue_list_tail(pmadapter->pmoal_handle, &priv->bypass_txq,
-			       (pmlan_linked_list)pmbuf, MNULL, MNULL);
-	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
-					      priv->bypass_txq.plock);
+			       (pmlan_linked_list)pmbuf,
+			       pmadapter->callbacks.moal_spin_lock,
+			       pmadapter->callbacks.moal_spin_unlock);
 	LEAVE();
 }
 
@@ -399,6 +400,7 @@ t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
  */
 INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 {
+	t_u32 bypass_pkt_count;
 #if defined(USB)
 	if (IS_USB(pmadapter->card_type)) {
 		pmlan_callbacks pcb = &pmadapter->callbacks;
@@ -418,9 +420,14 @@ INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 			}
 		}
 		return MTRUE;
-	} else
+	}
 #endif
-		return (pmadapter->bypass_pkt_count) ? MFALSE : MTRUE;
+	bypass_pkt_count =
+		util_scalar_read(pmadapter->pmoal_handle,
+				 &pmadapter->bypass_pkt_count,
+				 pmadapter->callbacks.moal_spin_lock,
+				 pmadapter->callbacks.moal_spin_unlock);
+	return (bypass_pkt_count) ? MFALSE : MTRUE;
 }
 
 /**
@@ -443,7 +450,10 @@ t_void wlan_cleanup_bypass_txq(mlan_private *priv)
 		util_unlink_list(pmadapter->pmoal_handle, &priv->bypass_txq,
 				 (pmlan_linked_list)pmbuf, MNULL, MNULL);
 		wlan_write_data_complete(pmadapter, pmbuf, MLAN_STATUS_FAILURE);
-		pmadapter->bypass_pkt_count--;
+		util_scalar_decrement(pmadapter->pmoal_handle,
+				      &pmadapter->bypass_pkt_count,
+				      pmadapter->callbacks.moal_spin_lock,
+				      pmadapter->callbacks.moal_spin_unlock);
 	}
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 					      priv->bypass_txq.plock);
@@ -480,13 +490,13 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 					pmadapter->callbacks.moal_spin_lock,
 					pmadapter->callbacks.moal_spin_unlock);
 				if (pmbuf) {
-					pmadapter->callbacks.moal_spin_lock(
+					util_scalar_decrement(
 						pmadapter->pmoal_handle,
-						priv->bypass_txq.plock);
-					pmadapter->bypass_pkt_count--;
-					pmadapter->callbacks.moal_spin_unlock(
-						pmadapter->pmoal_handle,
-						priv->bypass_txq.plock);
+						&pmadapter->bypass_pkt_count,
+						pmadapter->callbacks
+							.moal_spin_lock,
+						pmadapter->callbacks
+							.moal_spin_unlock);
 					PRINTM(MINFO,
 					       "Dequeuing bypassed packet %p\n",
 					       pmbuf);
@@ -504,10 +514,14 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 						/* Queue the packet again so
 						 * that it will be TX'ed later
 						 */
-						pmadapter->callbacks.moal_spin_lock(
+						util_scalar_increment(
 							pmadapter->pmoal_handle,
-							priv->bypass_txq.plock);
-						pmadapter->bypass_pkt_count++;
+							&pmadapter->bypass_pkt_count,
+							pmadapter->callbacks
+								.moal_spin_lock,
+							pmadapter->callbacks
+								.moal_spin_unlock);
+
 						util_enqueue_list_head(
 							pmadapter->pmoal_handle,
 							&priv->bypass_txq,
@@ -516,9 +530,6 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 								.moal_spin_lock,
 							pmadapter->callbacks
 								.moal_spin_unlock);
-						pmadapter->callbacks.moal_spin_unlock(
-							pmadapter->pmoal_handle,
-							priv->bypass_txq.plock);
 					}
 					break;
 				} else {

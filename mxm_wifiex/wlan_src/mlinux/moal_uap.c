@@ -4609,11 +4609,12 @@ int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 {
 	int ret = 0;
 	ENTER();
-
+#if 0
 #ifdef CONFIG_COMPAT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	if (in_compat_syscall()) /* not implemented yet */
 		return -EOPNOTSUPP;
+#endif
 #endif
 #endif
 

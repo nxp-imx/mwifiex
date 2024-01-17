@@ -110,6 +110,17 @@ static const struct _mlan_card_info mlan_card_info_usbIW624 = {
 };
 #endif
 
+#ifdef USBIW615
+static const struct _mlan_card_info mlan_card_info_usbIW615 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 1,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -492,11 +503,11 @@ static int wlan_usb_deaggr_rx_num_pkts(pmlan_adapter pmadapter, t_u8 *pdata,
 static inline t_u32 usb_tx_aggr_pad_len(t_u32 len,
 					usb_tx_aggr_params *pusb_tx_aggr)
 {
-	return (t_u32)(
-		(len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
-			(len + (pusb_tx_aggr->aggr_ctrl.aggr_align -
-				(len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
-			len);
+	return (t_u32)((len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
+			       (len +
+				(pusb_tx_aggr->aggr_ctrl.aggr_align -
+				 (len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
+			       len);
 }
 
 /**
@@ -815,6 +826,11 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 #ifdef USBIW624
 	case CARD_TYPE_USBIW624:
 		pmadapter->pcard_info = &mlan_card_info_usbIW624;
+		break;
+#endif
+#ifdef USBIW615
+	case CARD_TYPE_USBIW615:
+		pmadapter->pcard_info = &mlan_card_info_usbIW615;
 		break;
 #endif
 	default:

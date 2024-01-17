@@ -265,6 +265,10 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 			pmadapter->dbg.num_remain_chan_err++;
 		break;
 #ifdef SDIO
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		pmadapter->pcard_sd->sdio_rx_aggr_enable = MFALSE;
+		PRINTM(MMSG, "FW don't support SDIO single port rx aggr\n");
+		break;
 #endif
 
 	case HostCmd_CMD_MGMT_IE_LIST: {
@@ -3178,6 +3182,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_get_hw_spec(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef SDIO
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		ret = wlan_ret_sdio_rx_aggr_cfg(pmpriv, resp);
+		break;
 #endif
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_ret_cfg_data(pmpriv, resp, pioctl_buf);
@@ -3261,7 +3268,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_DEAUTHENTICATE:
 	case HostCmd_CMD_802_11_DISASSOCIATE:
 		ret = wlan_ret_802_11_deauthenticate(pmpriv, resp, pioctl_buf);
-		break;
 		break;
 	case HostCmd_CMD_802_11_GET_LOG:
 		ret = wlan_ret_get_log(pmpriv, resp, pioctl_buf);
@@ -3407,7 +3413,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_WMM_PARAM_CONFIG:
 		ret = wlan_ret_wmm_param_config(pmpriv, resp, pioctl_buf);
-		break;
 		break;
 	case HostCmd_CMD_MGMT_IE_LIST:
 		ret = wlan_ret_mgmt_ie_list(pmpriv, resp, pioctl_buf);

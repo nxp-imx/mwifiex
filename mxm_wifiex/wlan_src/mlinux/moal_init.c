@@ -292,6 +292,7 @@ static int indrstcfg = 0xffffffff;
 #define DEFAULT_DEV_CAP_MASK 0xffffffff
 static t_u32 dev_cap_mask = DEFAULT_DEV_CAP_MASK;
 #ifdef SDIO
+static int sdio_rx_aggr = MTRUE;
 #endif
 
 /** The global variable of scan beacon buffer **/
@@ -364,6 +365,9 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef SDIW624
 	{CARD_TYPE_SDIW624, 0, CARD_SDIW624},
 #endif
+#ifdef SDIW615
+	{CARD_TYPE_SDIW615, 0, CARD_SDIW615},
+#endif
 #ifdef PCIE8897
 	{CARD_TYPE_PCIE8897, 0, CARD_PCIE8897},
 #endif
@@ -401,7 +405,9 @@ static card_type_entry card_type_map_tbl[] = {
 #ifdef USBIW624
 	{CARD_TYPE_USBIW624, 0, CARD_USBIW624},
 #endif
-
+#ifdef USBIW615
+	{CARD_TYPE_USBIW615, 0, CARD_USBIW615},
+#endif
 };
 
 static int dfs53cfg = DFS_W53_DEFAULT_FW;
@@ -1109,6 +1115,20 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "dev_cap_mask=%d\n", params->dev_cap_mask);
 		}
 #ifdef SDIO
+		else if (strncmp(line, "sdio_rx_aggr",
+				 strlen("sdio_rx_aggr")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_SDIO_RX_AGGR);
+			else
+				moal_extflg_clear(handle, EXT_SDIO_RX_AGGR);
+			PRINTM(MMSG, "sdio_rx_aggr %s\n",
+			       moal_extflg_isset(handle, EXT_SDIO_RX_AGGR) ?
+				       "on" :
+				       "off");
+		}
 #endif
 		else if (strncmp(line, "pmic", strlen("pmic")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1755,6 +1775,8 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.dev_cap_mask = params->dev_cap_mask;
 #ifdef SDIO
+	if (sdio_rx_aggr)
+		moal_extflg_set(handle, EXT_SDIO_RX_AGGR);
 #endif
 	if (pmic)
 		moal_extflg_set(handle, EXT_PMIC);
@@ -2842,6 +2864,9 @@ MODULE_PARM_DESC(
 	"0: buf copy in amsud deaggregation; 1: avoid buf copy in amsud deaggregation (default)");
 
 #ifdef SDIO
+module_param(sdio_rx_aggr, int, 0);
+MODULE_PARM_DESC(sdio_rx_aggr,
+		 "1: Enable SDIO rx aggr; 0: Disable SDIO rx aggr");
 #endif
 
 module_param(pmic, int, 0);

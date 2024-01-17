@@ -2174,6 +2174,7 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 #endif
 
 	priv->cfg_disconnect = MFALSE;
+	priv->delay_deauth_notify = MFALSE;
 #ifdef UAP_CFG80211
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 		PRINTM(MERROR, "ERR: Role is AP\n");
@@ -5512,12 +5513,9 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (priv->host_mlme) {
-		priv->host_mlme = MFALSE;
-		priv->auth_flag = 0;
-		priv->auth_alg = 0xFFFF;
-		/*send deauth packet to notify disconnection to wpa_supplicant
-		 */
-		woal_deauth_event(priv, req->reason_code);
+		priv->delay_deauth_notify = MTRUE;
+		moal_memcpy_ext(priv->phandle, priv->bssid_notify, req->bssid,
+				MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	}
 #endif
 
@@ -5560,12 +5558,15 @@ static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (priv->host_mlme) {
-		priv->host_mlme = MFALSE;
-		priv->auth_flag = 0;
-		priv->auth_alg = 0xFFFF;
-		/*send deauth packet to notify disconnection to wpa_supplicant
-		 */
-		woal_deauth_event(priv, req->reason_code);
+		priv->delay_deauth_notify = MTRUE;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+		moal_memcpy_ext(priv->phandle, priv->bssid_notify, req->ap_addr,
+				MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+#else
+		moal_memcpy_ext(priv->phandle, priv->bssid_notify,
+				req->bss->bssid, MLAN_MAC_ADDR_LENGTH,
+				MLAN_MAC_ADDR_LENGTH);
+#endif
 	}
 #endif
 
@@ -6842,7 +6843,20 @@ int woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 
 	handle->cfg80211_suspend = MTRUE;
 	if (!wow) {
-		PRINTM(MERROR, "None of the WOWLAN triggers enabled\n");
+		PRINTM(MEVENT,
+		       "None of the WOWLAN triggers enabled in suspend\n");
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		if (priv->delay_deauth_notify) {
+			priv->delay_deauth_notify = MFALSE;
+			priv->host_mlme = MFALSE;
+			priv->auth_flag = 0;
+			priv->auth_alg = 0xFFFF;
+			/*send deauth packet to notify disconnection to
+			 * wpa_supplicant */
+			woal_deauth_event(priv, MLAN_REASON_DEAUTH_LEAVING,
+					  priv->bssid_notify);
+		}
+#endif
 		ret = 0;
 		goto done;
 	}
@@ -7923,20 +7937,30 @@ static int woal_send_tdls_action_frame(struct wiphy *wiphy,
 	t_u16 pkt_len;
 	t_u16 packet_len;
 	int ret = 0;
+	t_u16 buf_size = 0;
 
 	ENTER();
 
 #define HEADER_SIZE 8 /* pkt_type + tx_control */
 
-	pmbuf = woal_alloc_mlan_buffer(
-		priv->phandle,
-		((int)((MLAN_MIN_DATA_HEADER_LEN + HEADER_SIZE +
-			sizeof(pkt_len) +
+	woal_secure_add(&buf_size, MLAN_MIN_DATA_HEADER_LEN, &buf_size,
+			TYPE_UINT32);
+	woal_secure_add(&buf_size, HEADER_SIZE, &buf_size, TYPE_UINT32);
+	woal_secure_add(&buf_size, sizeof(pkt_len), &buf_size, TYPE_UINT32);
+	woal_secure_add(&buf_size,
 			max(sizeof(struct ieee80211_mgmt),
-			    sizeof(struct ieee80211_tdls_data))) +
-		       50 + /* supported rates */
-		       sizeof(IEEEtypes_ExtCap_t) + /* ext capab */
-		       extra_ies_len + sizeof(IEEEtypes_tdls_linkie))));
+			    sizeof(struct ieee80211_tdls_data)),
+			&buf_size, TYPE_UINT32);
+	/* supported rates */
+	woal_secure_add(&buf_size, 50, &buf_size, TYPE_UINT32);
+	/* ext capab */
+	woal_secure_add(&buf_size, sizeof(IEEEtypes_ExtCap_t), &buf_size,
+			TYPE_UINT32);
+	woal_secure_add(&buf_size, extra_ies_len, &buf_size, TYPE_UINT32);
+	woal_secure_add(&buf_size, sizeof(IEEEtypes_tdls_linkie), &buf_size,
+			TYPE_UINT32);
+	pmbuf = woal_alloc_mlan_buffer(priv->phandle, buf_size);
+
 	if (!pmbuf) {
 		PRINTM(MERROR, "Fail to allocate mlan_buffer\n");
 		ret = -ENOMEM;
@@ -9620,8 +9644,8 @@ void woal_host_mlme_disconnect(moal_private *priv, u16 reason_code, u8 *sa)
 		moal_memcpy_ext(priv->phandle, mgmt->sa,
 				priv->sme_current.bssid, ETH_ALEN,
 				sizeof(mgmt->sa));
-		moal_memcpy_ext(priv->phandle, mgmt->bssid, priv->cfg_bssid,
-				ETH_ALEN, sizeof(mgmt->bssid));
+		moal_memcpy_ext(priv->phandle, mgmt->bssid, sa, ETH_ALEN,
+				sizeof(mgmt->bssid));
 		priv->host_mlme = MFALSE;
 		priv->auth_flag = 0;
 	} else {

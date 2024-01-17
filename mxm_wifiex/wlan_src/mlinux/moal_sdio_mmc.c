@@ -96,6 +96,10 @@ static moal_if_ops sdiommc_ops;
 /** Device ID for SDIW624 */
 #define SD_DEVICE_ID_IW624 (0x020D)
 #endif
+#ifdef SDIW615
+/** Device ID for SDIW615 */
+#define SD_DEVICE_ID_IW615 (0x020D)
+#endif
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
@@ -132,6 +136,9 @@ static const struct sdio_device_id wlan_ids[] = {
 #endif
 #ifdef SDIW624
 	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_IW624)},
+#endif
+#ifdef SDIW615
+	{SDIO_DEVICE(NXP_VENDOR_ID, SD_DEVICE_ID_IW615)},
 #endif
 	{},
 };
@@ -453,6 +460,20 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_SD9177;
 		moal_memcpy_ext(NULL, driver_version, CARD_SD9177,
 				strlen(CARD_SD9177), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL,
+			driver_version + strlen(INTF_CARDTYPE) +
+				strlen(KERN_VERSION),
+			V18, strlen(V18),
+			strlen(driver_version) -
+				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
+	}
+#endif
+#ifdef SDIW615
+	if (cardp_sd->func->device == SD_DEVICE_ID_IW615) {
+		card_type = CARD_TYPE_SDIW615;
+		moal_memcpy_ext(NULL, driver_version, CARD_SDIW615,
+				strlen(CARD_SDIW615), strlen(driver_version));
 		moal_memcpy_ext(
 			NULL,
 			driver_version + strlen(INTF_CARDTYPE) +
@@ -1444,7 +1465,7 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
 	defined(SD9097) || defined(SDIW624) || defined(SD8978) ||              \
-	defined(SD9177)
+	defined(SD9177) || defined(SDIW615)
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 magic = 0;
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
@@ -1465,7 +1486,7 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 
 #if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
 	defined(SD9097) || defined(SDIW624) || defined(SD8978) ||              \
-	defined(SD9177)
+	defined(SD9177) || defined(SDIW615)
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, magic_reg, &magic);
 	/** Revision ID register */
@@ -1715,6 +1736,19 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			break;
 		default:
 			break;
+		}
+	}
+#endif
+
+#ifdef SDIW615
+	if (IS_SDIW615(handle->card_type)) {
+		if (magic == CHIP_MAGIC_VALUE) {
+			if (strap == CARD_TYPE_SD_UART)
+				strcpy(handle->card_info->fw_name,
+				       SDUARTIW615_COMBO_FW_NAME);
+			else
+				strcpy(handle->card_info->fw_name,
+				       SDSDIW615_COMBO_FW_NAME);
 		}
 	}
 #endif
@@ -2571,6 +2605,15 @@ static void woal_sdiommc_reg_dbg(moal_handle *phandle)
 	char buf[256], *ptr;
 
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
+
+	reg = phandle->card_info->fw_stuck_code_reg;
+	if (reg != 0) {
+		ret = woal_sdio_readb(phandle, reg, &data);
+		if (!ret && data) {
+			PRINTM(MERROR, "FW in debug mode (0x%x)\n", data);
+		}
+	}
+
 	for (loop = 0; loop < 5; loop++) {
 		memset(buf, 0, sizeof(buf));
 		ptr = buf;
@@ -2715,6 +2758,16 @@ static int woal_sdiommc_dump_reg_info(moal_handle *phandle, t_u8 *drv_buf)
 	reg_table_size = phandle->card_info->dump_reg.reg_table_size;
 
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
+
+	reg = phandle->card_info->fw_stuck_code_reg;
+	if (reg != 0) {
+		ret = woal_sdio_readb(phandle, reg, &data);
+		if (!ret && data) {
+			PRINTM(MERROR, "FW in debug mode (0x%x)\n", data);
+			drv_ptr += snprintf(drv_ptr, MAX_BUF_LEN,
+					    "FW in debug mode (0x%x)\n", data);
+		}
+	}
 
 	drv_ptr += snprintf(drv_ptr, MAX_BUF_LEN,
 			    "--------sdio_reg_debug_info---------\n");
@@ -2875,10 +2928,11 @@ static int woal_sdiommc_reset_fw(moal_handle *handle)
 		ret = -EFAULT;
 		goto done;
 	}
-#if defined(SD9098) || defined(SD9097) || defined(SDIW624) || defined(SD9177)
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SDIW615)
 	if (IS_SD9098(handle->card_type) || IS_SD9097(handle->card_type) ||
 	    IS_SDIW624(handle->card_type) || IS_SD9177(handle->card_type) ||
-	    IS_SDAW693(handle->card_type))
+	    IS_SDIW615(handle->card_type) || IS_SDAW693(handle->card_type))
 		handle->ops.write_reg(handle, 0x00, 0x10);
 #endif
 	/* Poll register around 100 ms */

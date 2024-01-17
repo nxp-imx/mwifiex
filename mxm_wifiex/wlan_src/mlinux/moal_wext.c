@@ -3156,8 +3156,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 
 			while ((unsigned int)beacon_size >=
 			       sizeof(IEEEtypes_Header_t)) {
-				element_id = (IEEEtypes_ElementId_e)(
-					*(t_u8 *)pbeacon);
+				element_id = (IEEEtypes_ElementId_e)(*(
+					t_u8 *)pbeacon);
 				element_len = *((t_u8 *)pbeacon + 1);
 				if ((unsigned int)beacon_size <
 				    (unsigned int)element_len +

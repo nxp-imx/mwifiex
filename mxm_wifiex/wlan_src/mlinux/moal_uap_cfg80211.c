@@ -3452,9 +3452,9 @@ int woal_uap_cfg80211_dump_station(struct wiphy *wiphy, struct net_device *dev,
 	if (info->param.sta_list.info[idx].stats.last_rx_in_msec) {
 		moal_get_system_time(priv->phandle, &sec, &usec);
 		cur_msec = (t_u64)sec * 1000 + (t_u64)usec / 1000;
-		sinfo->inactive_time = (t_u32)(
-			cur_msec -
-			info->param.sta_list.info[idx].stats.last_rx_in_msec);
+		sinfo->inactive_time =
+			(t_u32)(cur_msec - info->param.sta_list.info[idx]
+						   .stats.last_rx_in_msec);
 		PRINTM(MIOCTL,
 		       "cur:%llu - [%d].last_rx:%llu = inactive_time:%d\n",
 		       cur_msec, idx,

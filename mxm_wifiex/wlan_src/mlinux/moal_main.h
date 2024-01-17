@@ -398,11 +398,13 @@ typedef enum _MOAL_HARDWARE_STATUS {
 enum { MOAL_NO_WAIT, MOAL_IOCTL_WAIT, MOAL_IOCTL_WAIT_TIMEOUT };
 
 /** moal_main_state */
-enum { MOAL_STATE_IDLE,
-       MOAL_RECV_INT,
-       MOAL_ENTER_WORK_QUEUE,
-       MOAL_START_MAIN_PROCESS,
-       MOAL_END_MAIN_PROCESS };
+enum {
+	MOAL_STATE_IDLE,
+	MOAL_RECV_INT,
+	MOAL_ENTER_WORK_QUEUE,
+	MOAL_START_MAIN_PROCESS,
+	MOAL_END_MAIN_PROCESS
+};
 
 /** HostCmd_Header */
 typedef struct _HostCmd_Header {
@@ -1224,7 +1226,7 @@ struct woal_event {
 		chan_band_info chan_info;
 		woal_evt_buf evt;
 		mlan_ds_assoc_info assoc_info;
-		int reason_code;
+		mlan_deauth_param deauth_info;
 		chan_radar_info radar_info;
 	};
 };
@@ -1667,7 +1669,7 @@ struct _moal_private {
 #endif
 #ifdef STA_CFG80211
 #ifdef STA_SUPPORT
-	/** CFG80211 association description */
+	/** CFG80211 association bssid  */
 	t_u8 cfg_bssid[ETH_ALEN];
 	/** Disconnect request from CFG80211 */
 	bool cfg_disconnect;
@@ -1728,6 +1730,10 @@ struct _moal_private {
 	t_u8 auth_tx_cnt;
 	/** deauth evt cnt */
 	t_u8 deauth_evt_cnt;
+	/** delay deauth event */
+	t_u8 delay_deauth_notify;
+	/** notify bssid */
+	t_u8 bssid_notify[ETH_ALEN];
 #endif
 #ifdef CONFIG_PROC_FS
 	/** Proc entry */
@@ -1933,6 +1939,7 @@ typedef struct _card_info {
 	t_u8 slew_rate_bit_offset;
 #endif
 #if defined(SDIO) || defined(PCIE)
+	t_u32 fw_stuck_code_reg;
 	t_u32 fw_reset_reg;
 	t_u8 fw_reset_val;
 	t_u32 fw_wakeup_reg;
@@ -2176,7 +2183,8 @@ extern t_u8 ru_signal_52[9];
 				y = (y + 1) - TONE_MAX_USERS_242;                 \
 			} else {                                                  \
 				tone = (y == 2) ? RU_TONE_106 :                   \
-						  (y == 1) ? 0 : RU_TONE_106;     \
+				       (y == 1) ? 0 :                             \
+						  RU_TONE_106;                    \
 			}                                                         \
 		} else if (x == RU_40_242_TONE) {                                 \
 			if (!y) {                                                 \
@@ -2377,6 +2385,7 @@ enum ext_mod_params {
 	EXT_AGGR_CTRL,
 	EXT_LOW_PW_MODE,
 #ifdef SDIO
+	EXT_SDIO_RX_AGGR,
 #endif
 	EXT_PMIC,
 	EXT_DISCONNECT_ON_SUSPEND,

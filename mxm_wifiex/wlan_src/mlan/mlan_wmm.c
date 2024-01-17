@@ -2296,11 +2296,11 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 		case TLV_TYPE_WMMQSTATUS:
 			ptlv_wmm_q_status =
 				(MrvlIEtypes_WmmQueueStatus_t *)ptlv_hdr;
-			PRINTM(MEVENT, "WMM_STATUS: QSTATUS TLV: %d\n",
+			PRINTM(MEVENT, "WMM_STATUS: QSTATUS TLV: %u\n",
 			       ptlv_wmm_q_status->queue_index);
 
 			PRINTM(MINFO,
-			       "CMD_RESP: WMM_GET_STATUS: QSTATUS TLV: %d, %d, %d\n",
+			       "CMD_RESP: WMM_GET_STATUS: QSTATUS TLV: %u, %d, %d\n",
 			       ptlv_wmm_q_status->queue_index,
 			       ptlv_wmm_q_status->flow_required,
 			       ptlv_wmm_q_status->disabled);
@@ -2309,15 +2309,17 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 			 * bounds */
 			ptlv_wmm_q_status->queue_index = MIN(
 				ptlv_wmm_q_status->queue_index, MAX_AC_QUEUES);
-
-			pac_status =
-				&priv->wmm.ac_status[ptlv_wmm_q_status
-							     ->queue_index];
-			pac_status->disabled = ptlv_wmm_q_status->disabled;
-			pac_status->flow_required =
-				ptlv_wmm_q_status->flow_required;
-			pac_status->flow_created =
-				ptlv_wmm_q_status->flow_created;
+			if (ptlv_wmm_q_status->queue_index < MAX_AC_QUEUES) {
+				pac_status =
+					&priv->wmm.ac_status
+						 [ptlv_wmm_q_status->queue_index];
+				pac_status->disabled =
+					ptlv_wmm_q_status->disabled;
+				pac_status->flow_required =
+					ptlv_wmm_q_status->flow_required;
+				pac_status->flow_created =
+					ptlv_wmm_q_status->flow_created;
+			}
 			break;
 
 		case TLV_TYPE_VENDOR_SPECIFIC_IE: /* WMM_IE */

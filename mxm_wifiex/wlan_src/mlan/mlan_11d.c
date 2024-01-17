@@ -954,9 +954,9 @@ mlan_status wlan_ret_802_11d_domain_info(mlan_private *pmpriv,
 	/* Dump domain info response data */
 	HEXDUMP("11D: DOMAIN Info Rsp Data", (t_u8 *)resp, resp->size);
 
-	no_of_sub_band = (t_u8)(
-		(wlan_le16_to_cpu(domain->header.len) - COUNTRY_CODE_LEN) /
-		sizeof(IEEEtypes_SubbandSet_t));
+	no_of_sub_band = (t_u8)((wlan_le16_to_cpu(domain->header.len) -
+				 COUNTRY_CODE_LEN) /
+				sizeof(IEEEtypes_SubbandSet_t));
 
 	PRINTM(MINFO, "11D Domain Info Resp: number of sub-band=%d\n",
 	       no_of_sub_band);

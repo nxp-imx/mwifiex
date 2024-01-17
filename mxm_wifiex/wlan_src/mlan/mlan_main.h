@@ -558,11 +558,20 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 /** Type vdll */
 #define MLAN_TYPE_VDLL 4
 #ifdef SDIO
+/** Type single port aggr data */
+#define MLAN_TYPE_SPA_DATA 10
+/** OFFSET of 512 block number */
+#define OFFSET_OF_BLOCK_NUMBER 15
+/** OFFSET of SDIO Header */
+#define OFFSET_OF_SDIO_HEADER 28
+/** sdio max rx size for cmd53, 255 * 256, reserve 1 block for DMA alignment */
+#define SDIO_CMD53_MAX_SIZE 65280
 #define MAX_SUPPORT_AMSDU_SIZE 4096
 /** Maximum numbfer of registers to read for multiple port */
 #if defined(SD8887) || defined(SD8997) || defined(SD8977) ||                   \
 	defined(SD8987) || defined(SD9098) || defined(SD9097) ||               \
-	defined(SDIW624) || defined(SD8978) || defined(SD9177)
+	defined(SDIW624) || defined(SD8978) || defined(SD9177) ||              \
+	defined(SDIW615)
 #define MAX_MP_REGS 196
 #else
 /* upto 0xB7 */
@@ -2093,6 +2102,10 @@ typedef struct _mlan_sdio_card {
 	/** GPIO interrupt pin number */
 	t_u32 gpio_pin;
 
+	/** flag for sdio rx aggr */
+	t_bool sdio_rx_aggr_enable;
+	/** fw rx block size */
+	t_u16 sdio_rx_block_size;
 } mlan_sdio_card, *pmlan_sdio_card;
 #endif
 
@@ -2362,7 +2375,9 @@ struct _mlan_adapter {
 	/** pcie cmd_dnld_int flag */
 	t_u8 pcie_cmd_dnld_int;
 	/** more_tx_task_flag */
-	t_u32 more_tx_task_flag;
+	t_u8 more_tx_task_flag;
+	/** more event flag */
+	t_u8 more_event_flag;
 	/** tx data lock to synchronize send_data and send_data_complete */
 	t_void *pmlan_tx_lock;
 	/** event lock to synchronize process_event and event_ready */
@@ -2827,7 +2842,7 @@ struct _mlan_adapter {
 	/** management frame wakeup filter config */
 	mlan_mgmt_frame_wakeup mgmt_filter[MAX_MGMT_FRAME_FILTER];
 	/** Bypass TX queue pkt count  */
-	t_u32 bypass_pkt_count;
+	mlan_scalar bypass_pkt_count;
 #ifdef STA_SUPPORT
 	/** warm-reset IOCTL request buffer pointer */
 	pmlan_ioctl_req pwarm_reset_ioctl_req;
@@ -2914,8 +2929,15 @@ struct _mlan_adapter {
 #define MLAN_ETHER_PKT_TYPE_ARP (0x0806)
 /** Ethernet packet type for WAPI */
 #define MLAN_ETHER_PKT_TYPE_WAPI (0x88B4)
+/** Ethernet packet type for IP */
+#define MLAN_ETHER_PKT_TYPE_IP (0x0800)
 /** Ethernet packet type offset */
 #define MLAN_ETHER_PKT_TYPE_OFFSET (12)
+
+/** IP packet Protocol number for ICMP */
+#define MLAN_IP_PROTOCOL_ICMP (0x01)
+/** IP packet Protocol number offset */
+#define MLAN_IP_PROTOCOL_OFFSET (11)
 
 /** Rx packet Sniffer Operation Mode
  *
@@ -3998,6 +4020,10 @@ mlan_status wlan_cmd_get_hw_spec(pmlan_private pmpriv,
 mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				 t_void *pioctl_buf);
 #ifdef SDIO
+mlan_status wlan_cmd_sdio_rx_aggr_cfg(HostCmd_DS_COMMAND *pcmd,
+				      t_u16 cmd_action, t_void *pdata_buf);
+mlan_status wlan_ret_sdio_rx_aggr_cfg(pmlan_private pmpriv,
+				      HostCmd_DS_COMMAND *resp);
 #endif
 
 mlan_status wlan_misc_ioctl_mac_control(pmlan_adapter pmadapter,

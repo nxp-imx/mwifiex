@@ -2410,6 +2410,8 @@ typedef struct _mlan_debug_info {
 	t_u32 last_int_status;
 	/** number of interrupt receive */
 	t_u32 num_of_irq;
+	/** flag for sdio rx aggr */
+	t_u8 sdio_rx_aggr;
 	/** FW update port number */
 	t_u32 mp_update[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX * 2];
 	/** Invalid port update count */
@@ -4280,12 +4282,13 @@ enum _mlan_reg_type {
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
 	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097) ||          \
-	defined(SD9177)
+	defined(SD9177) || defined(SDIW615) || defined(USBIW615)
 	MLAN_REG_CIU = 8,
 #endif
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
-	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097) ||          \
+	defined(SDIW615) || defined(USBIW615)
 	MLAN_REG_MAC2 = 0x81,
 	MLAN_REG_BBP2 = 0x82,
 	MLAN_REG_RF2 = 0x83,
@@ -6122,7 +6125,7 @@ typedef struct _mlan_ds_stats {
 	/** tlv len */
 	t_u16 tlv_len;
 	/** TLV buffer */
-	t_u8 tlv_buf[1];
+	t_u8 tlv_buf[];
 } mlan_ds_stats;
 
 typedef struct _mlan_ds_ch_load {

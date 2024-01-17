@@ -672,6 +672,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 			handle->driver_status = MTRUE;
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
+			ref_handle->driver_status = MTRUE;
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
 				ref_handle->fw_dump_status = MTRUE;

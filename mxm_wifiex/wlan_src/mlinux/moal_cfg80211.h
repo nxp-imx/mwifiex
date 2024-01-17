@@ -513,7 +513,7 @@ void woal_cfg80211_notify_antcfg(moal_private *priv, struct wiphy *wiphy,
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-void woal_deauth_event(moal_private *priv, int reason_code);
+void woal_deauth_event(moal_private *priv, int reason_code, u8 *bssid);
 #endif
 
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
