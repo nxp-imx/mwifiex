@@ -520,7 +520,7 @@ static mlan_status wlan_cmd_mfg_he_tb_tx(pmlan_private pmpriv, HostCmd_DS_COMMAN
  *  @return             MLAN_STATUS_SUCCESS
  */
 
-mlan_status wlan_cmd_mfg_otp_rw(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+static mlan_status wlan_cmd_mfg_otp_rw(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				t_u16 action, t_void *pdata_buf)
 {
 	mfg_cmd_otp_mac_addr_rd_wr_t *mcmd =
