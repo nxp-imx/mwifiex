@@ -485,13 +485,14 @@ static int woal_get_bss_mode(struct net_device *dev,
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
-			   struct iw_point *dwrq, char *extra)
+			   union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_uap_bss_param *sys_cfg = NULL, *ap_cfg = NULL;
 	wep_key *pkey = NULL;
 	int key_index = 0;
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -1735,10 +1736,11 @@ done:
  *  @return         0--success, otherwise fail
  */
 static int woal_get_essid(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_point *dwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_uap_bss_param *ap_cfg = NULL;
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 

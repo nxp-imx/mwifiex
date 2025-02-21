@@ -309,9 +309,10 @@ static t_u8 woal_rssi_to_quality(t_s16 rssi)
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_nick(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_point *dwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 	ENTER();
 	/*
 	 * Check the size of the string
@@ -338,9 +339,10 @@ static int woal_set_nick(struct net_device *dev, struct iw_request_info *info,
  *  @return                     0 --success
  */
 static int woal_get_nick(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_point *dwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 	ENTER();
 	/*
 	 * Get the Nick Name saved
@@ -877,10 +879,11 @@ done:
  *  @return                     MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0, disabled;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -889,10 +892,10 @@ static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
 		LEAVE();
 		return ret;
 	}
-	disabled = vwrq->disabled;
+	disabled = vwrq_->disabled;
 
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_power_mgmt(priv, MLAN_ACT_SET, &disabled, vwrq->flags,
+	    woal_set_get_power_mgmt(priv, MLAN_ACT_SET, &disabled, vwrq_->flags,
 				    MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 	}
@@ -912,10 +915,11 @@ static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
  *  @return                     MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0, ps_mode = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -926,11 +930,11 @@ static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	if (ps_mode)
-		vwrq->disabled = 0;
+		vwrq_->disabled = 0;
 	else
-		vwrq->disabled = 1;
+		vwrq_->disabled = 1;
 
-	vwrq->value = 0;
+	vwrq_->value = 0;
 
 	LEAVE();
 	return ret;
@@ -947,14 +951,15 @@ static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_retry(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
-	int ret = 0, retry_val = vwrq->value;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
+	int ret = 0, retry_val = vwrq_->value;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 
 	ENTER();
 
-	if (vwrq->flags == IW_RETRY_LIMIT) {
+	if (vwrq_->flags == IW_RETRY_LIMIT) {
 		/*
 		 * The MAC has a 4-bit Total_Tx_Count register
 		 * Total_Tx_Count = 1 + Tx_Retry_Count
@@ -987,10 +992,11 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_retry(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int retry_val, ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1001,11 +1007,11 @@ static int woal_get_retry(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq->disabled = 0;
-	if (!vwrq->flags) {
-		vwrq->flags = IW_RETRY_LIMIT;
+	vwrq_->disabled = 0;
+	if (!vwrq_->flags) {
+		vwrq_->flags = IW_RETRY_LIMIT;
 		/* Get Tx retry count */
-		vwrq->value = retry_val;
+		vwrq_->value = retry_val;
 	}
 
 done:
@@ -1024,7 +1030,7 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
-			   struct iw_point *dwrq, char *extra)
+			   union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
@@ -1033,6 +1039,7 @@ static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
 	int index = 0;
 	t_u32 auth_mode = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -1253,22 +1260,23 @@ done:
  *  @return             0 --success, otherwise fail
  */
 static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_param *vwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_rate_cfg_t rate_cfg;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
 	memset(&rate_cfg, 0, sizeof(mlan_rate_cfg_t));
 
-	if (vwrq->value == -1) {
+	if (vwrq_->value == -1) {
 		rate_cfg.is_rate_auto = 1;
 	} else {
 		rate_cfg.is_rate_auto = 0;
 		rate_cfg.rate_type = MLAN_RATE_VALUE;
-		rate_cfg.rate = vwrq->value / 500000;
+		rate_cfg.rate = vwrq_->value / 500000;
 	}
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_get_data_rate(priv, MLAN_ACT_SET, &rate_cfg)) {
@@ -1290,11 +1298,12 @@ static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
  *  @return             0 --success, otherwise fail
  */
 static int woal_get_rate(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_param *vwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_rate_cfg_t rate_cfg;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1305,10 +1314,10 @@ static int woal_get_rate(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	if (rate_cfg.is_rate_auto)
-		vwrq->fixed = 0;
+		vwrq_->fixed = 0;
 	else
-		vwrq->fixed = 1;
-	vwrq->value = rate_cfg.rate * 500000;
+		vwrq_->fixed = 1;
+	vwrq_->value = rate_cfg.rate * 500000;
 done:
 	LEAVE();
 	return ret;
@@ -1325,15 +1334,16 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_rts(struct net_device *dev, struct iw_request_info *info,
-			struct iw_param *vwrq, char *extra)
+			union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	int rthr = vwrq->value;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
+	int rthr = vwrq_->value;
 
 	ENTER();
 
-	if (vwrq->disabled) {
+	if (vwrq_->disabled) {
 		rthr = MLAN_RTS_MAX_VALUE;
 	} else {
 		if (rthr < MLAN_RTS_MIN_VALUE || rthr > MLAN_RTS_MAX_VALUE) {
@@ -1364,10 +1374,11 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_rts(struct net_device *dev, struct iw_request_info *info,
-			struct iw_param *vwrq, char *extra)
+			union iwreq_data *vwrq, char *extra)
 {
 	int rthr, ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1377,10 +1388,10 @@ static int woal_get_rts(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq->value = rthr;
-	vwrq->disabled = ((vwrq->value < MLAN_RTS_MIN_VALUE) ||
-			  (vwrq->value > MLAN_RTS_MAX_VALUE));
-	vwrq->fixed = 1;
+	vwrq_->value = rthr;
+	vwrq_->disabled = ((vwrq_->value < MLAN_RTS_MIN_VALUE) ||
+			  (vwrq_->value > MLAN_RTS_MAX_VALUE));
+	vwrq_->fixed = 1;
 
 done:
 	LEAVE();
@@ -1398,15 +1409,16 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_frag(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_param *vwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	int fthr = vwrq->value;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
+	int fthr = vwrq_->value;
 
 	ENTER();
 
-	if (vwrq->disabled) {
+	if (vwrq_->disabled) {
 		fthr = MLAN_FRAG_MAX_VALUE;
 	} else {
 		if (fthr < MLAN_FRAG_MIN_VALUE || fthr > MLAN_FRAG_MAX_VALUE) {
@@ -1437,10 +1449,11 @@ done:
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_frag(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_param *vwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0, fthr;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1450,10 +1463,10 @@ static int woal_get_frag(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq->value = fthr;
-	vwrq->disabled = ((vwrq->value < MLAN_FRAG_MIN_VALUE) ||
-			  (vwrq->value > MLAN_FRAG_MAX_VALUE));
-	vwrq->fixed = 1;
+	vwrq_->value = fthr;
+	vwrq_->disabled = ((vwrq_->value < MLAN_FRAG_MIN_VALUE) ||
+			  (vwrq_->value > MLAN_FRAG_MAX_VALUE));
+	vwrq_->fixed = 1;
 
 done:
 	LEAVE();
@@ -1931,7 +1944,7 @@ done:
  *  @return         -EOPNOTSUPP
  */
 static int woal_set_pmksa(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	ENTER();
 	LEAVE();
@@ -2529,7 +2542,7 @@ static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
  *  @return             0--success, otherwise fail
  */
 static int woal_set_scan(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_param *vwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
@@ -2915,11 +2928,12 @@ setessid_ret:
  *  @return         0--success, otherwise fail
  */
 static int woal_get_essid(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_point *dwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_bss_info bss_info;
 	int ret = 0;
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -2959,7 +2973,7 @@ done:
  *  @return             0--success, otherwise fail
  */
 static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
-			 struct iw_point *dwrq, char *extra)
+			 union iwreq_data *vwrq, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	int ret = 0;
@@ -2983,6 +2997,7 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 	IEEEtypes_ElementId_e element_id;
 	t_u8 element_len;
 	gfp_t flag;
+	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
