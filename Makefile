@@ -140,13 +140,14 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 ifeq ($(ANDROID_BUILD), 1)
     KERNEL_CFLAGS += -DANDROID
-    PWD := $(shell pwd)
-    KERNELDIR ?= $(KERNEL_SRC)
     ccflags-y += -DANDROID_SDK_VERSION=$(ANDROID_SDK_VERSION)
 endif
 
+M ?= $(shell pwd)
+KERNELDIR ?= $(KERNEL_SRC)
+
 MODEXT = ko
-ccflags-y += -I$(PWD)/mlan
+ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
 
@@ -612,7 +613,10 @@ moal-objs := $(MOALOBJS)
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+
+modules_install:
+	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
 
 endif
 
