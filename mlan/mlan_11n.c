@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n handling.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -511,7 +511,9 @@ static mlan_status wlan_11n_ioctl_addba_param(pmlan_adapter pmadapter,
 		cfg->param.addba_param.rxamsdu = pmpriv->add_ba_param.rx_amsdu;
 	} else {
 		timeout = pmpriv->add_ba_param.timeout;
-		if (pmadapter->tx_ba_timeout_support) {
+		/* WACP supports the MAX TX ba timeout */
+		if (pmadapter->tx_ba_timeout_support ||
+		    pmadapter->init_para.wacp_mode) {
 			pmpriv->add_ba_param.timeout =
 				cfg->param.addba_param.timeout;
 		} else {
@@ -2966,6 +2968,10 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 
 	ENTER();
 
+	if (tid < 0) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
 	       MAC2STR(peer_mac));
 
@@ -3180,6 +3186,9 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
  */
 t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
+	if (bss_band & BAND_6G)
+		return 0;
+
 	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);

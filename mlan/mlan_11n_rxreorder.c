@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -203,8 +203,12 @@ static mlan_status wlan_11n_dispatch_pkt_until_start_win(
 	 */
 	xchg = rx_reor_tbl_ptr->win_size - no_pkt_to_send;
 	for (i = 0; i < xchg; ++i) {
+		/* no_pkt_to_send is bound by the rx_reor_tbl_ptr->start_win and
+		 * win_size */
+		// coverity[overflow_sink:SUPPRESS]
 		rx_reor_tbl_ptr->rx_reorder_ptr[i] =
 			rx_reor_tbl_ptr->rx_reorder_ptr[no_pkt_to_send + i];
+		// coverity[overflow_sink:SUPPRESS]
 		rx_reor_tbl_ptr->rx_reorder_ptr[no_pkt_to_send + i] = MNULL;
 	}
 
@@ -668,12 +672,14 @@ mlan_status wlan_11n_add_bastream(mlan_private *priv, t_u8 *addba)
 
 	DBG_HEXDUMP(MCMD_D, "addba req", (t_u8 *)addba,
 		    sizeof(HostCmd_DS_11N_ADDBA_REQ));
-	if (priv->adapter->scan_processing) {
+	if (!IS_FW_SUPPORT_ALLOW_ADDBA_RESP_ON_SCAN(priv->adapter) &&
+	    priv->adapter->scan_processing) {
 		PRINTM(MERROR,
 		       "Scan in progress, ignore ADDBA Request event\n");
 		LEAVE();
 		return ret;
 	}
+
 	block_ack_param_set =
 		wlan_le16_to_cpu(pevt_addba_req->block_ack_param_set);
 	tid = (block_ack_param_set & BLOCKACKPARAM_TID_MASK) >>
@@ -1328,9 +1334,21 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypes_RxBaSync_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv_rxba->header.type);
 		tlv_len = wlan_le16_to_cpu(tlv_rxba->header.len);
+		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
+			PRINTM(MERROR,
+			       "11n rxba sync event: incorrect tlv, tlv->len=%d tlv_buf_left=%d\n",
+			       tlv_len, tlv_buf_left);
+			break;
+		}
 		if (tlv_type != TLV_TYPE_RXBA_SYNC) {
 			PRINTM(MERROR, "Wrong TLV id=0x%x\n", tlv_type);
 			goto done;
+		}
+		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
+			PRINTM(MERROR,
+			       "11n rxba sync event: wrong tlv, tlv_len=%d, tlv_buf_left=%d\n",
+			       tlv_len, tlv_buf_left);
+			break;
 		}
 		tlv_rxba->seq_num = wlan_le16_to_cpu(tlv_rxba->seq_num);
 		tlv_rxba->bitmap_len = wlan_le16_to_cpu(tlv_rxba->bitmap_len);

@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2022, 2024 NXP
+ * Copyright 2011-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -56,6 +56,10 @@
 #endif
 #endif
 
+#ifndef WLAN_CIPHER_SUITE_FILS_PSK
+#define WLAN_CIPHER_SUITE_FILS_PSK 0x000FACFF
+#endif
+
 /* define for custom ie operation */
 #define MLAN_CUSTOM_IE_AUTO_IDX_MASK 0xffff
 #define IE_MASK_WPS 0x0001
@@ -69,6 +73,8 @@
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 #define MRVL_PKT_TYPE_MGMT_EASYMESH 0xCF
 #endif
+
+t_u8 woal_check_fils_capability(const t_u8 *ie, int len);
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
@@ -127,6 +133,7 @@ void woal_regulatory_work_queue(struct work_struct *work);
 
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
 t_u8 woal_ieee_band_to_radio_type(t_u8 ieee_band);
+t_u8 woal_radio_type_to_ieee_band(t_u8 radio_type);
 
 int woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 				      struct net_device *dev,
@@ -547,6 +554,13 @@ void woal_cfg80211_setup_he_cap(moal_private *priv,
 void woal_cfg80211_setup_uap_he_cap(moal_private *priv, t_u8 wait_option);
 #endif
 
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+mlan_status woal_request_6e_inband_frame(
+	moal_private *priv, t_u8 wait_option,
+	struct cfg80211_fils_discovery *fils_discovery,
+	struct cfg80211_unsol_bcast_probe_resp *unsol_bcast_probe_resp);
+#endif
+
 void woal_cfg80211_free_bands(struct wiphy *wiphy);
 struct ieee80211_supported_band *woal_setup_wiphy_bands(t_u8 ieee_band);
 
@@ -559,6 +573,7 @@ int woal_cfg80211_mgmt_frame_ie(
 	t_u8 wait_option);
 
 int woal_get_active_intf_freq(moal_private *priv);
+int woal_get_rx_freq(moal_private *priv, t_u8 band_config, t_u8 chan_num);
 
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 				t_u32 dev_cap, t_u8 *mcs_set,
@@ -576,5 +591,39 @@ int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 
 mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason);
+
+/* Handling for 6E Indoor/Outdoor Mode */
+
+#define OP_MODE_LEN 8
+#define PSD_LEN 8
+
+/**
+ * @brief Operation mode/PSD table
+ */
+typedef struct _mode_psd_t {
+	/** @brief Operation mode */
+	t_u8 op_mode[OP_MODE_LEN];
+	/** @brief PSD Value */
+	t_u8 psd_dbm[PSD_LEN];
+} mode_psd_t;
+
+/**
+ * @brief The structure for Region-Mode-PSD table
+ */
+typedef struct _rmp_table_t {
+	/** @brief Region or Code */
+	t_u8 code;
+	/** @brief Mode/Power */
+	mode_psd_t *mp_ptr;
+} rmp_table_t;
+
+void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
+				t_u32 buf_len);
+
+void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
+				t_u32 resp_len,
+				chan_band_reginfo_t *psta_reg_info);
+
+mlan_status woal_dnld_default_6e_psd_table(moal_private *priv);
 
 #endif /* _MOAL_CFG80211_H_ */

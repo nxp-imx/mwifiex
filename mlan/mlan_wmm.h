@@ -4,7 +4,7 @@
  *  of wmm functionalities
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -154,7 +154,7 @@ extern void wlan_wmm_setup_queues(pmlan_private priv);
 void wlan_wmm_default_queue_priorities(pmlan_private priv);
 /* process wmm_param_config command */
 mlan_status wlan_cmd_wmm_param_config(pmlan_private pmpriv,
-				      HostCmd_DS_COMMAND *cmd, t_u8 cmd_action,
+				      HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				      t_void *pdata_buf);
 
 /* process wmm_param_config command response */

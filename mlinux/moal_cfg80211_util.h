@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2015-2021, 2024 NXP
+ * Copyright 2015-2021, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -521,7 +521,7 @@ typedef struct _packet_filter {
 	spinlock_t lock;
 	t_u8 state;
 	t_u8 packet_filter_program[PACKET_FILTER_MAX_LEN];
-	t_u8 packet_filter_len;
+	t_u32 packet_filter_len;
 	t_u32 packet_filter_version;
 	t_u32 packet_filter_max_len;
 } packet_filter;
@@ -758,6 +758,13 @@ enum vendor_sub_command {
 	subcmd_get_csi_dump_path,
 	subcmd_get_csi_config,
 	subcmd_get_csi_capa,
+	subcmd_set_get_dmcs = 0x1920,
+	subcmd_set_get_edmac = 0x1921,
+	subcmd_set_get_aggrpriotbl = 0x1922,
+	subcmd_set_get_addbareject = 0x1923,
+	subcmd_set_get_tx_ampdu_prot_mode = 0x1924,
+	subcmd_twt_setup = 0x1925,
+	subcmd_twt_teardown = 0x1926,
 	sub_cmd_max,
 };
 
@@ -796,7 +803,6 @@ enum mkeep_alive_attributes {
 	MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST,
 	MKEEP_ALIVE_ATTRIBUTE_MAX = MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST - 1
 };
-
 int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len);
 
 /*Attribute for wpa_supplicant*/

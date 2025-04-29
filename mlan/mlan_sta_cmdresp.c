@@ -443,7 +443,10 @@ static mlan_status wlan_ret_802_11_rssi_info_ext(pmlan_private pmpriv,
 				wlan_le16_to_cpu(signal_info_tlv->data_nf_avg);
 
 			tlv_left_len -= sizeof(MrvlIEtypes_RSSI_EXT_t);
-			signal_info_tlv++;
+			if (!wlan_secure_add(&signal_info_tlv,
+					     sizeof(MrvlIEtypes_RSSI_EXT_t),
+					     &signal_info_tlv, TYPE_PTR))
+				break;
 			tlv_num++;
 			if (tlv_num > MAX_PATH_NUM)
 				break;
@@ -615,6 +618,13 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 			PRINTM(MINFO, "SNMP_RESP: Auto NULL Pkt Period =%u\n",
 			       ul_temp);
 			break;
+		case StopDeauth_i:
+			ul_temp = psmib->value[0];
+			if (mib)
+				mib->param.deauthctrl = ul_temp;
+			PRINTM(MINFO, "SNMP_RESP: STA Deauth Ctrl =%d\n",
+			       ul_temp);
+			break;
 		default:
 			break;
 		}
@@ -650,6 +660,19 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 			PRINTM(MCMND, "SNMP_RESP: Dot11h_disable_tpc_i =%u\n",
 			       ul_temp);
 		}
+		/* Update state for Tpe Ie Ignore */
+		if (oid == Ignore_tpe_i) {
+			/* Set tpe ie ignore to private */
+			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			PRINTM(MCMND, "SNMP_RESP: Ignore_tpe_i = %u\n",
+			       ul_temp);
+		}
+	}
+
+	if (oid == User_band_config_i) {
+		ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+		PRINTM(MCMND, "SNMP_RESP: user defined bandcfg =0x%x\n",
+		       ul_temp);
 	}
 
 	if (pioctl_buf) {
@@ -761,6 +784,10 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->gdma_abort_cnt);
 		pget_info->param.stats.g_reset_rx_mac_cnt =
 			wlan_le32_to_cpu(pget_log->g_reset_rx_mac_cnt);
+		pget_info->param.stats.currTemp =
+			wlan_le32_to_cpu(pget_log->currTemp);
+		pget_info->param.stats.TXpwrMethod =
+			wlan_le32_to_cpu(pget_log->TXpwrMethod);
 		pget_info->param.stats.SdmaStuckCnt =
 			wlan_le32_to_cpu(pget_log->SdmaStuckCnt);
 		// Ownership error counters
@@ -921,7 +948,9 @@ static mlan_status wlan_get_power_level(pmlan_private pmpriv, void *pdata_buf)
 			length -= sizeof(Power_Group_t);
 		}
 		while (length > 0) {
-			pg++;
+			if (!wlan_secure_add(&pg, sizeof(Power_Group_t), &pg,
+					     TYPE_PTR))
+				break;
 			if (max_power < pg->power_max)
 				max_power = pg->power_max;
 			if (min_power > pg->power_min)
@@ -971,6 +1000,13 @@ static mlan_status wlan_ret_tx_power_cfg(pmlan_private pmpriv,
 	switch (action) {
 	case HostCmd_ACT_GEN_GET:
 		ppg_tlv->length = wlan_le16_to_cpu(ppg_tlv->length);
+		if (ppg_tlv->length >
+		    (resp->size -
+		     (sizeof(HostCmd_DS_TXPWR_CFG) +
+		      sizeof(MrvlTypes_Power_Group_t) + S_DS_GEN))) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
 		// coverity[overrun-buffer-val:SUPPRESS]
 		// coverity[cert_str31_c_violation:SUPPRESS]
 		// coverity[cert_arr30_c_violation:SUPPRESS]
@@ -2084,7 +2120,6 @@ mlan_status wlan_ret_net_monitor(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	HostCmd_DS_802_11_NET_MONITOR *cmd_net_mon =
 		(HostCmd_DS_802_11_NET_MONITOR *)&resp->params.net_mon;
 	ChanBandParamSet_t *pchan_band = MNULL;
-	t_u16 band_info = 0;
 
 	ENTER();
 
@@ -2097,22 +2132,10 @@ mlan_status wlan_ret_net_monitor(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			wlan_le16_to_cpu(cmd_net_mon->filter_flag);
 		pchan_band = &cmd_net_mon->monitor_chan.chan_band_param[0];
 		/* Band information in the TLV is bits[1:0] */
-		band_info = pchan_band->bandcfg.chanBand;
+		net_mon->band = pchan_band->bandcfg.chanBand;
 		net_mon->channel = pchan_band->chan_number;
-		if (band_info == BAND_2GHZ)
-			net_mon->band |= (BAND_B | BAND_G);
-		if (band_info == BAND_5GHZ)
-			net_mon->band |= BAND_A;
 		net_mon->chan_bandwidth =
 			GET_SECONDARYCHAN(pchan_band->bandcfg.chan2Offset);
-		if (band_info == BAND_2GHZ)
-			net_mon->band |= BAND_GN;
-		if (band_info == BAND_5GHZ)
-			net_mon->band |= BAND_AN;
-		if (band_info == BAND_2GHZ)
-			net_mon->band |= BAND_GAC;
-		if (band_info == BAND_5GHZ)
-			net_mon->band |= BAND_AAC;
 	}
 	pmpriv->adapter->enable_net_mon =
 		wlan_le16_to_cpu(cmd_net_mon->enable_net_mon);
@@ -2245,9 +2268,9 @@ wlan_ret_packet_aggr_over_host_interface(pmlan_private pmpriv,
 			.packet_aggr;
 	MrvlIETypes_USBAggrParam_t *usb_aggr_param_tlv = MNULL;
 	mlan_ds_misc_usb_aggr_ctrl *usb_aggr_ctrl = MNULL;
+	MrvlIEtypesHeader_t *head = MNULL;
 	t_u8 *ptlv_buffer = (t_u8 *)packet_aggr->tlv_buf;
 	mlan_adapter *pmadapter = pmpriv->adapter;
-	t_u16 tlv = 0;
 	int tlv_buf_len = 0;
 	t_u8 changed = 0;
 #if defined(USB)
@@ -2264,10 +2287,18 @@ wlan_ret_packet_aggr_over_host_interface(pmlan_private pmpriv,
 		LEAVE();
 		return MLAN_STATUS_SUCCESS;
 	}
-	while (tlv_buf_len > 0) {
+	while (tlv_buf_len >= sizeof(MrvlIEtypesHeader_t)) {
+		head = (MrvlIEtypesHeader_t *)ptlv_buffer;
+		head->len = wlan_le16_to_cpu(head->len);
+		head->type = wlan_le16_to_cpu(head->type);
 		changed = 0;
-		tlv = (*ptlv_buffer) | (*(ptlv_buffer + 1) << 8);
-		switch (tlv) {
+		if (sizeof(MrvlIEtypesHeader_t) + head->len > tlv_buf_len) {
+			PRINTM(MERROR,
+			       "packet aggr: incorrect tlv, tlv_len=%d tlv_buf_len=%d\n",
+			       head->len, tlv_buf_len);
+			break;
+		}
+		switch (head->type) {
 		case NXP_USB_AGGR_PARAM_TLV_ID:
 			usb_aggr_param_tlv =
 				(MrvlIETypes_USBAggrParam_t *)ptlv_buffer;
@@ -3455,9 +3486,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 			(t_u16)wlan_le16_to_cpu(resp->params.tx_buf.buff_size);
 #ifdef SDIO
 		if (IS_SD(pmadapter->card_type)) {
-			pmadapter->tx_buf_size = (pmadapter->tx_buf_size /
-						  MLAN_SDIO_BLOCK_SIZE) *
-						 MLAN_SDIO_BLOCK_SIZE;
+			pmadapter->tx_buf_size =
+				(pmadapter->tx_buf_size /
+				 pmadapter->pcard_sd->sdio_blk_size) *
+				pmadapter->pcard_sd->sdio_blk_size;
 			pmadapter->pcard_sd->mp_end_port = wlan_le16_to_cpu(
 				resp->params.tx_buf.mp_end_port);
 			pmadapter->pcard_sd->mp_data_port_mask =
@@ -3491,9 +3523,13 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_amsdu_aggr_ctrl(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_WMM_GET_STATUS:
-		ret = wlan_ret_wmm_get_status(
-			pmpriv, resp->params.get_wmm_status.queue_status_tlv,
-			resp->size - S_DS_GEN);
+		if (resp->size > S_DS_GEN)
+			ret = wlan_ret_wmm_get_status(
+				pmpriv,
+				resp->params.get_wmm_status.queue_status_tlv,
+				resp->size - S_DS_GEN);
+		else
+			ret = MLAN_STATUS_FAILURE;
 		break;
 	case HostCmd_CMD_WMM_ADDTS_REQ:
 		ret = wlan_ret_wmm_addts_req(pmpriv, resp, pioctl_buf);

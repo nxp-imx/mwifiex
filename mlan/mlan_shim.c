@@ -361,6 +361,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
+		pmadapter->pcard_sd->max_blk_count = pmdevice->max_blk_count;
+		pmadapter->pcard_sd->sdio_blk_size = pmdevice->sdio_blk_size;
 		pmadapter->pcard_sd->max_segs = pmdevice->max_segs;
 		pmadapter->pcard_sd->max_seg_size = pmdevice->max_seg_size;
 
@@ -476,6 +478,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.dfs53cfg = pmdevice->dfs53cfg;
 	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->init_para.disable_11h_tpc = pmdevice->disable_11h_tpc;
+	pmadapter->init_para.tpe_ie_ignore = pmdevice->tpe_ie_ignore;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 
@@ -493,6 +496,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	}
 
 	pmadapter->priv_num++;
+	// memset of pmadapter->priv[0] will not nullify pmadapter->pcard_pcie
+	//  coverity[overwrite_var:SUPPRESS]
 	memset(pmadapter, pmadapter->priv[0], 0, sizeof(mlan_private));
 
 	pmadapter->priv[0]->adapter = pmadapter;
@@ -534,6 +539,9 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {
 		if (mlan_ops[j]->bss_role == GET_BSS_ROLE(pmadapter->priv[0])) {
+			// memset of pmadapter->priv[0] will not nullify
+			// pmadapter->callbacks.moal_memcpy_ext
+			// coverity[cert_exp34_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter, &pmadapter->priv[0]->ops,
 				   mlan_ops[j], sizeof(mlan_operations),
 				   sizeof(mlan_operations));
@@ -541,6 +549,9 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		}
 	}
 	/** back up bss_attr table */
+	// memset of pmadapter->priv[0] will not nullify
+	// pmadapter->callbacks.moal_memcpy_ext
+	// coverity[cert_exp34_c_violation:SUPPRESS]
 	memcpy_ext(pmadapter, pmadapter->bss_attr, pmdevice->bss_attr,
 		   sizeof(pmadapter->bss_attr), sizeof(pmadapter->bss_attr));
 
@@ -1145,6 +1156,65 @@ exit_rx_proc:
 	return ret;
 }
 
+#ifdef PCIE
+/**
+ * @brief Re-fill PMBUF at pending RDs of PCIE Rx Ring
+ * @param padapter A pointer to mlan_adapter structure
+ *
+ */
+static void mlan_refill_rx_ring(t_void *padapter)
+{
+	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
+	mlan_buffer *pmbuf;
+	t_u32 reattach_fail = 0;
+	/* Get 1st Failure RD index */
+	t_s32 refill_index =
+		util_scalar_read(pmadapter->pmoal_handle,
+				 &pmadapter->rx_refill_start_index,
+				 pmadapter->callbacks.moal_spin_lock,
+				 pmadapter->callbacks.moal_spin_unlock);
+	while (refill_index != MLAN_INVALID_TXRX_INDEX_VAL) {
+		if (MLAN_STATUS_SUCCESS ==
+		    wlan_pcie_reattach_pmbuf(pmadapter, refill_index, &pmbuf)) {
+			reattach_fail = 0;
+			/* Update WR PTR after Reattach success */
+			wlan_pcie_rx_ring_move_rdwrptr(pmadapter, refill_index,
+						       RX_WR_UPDATE);
+			/*Re-fill till the Last (current) RD-index*/
+			pmadapter->callbacks.moal_spin_lock(
+				pmadapter->pmoal_handle,
+				pmadapter->rx_refill_start_index.plock);
+			if (refill_index == pmadapter->rx_refill_last_index) {
+				util_scalar_write(
+					pmadapter->pmoal_handle,
+					&pmadapter->rx_refill_start_index,
+					MLAN_INVALID_TXRX_INDEX_VAL, MNULL,
+					MNULL);
+				refill_index = MLAN_INVALID_TXRX_INDEX_VAL;
+			} else {
+				if (refill_index ==
+				    (pmadapter->pcard_pcie->txrx_bd_size - 1))
+					refill_index = 0;
+				else
+					refill_index = (refill_index + 1);
+			}
+			pmadapter->callbacks.moal_spin_unlock(
+				pmadapter->pmoal_handle,
+				pmadapter->rx_refill_start_index.plock);
+		} else {
+			/* need to exit, if we just loop here - in extreme OOM
+			 * case need to free CPU for other works. re-fill work
+			 * can continue on next main wq schedule.
+			 */
+			reattach_fail++;
+			if (reattach_fail > 1500)
+				return;
+		}
+	}
+	return;
+}
+#endif
+
 /**
  *  @brief The main process
  *
@@ -1232,8 +1302,11 @@ process_start:
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) &&
 		    pmadapter->pm_wakeup_flag) {
 			pmadapter->pm_wakeup_flag = MFALSE;
-#ifdef SDIO
-			if (IS_SD(pmadapter->card_type)) {
+#if defined(SD9098) || defined(SD9177) || defined(SDAW693) || defined(SDIW610)
+			if (IS_SD9098(pmadapter->card_type) ||
+			    IS_SD9177(pmadapter->card_type) ||
+			    IS_SDAW693(pmadapter->card_type) ||
+			    IS_SDIW610(pmadapter->card_type)) {
 				if (pmadapter->pm_wakeup_timeout == 2) {
 					if (!pmadapter->ops
 						     .wakeup_timeout_recovery(
@@ -1242,12 +1315,13 @@ process_start:
 				}
 			}
 #endif
-			if (pmadapter->pm_wakeup_timeout > 2)
+			if (pmadapter->pm_wakeup_timeout > 2) {
+				PRINTM(MERROR, "Wakeup card timeout!\n");
 				wlan_recv_event(
 					wlan_get_priv(pmadapter,
 						      MLAN_BSS_ROLE_ANY),
 					MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
-			else {
+			} else {
 				pmadapter->ops.wakeup_card(pmadapter, MTRUE);
 				pmadapter->pm_wakeup_fw_try = MTRUE;
 				continue;
@@ -1446,6 +1520,8 @@ process_start:
 						MNULL);
 				}
 			}
+			/* Re-fill pending RDs of RxRing*/
+			mlan_refill_rx_ring(pmadapter);
 		}
 #endif
 	} while (MTRUE);
@@ -1636,29 +1712,10 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 		}
 
 		if (eth_type == MLAN_ETHER_PKT_TYPE_1905) {
-			t_u16 msg_type = 0;
-
-			if (pmbuf->data_offset >
-			    UINT32_MAX - MLAN_ETHER_PKT_TYPE_OFFSET - 4)
-				return MLAN_STATUS_FAILURE;
-
-			msg_type = mlan_ntohs(
-				*(t_u16 *)&pmbuf
-					 ->pbuf[pmbuf->data_offset +
-						MLAN_ETHER_PKT_TYPE_OFFSET + 4]);
-
-			if (msg_type == 0x0007 || /* CMDU_TYPE_AP_AUTOCONFIGURATION_SEARCH
-						   */
-			    msg_type == 0x0008 || /* CMDU_TYPE_AP_AUTOCONFIGURATION_RESPONSE
-						   */
-			    msg_type == 0x0009) { /* CMDU_TYPE_AP_AUTOCONFIGURATION_WSC
-						   */
-				pmbuf->priority = 7;
-				PRINTM_NETINTF(MMSG, pmpriv);
-				PRINTM(MMSG,
-				       "wlan: Send 1905.1a pkt type: 0x%04x\n",
-				       msg_type);
-			}
+			pmbuf->priority = 7;
+			PRINTM_NETINTF(MINFO, pmpriv);
+			PRINTM(MINFO, "wlan: Send 1905.1a pkt type: 0x%04x\n",
+			       eth_type);
 		}
 
 		if (pmadapter->tp_state_on)

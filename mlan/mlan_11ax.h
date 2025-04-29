@@ -52,6 +52,24 @@ t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 			  MrvlIEtypes_Extension_t *hw_he_cap);
 
+/** GET 6G Band CapInfo : MAX MPDU Length */
+#define GET_6G_BAND_CAP_MAXMPDULEN(BandCapInfo) ((BandCapInfo >> 6) & 0x3)
+#define IS_116E_ENABLED(priv)                                                  \
+	((priv->config_bands & BAND_6G) &&                                     \
+	 priv->curr_bss_params.bss_descriptor.phe_cap &&                       \
+	 priv->curr_bss_params.bss_descriptor.phe_6g_cap)
+
+void wlan_update_11ax_6g_cap(mlan_adapter *pmadapter,
+			     MrvlIEtypes_Extension_t *hw_he_6g_cap);
+void wlan_fill_he_6g_cap_tlv(mlan_private *pmpriv,
+			     MrvlIEtypes_He_6g_cap_t *phe_6g_cap);
+t_u16 wlan_116e_bandconfig_allowed(mlan_private *pmpriv,
+				   BSSDescriptor_t *pbss_desc);
+int wlan_cmd_append_116e_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
+			     t_u8 **ppbuffer);
+t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
+			       Band_Config_t *bandcfg);
+
 int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
 t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,

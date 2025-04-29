@@ -274,7 +274,10 @@ static mlan_status wlan_custom_ioctl_auto_delete(pmlan_private pmpriv,
 					   pmpriv->mgmt_ie[index].ie_buffer,
 					   cnt, MAX_IE_SIZE);
 				if (pmpriv->mgmt_ie[index].ie_length >
-				    (cnt + del_len))
+				    (cnt + del_len)) {
+					// coverity[cert_arr30_c_violation:
+					// SUPPRESS]
+					// coverity[cert_str31_c_violation:SUPPRESS]
 					memcpy_ext(
 						pmpriv->adapter, &ie[cnt],
 						&pmpriv->mgmt_ie[index].ie_buffer
@@ -284,6 +287,7 @@ static mlan_status wlan_custom_ioctl_auto_delete(pmlan_private pmpriv,
 							 .ie_length -
 						 (cnt + del_len)),
 						MAX_IE_SIZE - cnt);
+				}
 				memset(pmpriv->adapter,
 				       &pmpriv->mgmt_ie[index].ie_buffer, 0,
 				       sizeof(pmpriv->mgmt_ie[index].ie_buffer));
@@ -819,10 +823,10 @@ t_void wlan_wakeup_card_timeout_func(void *function_context)
 
 	ENTER();
 
-	PRINTM(MERROR, "%s: ps_state=%d\n", __FUNCTION__, pmadapter->ps_state);
+	PRINTM(MCMND, "%s: ps_state=%d\n", __FUNCTION__, pmadapter->ps_state);
 	if (pmadapter->ps_state != PS_STATE_AWAKE) {
-		PRINTM_NETINTF(MERROR, pmpriv);
-		PRINTM(MERROR, "Wakeup card timeout(%d)!\n",
+		PRINTM_NETINTF(MCMND, pmpriv);
+		PRINTM(MCMND, "Wakeup card timeout(%d)!\n",
 		       pmadapter->pm_wakeup_timeout);
 		pmadapter->pm_wakeup_timeout++;
 		pmadapter->pm_wakeup_flag = MTRUE;
@@ -1183,14 +1187,16 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 	t_u8 *tmp_buf = MNULL;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 mem_flags = MLAN_MEM_DEF | MLAN_MEM_DMA;
+	t_s32 offset = 0;
 
 	ENTER();
 
 #ifdef SDIO
 	/* make sure that the data length is at least SDIO block size */
 	if (IS_SD(pmadapter->card_type))
-		data_len = (data_len + MLAN_SDIO_BLOCK_SIZE - 1) /
-			   MLAN_SDIO_BLOCK_SIZE * MLAN_SDIO_BLOCK_SIZE;
+		data_len = (data_len + pmadapter->pcard_sd->sdio_blk_size - 1) /
+			   pmadapter->pcard_sd->sdio_blk_size *
+			   pmadapter->pcard_sd->sdio_blk_size;
 #endif
 
 	/* head_room is not implemented for malloc mlan buffer */
@@ -1218,7 +1224,7 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 			(t_u8 *)pmbuf + sizeof(mlan_buffer), DMA_ALIGNMENT);
 		pmbuf->data_offset = 0;
 		pmbuf->data_len = data_len;
-		pmbuf->flags |= MLAN_BUF_FLAG_MALLOC_BUF;
+		pmbuf->flags = MLAN_BUF_FLAG_MALLOC_BUF;
 	} else if (malloc_flag & MOAL_ALLOC_MLAN_BUFFER) {
 		/* use moal_alloc_mlan_buffer, head_room supported */
 		ret = pcb->moal_alloc_mlan_buffer(
@@ -1231,8 +1237,8 @@ pmlan_buffer wlan_alloc_mlan_buffer(mlan_adapter *pmadapter, t_u32 data_len,
 		pmbuf->data_offset = head_room;
 		tmp_buf = (t_u8 *)ALIGN_ADDR(pmbuf->pbuf + pmbuf->data_offset,
 					     DMA_ALIGNMENT);
-		pmbuf->data_offset +=
-			(t_u32)(tmp_buf - (pmbuf->pbuf + pmbuf->data_offset));
+		offset = tmp_buf - (pmbuf->pbuf + pmbuf->data_offset);
+		pmbuf->data_offset += (t_u32)offset;
 		pmbuf->data_len = data_len;
 		pmbuf->flags = 0;
 	}
@@ -3380,6 +3386,8 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 	t_u8 unicast = 0;
 	t_u8 broadcast[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	IEEE80211_MGMT *mgmt = MNULL;
+	t_u8 band_config = (prx_pd->rx_info & 0xF);
+	t_u8 chan_num = (prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
 	t_u8 category = 0;
 	t_u8 action_code = 0;
 #ifdef UAP_SUPPORT
@@ -3644,9 +3652,9 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 	} else {
 		pevent->event_id = MLAN_EVENT_ID_DRV_MGMT_FRAME;
 		pevent->event_len = payload_len + sizeof(pevent->event_id);
-		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-			   (t_u8 *)&pevent->event_id, sizeof(pevent->event_id),
-			   pevent->event_len);
+		pevent->event_buf[0] = band_config;
+		pevent->event_buf[1] = chan_num;
+		// coverity[cert_arr30_c_violation: SUPPRESS]
 		memcpy_ext(
 			pmadapter,
 			(t_u8 *)(pevent->event_buf + sizeof(pevent->event_id)),
@@ -3711,7 +3719,8 @@ t_u32 wlan_is_ext_capa_support(mlan_private *pmpriv)
 	    ISSUPP_EXTCAP_INTERWORKING(pmpriv->ext_cap) ||
 	    ISSUPP_EXTCAP_BSS_TRANSITION(pmpriv->ext_cap) ||
 	    ISSUPP_EXTCAP_QOS_MAP(pmpriv->ext_cap) ||
-	    ISSUPP_EXTCAP_OPERMODENTF(pmpriv->ext_cap)) {
+	    ISSUPP_EXTCAP_OPERMODENTF(pmpriv->ext_cap) ||
+	    ISSUPP_EXTCAP_FILS(pmpriv->ext_cap)) {
 		LEAVE();
 		return MTRUE;
 	} else {
@@ -4040,11 +4049,14 @@ static void wlan_check_sta_vendor_ies(pmlan_adapter pmadapter,
 			}
 			if ((found_existing_oui == 0) &&
 			    (sta_ptr->vendor_oui_count < MAX_VENDOR_OUI_NUM)) {
-				// add oui in list, sta_ptr->vendor_oui_count
-				// does not exceed MAX_VENDOR_OUI_NUM hence
-				// sta_ptr->vendor_oui buffer size does not
-				// exceed (MAX_VENDOR_OUI_NUM * VENDOR_OUI_LEN)
+				/* add oui in list, sta_ptr->vendor_oui_count
+				 * does not exceed MAX_VENDOR_OUI_NUM hence
+				 * sta_ptr->vendor_oui buffer size does not
+				 * exceed (MAX_VENDOR_OUI_NUM * VENDOR_OUI_LEN)
+				 */
 				// coverity[overrun-buffer-arg: SUPPRESS]
+				// coverity[cert_arr30_c_violation: SUPPRESS]
+				//  coverity[cert_str31_c_violation:SUPPRESS]
 				memcpy_ext(pmadapter,
 					   (t_u8 *)&sta_ptr->vendor_oui
 						   [sta_ptr->vendor_oui_count *
@@ -4147,6 +4159,7 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 	t_u8 *rate = MNULL;
 	t_u8 b_only = MFALSE;
 #endif
+	IEEEtypes_HE6GCap_t *phe_6g_cap = MNULL;
 	t_u8 maxIPhoneEntries = MAX_IPHONE_FILTER_ENTRIES;
 
 	int tlv_buf_left = pevent->data_len - ASSOC_EVENT_FIX_SIZE;
@@ -4288,6 +4301,31 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 					PRINTM(MCMND,
 					       "STA doesn't support 11ax\n");
 				}
+				if (sta_ptr->is_11ax_enabled) {
+					phe_6g_cap = (IEEEtypes_HE6GCap_t *)
+						wlan_get_specific_ie(
+							priv, assoc_req_ie,
+							ie_len, EXTENSION,
+							HE_6G_CAPABILITY);
+					if (phe_6g_cap) {
+						PRINTM(MCMND,
+						       "STA supports 116e\n");
+						if (GET_6G_BAND_CAP_MAXMPDULEN(
+							    phe_6g_cap->capa) ==
+						    2)
+							sta_ptr->max_amsdu =
+								MLAN_TX_DATA_BUF_SIZE_12K;
+						else if (GET_6G_BAND_CAP_MAXMPDULEN(
+								 phe_6g_cap
+									 ->capa) ==
+							 1)
+							sta_ptr->max_amsdu =
+								MLAN_TX_DATA_BUF_SIZE_8K;
+						else
+							sta_ptr->max_amsdu =
+								MLAN_TX_DATA_BUF_SIZE_4K;
+					}
+				}
 #ifdef UAP_SUPPORT
 				/* Note: iphone6 does not have ERP_INFO */
 				rate = wlan_get_specific_ie(priv, assoc_req_ie,
@@ -4297,7 +4335,9 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 					b_only = wlan_check_ie_11b_support_rates(
 						(pIEEEtypes_Generic_t)rate);
 				if (sta_ptr->is_11ax_enabled) {
-					if (priv->uap_channel <= 14)
+					if (phe_6g_cap) {
+						sta_ptr->bandmode = BAND_6G;
+					} else if (priv->uap_channel <= 14)
 						sta_ptr->bandmode = BAND_GAX;
 					else
 						sta_ptr->bandmode = BAND_AAX;
@@ -4433,6 +4473,12 @@ t_u8 *wlan_get_specific_ie(pmlan_private priv, t_u8 *ie_buf, t_u16 ie_len,
 			PRINTM(MCMND, "Find IE: id=%d ext_id=%d\n", id, ext_id);
 			DBG_HEXDUMP(MCMD_D, "IE", pcurrent_ptr, total_ie_len);
 			ie_ptr = pcurrent_ptr;
+			break;
+		}
+		/*In case of 11AI, Assoc Req/Reassoc Req contains encrypted
+		 TLV's after FILS_SESSION. To avoid InterpretIE: error skipping
+		 TLV's after FILS_SESSION*/
+		if (FILS_SESSION == element_id) {
 			break;
 		}
 		pcurrent_ptr += element_len + 2;
@@ -4646,11 +4692,24 @@ mlan_status wlan_radio_ioctl_ant_cfg(pmlan_adapter pmadapter,
 							  0xFF00)
 						 << 8);
 				}
-				PRINTM(MCMND,
-				       "user_htstream=0x%x, tx_antenna=0x%x >rx_antenna=0x%x\n",
-				       pmadapter->user_htstream,
-				       ant_cfg->tx_antenna,
-				       ant_cfg->rx_antenna);
+				if ((IS_CARDAW693(pmadapter->card_type)) ||
+				    (IS_CARDIW624(pmadapter->card_type))) {
+					ant_cfg->tx_antenna_6g &= 0x03;
+					ant_cfg->rx_antenna_6g &= 0x03;
+
+					PRINTM(MCMND,
+					       "user_htstream=0x%x, tx_antenna=0x%x, tx_antenna_6g=0x%x >rx_antenna=0x%x, rx_antenna_6g=0x%x\n",
+					       pmadapter->user_htstream,
+					       ant_cfg->tx_antenna,
+					       ant_cfg->tx_antenna_6g,
+					       ant_cfg->rx_antenna,
+					       ant_cfg->rx_antenna_6g);
+				} else
+					PRINTM(MCMND,
+					       "user_htstream=0x%x, tx_antenna=0x%x >rx_antenna=0x%x\n",
+					       pmadapter->user_htstream,
+					       ant_cfg->tx_antenna,
+					       ant_cfg->rx_antenna);
 			} else {
 #endif
 
@@ -4667,6 +4726,8 @@ mlan_status wlan_radio_ioctl_ant_cfg(pmlan_adapter pmadapter,
 			     (bitcount(ant_cfg->tx_antenna & 0x00FF) >
 				      pmadapter->number_of_antenna ||
 			      bitcount(ant_cfg->tx_antenna & 0xFF00) >
+				      pmadapter->number_of_antenna ||
+			      bitcount(ant_cfg->tx_antenna_6g & 0xFF) >
 				      pmadapter->number_of_antenna))) {
 				PRINTM(MERROR,
 				       "Invalid TX antenna setting: 0x%x\n",
@@ -4681,6 +4742,8 @@ mlan_status wlan_radio_ioctl_ant_cfg(pmlan_adapter pmadapter,
 				if (bitcount(ant_cfg->rx_antenna & 0x00FF) >
 					    pmadapter->number_of_antenna ||
 				    bitcount(ant_cfg->rx_antenna & 0xFF00) >
+					    pmadapter->number_of_antenna ||
+				    bitcount(ant_cfg->rx_antenna_6g & 0xFF) >
 					    pmadapter->number_of_antenna) {
 					PRINTM(MERROR,
 					       "Invalid RX antenna setting: 0x%x\n",
@@ -4752,6 +4815,8 @@ mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
 		    IS_CARDIW624(pmadapter->card_type) ||
 		    IS_CARDAW693(pmadapter->card_type)) {
 			ant_cfg.tx_antenna = ant_cfg.rx_antenna = init_antcfg;
+			ant_cfg.tx_antenna_6g = init_antcfg >> 16;
+			ant_cfg.rx_antenna_6g = init_antcfg >> 16;
 		} else {
 			ant_cfg.tx_antenna = (init_antcfg & 0x0030) >> 4;
 			ant_cfg.rx_antenna = init_antcfg & 0x0003;
@@ -4771,6 +4836,12 @@ mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
 		    IS_CARDIW624(pmadapter->card_type)) {
 			ant_cfg.tx_antenna &= 0x0303;
 			ant_cfg.rx_antenna &= 0x0303;
+			/* AW693 MAC2 supports only 2G 1x1. */
+			if (IS_CARDAW693(pmadapter->card_type) &&
+			    pmadapter->second_mac) {
+				ant_cfg.tx_antenna &= 0x1;
+				ant_cfg.rx_antenna &= 0x1;
+			}
 			/** 2G antcfg TX */
 			if (ant_cfg.tx_antenna & 0x00FF) {
 				pmadapter->user_htstream &= ~0xF0;
@@ -4798,10 +4869,28 @@ mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
 					(bitcount(ant_cfg.rx_antenna & 0xFF00)
 					 << 8);
 			}
-			PRINTM(MCMND,
-			       "user_htstream=0x%x, tx_antenna=0x%x >rx_antenna=0x%x\n",
-			       pmadapter->user_htstream, ant_cfg.tx_antenna,
-			       ant_cfg.rx_antenna);
+			if ((IS_CARDAW693(pmadapter->card_type)) ||
+			    (IS_CARDIW624(pmadapter->card_type))) {
+				/* AW693 MAC2 supports only 2G 1x1. */
+				if (IS_CARDAW693(pmadapter->card_type) &&
+				    pmadapter->second_mac) {
+					ant_cfg.tx_antenna_6g = 0;
+					ant_cfg.rx_antenna_6g = 0;
+				}
+				ant_cfg.tx_antenna_6g &= 0x03;
+				ant_cfg.rx_antenna_6g &= 0x03;
+				PRINTM(MCMND,
+				       "user_htstream=0x%x, tx_antenna=0x%x, tx_antenna_6g=0x%x >rx_antenna=0x%x, rx_antenna_6g=0x%x\n",
+				       pmadapter->user_htstream,
+				       ant_cfg.tx_antenna,
+				       ant_cfg.tx_antenna_6g,
+				       ant_cfg.rx_antenna,
+				       ant_cfg.rx_antenna_6g);
+			} else
+				PRINTM(MCMND,
+				       "user_htstream=0x%x, tx_antenna=0x%x >rx_antenna=0x%x\n",
+				       pmadapter->user_htstream,
+				       ant_cfg.tx_antenna, ant_cfg.rx_antenna);
 		} else {
 #endif
 			ant_cfg.tx_antenna &= 0x0003;
@@ -4816,6 +4905,8 @@ mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
 		    bitcount(ant_cfg.tx_antenna & 0x00FF) >
 			    pmadapter->number_of_antenna ||
 		    bitcount(ant_cfg.tx_antenna & 0xFF00) >
+			    pmadapter->number_of_antenna ||
+		    bitcount(ant_cfg.tx_antenna_6g & 0xFF) >
 			    pmadapter->number_of_antenna) {
 			PRINTM(MERROR, "Invalid TX antenna setting: 0x%x\n",
 			       ant_cfg.tx_antenna);
@@ -4825,6 +4916,8 @@ mlan_status wlan_handle_antcfg(mlan_private *pmpriv, t_u32 init_antcfg)
 			if (bitcount(ant_cfg.rx_antenna & 0x00FF) >
 				    pmadapter->number_of_antenna ||
 			    bitcount(ant_cfg.rx_antenna & 0xFF00) >
+				    pmadapter->number_of_antenna ||
+			    bitcount(ant_cfg.rx_antenna_6g & 0xFF) >
 				    pmadapter->number_of_antenna) {
 				PRINTM(MERROR,
 				       "Invalid RX antenna setting: 0x%x\n",
@@ -6468,12 +6561,12 @@ done:
 mlan_status wlan_process_mef_cfg_cmd(mlan_private *pmpriv,
 				     pmlan_adapter pmadapter)
 {
-	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_status ret = MLAN_STATUS_FAILURE;
 	pmlan_callbacks pcb;
 	mef_cfg_data mef;
 	mef_entry_t *pentry = MNULL;
 	mef_entry *pmef;
-	t_u16 entry_num = 0;
+	t_s32 entry_num = 0;
 
 	ENTER();
 
@@ -6482,11 +6575,23 @@ mlan_status wlan_process_mef_cfg_cmd(mlan_private *pmpriv,
 
 	/** check how many entries in adapter*/
 	pmef = &pmadapter->entry_cfg;
-	entry_num += pmef->enable_autoarp_entry;
-	entry_num += pmef->num_wowlan_entry;
-	entry_num += pmef->num_ipv6_ns_offload;
+	if (!wlan_secure_add((t_void *)&entry_num, pmef->enable_autoarp_entry,
+			     (t_void *)&entry_num, TYPE_SINT32))
+		goto done;
+	if (!wlan_secure_add((t_void *)&entry_num,
+			     pmef->num_wowlan_entry +
+				     pmef->num_ipv6_ns_offload +
+				     pmef->num_mdns_entry,
+			     (t_void *)&entry_num, TYPE_SINT32))
+		goto done;
+
 	if (!entry_num && !pmef->clear_mef_entry) {
 		PRINTM(MIOCTL, "No filter entries\n");
+		ret = MLAN_STATUS_SUCCESS;
+		goto done;
+	}
+	if (entry_num > MAX_NUM_ENTRIES) {
+		PRINTM(MERROR, "Too many entries\n");
 		goto done;
 	}
 	if (entry_num) {
@@ -6495,7 +6600,6 @@ mlan_status wlan_process_mef_cfg_cmd(mlan_private *pmpriv,
 				       MLAN_MEM_DEF, (t_u8 **)&mef.pentry);
 		if (ret != MLAN_STATUS_SUCCESS || mef.pentry == MNULL) {
 			PRINTM(MERROR, "Failed to allocate cmd data buffer\n");
-			ret = MLAN_STATUS_FAILURE;
 			goto err_handle;
 		}
 	}
@@ -6518,10 +6622,15 @@ mlan_status wlan_process_mef_cfg_cmd(mlan_private *pmpriv,
 		pentry += pmef->num_wowlan_entry;
 	}
 	/** Copy IPv6 NS message offload entry */
-	if (pmef->num_ipv6_ns_offload)
+	if (pmef->num_ipv6_ns_offload) {
 		memcpy_ext(pmadapter, pentry, &pmef->entry[7],
 			   sizeof(mef_entry_t), sizeof(mef_entry_t));
+		pentry += pmef->num_ipv6_ns_offload;
+	}
 
+	if (pmef->num_mdns_entry)
+		memcpy_ext(pmadapter, pentry, &pmef->entry[8],
+			   sizeof(mef_entry_t), sizeof(mef_entry_t));
 	/** Set Entries to firmware*/
 	ret = wlan_set_mef_entry(pmpriv, pmadapter, &mef);
 	if (ret != MLAN_STATUS_SUCCESS)
@@ -6571,6 +6680,13 @@ mlan_status wlan_misc_ioctl_mef_flt_cfg(pmlan_adapter pmadapter,
 				   &mef_cfg->mef_entry, sizeof(mef_entry_t),
 				   sizeof(mef_entry_t));
 		}
+		if (mef_cfg->mef_act_type == MEF_ACT_MDNS) {
+			pmef->num_mdns_entry = 1;
+			pmef->criteria |= mef_cfg->criteria;
+			memcpy_ext(pmadapter, &pmef->entry[8],
+				   &mef_cfg->mef_entry, sizeof(mef_entry_t),
+				   sizeof(mef_entry_t));
+		}
 		/** Set AUTO ARP Entry to adapter*/
 		if (mef_cfg->mef_act_type == MEF_ACT_AUTOARP) {
 			if (mef_cfg->op_code & MLAN_IPADDR_OP_AUTO_ARP_RESP) {
@@ -6598,6 +6714,9 @@ mlan_status wlan_misc_ioctl_mef_flt_cfg(pmlan_adapter pmadapter,
 				memset(pmadapter, &pmef->entry[6], 0,
 				       sizeof(mef_entry_t));
 				memset(pmadapter, &pmef->entry[7], 0,
+				       sizeof(mef_entry_t));
+				pmef->num_mdns_entry = 0;
+				memset(pmadapter, &pmef->entry[8], 0,
 				       sizeof(mef_entry_t));
 				if (MLAN_STATUS_SUCCESS !=
 				    wlan_process_mef_cfg_cmd(
@@ -6902,6 +7021,12 @@ mlan_status wlan_misc_chan_reg_cfg(pmlan_adapter pmadapter,
 
 	misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
+		/* Send 6G CFP table request to the firmware */
+		if (IS_FW_SUPPORT_6G(pmadapter))
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_CHAN_REGION_CFG,
+					       HostCmd_ACT_GET_6G_CFP_TBL, 0,
+					       MNULL, MNULL);
 		cmd_action = HostCmd_ACT_GEN_GET;
 		if (misc_cfg &&
 		    misc_cfg->param.custom_reg_domain.region.country_code[0] !=
@@ -6925,7 +7050,10 @@ mlan_status wlan_misc_chan_reg_cfg(pmlan_adapter pmadapter,
 				       cmd_action, 0, (t_void *)pioctl_req,
 				       MNULL);
 	} else {
-		cmd_action = HostCmd_ACT_GEN_SET;
+		if (pioctl_req->action == MLAN_ACT_SET_6G_CFP_TBL)
+			cmd_action = HostCmd_ACT_SET_6G_CFP_TBL;
+		else
+			cmd_action = HostCmd_ACT_GEN_SET;
 		/* Send 2G/5G/6G CFP table to the firmware */
 		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_CHAN_REGION_CFG,
 				       cmd_action, 0, (t_void *)pioctl_req,
@@ -7364,6 +7492,7 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 	t_u32 infra_band = 0;
 	mlan_ds_radio_cfg *radio_cfg = MNULL;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 
@@ -7407,6 +7536,18 @@ mlan_status wlan_radio_ioctl_band_cfg(pmlan_adapter pmadapter,
 #ifdef STA_SUPPORT
 #endif
 
+		if (infra_band) {
+			/* update FW with user defined band config information
+			 */
+			ret = wlan_prepare_cmd(
+				pmpriv, HostCmd_CMD_802_11_SNMP_MIB,
+				HostCmd_ACT_GEN_SET, User_band_config_i,
+				(t_void *)pioctl_req, &pmpriv->config_bands);
+			if (ret == MLAN_STATUS_SUCCESS)
+				return MLAN_STATUS_PENDING;
+			else
+				return MLAN_STATUS_FAILURE;
+		}
 	} else {
 		/* Infra Bands   */
 		radio_cfg->param.band_cfg.config_bands = pmpriv->config_bands;
@@ -8269,6 +8410,8 @@ mlan_status wlan_misc_ioctl_edmac_cfg(pmlan_adapter pmadapter,
 			misc->param.edmac_cfg.ed_offset_2g = 0x8;
 			misc->param.edmac_cfg.ed_ctrl_5g = 0x1;
 			misc->param.edmac_cfg.ed_offset_5g = 0x8;
+			misc->param.edmac_cfg.ed_ctrl_6g = 0x1;
+			misc->param.edmac_cfg.ed_offset_6g = 0x8;
 			misc->param.edmac_cfg.ed_bitmap_txq_lock = 0x1e00FF;
 		} else if (IS_CARD9177(pmadapter->card_type)) {
 			// from config/ed_mac_ctrl_V2_nw61x.conf
@@ -8299,6 +8442,7 @@ mlan_status wlan_misc_ioctl_edmac_cfg(pmlan_adapter pmadapter,
 	} else {
 		misc->param.edmac_cfg.ed_ctrl_2g = 0x0;
 		misc->param.edmac_cfg.ed_ctrl_5g = 0x0;
+		misc->param.edmac_cfg.ed_ctrl_6g = 0x0;
 	}
 
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_EDMAC_CFG,

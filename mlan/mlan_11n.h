@@ -6,7 +6,7 @@
  *    implemented in mlan_11n.c.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021,2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -178,6 +178,9 @@ static INLINE t_u8 is_station_ampdu_allowed(mlan_private *priv, raListTbl *ptr,
 {
 	sta_node *sta_ptr = MNULL;
 	sta_ptr = wlan_get_station_entry(priv, ptr->ra);
+	if (tid < 0 || tid >= MAX_NUM_TID) {
+		return MFALSE;
+	}
 	if (sta_ptr) {
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 			if (priv->sec_info.wapi_enabled &&
@@ -238,6 +241,8 @@ static INLINE void reset_station_ampdu(mlan_private *priv, t_u8 tid, t_u8 *ra)
 static INLINE t_u8 wlan_is_ampdu_allowed(mlan_private *priv, raListTbl *ptr,
 					 int tid)
 {
+	if (tid < 0)
+		return MFALSE;
 	if (ptr->is_tdls_link)
 		return is_station_ampdu_allowed(priv, ptr, tid);
 	if (priv->adapter->tdls_status != TDLS_NOT_SETUP && !priv->txaggrctrl)
@@ -297,7 +302,7 @@ static INLINE t_u8 wlan_is_amsdu_allowed(mlan_private *priv, raListTbl *ptr,
 #ifdef UAP_SUPPORT
 	sta_node *sta_ptr = MNULL;
 #endif
-	if (priv->amsdu_disable || !ptr->max_amsdu)
+	if (priv->amsdu_disable || !ptr->max_amsdu || tid < 0)
 		return MFALSE;
 #ifdef UAP_SUPPORT
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
@@ -389,7 +394,7 @@ static INLINE t_u8 wlan_find_stream_to_delete(mlan_private *priv,
 	ptx_tbl = (TxBAStreamTbl *)util_peek_list(priv->adapter->pmoal_handle,
 						  &priv->tx_ba_stream_tbl_ptr,
 						  MNULL, MNULL);
-	if (!ptx_tbl) {
+	if (!ptx_tbl || ptr_tid < 0) {
 		LEAVE();
 		return ret;
 	}
@@ -398,6 +403,7 @@ static INLINE t_u8 wlan_find_stream_to_delete(mlan_private *priv,
 
 	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
 		if ((ptx_tbl->ba_status == BA_STREAM_SETUP_COMPLETE) &&
+		    (ptx_tbl->tid >= 0) &&
 		    (tid > priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user)) {
 			tid = priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user;
 			*ptid = ptx_tbl->tid;

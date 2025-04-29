@@ -3,7 +3,7 @@
  *  @brief This file contains PCI-E specific code
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -668,6 +668,8 @@ static void wlan_get_adma_buf_flag_sliding(mlan_adapter *pmadapter,
 	t_u32 last_write_index_with_irq = invalid_index;
 	const t_u32 mid =
 		(wrindx - pcard->txbd_pending / 2) & (num_tx_buffs - 1);
+	/* the calling function validates bounds for num_tx_buffs and wrindx */
+	// coverity[integer_overflow:SUPPRESS]
 	const t_u32 mid_idx =
 		wlan_get_adma_desc_with_eop(pcard, num_tx_buffs, mid, wrindx);
 
@@ -2075,7 +2077,8 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 			       pmadapter->pcard_pcie->reg->reg_txbd_rdptr,
 			       &rdptr)) {
 		PRINTM(MERROR,
-		       "SEND DATA COMP: failed to read REG_TXBD_RDPTR\n");
+		       "func%d: SEND DATA COMP: failed to read REG_TXBD_RDPTR\n",
+		       pmadapter->pcard_pcie->func_num);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -2332,6 +2335,12 @@ static mlan_status wlan_pcie_send_adma_data(mlan_adapter *pmadapter,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+	if (num_tx_buffs == 0) {
+		PRINTM(MERROR, "Invalid number of tx buffers %d \n",
+		       num_tx_buffs);
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	PRINTM(MDATA,
 	       "wlan_pcie_send_adma_data: len=%d flags=0x%x, pkt_size=%d\n",
 	       pmbuf->data_len, flags, pkt_size);
@@ -2542,6 +2551,12 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 		goto done;
 	}
 
+	if (num_tx_buffs == 0) {
+		PRINTM(MERROR, "Invalid number of tx buffers %d \n",
+		       num_tx_buffs);
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	PRINTM(MINFO, "SEND DATA: <Rd: %#x, Wr: %#x>\n",
 	       pmadapter->pcard_pcie->txbd_rdptr,
 	       pmadapter->pcard_pcie->txbd_wrptr);
@@ -2832,6 +2847,254 @@ static t_u8 wlan_is_rx_pending_full(mlan_adapter *pmadapter, t_u32 rdptr)
 }
 
 /**
+ *  @brief This function updates allocated pmbuf to Rx BD
+ *
+ *  @param pmadapter  A pointer to mlan_adapter structure
+ *  @param rd_index   index of rx Ring
+ *  @param pmbuf      pmbuf to attach to rx Ring
+ *
+ */
+static void wlan_pcie_rx_ring_attach_buf(mlan_adapter *pmadapter,
+					 t_u32 rd_index, mlan_buffer *pmbuf)
+{
+#if defined(PCIE8997) || defined(PCIE8897)
+	mlan_pcie_data_buf *prxbd_buf;
+#endif
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+	adma_dual_desc_buf *padma_bd_buf;
+#endif
+
+#if defined(PCIE8997) || defined(PCIE8897)
+	if (!pmadapter->pcard_pcie->reg->use_adma) {
+		prxbd_buf = (mlan_pcie_data_buf *)
+				    pmadapter->pcard_pcie->rxbd_ring[rd_index];
+		if (pmbuf) {
+			prxbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			prxbd_buf->len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
+			prxbd_buf->flags = wlan_cpu_to_le16(MLAN_BD_FLAG_SOP |
+							    MLAN_BD_FLAG_EOP);
+			prxbd_buf->offset = 0;
+			prxbd_buf->frag_len =
+				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
+		}
+	}
+#endif
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+	if (pmadapter->pcard_pcie->reg->use_adma) {
+		padma_bd_buf =
+			(adma_dual_desc_buf *)
+				pmadapter->pcard_pcie->rxbd_ring[rd_index];
+		if (pmbuf) {
+			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+			padma_bd_buf->len = wlan_cpu_to_le16(pmbuf->data_len);
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
+			padma_bd_buf->pkt_size = 0;
+			padma_bd_buf->reserved = 0;
+		}
+	}
+#endif
+}
+
+/**
+ *  @brief This function updates Read, Write ptr based on update_action.
+ *
+ *  @param pmadapter          A pointer to mlan_adapter structure
+ *  @param rd_index           rx rd_index
+ *  @param update_action      RX_RD_UPDATE, RX_WR_UPDATE
+ *
+ *  @return                   MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE;
+ */
+mlan_status wlan_pcie_rx_ring_move_rdwrptr(mlan_adapter *pmadapter,
+					   t_u32 rd_index, t_u8 update_action)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 txbd_val = 0;
+#if defined(PCIE8997) || defined(PCIE8897)
+	t_u32 txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
+	t_u32 txrx_rw_ptr_rollover_ind =
+		pmadapter->pcard_pcie->reg->txrx_rw_ptr_rollover_ind;
+#endif
+	PRINTM(MINFO, "wlan_pcie_rx_ring_move_rdwrptr %d", update_action);
+#if defined(PCIE8997) || defined(PCIE8897)
+	if (!pmadapter->pcard_pcie->reg->use_adma) {
+		if (update_action & RX_RD_UPDATE) {
+			/* update rxbd's rdptrs */
+			if ((++pmadapter->pcard_pcie->rxbd_rdptr &
+			     txrx_rw_ptr_mask) ==
+			    pmadapter->pcard_pcie->txrx_bd_size) {
+				pmadapter->pcard_pcie->rxbd_rdptr =
+					((pmadapter->pcard_pcie->rxbd_rdptr &
+					  txrx_rw_ptr_rollover_ind) ^
+					 txrx_rw_ptr_rollover_ind);
+			}
+		}
+		pcb->moal_spin_lock(pmadapter->pmoal_handle,
+				    pmadapter->pmlan_pcie_lock);
+		if (update_action & RX_WR_UPDATE) {
+			/* update rxbd's wrptrs */
+			if ((++pmadapter->pcard_pcie->rxbd_wrptr &
+			     txrx_rw_ptr_mask) ==
+			    pmadapter->pcard_pcie->txrx_bd_size) {
+				pmadapter->pcard_pcie->rxbd_wrptr =
+					((pmadapter->pcard_pcie->rxbd_wrptr &
+					  txrx_rw_ptr_rollover_ind) ^
+					 txrx_rw_ptr_rollover_ind);
+			}
+		}
+		txbd_val = pmadapter->pcard_pcie->txbd_wrptr &
+			   pmadapter->pcard_pcie->reg->txrx_rw_ptr_wrap_mask;
+		txbd_val = txbd_val << TXBD_RW_PTR_START;
+	}
+#endif
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+	if (pmadapter->pcard_pcie->reg->use_adma) {
+		if (update_action & RX_RD_UPDATE) {
+			pmadapter->pcard_pcie->rxbd_rdptr++;
+			pmadapter->pcard_pcie->rxbd_rdptr &=
+				ADMA_RW_PTR_WRAP_MASK;
+		}
+		if (update_action & RX_WR_UPDATE) {
+			pmadapter->pcard_pcie->rxbd_wrptr++;
+			pmadapter->pcard_pcie->rxbd_wrptr &=
+				ADMA_RW_PTR_WRAP_MASK;
+		}
+	}
+#endif
+	PRINTM(MINFO, "RECV DATA: Updated <Wr: %#x, Rd: %#x>\n",
+	       pmadapter->pcard_pcie->rxbd_wrptr,
+	       pmadapter->pcard_pcie->rxbd_rdptr);
+	/* Write the RX ring write pointer in to REG_RXBD_WRPTR */
+	ret = pcb->moal_write_reg(pmadapter->pmoal_handle,
+				  pmadapter->pcard_pcie->reg->reg_rxbd_wrptr,
+				  pmadapter->pcard_pcie->rxbd_wrptr | txbd_val);
+#if defined(PCIE8997) || defined(PCIE8897)
+	if (!pmadapter->pcard_pcie->reg->use_adma) {
+		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
+				      pmadapter->pmlan_pcie_lock);
+	}
+#endif
+	if (ret) {
+		PRINTM(MERROR, "RECV DATA: failed to write REG_RXBD_WRPTR\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function gets called from Rx Interrupt, update pmbuf and
+ * Read/write pointer.
+ *
+ *  @param pmadapter          A pointer to mlan_adapter structure
+ *  @param rd_index           rx rd_index
+ *  @param pmbuf              pointer to pmbuf
+ *
+ *  @return                   MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE;
+ */
+static mlan_status wlan_pcie_reattach_handle(mlan_adapter *pmadapter,
+					     t_u32 rd_index,
+					     mlan_buffer **pmbuf)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 update_rx_action = (RX_RD_UPDATE | RX_WR_UPDATE);
+	mlan_private *priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+
+	/* Failing Rd-index(s), get re-filled under Main WQ */
+	/* Update the Current RD as Last Index for Re-fill work */
+	pmadapter->callbacks.moal_spin_lock(
+		pmadapter->pmoal_handle,
+		pmadapter->rx_refill_start_index.plock);
+	if (util_scalar_read(pmadapter->pmoal_handle,
+			     &pmadapter->rx_refill_start_index, MNULL,
+			     MNULL) != MLAN_INVALID_TXRX_INDEX_VAL) {
+		update_rx_action = RX_RD_UPDATE;
+		pmadapter->rx_refill_last_index = rd_index;
+	}
+	pmadapter->callbacks.moal_spin_unlock(
+		pmadapter->pmoal_handle,
+		pmadapter->rx_refill_start_index.plock);
+
+	/* Default action is always RD+WR */
+	if (update_rx_action == (RX_RD_UPDATE | RX_WR_UPDATE)) {
+		ret = wlan_pcie_reattach_pmbuf(pmadapter, rd_index, pmbuf);
+		/* update failure RD index for Re-fill work (main WQ) */
+		if (ret != MLAN_STATUS_SUCCESS) {
+			pmadapter->callbacks.moal_spin_lock(
+				pmadapter->pmoal_handle,
+				pmadapter->rx_refill_start_index.plock);
+			update_rx_action = RX_RD_UPDATE;
+			util_scalar_write(pmadapter->pmoal_handle,
+					  &pmadapter->rx_refill_start_index,
+					  rd_index, MNULL, MNULL);
+			pmadapter->rx_refill_last_index = rd_index;
+			pmadapter->callbacks.moal_spin_unlock(
+				pmadapter->pmoal_handle,
+				pmadapter->rx_refill_start_index.plock);
+			wlan_recv_event(priv, MLAN_EVENT_ID_DRV_DEFER_HANDLING,
+					MNULL);
+		}
+	}
+	if ((MLAN_STATUS_SUCCESS !=
+	     wlan_pcie_rx_ring_move_rdwrptr(pmadapter, rd_index,
+					    update_rx_action))) {
+		ret = MLAN_STATUS_FAILURE;
+	}
+
+	return ret;
+}
+
+/**
+ *  @brief This function allocates pmbuf for rx Ring..
+ *
+ *  @param pmadapter          A pointer to mlan_adapter structure
+ *  @param rd_index           rx rd_index
+ *  @param pmbuf              pointer to pmbuf to allocate DMA memory for Rx
+ * Ring.
+ *
+ *  @return                   MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE;
+ */
+mlan_status wlan_pcie_reattach_pmbuf(mlan_adapter *pmadapter, t_u32 rd_index,
+				     mlan_buffer **pmbuf)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+
+	/* Create new buffer and attach it to Rx Ring */
+	*pmbuf = wlan_alloc_mlan_buffer(pmadapter, MLAN_RX_DATA_BUF_SIZE,
+					MLAN_RX_HEADER_LEN,
+					MOAL_ALLOC_MLAN_BUFFER);
+	if (!(*pmbuf)) {
+		PRINTM(MERROR, "RECV DATA: Unable to allocate mlan_buffer %d\n",
+		       rd_index);
+		ret = MLAN_STATUS_FAILURE;
+		pmadapter->pcard_pcie->rx_buf_list[rd_index] = MNULL;
+		return ret;
+	}
+	if (MLAN_STATUS_FAILURE ==
+	    pcb->moal_map_memory(pmadapter->pmoal_handle,
+				 (*pmbuf)->pbuf + (*pmbuf)->data_offset,
+				 &(*pmbuf)->buf_pa, MLAN_RX_DATA_BUF_SIZE,
+				 PCI_DMA_FROMDEVICE)) {
+		wlan_free_mlan_buffer(pmadapter, *pmbuf);
+		ret = MLAN_STATUS_FAILURE;
+		return ret;
+	}
+	PRINTM(MDAT_D, "RECV DATA: Attach new pmbuf %p at rx_ring[%d]\n",
+	       *pmbuf, rd_index);
+	pmadapter->pcard_pcie->rx_buf_list[rd_index] = *pmbuf;
+	wlan_pcie_rx_ring_attach_buf(pmadapter, rd_index, *pmbuf);
+	return ret;
+}
+
+/**
  *  @brief This function handles received buffer ring and
  *  dispatches packets to upper
  *
@@ -2845,21 +3108,12 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 rdptr = 0;
 	t_u32 rd_index;
+	t_s32 size = 0;
 	mlan_buffer *pmbuf = MNULL;
-	t_u32 txbd_val = 0;
 	t_u16 rx_len = 0, rx_type;
 	const t_u32 num_rx_buffs = pmadapter->pcard_pcie->txrx_bd_size;
 	t_u32 reg_rxbd_rdptr = pmadapter->pcard_pcie->reg->reg_rxbd_rdptr;
-#if defined(PCIE8997) || defined(PCIE8897)
-	t_u32 txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
-	t_u32 txrx_rw_ptr_rollover_ind =
-		pmadapter->pcard_pcie->reg->txrx_rw_ptr_rollover_ind;
-	mlan_pcie_data_buf *prxbd_buf;
-#endif
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
-	defined(PCIEIW624)
-	adma_dual_desc_buf *padma_bd_buf;
-#endif
+
 	t_u32 in_ts_sec = 0;
 	t_u32 in_ts_usec = 0;
 
@@ -2868,7 +3122,9 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 	/* Read the RX ring Read pointer set by firmware */
 	if (pcb->moal_read_reg(pmadapter->pmoal_handle, reg_rxbd_rdptr,
 			       &rdptr)) {
-		PRINTM(MERROR, "RECV DATA: failed to read REG_RXBD_RDPTR\n");
+		PRINTM(MERROR,
+		       "func%d: RECV DATA: failed to read REG_RXBD_RDPTR\n",
+		       pmadapter->pcard_pcie->func_num);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -2894,19 +3150,18 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		/* detach pmbuf (with data) from Rx Ring */
 		rd_index =
 			pmadapter->pcard_pcie->rxbd_rdptr & (num_rx_buffs - 1);
-		if (rd_index >
-		    (t_u32)(pmadapter->pcard_pcie->txrx_bd_size - 1)) {
+		size = pmadapter->pcard_pcie->txrx_bd_size - 1;
+		if (rd_index > (t_u32)(size)) {
 			PRINTM(MERROR, "RECV DATA: Invalid Rx buffer index.\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
 		pmbuf = pmadapter->pcard_pcie->rx_buf_list[rd_index];
-		/* if in previous Interrupt, SKB allocation fails, then there
-		 * will be no valid pmbuf in RxRing at the current index. we can
-		 * attempt reattch a valid pmbuf at same index and continue Rx.
+		/* pmbuf should be always valid here.
+		 * if not valid, it can be processed through Re-attach again.
 		 */
 		if (!pmbuf) {
-			PRINTM(MDAT_D, "RECV DATA: invalid pmbuf");
+			PRINTM(MERROR, "RECV DATA: invalid pmbuf");
 			goto reattach;
 		}
 		if (MLAN_STATUS_FAILURE ==
@@ -2919,7 +3174,6 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
-		pmadapter->pcard_pcie->rx_buf_list[rd_index] = MNULL;
 		PRINTM(MDAT_D,
 		       "RECV DATA: Detach pmbuf %p at rx_ring[%d], pmadapter->rxbd_rdptr=0x%x\n",
 		       pmbuf, rd_index, pmadapter->pcard_pcie->rxbd_rdptr);
@@ -2936,7 +3190,8 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		       pmadapter->pcard_pcie->rxbd_wrptr, rdptr, rx_len,
 		       rx_type);
 
-		if (rx_len <= MLAN_RX_DATA_BUF_SIZE) {
+		if (rx_len && rx_len <= MLAN_RX_DATA_BUF_SIZE) {
+			pmadapter->pcard_pcie->rx_buf_list[rd_index] = MNULL;
 			/* send buffer to host (which will free it) */
 			pmbuf->data_len = rx_len - PCIE_INTF_HEADER_LEN;
 			pmbuf->data_offset += PCIE_INTF_HEADER_LEN;
@@ -2980,121 +3235,26 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 				pmadapter->data_received = MTRUE;
 			}
 		} else {
-			/* Queue the mlan_buffer again */
+			/* Queue the mlan_buffer again.
+			 * should not hit this, unless a real bigger pkt than
+			 * supported size. Invalid length could be due to
+			 * corrupted buffer. better to free and re-attach a new
+			 * pmbuf.
+			 */
 			PRINTM(MERROR, "PCIE: Drop invalid packet, length=%d",
 			       rx_len);
+			wlan_free_mlan_buffer(pmadapter, pmbuf);
+			pmbuf = MNULL;
 		}
 	reattach:
 		if ((rx_len <= MLAN_RX_DATA_BUF_SIZE) || (!pmbuf)) {
-			/* Create new buffer and attach it to Rx Ring */
-			pmbuf = wlan_alloc_mlan_buffer(pmadapter,
-						       MLAN_RX_DATA_BUF_SIZE,
-						       MLAN_RX_HEADER_LEN,
-						       MOAL_ALLOC_MLAN_BUFFER);
-			if (!pmbuf) {
-				PRINTM(MERROR,
-				       "RECV DATA: Unable to allocate mlan_buffer\n");
-				ret = MLAN_STATUS_FAILURE;
-				goto done;
+			if (MLAN_STATUS_FAILURE ==
+			    wlan_pcie_reattach_handle(pmadapter, rd_index,
+						      &pmbuf)) {
+				PRINTM(MERROR, "RECV DATA: reattach failed\n");
 			}
 		}
 
-		if (MLAN_STATUS_FAILURE ==
-		    pcb->moal_map_memory(pmadapter->pmoal_handle,
-					 pmbuf->pbuf + pmbuf->data_offset,
-					 &pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
-					 PCI_DMA_FROMDEVICE)) {
-			PRINTM(MERROR, "RECV DATA: moal_map_memory failed\n");
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-
-		PRINTM(MDAT_D,
-		       "RECV DATA: Attach new pmbuf %p at rx_ring[%d]\n", pmbuf,
-		       rd_index);
-		pmadapter->pcard_pcie->rx_buf_list[rd_index] = pmbuf;
-#if defined(PCIE8997) || defined(PCIE8897)
-		if (!pmadapter->pcard_pcie->reg->use_adma) {
-			prxbd_buf = (mlan_pcie_data_buf *)pmadapter->pcard_pcie
-					    ->rxbd_ring[rd_index];
-			prxbd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
-			prxbd_buf->len =
-				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-			prxbd_buf->flags = wlan_cpu_to_le16(MLAN_BD_FLAG_SOP |
-							    MLAN_BD_FLAG_EOP);
-			prxbd_buf->offset = 0;
-			prxbd_buf->frag_len =
-				wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-
-			/* update rxbd's rdptrs */
-			if ((++pmadapter->pcard_pcie->rxbd_rdptr &
-			     txrx_rw_ptr_mask) ==
-			    pmadapter->pcard_pcie->txrx_bd_size) {
-				pmadapter->pcard_pcie->rxbd_rdptr =
-					((pmadapter->pcard_pcie->rxbd_rdptr &
-					  txrx_rw_ptr_rollover_ind) ^
-					 txrx_rw_ptr_rollover_ind);
-			}
-
-			pcb->moal_spin_lock(pmadapter->pmoal_handle,
-					    pmadapter->pmlan_pcie_lock);
-
-			/* update rxbd's wrptrs */
-			if ((++pmadapter->pcard_pcie->rxbd_wrptr &
-			     txrx_rw_ptr_mask) ==
-			    pmadapter->pcard_pcie->txrx_bd_size) {
-				pmadapter->pcard_pcie->rxbd_wrptr =
-					((pmadapter->pcard_pcie->rxbd_wrptr &
-					  txrx_rw_ptr_rollover_ind) ^
-					 txrx_rw_ptr_rollover_ind);
-			}
-			txbd_val = pmadapter->pcard_pcie->txbd_wrptr &
-				   pmadapter->pcard_pcie->reg
-					   ->txrx_rw_ptr_wrap_mask;
-			txbd_val = txbd_val << TXBD_RW_PTR_START;
-		}
-#endif
-#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
-	defined(PCIEIW624)
-		if (pmadapter->pcard_pcie->reg->use_adma) {
-			padma_bd_buf =
-				(adma_dual_desc_buf *)pmadapter->pcard_pcie
-					->rxbd_ring[rd_index];
-			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
-			padma_bd_buf->len = wlan_cpu_to_le16(pmbuf->data_len);
-			padma_bd_buf->flags = wlan_cpu_to_le16(
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
-			padma_bd_buf->pkt_size = 0;
-			padma_bd_buf->reserved = 0;
-			pmadapter->pcard_pcie->rxbd_rdptr++;
-			pmadapter->pcard_pcie->rxbd_wrptr++;
-			pmadapter->pcard_pcie->rxbd_rdptr &=
-				ADMA_RW_PTR_WRAP_MASK;
-			pmadapter->pcard_pcie->rxbd_wrptr &=
-				ADMA_RW_PTR_WRAP_MASK;
-		}
-#endif
-		PRINTM(MINFO, "RECV DATA: Updated <Wr: %#x, Rd: %#x>\n",
-		       pmadapter->pcard_pcie->rxbd_wrptr, rdptr);
-
-		/* Write the RX ring write pointer in to REG_RXBD_WRPTR */
-		ret = pcb->moal_write_reg(
-			pmadapter->pmoal_handle,
-			pmadapter->pcard_pcie->reg->reg_rxbd_wrptr,
-			pmadapter->pcard_pcie->rxbd_wrptr | txbd_val);
-
-#if defined(PCIE8997) || defined(PCIE8897)
-		if (!pmadapter->pcard_pcie->reg->use_adma) {
-			pcb->moal_spin_unlock(pmadapter->pmoal_handle,
-					      pmadapter->pmlan_pcie_lock);
-		}
-#endif
-		if (ret) {
-			PRINTM(MERROR,
-			       "RECV DATA: failed to write REG_RXBD_WRPTR\n");
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) ||
 		    (pmadapter->ps_state == PS_STATE_SLEEP_CFM))
 			goto done;
@@ -3103,7 +3263,8 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		if (pcb->moal_read_reg(pmadapter->pmoal_handle, reg_rxbd_rdptr,
 				       &rdptr)) {
 			PRINTM(MERROR,
-			       "RECV DATA: failed to read REG_RXBD_RDPTR\n");
+			       "func%d: RECV DATA: failed to read REG_RXBD_RDPTR\n",
+			       pmadapter->pcard_pcie->func_num);
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -3517,7 +3678,9 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 	if (pcb->moal_read_reg(pmadapter->pmoal_handle,
 			       pmadapter->pcard_pcie->reg->reg_evtbd_rdptr,
 			       &rdptr)) {
-		PRINTM(MERROR, "EvtRdy: failed to read REG_EVTBD_RDPTR\n");
+		PRINTM(MERROR,
+		       "func%d: EvtRdy: failed to read REG_EVTBD_RDPTR\n",
+		       pmadapter->pcard_pcie->func_num);
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -3728,7 +3891,9 @@ static mlan_status wlan_pcie_event_complete(mlan_adapter *pmadapter,
 	if (pcb->moal_read_reg(pmadapter->pmoal_handle,
 			       pmadapter->pcard_pcie->reg->reg_evtbd_rdptr,
 			       &rdptr)) {
-		PRINTM(MERROR, "EvtCom: failed to read REG_EVTBD_RDPTR\n");
+		PRINTM(MERROR,
+		       "func%d: EvtCom: failed to read REG_EVTBD_RDPTR\n",
+		       pmadapter->pcard_pcie->func_num);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -3888,7 +4053,7 @@ static mlan_status wlan_pcie_prog_fw_w_helper(mlan_adapter *pmadapter,
 					      mlan_fw_image *fw)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
-	t_u8 *firmware = fw->pfw_buf;
+	const t_u8 *firmware = fw->pfw_buf;
 	t_u32 firmware_len = fw->fw_len;
 	t_u32 offset = 0;
 	mlan_buffer *pmbuf = MNULL;

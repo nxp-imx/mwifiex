@@ -133,7 +133,9 @@ Change log:
 #include "moal_shim.h"
 /* Wireless header */
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(6, 12, 12)
 #include <net/lib80211.h>
+#endif
 #include <net/cfg80211.h>
 #include <net/ieee80211_radiotap.h>
 #endif
@@ -339,7 +341,7 @@ typedef t_u8 BOOLEAN;
 #endif
 
 /** Driver version */
-extern char driver_version[];
+extern char driver_version[MLAN_MAX_VER_STR_LEN];
 
 extern struct semaphore AddRemoveCardSem;
 extern int wifi_status;
@@ -491,6 +493,8 @@ typedef struct {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 static inline void woal_timer_handler(struct timer_list *t)
 {
+	// Coverity violation raised for kernel's API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
 	pmoal_drv_timer timer = from_timer(timer, t, tl);
 #else
 static inline void woal_timer_handler(unsigned long fcontext)
@@ -971,6 +975,19 @@ mlan_status woal_do_dfs_cac(moal_private *priv,
 #define MOAL_TIMER_1S 1000
 /** 1 milisecond */
 #define MOAL_TIMER_1MS 1
+/**
+ * Firmware dump to logger includes additional time delay to
+ * complete dump. Duration shall be, 10 seconds if firmware
+ * dump to log is enabled OR 5 seconds otherwise.
+ *
+ */
+#ifdef FWDUMP_VIA_PRINT
+/** 10 seconds */
+#define MOAL_FW_DUMP_TIMER 10000
+#else
+/** 5 seconds */
+#define MOAL_FW_DUMP_TIMER 5000
+#endif
 /** scan timeout set to 25 seconds */
 #define SCAN_TIMEOUT_25S 25000
 
@@ -988,6 +1005,9 @@ mlan_status woal_do_dfs_cac(moal_private *priv,
 #define INIT_SPECIFIC_SCAN_CHAN_TIME 80
 /** specific scan time after connected */
 #define MIN_SPECIFIC_SCAN_CHAN_TIME 40
+
+/* MAX SCAN TIMEOUT: 10 seconds, set to 9.5 seconds */
+#define MAX_SCAN_TIMEOUT 9500
 
 /** Default value of re-assoc timer */
 #define REASSOC_TIMER_DEFAULT 500
@@ -2026,6 +2046,7 @@ struct _moal_private {
 	mlan_ds_misc_gtk_rekey_data gtk_rekey_data;
 	dot11_protocol tx_protocols;
 	dot11_protocol rx_protocols;
+	t_u8 enable_fils;
 	t_u16 csi_seq;
 	/** 0-disable, 1-enable */
 	t_u16 csi_enable;
@@ -2063,6 +2084,8 @@ struct _moal_private {
 	t_u64 uuid_lo;
 	t_u64 uuid_hi;
 	t_u16 auth_tx_wait_time;
+
+	t_u32 rx_pkt_ac[MAX_AC_QUEUES];
 };
 
 #ifdef SDIO
@@ -2222,8 +2245,6 @@ struct mcs_field {
 
 /** vht_field */
 struct vht_field {
-	/** pad: for vht field require 2 bytes alignment */
-	t_u8 pad;
 	/** known */
 	t_u16 known;
 	/** flags */
@@ -2252,7 +2273,6 @@ struct vht_field {
 #define HE_CODING_LDPC_USER0 0x2000
 /** he_field - COCO */
 struct he_field {
-	t_u8 pad;
 	t_u16 data1;
 	t_u16 data2;
 	t_u16 data3;
@@ -2409,32 +2429,28 @@ extern t_u8 ru_signal_52[9];
 #define RADIOTAP_FLAGS_PAD_BTW_HEADER_PAYLOAD 0x20
 #define RADIOTAP_FLAGS_FAILED_FCS_CHECK 0x40
 #define RADIOTAP_FLAGS_USE_SGI_HT 0x80
+
 struct radiotap_body {
 	/** timestamp */
-	t_u64 timestamp;
+	t_u64 timestamp; /* 0~7 bytes */
 	/** flags */
-	t_u8 flags;
+	t_u8 flags; /* 8th byte */
 	/** rate for LG pkt, RATE flag will be present, it shows datarate in
 	 * 500Kbps. For HT/VHT pkt, RATE flag will not be present, it is not
 	 * used. */
-	t_u8 rate;
+	t_u8 rate; /* 9th byte */
 	/** channel */
-	struct channel_field channel;
+	struct channel_field channel; /* 10~13 bytes */
 	/** antenna_signal */
-	t_s8 antenna_signal;
+	t_s8 antenna_signal; /* 14th byte */
 	/** antenna_noise */
-	t_s8 antenna_noise;
+	t_s8 antenna_noise; /* 15th byte */
 	/** antenna */
-	t_u8 antenna;
-	/** union for HT/VHT pkt */
-	union {
-		/** mcs field */
-		struct mcs_field mcs;
-		/** vht field */
-		struct vht_field vht;
-		/** he field */
-		struct he_field he;
-	} u;
+	t_u8 antenna; /* 16th byte */
+	/** Required Alignment */
+	t_u8 align_1; /* 17th byte */
+	/** rx flags Required Alignment is 2 */
+	t_u16 rx_flags; /* 18~19 bytes */
 } __packed;
 
 struct radiotap_header {
@@ -2506,6 +2522,15 @@ int woal_enable_fw_roaming(moal_private *priv, int data);
 #define GTK_REKEY_OFFLOAD_ENABLE 1
 #define GTK_REKEY_OFFLOAD_SUSPEND 2
 
+/** Supported bandwidth for monitor mode */
+enum {
+	SNIFF_BW_20MHZ = 0,
+	SNIFF_BW_40MHZ = 1,
+	SNIFF_BW_40MHZ_ABOVE = 1,
+	SNIFF_BW_40MHZ_BELOW = 3,
+	SNIFF_BW_80MHZ = 4,
+};
+
 /** Monitor Band Channel Config */
 typedef struct _netmon_band_chan_cfg {
 	t_u32 band;
@@ -2572,6 +2597,7 @@ enum ext_mod_params {
 	EXT_SHUTDOWN_HS,
 #endif
 #endif
+	EXT_START_11AI_SCAN,
 #if defined(USB)
 	EXT_SKIP_FWDNLD,
 #endif
@@ -2672,6 +2698,9 @@ typedef struct _moal_mod_para {
 #if defined(STA_SUPPORT)
 	int cfg_11d;
 #endif
+#if defined(UAP_SUPPORT)
+	int custom_11d_bcn_country_ie_en;
+#endif
 #if defined(SDIO)
 	int slew_rate;
 #endif
@@ -2735,6 +2764,10 @@ typedef struct _moal_mod_para {
 	t_u32 reject_addba_req;
 	/** disable_11h_tpc setting */
 	int disable_11h_tpc;
+	/* tpe_ie_ignore setting */
+	int tpe_ie_ignore;
+	/* make_before_break during roam */
+	int make_before_break;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -2854,6 +2887,10 @@ struct _moal_handle {
 	const struct firmware *dpd_data;
 	/** txpwr data file */
 	const struct firmware *txpwr_data;
+	/** Operation Mode PSD String */
+	char mode_psd_string[64];
+	/** Load time file name */
+	char mode_psd_file[64];
 	/** Hotplug device */
 	struct device *hotplug_device;
 	/** STATUS variables */
@@ -3074,6 +3111,8 @@ struct _moal_handle {
 	/** reg debug flag */
 	t_u8 reg_dbg;
 #ifdef SDIO
+	/** sdio_blk_size */
+	t_u32 sdio_blk_size;
 #endif /* SDIO */
 	/** Netlink kernel socket */
 	struct sock *nl_sk;
@@ -3230,7 +3269,11 @@ struct _moal_handle {
 #endif
 	mlan_ds_misc_keep_alive keep_alive[MAX_KEEP_ALIVE_ID];
 	mlan_ds_misc_keep_alive_rx keep_alive_rx[MAX_KEEP_ALIVE_RX_ID];
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
+	struct net_device *pnapi_dev;
+#else
 	struct net_device napi_dev;
+#endif
 	struct napi_struct napi_rx;
 	/* bus interface operations */
 	moal_if_ops ops;
@@ -3446,12 +3489,14 @@ extern t_u32 drvdbg;
 	} while (0)
 #endif /* DEBUG_LEVEL2 */
 
+#ifdef FWDUMP_VIA_PRINT
 #define PRINTM_MFWDP_D(msg...)                                                 \
 	do {                                                                   \
 		woal_print(MFWDP_D, msg);                                      \
 		if (drvdbg & MFWDP_D)                                          \
 			printk(KERN_DEBUG msg);                                \
 	} while (0)
+#endif /*FWDUMP_VIA_PRINT*/
 #define PRINTM_MFW_D(msg...)                                                   \
 	do {                                                                   \
 		woal_print(MFW_D, msg);                                        \
@@ -3565,7 +3610,7 @@ static inline void woal_print(t_u32 level, char *fmt, ...)
 #define DBG_DUMP_BUF_LEN 64
 #define MAX_DUMP_PER_LINE 16
 
-static inline void hexdump(t_u32 level, char *prompt, t_u8 *buf, int len)
+static inline void hexdump(t_u32 level, char *prompt, const t_u8 *buf, int len)
 {
 	int i;
 	char dbgdumpbuf[DBG_DUMP_BUF_LEN];
@@ -3777,8 +3822,15 @@ static inline void woal_get_monotonic_time(wifi_timeval *tv)
 /** Max register type/offset/value etc. parameter length allowed */
 #define MAX_PARAM_LEN 12
 
+/** HostCmd_CMD_DBGS_CFG for Debug cmd configuration */
+#define HostCmd_CMD_DBGS_CFG 0x008b
+
+/** Debug subcommand for enable hehtc */
+#define DEBUG_SUBID_ENABLE_HEHTC 0x124
+
 /** HostCmd_CMD_CFG_DATA for CAL data */
 #define HostCmd_CMD_CFG_DATA 0x008f
+
 /** HostCmd action set */
 #define HostCmd_ACT_GEN_SET 0x0001
 /** HostCmd CAL data header length */
@@ -3801,6 +3853,17 @@ typedef struct _HostCmd_DS_802_11_CFG_DATA {
 	/** Data */
 	t_u8 data[1];
 } __ATTRIB_PACK__ HostCmd_DS_802_11_CFG_DATA;
+
+typedef struct _HostCmd_DS_802_11_DBGS_CFG {
+	/** hostcmd header */
+	HostCmd_DS_GEN header;
+	/** sub cmd action */
+	t_u16 action;
+	/** subid */
+	t_u16 subid;
+	/** Data */
+	t_u8 data[];
+} __ATTRIB_PACK__ HostCmd_DS_802_11_DBGS_CFG;
 
 /** combo scan header */
 #define WEXT_CSCAN_HEADER "CSCAN S\x01\x00\x00S\x00"
@@ -3985,12 +4048,16 @@ void woal_request_set_multicast_list(moal_private *priv,
 mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 			       t_u8 wait_option);
 /** Set/Get generic element */
-mlan_status woal_set_get_gen_ie(moal_private *priv, t_u32 action, t_u8 *ie,
-				int *ie_len, t_u8 wait_option);
+mlan_status woal_set_get_gen_ie(moal_private *priv, t_u32 action,
+				const t_u8 *ie, t_u8 *get_ie, int *ie_len,
+				t_u8 wait_option);
 #ifdef CONFIG_PROC_FS
 mlan_status woal_request_soft_reset(moal_handle *handle);
 #endif
 int woal_request_fw_reload(moal_handle *phandle, t_u8 mode);
+
+mlan_status woal_set_psk_11ai(moal_private *priv, t_u8 wait_option,
+			      const t_u8 *addr, const t_u8 *key, int key_len);
 
 /** Get debug information */
 mlan_status woal_get_debug_info(moal_private *priv, t_u8 wait_option,
@@ -4071,8 +4138,10 @@ void woal_dump_firmware_info(moal_handle *phandle);
 void woal_dump_firmware_info_v2(moal_handle *phandle);
 void woal_dump_firmware_info_v3(moal_handle *phandle);
 #endif /* SDIO_MMC */
+#ifdef FWDUMP_VIA_PRINT
 /* Print FW dumps in kernel(dmesg) log */
 t_void woal_print_firmware_dump(moal_handle *phandle, char *fwdp_fname);
+#endif /*FWDUMP_VIA_PRINT*/
 /* Store the FW dumps received from events in a file */
 void woal_store_firmware_dump(moal_handle *phandle, pmlan_event pmevent);
 void woal_send_fw_dump_complete_event(moal_private *priv);
@@ -4113,7 +4182,9 @@ mlan_status woal_get_assoc_rsp(moal_private *priv,
 mlan_status woal_get_assoc_req(moal_private *priv,
 			       mlan_ds_misc_assoc_req *assoc_req,
 			       t_u8 wait_option);
-
+mlan_status woal_get_prev_assoc_info(moal_private *priv,
+				     mlan_ds_assoc_info *assoc_info,
+				     t_u8 wait_option);
 /** Get signal information */
 mlan_status woal_get_signal_info(moal_private *priv, t_u8 wait_option,
 				 mlan_ds_get_signal *signal);
@@ -4219,7 +4290,7 @@ mlan_status woal_reset_intf(moal_private *priv, t_u8 wait_option, int all_intf);
 #define MGMT_MASK_BEACON_WPS_P2P 0x8000
 #define MLAN_CUSTOM_IE_DELETE_MASK 0x0
 #define MLAN_CUSTOM_IE_NEW_MASK 0x8000
-
+#define MRVL_PKT_TYPE_MGMT_FRAME 0xE5
 /** common ioctl for uap, station */
 int woal_custom_ie_ioctl(struct net_device *dev, struct ifreq *req);
 #ifdef UAP_SUPPORT
@@ -4229,6 +4300,7 @@ int woal_priv_get_nonglobal_operclass_by_bw_channel(moal_private *priv,
 						    t_u8 *oper_class);
 #endif
 int woal_send_host_packet(struct net_device *dev, struct ifreq *req);
+int woal_send_mon_if_packet(struct net_device *dev, struct ifreq *req);
 /** Private command ID to pass mgmt frame */
 #define WOAL_MGMT_FRAME_TX_IOCTL (SIOCDEVPRIVATE + 12)
 /** common ioctl for TDLS */
@@ -4348,6 +4420,12 @@ void woal_set_multicast_list(struct net_device *dev);
 mlan_status woal_request_fw(moal_handle *handle);
 mlan_status woal_ioctl_aggr_prio_tbl(moal_private *priv, t_u32 action,
 				     mlan_ds_11n_aggr_prio_tbl *aggr_prio_tbl);
+mlan_status woal_ioctl_addba_reject(moal_private *priv, t_u32 action,
+				    t_u8 *addba_reject);
+mlan_status woal_ioctl_tx_ampdu_prot_mode(moal_private *priv, t_u32 action,
+					  t_u16 *prot_mode);
+mlan_status woal_ioctl_addba_param(moal_private *priv, t_u32 action,
+				   mlan_ds_11n_addba_param *addba_param);
 
 int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option);
 void woal_cancel_cac_block(moal_private *priv);
@@ -4426,7 +4504,7 @@ void woal_remove_mcast_node(moal_private *priv, t_u8 *mcast_addr);
 t_u8 woal_find_mcast_node_tx(moal_private *priv, struct sk_buff *skb);
 
 mlan_status woal_request_country_power_table(moal_private *priv, char *region,
-					     t_u8 wait_option);
+					     t_u8 wait_option, t_u8 psd_mode);
 mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 			       t_u8 wait_option, t_u8 action);
 #ifdef UAP_SUPPORT
@@ -4467,6 +4545,10 @@ mlan_status woal_set_auto_arp_ext(moal_handle *handle, t_u8 enable);
 mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
 				 t_u8 enable, t_u8 filter,
 				 netmon_band_chan_cfg *band_chan_cfg);
+#endif
+#ifdef UAP_SUPPORT
+mlan_status woal_send_bcn_country_ie_cmd_fw(moal_private *priv,
+					    t_u8 wait_option);
 #endif
 mlan_status woal_delba_all(moal_private *priv, t_u8 wait_option);
 #ifdef STA_CFG80211
@@ -4572,5 +4654,25 @@ struct reflective_enum_element {
 };
 
 extern const char *wlan_errorcode_get_name(enum host_error_code_id id);
+
+/*
+ * Redefine GFP_KERNEL for coverity issue,
+ * checker: MISRA C-2012 Rule 10.8,
+ * msg: Cast from 16 bit width expression \"0x400U | 0x800U\" to a wider 32 bit
+ * type., description: The value of a composite expression shall not be cast to
+ * a different essential type category or a wider essential type.
+ */
+#ifdef __GFP_RECLAIM
+#ifdef GFP_KERNEL
+#undef GFP_KERNEL
+#define GFP_KERNEL                                                             \
+	((__GFP_DIRECT_RECLAIM | __GFP_KSWAPD_RECLAIM) | __GFP_IO | __GFP_FS)
+#endif
+#endif
+
+mlan_status woal_ioctl_hostcmd_htc_cap(moal_private *priv, t_u16 action,
+				       t_u8 *enable);
+int woal_getset_regrdwr(moal_private *priv, t_u32 action, t_u32 type,
+			t_u32 offset, t_u32 *value);
 
 #endif /* _MOAL_MAIN_H */

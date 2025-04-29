@@ -3,15 +3,15 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright 2008-2024 NXP
+ Copyright 2008-2025 NXP
 
 
 1) FOR DRIVER BUILD
 
-	Goto source code directory wlan_src/.
+	Goto source code directory.
 	make [clean] build
-	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel from 2.6.32 to 6.9.10.
+	The driver and utility binaries can be found in bin_wlan directory.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.14.0.
 
 2) FOR DRIVER INSTALL
 
@@ -103,7 +103,8 @@
 	req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
 	dfs53cfg=0|1|2 <use Fw Default | New W53 | Old W53>
 	mcs32=0|1 <disable HT MCS32 support | enable HT MCS32 (default)>
-	For 9097/9098/IW624/AW693: antcfg=0x101|0x303|.. <Bit0: Tx/Rx Path A for 2G, Bit1: Tx/Rx Path B for 2G, Bit8: Tx/Rx Path A for 5G, Bit9: Tx/Rx Path B for 5G>
+	For 9097/9098: antcfg=0x101|0x303|.. <Bit0: Tx/Rx Path A for 2G, Bit1: Tx/Rx Path B for 2G, Bit8: Tx/Rx Path A for 5G, Bit9: Tx/Rx Path B for 5G>
+	For IW624/AW693: antcfg=0x10101|0x30303|.. <Bit0: Tx/Rx Path A for 2G, Bit1: Tx/Rx Path B for 2G, Bit8: Tx/Rx Path A for 5G, Bit9: Tx/Rx Path B for 5G, Bit16: Tx/Rx Path A for 6G, Bit17: Tx/Rx Path B for 6G>
 		For AW693, it's recommended to use mod_para configuration file for antcfg as MAC1 supports 2x2 and MAC2 supports only 1x1.
 	For 8897/8997: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
 	For others: antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
@@ -142,7 +143,7 @@
 		must be 0. wq_sched_prio should be 1 to 99 otherwise.
 	rx_work=0|1|2 <default (enabled for multi-core) | Enable rx_work_queue | Disable rx_work_queue>
 	tx_work=0|1 <Disable tx_work_queue | Enable tx_work_queue (default on iMX)>
-	tx_skb_clone=0|1 <Disable tx_skb_clone | Enable tx_skb_clone (default on iMX)>
+	tx_skb_clone=0|1 <Disable tx_skb_clone | Enable tx_skb_clone (default)>
 	pmqos=0|1 <Disable pmqos | Enable pmqos (default on iMX)>
 	rps=0|x <Disables rps (default) | bit0-bit4 (0x1-0xf) Enables rps on specific cpu>
 	intmode=0|1 <SDIO Interrupt Mode (default) | GPIO Interrupt Mode>
@@ -367,6 +368,9 @@
 	        cat /proc/mwlan/adapter0/drv_dump > file_drv_dump     #save the drv dump to file_drv_dump
 	        cat /proc/mwlan/adapter0/fw_dump > file_fw_dump       #save the fw dump to file_fw_dump
             cat /proc/mwlan/adapter1/drv_dump > file_drv_dump_2   #save the adapter1 drv dump to file_drv_dump_2
+	To print fw dump on dmesg log, please enable 21'b bit (MFWDP_D) in drvdbg
+		insmod mlan.ko
+		insmod moal.ko mod_para=nxp/wifi_mod_para.conf [drvdbg=0x200000]
 
 	Use dmesg or cat /var/log/debug to check driver debug messages.
 
@@ -598,6 +602,16 @@
         Bit 8   -- Rx Path B
         Bit 8-9 -- Rx Path A+B
         For 9097/9098/IW624/AW693, HIGH BYTE for 5G setting
+    where value of o is:
+        For IW624/AW693, 6G setting
+        Bit 0   -- Tx Path A
+        Bit 1   -- Tx Path B
+        Bit 0-1 -- Tx Path A+B
+    where value of p is:
+        For IW624/AW693, 6G setting
+        Bit 0   -- Rx Path A
+        Bit 1   -- Rx Path B
+        Bit 0-1 -- Rx Path A+B
     The Tx path setting (m) is used for both Tx and Rx if Rx path (n) is not provided.
 
     Examples:
@@ -607,6 +621,7 @@
 
         echo "antcfg=0x103" > /proc/mwlan/adapter0/config           : Set Tx and Rx path to A+B on 2G and Tx and Rx path to A on 5G
         echo "antcfg=0x103 0x103" > /proc/mwlan/adapter0/config     : Set Tx path to A+B and Rx path to A+B on 2G, and Tx and Rx path to A on 5G
+        echo "antcfg=0x103 0x103 2 2" > /proc/mwlan/adapter0/config   : Set both Tx and Rx path to A+B on 2G, both Tx and Rx path to A on 5G, both Tx and Rx path to B on 6G
 
         echo "antcfg=0x202" > /proc/mwlan/adapter0/config : Use 5GHz path B pin for 5G TX/RX and 2GHz path B pin for 2G TX/RX
 

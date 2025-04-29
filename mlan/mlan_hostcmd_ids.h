@@ -3,7 +3,7 @@
  *  @brief This file contains host command ID definitions.
  *
  *
- *  Copyright 2023-2024 NXP
+ *  Copyright 2023-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -454,6 +454,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : IPS Config */
 	ENUM_ELEMENT(HostCmd_CMD_IPS_CONFIG, 0x0279),
 	ENUM_ELEMENT(HostCmd_CMD_OFDM_DESENSE_CFG, 0x027f),
+#ifdef UAP_SUPPORT
+	/** Host Command ID : BCN country ie information */
+	ENUM_ELEMENT(HostCmd_CMD_802_CUSTOM_BEACON_IE, 0x0281),
+#endif
 	ENUM_ELEMENT(HostCmd_CMD_NAV_MITIGATION_CFG, 0x0282),
 
 	/** Host Command ID: Tx Frame */

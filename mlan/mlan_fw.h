@@ -5,7 +5,7 @@
  *  in MLAN module.
  *
  *
- *  Copyright 2008-2024 NXP
+ *  Copyright 2008-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -931,6 +931,8 @@ enum host_cmd_id {
 #define FW_CAPINFO_EXT_RX_SW_INT MBIT(20)
 /** FW cap info bit 21: EASY_MESH_SUPPORT */
 #define FW_CAPINFO_EASY_MESH MBIT(21)
+/** FW cap info bit 22: ADDBA support with scan */
+#define FW_CAPINFO_ALLOW_ADDBA_RESP_ON_SCAN MBIT(22)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -980,6 +982,9 @@ enum host_cmd_id {
 /** Check if easy mesh supported by firmware */
 #define IS_FW_SUPPORT_EASY_MESH(_adapter)                                      \
 	(_adapter->fw_cap_ext & FW_CAPINFO_EASY_MESH)
+/** Check if ADDBA suppported with scan by firmware */
+#define IS_FW_SUPPORT_ALLOW_ADDBA_RESP_ON_SCAN(_adapter)                       \
+	(_adapter->fw_cap_ext & FW_CAPINFO_ALLOW_ADDBA_RESP_ON_SCAN)
 
 /* EASYMESH_EXTRA_BYTES = 6 Bytes of Mac address + 2 Bytes Reserved */
 #define EASYMESH_EXTRA_BYTES 8
@@ -1058,6 +1063,28 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_cap_t {
 	/** PPE Thresholds (optional) */
 	t_u8 val[20];
 } MLAN_PACK_END MrvlIEtypes_He_cap_t, *pMrvlIEtypes_he_cap_t;
+
+/** MrvlIEtypes_He_6g_cap_t*/
+typedef MLAN_PACK_START struct _MrvlIEtypes_He_6g_cap_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Element id extension */
+	t_u8 ext_id;
+	/** he 6g capability */
+	t_u16 capa;
+} MLAN_PACK_END MrvlIEtypes_He_6g_cap_t, *pMrvlIEtypes_He_6g_cap_t;
+
+/** MrvlIEtypes_6g_scan_paprams_t*/
+typedef MLAN_PACK_START struct _MrvlIEtypes_6g_scan_params_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** bit0: short_ssid_valid, bit1: unsolicited_probe */
+	t_u16 flags;
+	/** short ssid */
+	t_u32 short_ssid;
+	/** bssid */
+	t_u8 bssid[6];
+} MLAN_PACK_END MrvlIEtypes_6g_scan_params_t, *pMrvlIEtypes_6g_scan_params_t;
 
 typedef MLAN_PACK_START struct _MrvlIEtypes_He_Op_t {
 	/** Header */
@@ -1138,6 +1165,8 @@ typedef MLAN_PACK_START struct _power_table_attr {
 	t_u8 cols_2g;
 	t_u8 rows_5g;
 	t_u8 cols_5g;
+	t_u8 rows_6g;
+	t_u8 cols_6g;
 } MLAN_PACK_END power_table_attr_t;
 
 #define FW_CFP_TABLE_MAX_ROWS_BG 14
@@ -1145,6 +1174,9 @@ typedef MLAN_PACK_START struct _power_table_attr {
 
 #define FW_CFP_TABLE_MAX_ROWS_A 39
 #define FW_CFP_TABLE_MAX_COLS_A 29
+
+#define FW_CFP_TABLE_MAX_ROWS_6G 59
+#define FW_CFP_TABLE_MAX_COLS_6G 36
 
 #define HostCmd_ACT_RTT_GET_RSP_INFO 0x0000
 #define HostCmd_ACT_RTT_SET_RSP_EN 0x0001
@@ -1190,6 +1222,10 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_ACT_GEN_REMOVE 0x0004
 /** General purpose action : Reset */
 #define HostCmd_ACT_GEN_RESET 0x0005
+/** Host command action : Get Tx 6G CFP table */
+#define HostCmd_ACT_GET_6G_CFP_TBL 0x0006
+/** Host command action : Set Tx 6G CFP table */
+#define HostCmd_ACT_SET_6G_CFP_TBL 0x0007
 
 /** Host command action : Set Rx */
 #define HostCmd_ACT_SET_RX 0x0001
@@ -1414,6 +1450,7 @@ typedef MLAN_PACK_START struct _event_nan_generic {
 } MLAN_PACK_END event_nan_generic;
 
 #define RXPD_FLAG_EXTRA_HEADER (1 << 1)
+#define RXPD_FLAG_RADIOTAP_HEADER_EXTRA (1 << 5)
 
 #define RXPD_FLAG_UCAST_PKT (1 << 3)
 
@@ -1767,6 +1804,12 @@ typedef MLAN_PACK_START struct _IEEEtypes_Beacon_t {
 
 /** Fixed size of station association event */
 #define ASSOC_EVENT_FIX_SIZE 12
+
+/** Fixed size of Assoc Req */
+#define ASSOC_RESP_FIX_SIZE 6
+
+/** MGMT PKT header fixed size: frame_ctrl, duration, da,sa,bssid, seq_ctrl*/
+#define MGMT_PKT_HEADER_FIX_SIZE 24
 
 /** MrvlIEtypes_channel_band_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_channel_band_t {
@@ -3242,6 +3285,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
+	/** Current SOC Temperature*/
+	t_u32 currTemp;
+	/** TX Power Control Method*/
+	t_u32 TXpwrMethod;
 	/** SDMA FSM stuck Count*/
 	t_u32 SdmaStuckCnt;
 	// Ownership error counters
@@ -3699,6 +3746,8 @@ typedef enum _SNMP_MIB_INDEX {
 	Dot11H_fakeRadar = 45,
 	ChanTrackParam_i = 46,
 	Dot11h_disable_tpc_i = 47,
+	Ignore_tpe_i = 48,
+	User_band_config_i = 49,
 } SNMP_MIB_INDEX;
 
 /** max SNMP buf size */
@@ -4105,6 +4154,11 @@ typedef MLAN_PACK_START struct _wlan_scan_cmd_config {
 	 */
 	t_u8 specific_bssid[MLAN_MAC_ADDR_LENGTH];
 
+	/**num of 6g scan params for OOB scan */
+	t_u8 num_6g_scan_params;
+	/** 6g scan params for OOB scan */
+	wlan_6g_scan_params scan_param_list[WLAN_MAX_6G_SCAN_PARAMS_LIST];
+
 	/**
 	 *  Length of TLVs sent in command starting at tlvBuffer
 	 */
@@ -4291,8 +4345,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_BG_SCAN_CONFIG {
 	t_u8 bss_type;
 	/** num of channel per scan */
 	t_u8 chan_per_scan;
+	/** 11ai */
+	t_u8 dot11ai : 1;
 	/** reserved field */
-	t_u8 reserved;
+	t_u8 reserved : 7;
 	/** reserved field */
 	t_u16 reserved1;
 	/** interval between consecutive scans */
@@ -5290,6 +5346,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_ANTENNA {
 	t_u16 action_rx;
 	/** Rx antenna mode Bit0:1, Bit1:2, Bit0-1:1+2, 0xffff: diversity */
 	t_u16 rx_antenna_mode;
+	/** Tx antenna mode Bit0:1, Bit1:2, Bit0-1:1+2, for 6G support */
+	t_u8 tx_antenna_mode_6g;
+	/** Rx antenna mode Bit0:1, Bit1:2, Bit0-1:1+2, for 6G support */
+	t_u8 rx_antenna_mode_6g;
 } MLAN_PACK_END HostCmd_DS_802_11_RF_ANTENNA;
 
 /** HostCmd_DS_MGMT_IE_LIST_CFG */
@@ -5970,6 +6030,22 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_wmm_parameter_t {
 	/** WMM parameter */
 	WmmParameter_t wmm_para;
 } MLAN_PACK_END MrvlIEtypes_wmm_parameter_t;
+
+/** MrvlIEtypes_wmm_parameter_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_FILS_ip_config_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** IP ADDR **/
+	t_u32 ip_addr;
+	/** SUBNET Mask **/
+	t_u32 subnet_mask;
+	/** Base IP **/
+	t_u32 base_ip;
+	/** DNS IP **/
+	t_u32 dns_ip;
+	/** MAX Clients **/
+	t_u16 max_clients;
+} MLAN_PACK_END MrvlIEtypes_FILS_ip_config_t;
 
 /** MrvlIEtypes_wacp_mode_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_wacp_mode_t {
@@ -7414,6 +7490,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_EDMAC_CFG {
 	t_u16 ed_ctrl_5g;
 	/** Energy detect threshold offset for 5ghz */
 	t_s16 ed_offset_5g;
+	/** EU adaptivity for 6ghz band */
+	t_u16 ed_ctrl_6g;
+	/** Energy detect threshold offset for 6ghz */
+	t_s16 ed_offset_6g;
 
 	t_u32 ed_bitmap_txq_lock;
 } MLAN_PACK_END HostCmd_DS_EDMAC_CFG;
@@ -7762,6 +7842,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_WMM_HOST_DELTS_REQ host_del_ts;
 		/** Auth, (Re)Assoc timeout configuration */
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
+		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 
@@ -7861,5 +7942,10 @@ typedef enum _BLOCK_6G_CHAN_SWITCH_REASON {
 #ifdef PRAGMA_PACK
 #pragma pack(pop)
 #endif
+
+typedef MLAN_PACK_START struct _Event_DPD_CAL_t {
+	t_u8 radio_id;
+	t_u8 sub_band;
+} MLAN_PACK_END Event_DPD_CAL_t;
 
 #endif /* !_MLAN_FW_H_ */

@@ -3,7 +3,7 @@
  *  @brief This file contains AP mode transmit and receive functions
  *
  *
- *  Copyright 2009-2021, 2024 NXP
+ *  Copyright 2009-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -161,8 +161,9 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	/* head_ptr should be aligned */
 	head_ptr = pmbuf->pbuf + pmbuf->data_offset -
 		   Tx_PD_SIZEOF(pmpriv->adapter) - pmpriv->intf_hr_len;
+	// Typecasting is done for alignment of head_ptr
+	// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
-
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
 	// coverity[bad_memset:SUPPRESS]
 	memset(pmpriv->adapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmpriv->adapter));
@@ -917,7 +918,8 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 
 upload:
 	/* Chop off RxPD */
-	pmbuf->data_len -= prx_pd->rx_pkt_offset;
+	if (pmbuf->data_len >= prx_pd->rx_pkt_offset)
+		pmbuf->data_len -= prx_pd->rx_pkt_offset;
 	pmbuf->data_offset += prx_pd->rx_pkt_offset;
 	pmbuf->pparent = MNULL;
 

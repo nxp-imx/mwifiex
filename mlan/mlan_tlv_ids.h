@@ -360,6 +360,8 @@
 /** TLV rssi info */
 #define TLV_TYPE_RSSI_INFO (PROPRIETARY_TLV_BASE_ID + 229) /* 0x01e5 */
 #define TLV_TYPE_IPV6_RA_OFFLOAD (PROPRIETARY_TLV_BASE_ID + 230) /* 0x01e6 */
+/** TLV type :  FILS IP config params */
+#define TLV_TYPE_AP_FILS_IP_CFG (PROPRIETARY_TLV_BASE_ID + 231) /* 0x01e7 */
 /** TLV to indicate firmware only keep probe response while scan */
 #define TLV_TYPE_ONLYPROBERESP (PROPRIETARY_TLV_BASE_ID + 233) /* 0x01e9 */
 #define TLV_TYPE_RANDOM_MAC (PROPRIETARY_TLV_BASE_ID + 236) /* 0x01ec */
@@ -495,6 +497,7 @@
 #define TLV_TYPE_SECURE_BOOT_UUID (PROPRIETARY_TLV_BASE_ID + 348) /* 0x025c */
 #define TLV_TYPE_CLOUD_KEEP_ALIVE_ACK                                          \
 	(PROPRIETARY_TLV_BASE_ID + 349) /* 0x025d */
+#define TLV_TYPE_6G_SCAN_PARAMS (PROPRIETARY_TLV_BASE_ID + 350) /* 0x025e */
 /** TLV type: ps_ext_param */
 #define TLV_TYPE_PS_EXT_PARAM (PROPRIETARY_TLV_BASE_ID + 351) /* 0x025f */
 #define TLV_TYPE_MCLIENT_FW_CAPS (PROPRIETARY_TLV_BASE_ID + 352) /* 0x0260 */
@@ -502,5 +505,6 @@
 #define TLV_TYPE_BOOT_TIME_CFG (PROPRIETARY_TLV_BASE_ID + 355) /* 0x0263 */
 
 #define VENDOR_IE_OUIS_TLV_ID (PROPRIETARY_TLV_BASE_ID + 357) /* 0x0265 */
+#define TLV_TYPE_AP_INFO (PROPRIETARY_TLV_BASE_ID + 358) /* 0x0266 */
 
 #endif /* !MLAN_TLV_IDS_H_ */

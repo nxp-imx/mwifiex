@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 802.11D.
  *
  *
- *  Copyright 2008-2022, 2024 NXP
+ *  Copyright 2008-2022, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -122,6 +122,67 @@ static chan_freq_power_t channel_freq_power_UN_AJ[] = {
 	    {252, 4980, TX_PWR_DEFAULT},
 	channels for 11J JP 10M channel gap */
 };
+/** Channels for 802.116G */
+static chan_freq_power_t channel_freq_power_UN_6G[] = {
+	{1, 5955, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{5, 5975, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{9, 5995, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{13, 6015, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{17, 6035, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{21, 6055, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{25, 6075, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{29, 6095, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{33, 6115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{37, 6135, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{41, 6155, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{45, 6175, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{49, 6195, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{53, 6215, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{57, 6235, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{61, 6255, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{65, 6275, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{69, 6295, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{73, 6315, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{77, 6335, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{81, 6355, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{85, 6375, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{89, 6395, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{94, 6415, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{97, 6435, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{101, 6455, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{105, 6475, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{109, 6495, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{113, 6515, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{117, 6535, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{121, 6555, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{125, 6575, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{129, 6595, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{133, 6615, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{137, 6635, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{141, 6655, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{145, 6675, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{149, 6695, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{153, 6715, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{157, 6735, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{161, 6755, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{165, 6775, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{169, 6795, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{173, 6815, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{177, 6835, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{181, 6855, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{185, 6875, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{189, 6895, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{193, 6915, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{197, 6935, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{201, 6955, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{205, 6975, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{209, 6995, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{213, 7015, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{217, 7035, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{221, 7055, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{225, 7075, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{229, 7095, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{233, 7115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}};
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -437,6 +498,9 @@ static t_u8 wlan_11d_get_chan(pmlan_adapter pmadapter, t_u16 band,
 	} else if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cfp = channel_freq_power_UN_AJ;
 		cfp_no = NELEMENTS(channel_freq_power_UN_AJ);
+	} else if (band & BAND_6G) {
+		cfp = channel_freq_power_UN_6G;
+		cfp_no = NELEMENTS(channel_freq_power_UN_6G);
 	} else {
 		PRINTM(MERROR, "11D: Wrong Band[%d]\n", band);
 		LEAVE();
@@ -855,6 +919,7 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 	t_u8 no_of_sub_band = pmadapter->domain_reg.no_of_sub_band;
 	MrvlIEtypes_Rgn_dom_code_t *rgn = MNULL;
 	t_u8 *tlv = MNULL;
+	MrvlIEtypes_channel_band_t *tlv_chan_band = MNULL;
 
 	t_u8 i;
 
@@ -920,6 +985,15 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 			tlv += sizeof(MrvlIEtypes_Rgn_dom_code_t);
 		}
 
+		tlv_chan_band = (MrvlIEtypes_channel_band_t *)tlv;
+		tlv_chan_band->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_UAP_CHAN_BAND_CONFIG);
+		tlv_chan_band->header.len =
+			wlan_cpu_to_le16(sizeof(MrvlIEtypes_channel_band_t) -
+					 sizeof(MrvlIEtypesHeader_t));
+		tlv_chan_band->bandcfg.chanBand = pmadapter->domain_reg.band;
+		tlv_chan_band->channel = 0;
+		pcmd->size += sizeof(MrvlIEtypes_channel_band_t);
 	} else {
 		pcmd->size = sizeof(pdomain_info->action) + S_DS_GEN;
 	}
@@ -986,6 +1060,135 @@ mlan_status wlan_ret_802_11d_domain_info(mlan_private *pmpriv,
 	return ret;
 }
 
+#ifdef UAP_SUPPORT
+/**
+ *  @brief This function implements command HostCmd_CMD_802_CUSTOM_BEACON_IE
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pcmd         A pointer to HostCmd_DS_COMMAND structure of
+ *                        command buffer
+ *  @param pioctl_buf   A pointer to ioctl buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
+					    HostCmd_DS_COMMAND *pcmd,
+					    pmlan_ioctl_req pioctl_buf)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	HostCmd_DS_802_11D_DOMAIN_INFO *pdomain_info =
+		&pcmd->params.domain_info;
+	MrvlIEtypes_DomainParamSet_t *domain = &pdomain_info->domain;
+	t_u8 no_of_sub_band = 0;
+	t_u8 *tlv = MNULL;
+	t_u8 i;
+	mlan_ds_11d_cfg *cfg_11d = MNULL;
+	ENTER();
+
+	if (!pioctl_buf) {
+		PRINTM(MERROR, "BCN Country IE: pioctl_buf is NULL\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	cfg_11d = (mlan_ds_11d_cfg *)pioctl_buf->pbuf;
+	if (!cfg_11d) {
+		PRINTM(MERROR, "BCN Country IE: cfg_11d is NULL\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	no_of_sub_band = cfg_11d->param.domain_info.no_of_sub_band;
+	PRINTM(MCMND, "BCN Country IE:Country=%c%c sub-band=%d sub-cmd=0x%x\n",
+	       cfg_11d->param.domain_info.country_code[0],
+	       cfg_11d->param.domain_info.country_code[1], no_of_sub_band,
+	       cfg_11d->sub_command);
+	for (i = 0; i < no_of_sub_band; i++) {
+		PRINTM(MCMND,
+		       "BCN Country IE: first chan=%d no_of_chan=%d, max_tx_pwr=%d\n",
+		       cfg_11d->param.domain_info.sub_band[i].first_chan,
+		       cfg_11d->param.domain_info.sub_band[i].no_of_chan,
+		       cfg_11d->param.domain_info.sub_band[i].max_tx_pwr);
+	}
+	pcmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_CUSTOM_BEACON_IE);
+	pdomain_info->action = wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+
+	tlv = (t_u8 *)&pdomain_info->domain;
+
+	/* Set domain info fields */
+	domain = (MrvlIEtypes_DomainParamSet_t *)tlv;
+	domain->header.type = wlan_cpu_to_le16(TLV_TYPE_DOMAIN);
+	memcpy_ext(pmadapter, domain->country_code,
+		   cfg_11d->param.domain_info.country_code,
+		   sizeof(domain->country_code), sizeof(domain->country_code));
+
+	domain->header.len =
+		((no_of_sub_band * sizeof(IEEEtypes_SubbandSet_t)) +
+		 sizeof(domain->country_code));
+
+	if (no_of_sub_band) {
+		memcpy_ext(pmadapter, domain->sub_band,
+			   cfg_11d->param.domain_info.sub_band,
+			   no_of_sub_band * sizeof(IEEEtypes_SubbandSet_t),
+			   MRVDRV_MAX_SUBBAND_802_11D *
+				   sizeof(IEEEtypes_SubbandSet_t));
+
+		pcmd->size += sizeof(pdomain_info->action) +
+			      domain->header.len + sizeof(MrvlIEtypesHeader_t) +
+			      S_DS_GEN;
+
+		tlv += domain->header.len + sizeof(MrvlIEtypesHeader_t);
+	} else {
+		pcmd->size = sizeof(pdomain_info->action) + S_DS_GEN;
+	}
+
+	pcmd->size = wlan_cpu_to_le16(pcmd->size);
+	HEXDUMP("BCN Country IE: INFO", (t_u8 *)pcmd,
+		wlan_le16_to_cpu(pcmd->size));
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+/**
+ *  @brief This function handle response of HostCmd_CMD_802_CUSTOM_BEACON_IE
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         Pointer to command response buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_ret_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
+					    HostCmd_DS_COMMAND *resp)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	HostCmd_DS_802_11D_DOMAIN_INFO_RSP *domain_info =
+		&resp->params.domain_info_resp;
+	MrvlIEtypes_DomainParamSet_t *domain = &domain_info->domain;
+	t_u8 no_of_sub_band = 0;
+
+	ENTER();
+
+	/* Dump domain info response data */
+	HEXDUMP("BCN Country ie:  Info Rsp Data", (t_u8 *)resp, resp->size);
+
+	no_of_sub_band = (t_u8)((wlan_le16_to_cpu(domain->header.len) -
+				 COUNTRY_CODE_LEN) /
+				sizeof(IEEEtypes_SubbandSet_t));
+
+	PRINTM(MINFO, "BCN Country ie Resp: number of sub-band=%d\n",
+	       no_of_sub_band);
+
+	if (no_of_sub_band > MRVDRV_MAX_SUBBAND_802_11D) {
+		PRINTM(MWARN,
+		       "BCN Country ie: Invalid number of subbands %d returned!!\n",
+		       no_of_sub_band);
+		ret = MLAN_STATUS_FAILURE;
+	}
+
+	LEAVE();
+	return ret;
+}
+#endif //#ifdef UAP_SUPPORT
 /**
  *  @brief This function converts channel to frequency
  *
@@ -1012,6 +1215,9 @@ t_u32 wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u16 band)
 	else if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cf = channel_freq_power_UN_AJ;
 		cnt = NELEMENTS(channel_freq_power_UN_AJ);
+	} else if (band & BAND_6G) {
+		cf = channel_freq_power_UN_6G;
+		cnt = NELEMENTS(channel_freq_power_UN_6G);
 	} else {
 		PRINTM(MERROR, "11D: Wrong Band [%d]\n", band);
 		LEAVE();
@@ -1182,6 +1388,26 @@ mlan_status wlan_11d_set_universaltable(mlan_private *pmpriv, t_u16 band)
 		pmadapter->universal_channel[i].band = BAND_A;
 		i++;
 	}
+	if (band & BAND_6G) {
+		/* If band 6G */
+
+		/* Set channel-frequency-power */
+		pmadapter->universal_channel[i].num_cfp =
+			NELEMENTS(channel_freq_power_UN_6G);
+		PRINTM(MINFO, "11D: 6G-band num_cfp=%d\n",
+		       pmadapter->universal_channel[i].num_cfp);
+
+		pmadapter->universal_channel[i].pcfp = channel_freq_power_UN_6G;
+
+		pmadapter->universal_channel[i].valid = MTRUE;
+
+		/* Set region code */
+		pmadapter->universal_channel[i].region = UNIVERSAL_REGION_CODE;
+
+		/* Set band */
+		pmadapter->universal_channel[i].band = BAND_6G;
+		i++;
+	}
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -1283,6 +1509,14 @@ mlan_status wlan_11d_create_dnld_countryinfo(mlan_private *pmpriv, t_u16 band)
 				case BAND_AN:
 				case BAND_A | BAND_AN:
 				case BAND_A | BAND_AN | BAND_AAC:
+					break;
+				default:
+					continue;
+				}
+				break;
+			case BAND_6G:
+				switch (band) {
+				case BAND_6G:
 					break;
 				default:
 					continue;
@@ -1507,7 +1741,45 @@ static t_u8 *wlan_11d_map_country_code(pmlan_adapter pmadapter,
 	else
 		return pcountry_code;
 }
+#ifdef UAP_SUPPORT
+/**
+ *  @brief This function sets up BCN country ie and downloads CMD to FW
+ *  Should be called when 11D support is enabled.
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_11d_bcn_country_ie_info(pmlan_adapter pmadapter,
+					 mlan_ioctl_req *pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_private *pmpriv = MNULL;
 
+	ENTER();
+	pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	if (!pmpriv) {
+		PRINTM(MERROR, "[%s] ERR: pmpriv is NULL\n", __func__);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	PRINTM(MCMND, "BCN Country IE: sending cmd to FW\n");
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_CUSTOM_BEACON_IE,
+			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
+			       MNULL);
+	if (ret) {
+		PRINTM(MERROR, "BCN Country IE: Failed to download\n");
+	}
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+#endif
 /**
  *  @brief This function sets up domain_reg and downloads CMD to FW
  *

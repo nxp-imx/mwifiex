@@ -5,7 +5,7 @@
  *  in MLAN module.
  *
  *
- *  Copyright 2008-2024 NXP
+ *  Copyright 2008-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -525,6 +525,13 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
  */
 #define MRVDRV_SPECIFIC_SCAN_CHAN_TIME 110
 
+/** scan time for rnr channel */
+#define MRVDRV_6G_RNR_SCAN_CHAN_TIME 110
+/** Scan time in the channel TLV
+ *  for each 6G channel scans
+ */
+#define MRVDRV_6G_SCAN_CHAN_TIME 30
+
 /**
  * Max total scan time in milliseconds
  * The total scan time should be less than scan command timeout value (20s)
@@ -997,7 +1004,7 @@ typedef struct _mrvl_wep_key_t {
 } mrvl_wep_key_t;
 
 /** Maximum number of region channel */
-#define MAX_REGION_CHANNEL_NUM 2
+#define MAX_REGION_CHANNEL_NUM 3
 
 /** Region-band mapping table */
 typedef struct _region_chan_t {
@@ -1199,6 +1206,8 @@ typedef struct _mlan_private {
 	t_u8 user_2g_hecap_len;
 	/** user configured 802.11ax HE capability */
 	t_u8 user_2g_he_cap[54];
+	/** 802.11ax 6G HE capability */
+	t_u16 user_he_6g_cap;
 	/**  dropped pkts */
 	t_u32 num_drop_pkts;
 #ifdef UAP_SUPPORT
@@ -1368,6 +1377,17 @@ typedef struct _mlan_private {
 	t_u8 assoc_req_buf[ASSOC_RSP_BUF_SIZE];
 	/** Length of the data stored in assoc_rsp_buf */
 	t_u32 assoc_req_size;
+	/** prev_bssid */
+	mlan_802_11_mac_addr prev_bssid;
+	/** Buffer to store the association response for application retrieval
+	 */
+	t_u8 prior_assoc_rsp[ASSOC_RSP_BUF_SIZE];
+	/** Length of the data stored in assoc_rsp_buf */
+	t_u32 prior_assoc_rsp_size;
+	/** Buffer to store the association req IEs */
+	t_u8 prior_assoc_req[ASSOC_RSP_BUF_SIZE];
+	/** Length of the data stored in assoc_req_buf */
+	t_u32 prior_assoc_req_size;
 	/** Generic IEEE IEs passed from the application to be inserted into the
 	 *    association request to firmware
 	 */
@@ -1797,6 +1817,18 @@ typedef struct {
 	t_u32 millisec_dwell_time;
 } wlan_dfs_testing_settings_t;
 
+/* Colocated AP used for 6E out of band scanning */
+typedef struct _wlan_6e_coloc_ap_t wlan_6e_coloc_ap_t;
+
+struct _wlan_6e_coloc_ap_t {
+	/** Pointer to previous node */
+	wlan_6e_coloc_ap_t *pprev;
+	/** Pointer to next node */
+	wlan_6e_coloc_ap_t *pnext;
+	/* Colocated AP information */
+	RnrColocatedAp_t ap_info;
+};
+
 /**
  * @brief Driver measurement state held in 'mlan_adapter' structure
  *
@@ -1940,6 +1972,8 @@ typedef struct _mef_entry {
 	int num_wowlan_entry;
 	/** Num for IPv6 neighbor solicitation message offload */
 	int num_ipv6_ns_offload;
+	/** Num for wake on mDNS entry*/
+	int num_mdns_entry;
 	int clear_mef_entry;
 	/** criteria*/
 	t_u32 criteria;
@@ -1949,6 +1983,7 @@ typedef struct _mef_entry {
 	 *  Caution: 5   is for Auto Arp Entry
 	 *  Caution: 6   is for wowlan Entry
 	 *  Caution: 7   is for IPv6 Neighbor Solicitation offload Entry
+	 *  Caution: 8   is for WoWLAN by mDNS
 	 */
 	mef_entry_t entry[MAX_NUM_ENTRIES];
 } mef_entry;
@@ -2034,6 +2069,7 @@ typedef struct _mlan_init_para {
 	t_u8 mclient_scheduling;
 	t_u32 reject_addba_req;
 	t_u8 disable_11h_tpc;
+	t_u8 tpe_ie_ignore;
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -2149,6 +2185,10 @@ typedef struct _mlan_sdio_card {
 	t_u8 *rx_buf;
 	/** allocated buf for receive */
 	t_u8 *rx_buffer;
+	/** max blk count */
+	t_u32 max_blk_count;
+	/** sdio blk size */
+	t_u32 sdio_blk_size;
 	/* see blk_queue_max_segment_size */
 	t_u32 max_seg_size;
 	/* see blk_queue_max_segments */
@@ -2211,6 +2251,7 @@ typedef struct _mlan_sdio_card {
 /** 8 entry will mapping to 3 */
 #define EVT_NUM_DESC 3
 #define MLAN_MAX_TXRX_BD MAX(ADMA_MAX_TXRX_BD, MAX_TXRX_BD)
+#define MLAN_INVALID_TXRX_INDEX_VAL (MLAN_MAX_TXRX_BD + 1)
 /** 8 Event buffer ring */
 #define MLAN_MAX_EVT_BD 0x08
 typedef struct _mlan_pcie_card_reg {
@@ -2582,6 +2623,10 @@ struct _mlan_adapter {
 #endif
 #ifdef PCIE
 	pmlan_pcie_card pcard_pcie;
+	/* pending starting RX RD-index from which re-fill is needed*/
+	mlan_scalar rx_refill_start_index;
+	/* Last Rx RD index till the Re-fill is required */
+	t_s32 rx_refill_last_index;
 #endif
 #ifdef USB
 	pmlan_usb_card pcard_usb;
@@ -2754,6 +2799,23 @@ struct _mlan_adapter {
 	t_u16 passive_scan_time;
 	/** Passive scan to active scan */
 	t_u8 passive_to_active_scan;
+	/** wifi 6g scan time */
+	t_u16 wifi_6g_scan_time;
+	/** 6E out of band discovery flag -
+	 * indicate the scan request will be split
+	 *	into two, first for legacy bands and
+	 * second for 6G band
+	 */
+	t_u8 wifi_6g_scan_split;
+	/** 6E out of band discovery flag -
+	 * enable scan for colocated APs
+	 * reported by 2.4/5 GHz APs
+	 */
+	t_u8 wifi_6g_scan_coloc_ap;
+	/** scan 6g request */
+	t_u8 scan_6g;
+	/** List for RNR cololcated ap */
+	mlan_list_head coloc_ap_list;
 	/** scan channel gap time */
 	t_u16 scan_chan_gap;
 	/** Scan block flag */
@@ -2907,6 +2969,8 @@ struct _mlan_adapter {
 	t_u8 hw_2g_hecap_len;
 	/** 802.11ax 2.4G HE capability */
 	t_u8 hw_2g_he_cap[54];
+	/** 802.11ax 6G HE capability */
+	t_u16 hw_he_6g_cap;
 	/** max mgmt IE index in device */
 	t_u16 max_mgmt_ie_index;
 	/** Head of Rx data queue */
@@ -3005,6 +3069,11 @@ struct _mlan_adapter {
 	t_u32 tx_power_table_a_size;
 	t_u8 tx_power_table_a_rows;
 	t_u8 tx_power_table_a_cols;
+	chan_freq_power_t *cfp_otp_6g;
+	t_u8 *tx_power_table_6g;
+	t_u32 tx_power_table_6g_size;
+	t_u8 tx_power_table_6g_rows;
+	t_u8 tx_power_table_6g_cols;
 	/**mlan adapter operations*/
 	mlan_adapter_operations ops;
 	/** TP accounting mode 1-enable 0-disable */
@@ -3040,7 +3109,7 @@ struct _mlan_adapter {
 	/** LLDE enable/disable */
 	t_u8 llde_enabled;
 	/** LLDE modes 0 - default; 1 - carplay; 2 - gameplay; 3 - sound bar, 4
-	 * – validation, 5- event driven */
+	 * ï¿½ validation, 5- event driven */
 	t_u8 llde_mode;
 	/** high priority data packet type. 0: All traffic, 1: ping, 2: TCP ACK,
 	 * 4: TCP Data, 8: UDP */
@@ -3223,6 +3292,9 @@ mlan_status wlan_download_vdll_block(mlan_adapter *pmadapter, t_u8 *block,
 mlan_status wlan_process_vdll_event(pmlan_private pmpriv, pmlan_buffer pevent);
 /** Process event */
 mlan_status wlan_process_event(pmlan_adapter pmadapter);
+
+mlan_status wlan_process_dpd_cal_event(pmlan_private pmpriv,
+				       pmlan_buffer pevent);
 
 /** Prepare command */
 mlan_status wlan_prepare_cmd(pmlan_private priv, t_u16 cmd_no, t_u16 cmd_action,
@@ -4060,6 +4132,17 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 /** Handler for 11D country info command response */
 mlan_status wlan_ret_802_11d_domain_info(mlan_private *pmpriv,
 					 HostCmd_DS_COMMAND *resp);
+#ifdef UAP_SUPPORT
+/** Command handler for 11D BCN country ie info */
+mlan_status
+wlan_cmd_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
+					    HostCmd_DS_COMMAND *pcmd,
+					    pmlan_ioctl_req pioctl_buf);
+/** Handler for 11D BCN country ie info command response */
+mlan_status
+wlan_ret_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
+					    HostCmd_DS_COMMAND *resp);
+#endif
 /** Convert channel to frequency */
 t_u32 wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u16 band);
 #ifdef STA_SUPPORT
@@ -4087,6 +4170,8 @@ mlan_status wlan_11d_parse_domain_info(
 mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 					    t_u8 *domain_tlv,
 					    t_void *pioctl_buf);
+mlan_status wlan_11d_bcn_country_ie_info(pmlan_adapter pmadapter,
+					 mlan_ioctl_req *pioctl_req);
 #endif
 /** Configure 11D domain info command */
 mlan_status wlan_11d_cfg_domain_info(pmlan_adapter pmadapter,
@@ -4122,6 +4207,7 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 t_u8 *wlan_get_specific_ie(pmlan_private priv, t_u8 *ie_buf, t_u16 ie_len,
 			   IEEEtypes_ElementId_e id, t_u8 ext_id);
 t_u8 wlan_is_wmm_ie_present(pmlan_adapter pmadapter, t_u8 *pbuf, t_u16 buf_len);
+t_void wlan_free_rnr_coloc_ap(mlan_adapter *pmadapter);
 /** Ethernet II header */
 typedef struct {
 	/** Ethernet II header destination address */
@@ -4572,6 +4658,8 @@ mlan_status wlan_misc_ioctl_get_tsf(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
 void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left);
 void wlan_free_fw_cfp_tables(mlan_adapter *pmadapter);
+void wlan_add_fw_6g_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left);
+void wlan_free_fw_6g_cfp_tables(mlan_adapter *pmadapter);
 mlan_status wlan_misc_chan_reg_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_region_power_cfg(pmlan_adapter pmadapter,
@@ -4683,6 +4771,12 @@ mlan_status wlan_misc_ioctl_country_code(pmlan_adapter pmadapter,
 
 /** Get custom Fw data */
 mlan_status wlan_get_custom_fw_data(pmlan_adapter pmadapter, t_u8 *pdata);
+#ifdef PCIE
+mlan_status wlan_pcie_reattach_pmbuf(mlan_adapter *pmadapter, t_u32 rd_index,
+				     mlan_buffer **pmbuf);
+mlan_status wlan_pcie_rx_ring_move_rdwrptr(mlan_adapter *pmadapter,
+					   t_u32 rd_index, t_u8 update_action);
+#endif
 
 /**
  *  @brief RA based queueing

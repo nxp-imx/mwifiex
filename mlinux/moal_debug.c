@@ -3,7 +3,7 @@
  * @brief This file contains functions for debug proc file.
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -1459,8 +1459,10 @@ void woal_debug_entry(moal_private *priv)
 		     i++) {
 			priv->hist_proc[i].ant_idx = i;
 			priv->hist_proc[i].priv = priv;
-			snprintf(hist_entry, sizeof(hist_entry), "wlan-ant%d",
-				 i);
+			if (snprintf(hist_entry, sizeof(hist_entry),
+				     "wlan-ant%d", i) <= 0)
+				PRINTM(MERROR,
+				       "Fail to print ant index in histogram entry\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 			r = proc_create_data(hist_entry, 0644, priv->hist_entry,
 					     &histogram_proc_fops,
@@ -1524,8 +1526,11 @@ void woal_debug_remove(moal_private *priv)
 	    priv->bss_type == MLAN_BSS_TYPE_UAP) {
 		for (i = 0; i < priv->phandle->card_info->histogram_table_num;
 		     i++) {
-			snprintf(hist_entry, sizeof(hist_entry), "wlan-ant%d",
-				 i);
+			if (snprintf(hist_entry, sizeof(hist_entry),
+				     "wlan-ant%d", i) <= 0) {
+				PRINTM(MERROR, "Failed to write wlan-ant%d\n",
+				       i);
+			}
 			remove_proc_entry(hist_entry, priv->hist_entry);
 		}
 		remove_proc_entry("histogram", priv->proc_entry);

@@ -3,7 +3,7 @@
  *  @brief This file contains FW event ID definitions.
  *
  *
- *  Copyright 2023-2024 NXP
+ *  Copyright 2023-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -206,6 +206,8 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 	ENUM_ELEMENT(EVENT_IMD3_CAL_START, 0x00A0),
 	ENUM_ELEMENT(EVENT_IMD3_CAL_END, 0x00A1),
 
+	ENUM_ELEMENT(EVENT_DPD_CAL, 0x00A8),
+
 	/** Event ID: Bulk Tx status */
 	ENUM_ELEMENT(EVENT_TX_STATUS_BULK_REPORT, 0x00A2),
 
@@ -213,5 +215,11 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 	ENUM_ELEMENT(EVENT_PEER_PS_MODE_CHANGE, 0x00A3),
 
 	ENUM_ELEMENT(EVENT_CHAN_SWITCH_TO_6G_BLOCK, 0x00A4),
+
+#if defined(STA_SUPPORT)
+	/** Event ID: Ex-AP 6E Reg mode */
+	ENUM_ELEMENT(EVENT_CHANNEL_SWITCH_REGINFO, 0x00A5),
+#endif
+
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostEvent_Last)

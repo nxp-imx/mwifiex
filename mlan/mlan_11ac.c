@@ -56,61 +56,13 @@ t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
 t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 			      t_u8 chan_bw)
 {
-	struct center_freq_desc {
-		t_u8 pri_chan;
-		t_u8 ch_40;
-		t_u8 ch_80;
-		t_u8 ch_160;
-	};
-
-	static const struct center_freq_desc center_freq_idx_map_5g[] = {
-		{.pri_chan = 36, .ch_40 = 38, .ch_80 = 42, .ch_160 = 50},
-		{.pri_chan = 40, .ch_40 = 38, .ch_80 = 42, .ch_160 = 50},
-		{.pri_chan = 44, .ch_40 = 46, .ch_80 = 42, .ch_160 = 50},
-		{.pri_chan = 48, .ch_40 = 46, .ch_80 = 42, .ch_160 = 50},
-		{.pri_chan = 52, .ch_40 = 54, .ch_80 = 58, .ch_160 = 50},
-		{.pri_chan = 56, .ch_40 = 54, .ch_80 = 58, .ch_160 = 50},
-		{.pri_chan = 60, .ch_40 = 62, .ch_80 = 58, .ch_160 = 50},
-		{.pri_chan = 64, .ch_40 = 62, .ch_80 = 58, .ch_160 = 50},
-		{.pri_chan = 68, .ch_40 = 70, .ch_80 = 74, .ch_160 = 0},
-		{.pri_chan = 72, .ch_40 = 70, .ch_80 = 74, .ch_160 = 0},
-		{.pri_chan = 76, .ch_40 = 78, .ch_80 = 74, .ch_160 = 0},
-		{.pri_chan = 80, .ch_40 = 78, .ch_80 = 74, .ch_160 = 0},
-		{.pri_chan = 84, .ch_40 = 86, .ch_80 = 90, .ch_160 = 0},
-		{.pri_chan = 88, .ch_40 = 86, .ch_80 = 90, .ch_160 = 0},
-		{.pri_chan = 92, .ch_40 = 94, .ch_80 = 90, .ch_160 = 0},
-		{.pri_chan = 96, .ch_40 = 94, .ch_80 = 90, .ch_160 = 0},
-		{.pri_chan = 100, .ch_40 = 102, .ch_80 = 106, .ch_160 = 114},
-		{.pri_chan = 104, .ch_40 = 102, .ch_80 = 106, .ch_160 = 114},
-		{.pri_chan = 108, .ch_40 = 110, .ch_80 = 106, .ch_160 = 114},
-		{.pri_chan = 112, .ch_40 = 110, .ch_80 = 106, .ch_160 = 114},
-		{.pri_chan = 116, .ch_40 = 118, .ch_80 = 122, .ch_160 = 114},
-		{.pri_chan = 120, .ch_40 = 118, .ch_80 = 122, .ch_160 = 114},
-		{.pri_chan = 124, .ch_40 = 126, .ch_80 = 122, .ch_160 = 114},
-		{.pri_chan = 128, .ch_40 = 126, .ch_80 = 122, .ch_160 = 114},
-		{.pri_chan = 132, .ch_40 = 134, .ch_80 = 138, .ch_160 = 0},
-		{.pri_chan = 136, .ch_40 = 134, .ch_80 = 138, .ch_160 = 0},
-		{.pri_chan = 140, .ch_40 = 142, .ch_80 = 138, .ch_160 = 0},
-		{.pri_chan = 144, .ch_40 = 142, .ch_80 = 138, .ch_160 = 0},
-		{.pri_chan = 149, .ch_40 = 151, .ch_80 = 155, .ch_160 = 163},
-		{.pri_chan = 153, .ch_40 = 151, .ch_80 = 155, .ch_160 = 163},
-		{.pri_chan = 157, .ch_40 = 159, .ch_80 = 155, .ch_160 = 163},
-		{.pri_chan = 161, .ch_40 = 159, .ch_80 = 155, .ch_160 = 163},
-		{.pri_chan = 165, .ch_40 = 167, .ch_80 = 171, .ch_160 = 163},
-		{.pri_chan = 169, .ch_40 = 167, .ch_80 = 171, .ch_160 = 163},
-		{.pri_chan = 173, .ch_40 = 175, .ch_80 = 171, .ch_160 = 163},
-		{.pri_chan = 177, .ch_40 = 175, .ch_80 = 171, .ch_160 = 163},
-		{.pri_chan = 184, .ch_40 = 186, .ch_80 = 190, .ch_160 = 0},
-		{.pri_chan = 188, .ch_40 = 186, .ch_80 = 190, .ch_160 = 0},
-		{.pri_chan = 192, .ch_40 = 194, .ch_80 = 190, .ch_160 = 0},
-		{.pri_chan = 196, .ch_40 = 194, .ch_80 = 190, .ch_160 = 0},
-		{.pri_chan = 0,
-		 .ch_40 = 42 /* terminator with default cfreq */}};
-
 	const struct center_freq_desc *map = MNULL;
 
 	if (band == BAND_5GHZ)
 		map = center_freq_idx_map_5g;
+
+	if (band == BAND_6GHZ)
+		map = center_freq_idx_map_6g;
 
 	for (; map != MNULL; map++) {
 		/* reached end of map, return default value for that map */
@@ -1456,6 +1408,8 @@ void wlan_update_11ac_cap(mlan_private *pmpriv)
  */
 t_u8 wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
+	if (bss_band & BAND_6G)
+		return 0;
 	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAC);

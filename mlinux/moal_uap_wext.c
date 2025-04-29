@@ -3,7 +3,7 @@
  * @brief This file contains wireless extension standard ioctl functions
  *
  *
- * Copyright 2010-2021 NXP
+ * Copyright 2010-2021, 2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -58,6 +58,21 @@ static const chan_to_freq_t chan_to_freq[] = {
 	{132, 5660, 1}, {136, 5680, 1}, {140, 5700, 1}, {144, 5720, 1},
 	{149, 5745, 1}, {153, 5765, 1}, {157, 5785, 1}, {161, 5805, 1},
 	{165, 5825, 1}, {169, 5845, 1}, {173, 5865, 1}, {177, 5885, 1},
+	{1, 5955, 2},	{5, 5975, 2},	{9, 5995, 2},	{13, 6015, 2},
+	{17, 6035, 2},	{21, 6055, 2},	{25, 6075, 2},	{29, 6095, 2},
+	{33, 6115, 2},	{37, 6135, 2},	{41, 6155, 2},	{45, 6175, 2},
+	{49, 6195, 2},	{53, 6215, 2},	{57, 6235, 2},	{61, 6255, 2},
+	{65, 6275, 2},	{69, 6295, 2},	{73, 6315, 2},	{77, 6335, 2},
+	{81, 6355, 2},	{85, 6375, 2},	{89, 6395, 2},	{94, 6415, 2},
+	{97, 6435, 2},	{101, 6455, 2}, {105, 6475, 2}, {109, 6495, 2},
+	{113, 6515, 2}, {117, 6535, 2}, {121, 6555, 2}, {125, 6575, 2},
+	{129, 6595, 2}, {133, 6615, 2}, {137, 6635, 2}, {141, 6655, 2},
+	{145, 6675, 2}, {149, 6695, 2}, {153, 6715, 2}, {157, 6735, 2},
+	{161, 6755, 2}, {165, 6775, 2}, {169, 6795, 2}, {173, 6815, 2},
+	{177, 6835, 2}, {181, 6855, 2}, {185, 6875, 2}, {189, 6895, 2},
+	{193, 6915, 2}, {197, 6935, 2}, {201, 6955, 2}, {205, 6975, 2},
+	{209, 6995, 2}, {213, 7015, 2}, {217, 7035, 2}, {221, 7055, 2},
+	{225, 7075, 2}, {229, 7095, 2}, {233, 7115, 2},
 };
 
 /**
@@ -409,7 +424,9 @@ static int woal_get_freq(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	band = (((ap_cfg->bandcfg.chanBand == BAND_5GHZ) ? 1 : 0));
+	band = ((ap_cfg->bandcfg.chanBand == BAND_6GHZ) ?
+			2 :
+			((ap_cfg->bandcfg.chanBand == BAND_5GHZ) ? 1 : 0));
 	fwrq->m = (long)channel_to_frequency(ap_cfg->channel, band);
 	fwrq->i = (long)ap_cfg->channel;
 	fwrq->e = 6;
@@ -479,20 +496,20 @@ static int woal_get_bss_mode(struct net_device *dev,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param dwrq                 A pointer to iw_point structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
-			   union iwreq_data *vwrq, char *extra)
+			   union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = &wrqu->essid;
 	mlan_uap_bss_param *sys_cfg = NULL, *ap_cfg = NULL;
 	wep_key *pkey = NULL;
 	int key_index = 0;
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -1730,17 +1747,17 @@ done:
  *
  *  @param dev      A pointer to net_device structure
  *  @param info     A pointer to iw_request_info structure
- *  @param dwrq     A pointer to iw_point structure
+ *  @param wrqu     A pointer to iwreq_data union
  *  @param extra    A pointer to extra data buf
  *
  *  @return         0--success, otherwise fail
  */
 static int woal_get_essid(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = &wrqu->essid;
 	mlan_uap_bss_param *ap_cfg = NULL;
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -1875,9 +1892,9 @@ struct iw_handler_def woal_uap_handler_def = {
 	.num_standard = ARRAY_SIZE(woal_handler),
 	.num_private = ARRAY_SIZE(woal_private_handler),
 	.num_private_args = ARRAY_SIZE(woal_uap_priv_args),
-	.standard = (iw_handler *)woal_handler,
-	.private = (iw_handler *)woal_private_handler,
-	.private_args = (struct iw_priv_args *)woal_uap_priv_args,
+	.standard = (const iw_handler *)woal_handler,
+	.private = (const iw_handler *)woal_private_handler,
+	.private_args = (const struct iw_priv_args *)woal_uap_priv_args,
 #if WIRELESS_EXT > 20
 	.get_wireless_stats = woal_get_uap_wireless_stats,
 #endif

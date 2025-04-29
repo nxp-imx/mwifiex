@@ -3,7 +3,7 @@
  *  @brief This file declares the generic data structures and APIs.
  *
  *
- *  Copyright 2008-2022, 2024 NXP
+ *  Copyright 2008-2022, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -345,9 +345,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 /* We support up to 480-byte block size due to FW buffer limitation. */
 #define MLAN_SDIO_BLOCK_SIZE 256
 
-/** define SDIO block size for firmware download */
-#define MLAN_SDIO_BLOCK_SIZE_FW_DNLD MLAN_SDIO_BLOCK_SIZE
-
 /** define allocated buffer size */
 #define ALLOC_BUF_SIZE MLAN_RX_DATA_BUF_SIZE
 /** SDIO MP aggr pkt limit */
@@ -677,7 +674,9 @@ typedef enum {
 #define MEVT_D MBIT(18)
 #define MFW_D MBIT(19)
 #define MIF_D MBIT(20)
+#ifdef FWDUMP_VIA_PRINT
 #define MFWDP_D MBIT(21)
+#endif /*FWDUMP_VIA_PRINT*/
 #define MSCH_D MBIT(22)
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
@@ -913,6 +912,9 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE = 0x80000036,
 #endif
 	MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH = 0x80000037,
+#if defined(STA_SUPPORT)
+	MLAN_EVENT_ID_FW_CHAN_SWITCH_REGINFO = 0x80000038,
+#endif
 	MLAN_EVENT_ID_DRV_ASSOC_FAILURE = 0x80000039,
 } mlan_event_id;
 
@@ -920,7 +922,7 @@ typedef enum _mlan_event_id {
 /** mlan_image data structure */
 typedef struct _mlan_fw_image {
 	/** Firmware image buffer pointer */
-	t_u8 *pfw_buf;
+	const t_u8 *pfw_buf;
 	/** Firmware image length */
 	t_u32 fw_len;
 	/** Firmware reload flag */
@@ -1096,6 +1098,30 @@ typedef MLAN_PACK_START struct _chan_band_info {
 	t_u8 is_dfs_chan;
 } MLAN_PACK_END chan_band_info;
 
+#if defined(STA_SUPPORT)
+/** MrvlIEtypes_chan_band_reginfo_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_chan_band_reginfo_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Band Configuration */
+	Band_Config_t bandcfg;
+	/** channel */
+	t_u8 channel;
+	/** Reg Info */
+	t_u8 regInfo;
+} MLAN_PACK_END MrvlIEtypes_chan_band_reginfo_t;
+
+/** Structure to store 6E Channel/Band/Regulatory Info */
+typedef MLAN_PACK_START struct _chan_band_reginfo_t {
+	/** Band Configuration */
+	Band_Config_t bandcfg;
+	/** channel */
+	t_u8 channel;
+	/** Reg Info */
+	t_u8 regInfo;
+} MLAN_PACK_END chan_band_reginfo_t;
+#endif
+
 /** Channel usability flags */
 #define NXP_CHANNEL_NO_OFDM MBIT(9)
 #define NXP_CHANNEL_NO_CCK MBIT(8)
@@ -1222,7 +1248,7 @@ typedef struct _mlan_ioctl_req {
 	/** Request id */
 	t_u32 req_id;
 	/** Action: set or get */
-	t_u32 action;
+	t_u16 action;
 	/** Pointer to buffer */
 	t_u8 *pbuf;
 	/** Length of buffer */
@@ -1252,6 +1278,36 @@ typedef MLAN_PACK_START struct _mix_rate_info {
 	t_u8 dcm;
 } MLAN_PACK_END mix_rate_info, *pmix_rate_info;
 
+typedef MLAN_PACK_START struct _radiotap_timestamp {
+	/* device timestamp */
+	t_u64 device_timestamp;
+	/* accuracy */
+	t_u16 accuracy;
+	/* unit:
+	 * 0 milliseconds,
+	 * 1 microseconds,
+	 * 2 nanoseconds,
+	 * 3-15 reserved */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
+	t_u8 unit : 4;
+	/* position:
+	 * 0 first bit (or symbol containing it) of MPDU - matches TSFT field
+	 * 1 signal acquisition at start of PLCP
+	 * 2 end of PPDU
+	 * 3 end of MPDU (after FCS)
+	 * 4-14 reserved
+	 * 15 unknown or vendor/OOB defined
+	 */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
+	t_u8 position : 4;
+	/* flags
+	 * 0x01 32-bit counter (high 32 bits are unused)
+	 * 0x02 accuracy known
+	 * 0xFC reserved
+	 */
+	t_u8 flags;
+} MLAN_PACK_END radiotap_timestamp, *pradiotap_timestamp;
+
 typedef MLAN_PACK_START struct _rxpd_extra_info {
 	/** flags */
 	t_u8 flags;
@@ -1267,6 +1323,12 @@ typedef MLAN_PACK_START struct _rxpd_extra_info {
 	t_u32 vht_he_sig2;
 	/** HE user idx */
 	t_u32 user_idx;
+	/** timestamp */
+	radiotap_timestamp timestamp;
+	/** PLCP CRC Failed */
+	t_u8 plcp_crc_failed;
+	t_u8 rssi_dbm_a;
+	t_u8 rssi_dbm_b;
 } MLAN_PACK_END rxpd_extra_info, *prxpd_extra_info;
 
 typedef MLAN_PACK_START struct _radiotap_info {
@@ -1281,6 +1343,8 @@ typedef MLAN_PACK_START struct _radiotap_info {
 	/** chan number */
 	t_u8 chan_num;
 	t_u8 antenna;
+	/** extra radiotap */
+	t_u8 radiotap_extra;
 	/** extra rxpd info from FW */
 	rxpd_extra_info extra_info;
 } MLAN_PACK_END radiotap_info, *pradiotap_info;
@@ -1567,6 +1631,8 @@ typedef MLAN_PACK_START struct _tlvbuf_custom_ie {
 	/** Max mgmt IE TLV */
 	tlvbuf_max_mgmt_ie max_mgmt_ie;
 } MLAN_PACK_END mlan_ds_misc_custom_ie;
+
+#define FW_STUCK_CODE_VERSION_MISMATCH (0x90)
 
 /** Max TDLS config data length */
 #define MAX_TDLS_DATA_LEN 1024
@@ -2629,6 +2695,8 @@ typedef struct _mlan_callbacks {
 					    unsigned int rsvd1);
 	void (*moal_amsdu_tp_accounting)(t_void *pmoal, t_s32 delay,
 					 t_s32 copy_delay);
+	mlan_status (*moal_calc_short_ssid)(t_u8 *pssid, t_u32 ssid_len,
+					    t_u32 *pshort_ssid);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */
@@ -2711,6 +2779,10 @@ typedef struct _mlan_device {
 	/** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
 #ifdef SDIO
+	/** host max block num */
+	t_u32 max_blk_count;
+	/** sdio blk size */
+	t_u32 sdio_blk_size;
 	/** SDIO Single port rx aggr */
 	t_u8 sdio_rx_aggr_enable;
 	/* see blk_queue_max_segment_size */
@@ -2800,6 +2872,7 @@ typedef struct _mlan_device {
 	t_u16 tx_budget;
 	t_u8 mclient_scheduling;
 	t_u8 disable_11h_tpc;
+	t_u8 tpe_ie_ignore;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

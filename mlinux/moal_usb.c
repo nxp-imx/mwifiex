@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021, 2024 NXP
+ * Copyright 2008-2021, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -191,8 +191,6 @@ static struct usb_driver REFDATA woal_usb_driver = {
 #endif /* CONFIG_PM */
 };
 
-MODULE_DEVICE_TABLE(usb, woal_usb_table);
-MODULE_DEVICE_TABLE(usb, woal_usb_table_skip_fwdnld);
 
 /* moal interface ops */
 static moal_if_ops usb_ops;
@@ -1326,8 +1324,10 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	 * between a suspended state and a 'disconnect' one.
 	 */
 	handle->is_suspended = MTRUE;
-	for (i = 0; i < handle->priv_num; i++)
-		netif_carrier_off(handle->priv[i]->netdev);
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i])
+			netif_carrier_off(handle->priv[i]->netdev);
+	}
 
 	/* Unlink Rx cmd URB */
 	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb) {
@@ -1410,7 +1410,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 	}
 
 	for (i = 0; i < handle->priv_num; i++)
-		if (handle->priv[i]->media_connected == MTRUE)
+		if (handle->priv[i] &&
+		    handle->priv[i]->media_connected == MTRUE)
 			netif_carrier_on(handle->priv[i]->netdev);
 
 	/* Disable Host Sleep */
@@ -2086,7 +2087,7 @@ static void woal_usb_dump_fw_info(moal_handle *phandle)
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 	phandle->is_fw_dump_timer_set = MTRUE;
-	woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
+	woal_mod_timer(&phandle->fw_dump_timer, MOAL_FW_DUMP_TIMER);
 
 done:
 	LEAVE();

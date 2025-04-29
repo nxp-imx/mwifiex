@@ -3,7 +3,7 @@
  *  @brief This file contains USB specific code
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -216,7 +216,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
-	t_u8 *firmware = pmfw->pfw_buf, *RecvBuff;
+	const t_u8 *firmware = pmfw->pfw_buf;
+	t_u8 *RecvBuff;
 	t_u32 retries = MAX_FW_RETRY, DataLength;
 	t_u32 FWSeqNum = 0, TotalBytes = 0, DnldCmd = 0;
 	t_u8 *TxBuff = MNULL;

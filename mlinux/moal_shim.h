@@ -126,5 +126,7 @@ void woal_request_busfreq_pmqos_add(t_void *pmhandle);
 /* pmqos busfreq remove handler*/
 void woal_release_busfreq_pmqos_remove(t_void *pmhandle);
 #endif
+mlan_status moal_calc_short_ssid(t_u8 *pssid, t_u32 ssid_len,
+				 t_u32 *pshort_ssid);
 
 #endif /*_MOAL_H */

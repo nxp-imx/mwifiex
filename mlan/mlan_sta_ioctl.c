@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2008-2024 NXP
+ *  Copyright 2008-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -456,6 +456,7 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		memcpy_ext(pmadapter, pget_info->param.fw_info.hw_2g_he_cap,
 			   pmadapter->hw_2g_he_cap, pmadapter->hw_2g_hecap_len,
 			   sizeof(pget_info->param.fw_info.hw_2g_he_cap));
+		pget_info->param.fw_info.hw_he_6g_cap = pmadapter->hw_he_6g_cap;
 		pget_info->param.fw_info.fw_supplicant_support =
 			IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
@@ -468,6 +469,8 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 			IS_FW_SUPPORT_BEACON_PROT(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.rtt_support =
 			IS_FW_SUPPORT_RTT(pmadapter) ? 0x01 : 0x00;
+		pget_info->param.fw_info.he_6g_support =
+			IS_FW_SUPPORT_6G(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.cmd_tx_data =
 			IS_FW_SUPPORT_CMD_TX_DATA(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.sec_rgpower =
@@ -558,6 +561,10 @@ static mlan_status wlan_snmp_mib_ioctl(pmlan_adapter pmadapter,
 		}
 		value = mib->param.chan_track;
 		cmd_oid = ChanTrackParam_i;
+		break;
+	case MLAN_OID_SNMP_MIB_CTRL_DEAUTH:
+		value = mib->param.deauthctrl;
+		cmd_oid = StopDeauth_i;
 		break;
 	}
 
@@ -1066,9 +1073,6 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 				   &pmpriv->curr_bss_params.prev_bssid,
 				   &bss->param.ssid_bssid.prev_bssid,
 				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-			/* Clear any past association response stored for
-			 * application retrieval */
-			pmpriv->assoc_rsp_size = 0;
 			pmpriv->curr_chan_flags =
 				bss->param.ssid_bssid.channel_flags;
 			if (IS_FW_SUPPORT_NO_80MHZ(pmadapter))
@@ -1353,8 +1357,10 @@ static mlan_status wlan_bss_ioctl(pmlan_adapter pmadapter,
 			   &bss->param.bssid, MLAN_MAC_ADDR_LENGTH,
 			   MLAN_MAC_ADDR_LENGTH);
 		/* clear assoc_rsp_size */
-		pmpriv->assoc_rsp_size = 0;
-		pmpriv->assoc_req_size = 0;
+		if (!pmpriv->media_connected) {
+			pmpriv->assoc_rsp_size = 0;
+			pmpriv->assoc_req_size = 0;
+		}
 		break;
 	case MLAN_OID_BSS_START:
 		status = wlan_bss_ioctl_start(pmadapter, pioctl_req);
@@ -2841,7 +2847,8 @@ static mlan_status wlan_sec_ioctl_set_wep_key(pmlan_adapter pmadapter,
 				sec->param.encrypt_key.key_index =
 					pwep_key->key_index;
 				sec->param.encrypt_key.key_len =
-					pwep_key->key_length;
+					MIN(pwep_key->key_length,
+					    sizeof(pwep_key->key_material));
 				memcpy_ext(pmadapter,
 					   sec->param.encrypt_key.key_material,
 					   pwep_key->key_material,
@@ -2942,6 +2949,8 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 			index = pmpriv->wep_key_curr_index;
 			sec->param.encrypt_key.key_index =
 				pmpriv->wep_key[index].key_index;
+			// coverity[cert_arr30_c_violation: SUPPRESS]
+			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
 				   sec->param.encrypt_key.key_material,
 				   pmpriv->wep_key[index].key_material,
@@ -2971,6 +2980,8 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 		if (pmpriv->wep_key[index].key_length) {
 			sec->param.encrypt_key.key_index =
 				pmpriv->wep_key[index].key_index;
+			// coverity[cert_arr30_c_violation: SUPPRESS]
+			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
 				   sec->param.encrypt_key.key_material,
 				   pmpriv->wep_key[index].key_material,
@@ -3897,11 +3908,18 @@ static mlan_status wlan_misc_ioctl_sdio_mpa_ctrl(pmlan_adapter pmadapter,
 
 		if (mpa_ctrl->tx_buf_size || mpa_ctrl->rx_buf_size) {
 			wlan_free_sdio_mpa_buffers(pmadapter);
-
-			if (mpa_ctrl->tx_buf_size > 0)
+			if (mpa_ctrl->tx_buf_size > 0) {
 				pmadapter->pcard_sd->mpa_tx.buf_size =
 					mpa_ctrl->tx_buf_size;
-
+				if (pmadapter->pcard_sd->max_blk_count)
+					pmadapter->pcard_sd->mpa_tx
+						.buf_size = MIN(
+						mpa_ctrl->tx_buf_size,
+						pmadapter->pcard_sd
+								->max_blk_count *
+							pmadapter->pcard_sd
+								->sdio_blk_size);
+			}
 			if (mpa_ctrl->rx_buf_size > 0)
 				pmadapter->pcard_sd->mpa_rx.buf_size =
 					mpa_ctrl->rx_buf_size;
@@ -4040,6 +4058,51 @@ static mlan_status wlan_misc_ioctl_get_assoc_req(pmlan_adapter pmadapter,
 			   ASSOC_RSP_BUF_SIZE);
 		misc->param.assoc_req.assoc_req_len =
 			MIN(ASSOC_RSP_BUF_SIZE, pmpriv->assoc_req_size);
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Get prev associate info
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_SUCCESS --success
+ */
+static mlan_status
+wlan_misc_ioctl_get_prev_assoc_info(pmlan_adapter pmadapter,
+				    pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 fixed_size = 0;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		memcpy_ext(pmpriv->adapter, &misc->param.assoc_info.bssid,
+			   &pmpriv->prev_bssid, MLAN_MAC_ADDR_LENGTH,
+			   MLAN_MAC_ADDR_LENGTH);
+		fixed_size = MGMT_PKT_HEADER_FIX_SIZE + ASSOC_RESP_FIX_SIZE;
+		if (pmpriv->prior_assoc_rsp_size > fixed_size) {
+			misc->param.assoc_info.assoc_resp_len =
+				pmpriv->prior_assoc_rsp_size - fixed_size;
+			memcpy_ext(pmadapter,
+				   misc->param.assoc_info.assoc_resp_buf,
+				   pmpriv->prior_assoc_rsp + fixed_size,
+				   misc->param.assoc_info.assoc_resp_len,
+				   ASSOC_RSP_BUF_SIZE - fixed_size);
+		}
+		memcpy_ext(pmadapter, misc->param.assoc_info.assoc_req_buf,
+			   pmpriv->prior_assoc_req,
+			   pmpriv->prior_assoc_req_size, ASSOC_RSP_BUF_SIZE);
+		misc->param.assoc_info.assoc_req_len =
+			MIN(ASSOC_RSP_BUF_SIZE, pmpriv->prior_assoc_req_size);
 	}
 
 	LEAVE();
@@ -4999,6 +5062,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_ASSOC_REQ:
 		status = wlan_misc_ioctl_get_assoc_req(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_PREV_ASSOC_INFO:
+		status = wlan_misc_ioctl_get_prev_assoc_info(pmadapter,
+							     pioctl_req);
+		break;
 	case MLAN_OID_MISC_INIT_SHUTDOWN:
 		status = wlan_misc_ioctl_init_shutdown(pmadapter, pioctl_req);
 		break;
@@ -5376,6 +5443,51 @@ static mlan_status wlan_set_get_scan_cfg(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Set/Get scan 6 GHz configuration parameter
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *  @param action	    Set/Get
+ *
+ *  @return		MLAN_STATUS_SUCCESS --success
+ */
+static mlan_status wlan_set_get_scan_6g_cfg(pmlan_adapter pmadapter,
+					    pmlan_ioctl_req pioctl_req,
+					    t_u32 action)
+{
+	mlan_ds_scan *scan = MNULL;
+
+	ENTER();
+
+	if (!IS_FW_SUPPORT_6G(pmadapter)) {
+		PRINTM(MERROR, "Set/Get scan 6G configuration parameter failed "
+			       "(6 GHz band is not supported).\n");
+		pioctl_req->data_read_written = 0;
+		pioctl_req->buf_len_needed = sizeof(mlan_ds_scan);
+		pioctl_req->status_code = MLAN_ERROR_CMD_INVALID;
+		LEAVE();
+		return MLAN_STATUS_RESOURCE;
+	}
+
+	scan = (mlan_ds_scan *)pioctl_req->pbuf;
+
+	if (action == MLAN_ACT_SET) {
+		if (scan->param.scan_6g_cfg.scan_coloc_ap)
+			pmadapter->wifi_6g_scan_coloc_ap = MTRUE;
+		else
+			pmadapter->wifi_6g_scan_coloc_ap = MFALSE;
+	}
+	scan->param.scan_6g_cfg.scan_coloc_ap =
+		pmadapter->wifi_6g_scan_coloc_ap;
+
+	pioctl_req->data_read_written =
+		sizeof(mlan_scan_6g_cfg) + MLAN_SUB_COMMAND_SIZE;
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief Set/Get scan
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -5394,7 +5506,8 @@ mlan_status wlan_scan_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 
 	pscan = (mlan_ds_scan *)pioctl_req->pbuf;
 	if (pscan->sub_command == MLAN_OID_SCAN_CONFIG ||
-	    pscan->sub_command == MLAN_OID_SCAN_BGSCAN_CONFIG)
+	    pscan->sub_command == MLAN_OID_SCAN_BGSCAN_CONFIG ||
+	    pscan->sub_command == MLAN_OID_SCAN_6G_CONFIG)
 		goto start_config;
 	if (pmadapter->scan_processing && pioctl_req->action == MLAN_ACT_SET &&
 	    pscan->sub_command != MLAN_OID_SCAN_CANCEL) {
@@ -5422,14 +5535,17 @@ start_config:
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		switch (pscan->sub_command) {
 		case MLAN_OID_SCAN_NORMAL:
+			pmadapter->scan_6g = MFALSE;
 			status = wlan_scan_networks(pmpriv, pioctl_req, MNULL);
 			break;
 		case MLAN_OID_SCAN_SPECIFIC_SSID:
+			pmadapter->scan_6g = MFALSE;
 			status = wlan_scan_specific_ssid(
 				pmpriv, pioctl_req,
 				&pscan->param.scan_req.scan_ssid);
 			break;
 		case MLAN_OID_SCAN_USER_CONFIG:
+			pmadapter->scan_6g = MFALSE;
 			status = wlan_scan_networks(
 				pmpriv, pioctl_req,
 				(wlan_user_scan_cfg *)
@@ -5438,6 +5554,10 @@ start_config:
 		case MLAN_OID_SCAN_CONFIG:
 			status = wlan_set_get_scan_cfg(pmadapter, pioctl_req,
 						       MLAN_ACT_SET);
+			break;
+		case MLAN_OID_SCAN_6G_CONFIG:
+			status = wlan_set_get_scan_6g_cfg(pmadapter, pioctl_req,
+							  MLAN_ACT_SET);
 			break;
 		case MLAN_OID_SCAN_CANCEL:
 			status = wlan_cancel_pending_scan_cmd(pmadapter,
@@ -5462,7 +5582,8 @@ start_config:
 		if ((status == MLAN_STATUS_SUCCESS) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_TABLE_FLUSH) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_CANCEL) &&
-		    (pscan->sub_command != MLAN_OID_SCAN_CONFIG)) {
+		    (pscan->sub_command != MLAN_OID_SCAN_CONFIG) &&
+		    (pscan->sub_command != MLAN_OID_SCAN_6G_CONFIG)) {
 			PRINTM(MINFO,
 			       "wlan_scan_ioctl: return MLAN_STATUS_PENDING\n");
 			status = MLAN_STATUS_PENDING;
@@ -5473,6 +5594,9 @@ start_config:
 		if (pscan->sub_command == MLAN_OID_SCAN_CONFIG) {
 			status = wlan_set_get_scan_cfg(pmadapter, pioctl_req,
 						       MLAN_ACT_GET);
+		} else if (pscan->sub_command == MLAN_OID_SCAN_6G_CONFIG) {
+			status = wlan_set_get_scan_6g_cfg(pmadapter, pioctl_req,
+							  MLAN_ACT_GET);
 		} else if (pscan->sub_command ==
 			   MLAN_OID_SCAN_GET_CURRENT_BSS) {
 			pscan->param.scan_resp.num_in_scan_table =

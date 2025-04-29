@@ -117,8 +117,8 @@ static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 	static t_u32 prev_mcast_usec = 0;
 	t_u32 curr_ts_sec = 0;
 	t_u32 curr_ts_usec = 0;
-	t_u64 cycle_delta = 0;
-	t_u64 profile_delta = 0;
+	t_s64 cycle_delta = 0;
+	t_s64 profile_delta = 0;
 
 	if (mcast_drv_update_allow_flag == MFALSE)
 		return;
@@ -133,7 +133,7 @@ static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 	if (curr_ts_sec || curr_ts_usec) {
 		/* Calculate profile delta */
 		profile_delta = (curr_ts_sec - pmbuf->in_ts_sec) * 1000000;
-		profile_delta += (t_s32)(curr_ts_usec - pmbuf->in_ts_usec);
+		profile_delta += curr_ts_usec - pmbuf->in_ts_usec;
 
 		if ((profile_delta >= 0) && (profile_delta <= 1000))
 			gmcast_stats.spent_time_under_1000usec++;
@@ -145,8 +145,9 @@ static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 			gmcast_stats.spent_time_over_3000usec++;
 	}
 	/* Process the start cycle data */
-	cycle_delta = (t_u64)(pmbuf->in_ts_sec - prev_mcast_sec) * 1000000;
-	cycle_delta += (t_s32)(pmbuf->in_ts_usec - prev_mcast_usec);
+	cycle_delta = ((t_s64)pmbuf->in_ts_sec - (t_s64)prev_mcast_sec) *
+		      (t_s64)1000000;
+	cycle_delta += pmbuf->in_ts_usec - prev_mcast_usec;
 
 	/* If start cycle delta is more than 5 sec ignore*/
 	if ((pmbuf->u.mc_tx_info.mc_pkt_flags & (1 << CYCLE_START)) &&

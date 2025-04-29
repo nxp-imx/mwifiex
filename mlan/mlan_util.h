@@ -4,7 +4,7 @@
  *  spinlock and timer defines.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -541,18 +541,17 @@ static INLINE t_s32 util_scalar_offset(
 	mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
 	mlan_status (*moal_spin_unlock)(t_void *handle, t_void *plock))
 {
-	t_s32 newval;
+	t_s64 newval;
 
 	if (moal_spin_lock)
 		moal_spin_lock(pmoal_handle, pscalar->plock);
-	if (pscalar->value < (INT_MAX - offset))
-		newval = (pscalar->value += offset);
-	else
+	newval = (pscalar->value += offset);
+	if (newval > SINT32_MAX || newval < SINT32_MIN)
 		newval = 0;
 	if (moal_spin_unlock)
 		moal_spin_unlock(pmoal_handle, pscalar->plock);
 
-	return newval;
+	return (t_s32)newval;
 }
 
 /**

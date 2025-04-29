@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2022, 2024-2025 NXP
+ * Copyright 2008-2022, 2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -212,6 +212,8 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 			mcptr = mcptr->next;
 		}
 #else
+		// Coverity violation raised for kernel's API
+		// coverity[cert_arr39_c_violation:SUPPRESS]
 		netdev_for_each_mc_addr (mcptr, netdev)
 			seq_printf(
 				sfp,
@@ -494,10 +496,20 @@ static void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
 			ret = sizeof(int) * 2;
 		else
 			ret = sizeof(int) * 1;
+		if (IS_CARDIW624(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
+			data[2] = radio->param.ant_cfg.tx_antenna_6g;
+			data[3] = radio->param.ant_cfg.rx_antenna_6g;
+			if (data[2] && data[3])
+				ret = sizeof(int) * 4;
+		}
 		if (ret == sizeof(int) * 1)
 			seq_printf(sfp, "antcfg=0x%x\n", data[0]);
 		else if (ret == sizeof(int) * 2)
 			seq_printf(sfp, "antcfg=0x%x 0x%x\n", data[0], data[1]);
+		else if (ret == sizeof(int) * 4)
+			seq_printf(sfp, "antcfg=0x%x 0x%x %d %d\n", data[0],
+				   data[1], data[2], data[3]);
 
 	} else {
 		if (radio->param.ant_cfg_1x1.antenna == 0xffff) {
@@ -530,7 +542,7 @@ static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 	memset((char *)data, 0, sizeof(data));
 	parse_arguments(line, data, ARRAY_SIZE(data), &user_data_len);
 
-	if (user_data_len > 2) {
+	if (user_data_len > 4) {
 		PRINTM(MERROR, "Invalid number of args!\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -570,6 +582,10 @@ static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 		}
 		if (user_data_len == 2)
 			radio->param.ant_cfg.rx_antenna = data[1];
+		if (user_data_len == 4) {
+			radio->param.ant_cfg.tx_antenna_6g = data[2];
+			radio->param.ant_cfg.rx_antenna_6g = data[3];
+		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_CARD9098(priv->phandle->card_type) ||
 		    IS_CARD9097(priv->phandle->card_type) ||
@@ -624,6 +640,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 #endif
 	moal_handle *ref_handle = NULL;
 	t_u32 cmd = 0;
+	t_u32 tmp_count = 0;
 	int copy_len;
 	moal_private *priv = NULL;
 
@@ -634,7 +651,13 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
-	databuf = kzalloc(count, flag);
+
+	if (!woal_secure_add(&count, 1, &tmp_count, TYPE_UINT32)) {
+		PRINTM(MERROR, "%s:count param overflow \n", __func__);
+		LEAVE();
+		return -EINVAL;
+	}
+	databuf = kzalloc(tmp_count, flag);
 	if (databuf == NULL) {
 		LEAVE();
 		return -ENOMEM;
@@ -647,6 +670,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		LEAVE();
 		return 0;
 	}
+	databuf[count] = '\0';
 	line = databuf;
 	if (!strncmp(databuf, "soft_reset", strlen("soft_reset"))) {
 		line += strlen("soft_reset") + 1;
@@ -1146,7 +1170,7 @@ static int woal_drv_dump_read(struct seq_file *sfp, void *data)
 		goto done;
 	}
 	if (sfp->size < handle->drv_dump_len) {
-		PRINTM(MERROR,
+		PRINTM(MCMND,
 		       "drv dump size too big, size=%d, drv_dump_len=%d\n",
 		       (int)sfp->size, handle->drv_dump_len);
 		sfp->count = sfp->size;
@@ -1224,7 +1248,7 @@ static int woal_fw_dump_read(struct seq_file *sfp, void *data)
 	}
 
 	if (sfp->size < handle->fw_dump_len) {
-		PRINTM(MERROR,
+		PRINTM(MCMND,
 		       "fw dump size too big, size=%d, fw_dump_len=%ld\n",
 		       (int)sfp->size, (long int)handle->fw_dump_len);
 		sfp->count = sfp->size;
@@ -1353,7 +1377,7 @@ int woal_string_to_number(char *s)
 	} else
 		base = 10;
 
-	for (; *s; s++) {
+	for (; *s;) {
 		if ((*s >= '0') && (*s <= '9'))
 			r = (r * base) + (*s - '0');
 		else if ((*s >= 'A') && (*s <= 'F'))
@@ -1361,6 +1385,8 @@ int woal_string_to_number(char *s)
 		else if ((*s >= 'a') && (*s <= 'f'))
 			r = (r * base) + (*s - 'a' + 10);
 		else
+			break;
+		if (!woal_secure_add(&s, 1, &s, TYPE_PTR))
 			break;
 	}
 
@@ -1440,8 +1466,9 @@ void woal_proc_init(moal_handle *handle)
 		goto done;
 	}
 
-	snprintf(handle->proc_wlan_name, sizeof(handle->proc_wlan_name),
-		 WLAN_PROC, handle->handle_idx);
+	if (snprintf(handle->proc_wlan_name, sizeof(handle->proc_wlan_name),
+		     WLAN_PROC, handle->handle_idx) <= 0)
+		PRINTM(MERROR, "Couldn't write proc interface name\n");
 	PRINTM(MINFO, "Create Proc Interface %s\n", handle->proc_wlan_name);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)

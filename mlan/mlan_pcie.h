@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2024 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -468,6 +468,12 @@ Change log:
 
 /* check TX done ring on every X pushed packets */
 #define TX_DONE_POLL_DISTANCE 16
+
+/* Rx RD/WR ptr update action */
+enum RX_UPDATE_ACTION {
+	RX_RD_UPDATE = MBIT(0),
+	RX_WR_UPDATE = MBIT(1),
+};
 
 extern mlan_adapter_operations mlan_pcie_ops;
 

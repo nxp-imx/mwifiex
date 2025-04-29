@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n Aggregation.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -183,13 +183,15 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	TxPD *ptx_pd;
 	t_u8 *head_ptr = MNULL;
 	t_u32 data_len = pmbuf->data_len;
+	t_u16 len = 0;
+	t_s32 offset = 0;
 	ENTER();
 
 	head_ptr = pmbuf->pbuf + pmbuf->data_offset - Tx_PD_SIZEOF(pmadapter) -
 		   priv->intf_hr_len;
 	/*making data buffer 8 ytes aligned for increasing TP with PCIE Scatter
 	 * Gather*/
-	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(8 - 1)));
+	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(7)));
 	ptx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
 	// coverity[bad_memset:SUPPRESS]
 	memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
@@ -219,15 +221,17 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 
 	/* Adjust the data offset and length to include TxPD in pmbuf */
 	pmbuf->data_len += pmbuf->data_offset;
-	pmbuf->data_offset = (t_u32)(head_ptr - pmbuf->pbuf);
-	pmbuf->data_len -= pmbuf->data_offset;
-
-	PRINTM(MDATA, "amsdu_pkt_len=%d, extra_len=%d\n", amsdu_pkt_len,
-	       pmbuf->data_len - data_len);
+	offset = head_ptr - pmbuf->pbuf;
+	pmbuf->data_offset = (t_u32)offset;
+	if (pmbuf->data_len > pmbuf->data_offset)
+		pmbuf->data_len -= pmbuf->data_offset;
+	if (pmbuf->data_len > data_len)
+		len = (t_u16)(pmbuf->data_len - data_len);
+	PRINTM(MDATA, "amsdu_pkt_len=%d, extra_len=%d\n", amsdu_pkt_len, len);
 	DBG_HEXDUMP(MDAT_D, "AMSDU TxPD", ptx_pd, Tx_PD_SIZEOF(pmadapter));
 
 	LEAVE();
-	return (pmbuf->data_len - data_len);
+	return len;
 }
 
 /**
@@ -257,10 +261,14 @@ static int wlan_form_amsdu_subframe(pmlan_adapter pmadapter, mlan_buffer *pmbuf,
 	t_u8 *amsdu_buf = MNULL;
 	t_u8 *data = pmbuf->pbuf + pmbuf->data_offset;
 	int pkt_len = pmbuf->data_len;
+	t_u16 total_len;
 
 	ENTER();
-
-	pmbuf->data_offset -= sizeof(Rfc1042Hdr_t);
+	if (pmbuf->data_offset >= sizeof(Rfc1042Hdr_t))
+		pmbuf->data_offset -= sizeof(Rfc1042Hdr_t);
+	else
+		PRINTM(MERROR,
+		       "Truncated value assigned to pmbuf->data_offset");
 	pmbuf->data_len += sizeof(Rfc1042Hdr_t);
 
 	amsdu_buf = pmbuf->pbuf + pmbuf->data_offset;
@@ -271,9 +279,11 @@ static int wlan_form_amsdu_subframe(pmlan_adapter pmadapter, mlan_buffer *pmbuf,
 
 	snap.snap_type = *(t_u16 *)(data + dt_offset);
 	dt_offset += sizeof(t_u16);
-	*(t_u16 *)(amsdu_buf + amsdu_buf_offset) =
-		mlan_htons(pkt_len + LLC_SNAP_LEN -
-			   ((2 * MLAN_MAC_ADDR_LENGTH) + sizeof(t_u16)));
+	total_len = (t_u16)(pkt_len + LLC_SNAP_LEN -
+			    ((2 * MLAN_MAC_ADDR_LENGTH) + sizeof(t_u16)));
+
+	*(t_u16 *)(amsdu_buf + amsdu_buf_offset) = mlan_htons(total_len);
+
 	amsdu_buf_offset += sizeof(t_u16);
 	memcpy_ext(pmadapter, amsdu_buf + amsdu_buf_offset, &snap, LLC_SNAP_LEN,
 		   LLC_SNAP_LEN);
@@ -287,6 +297,8 @@ static int wlan_form_amsdu_subframe(pmlan_adapter pmadapter, mlan_buffer *pmbuf,
 		    MIN(pmbuf->data_len, MAX_DATA_DUMP_LEN));
 	PRINTM(MDATA, "AMSDU subframe len=%d\n", pkt_len + LLC_SNAP_LEN + *pad);
 	LEAVE();
+	/* pkt_len is limited by MLAN_TX_DATA_BUF_SIZE */
+	// coverity[overflow_sink:SUPPRESS]
 	return pkt_len + LLC_SNAP_LEN + *pad;
 }
 #endif
@@ -498,6 +510,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			goto done;
 		}
 	}
+	/* total_pkt_len is limited up to MLAN_RX_DATA_BUF_SIZE */
+	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;
 		/* Length will be in network format, change it to host */
@@ -521,7 +535,12 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			   sizeof(rfc1042_eth_hdr)) == 0) {
 			memmove(pmadapter, data + LLC_SNAP_LEN, data,
 				(2 * MLAN_MAC_ADDR_LENGTH));
-			data += LLC_SNAP_LEN;
+			if (!wlan_secure_add(&data, LLC_SNAP_LEN, &data,
+					     TYPE_PTR)) {
+				PRINTM(MERROR, "rx amsdu pkt data overflow\n");
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
 			pkt_len += sizeof(Eth803Hdr_t) - LLC_SNAP_LEN;
 		} else {
 			*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH)) =
@@ -559,10 +578,10 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 				pmadapter->pmoal_handle, &out_copy_ts_sec,
 				&out_copy_ts_usec);
 			copy_delay +=
-				(t_s32)(out_copy_ts_sec - in_copy_ts_sec) *
+				(t_u32)(out_copy_ts_sec - in_copy_ts_sec) *
 				1000000;
 			copy_delay +=
-				(t_s32)(out_copy_ts_usec - in_copy_ts_usec);
+				(t_u32)(out_copy_ts_usec - in_copy_ts_usec);
 		}
 #ifdef UAP_SUPPORT
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
@@ -589,7 +608,13 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 						MLAN_EVENT_ID_DRV_DEFER_HANDLING,
 						MNULL);
 				wlan_free_mlan_buffer(pmadapter, daggr_mbuf);
-				data += pkt_len + pad;
+				if (!wlan_secure_add(&data, pkt_len + pad,
+						     &data, TYPE_PTR)) {
+					PRINTM(MERROR,
+					       "rx amsdu pkt data overflow\n");
+					ret = MLAN_STATUS_FAILURE;
+					break;
+				}
 				continue;
 			}
 			/**process tdls packet*/
@@ -626,13 +651,17 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			break;
 		}
 
-		data += pkt_len + pad;
+		if (!wlan_secure_add(&data, pkt_len + pad, &data, TYPE_PTR)) {
+			PRINTM(MERROR, "rx amsdu pkt data overflow\n");
+			ret = MLAN_STATUS_FAILURE;
+			break;
+		}
 	}
 	if (pmadapter->tp_state_on) {
 		pmadapter->callbacks.moal_get_system_time(
 			pmadapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
-		delay += (t_s32)(out_ts_sec - in_ts_sec) * 1000000;
-		delay += (t_s32)(out_ts_usec - in_ts_usec);
+		delay += (t_u32)(out_ts_sec - in_ts_sec) * 1000000;
+		delay += (t_u32)(out_ts_usec - in_ts_usec);
 		// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 		pmadapter->callbacks.moal_amsdu_tp_accounting(
 			pmadapter->pmoal_handle, delay, copy_delay);
@@ -678,6 +707,11 @@ static int wlan_send_amsdu_subframe_list(mlan_private *priv,
 	t_u32 max_msdu_count = 0;
 	t_u32 msdu_in_tx_amsdu_cnt = 0;
 	ENTER();
+
+	if (ptrindex < 0) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	max_msdu_count = pmadapter->ops.get_max_msdu_cnt(pmadapter);
 	pmbuf_src = (pmlan_buffer)util_peek_list(

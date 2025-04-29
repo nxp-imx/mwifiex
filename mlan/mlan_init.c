@@ -4,7 +4,7 @@
  *  and HW.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -299,6 +299,7 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 
 	pmadapter->num_in_chan_stats = sizeof(chan_2g);
 	pmadapter->num_in_chan_stats += sizeof(chan_5g);
+	pmadapter->num_in_chan_stats += MLAN_6G_CHAN_MAX;
 	buf_size = sizeof(ChanStatistics_t) * pmadapter->num_in_chan_stats;
 	if (pmadapter->callbacks.moal_vmalloc &&
 	    pmadapter->callbacks.moal_vfree)
@@ -368,7 +369,7 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 			pmadapter->pcard_sd->mpa_buf_size =
 				SDIO_MP_DBG_NUM *
 				pmadapter->pcard_sd->mp_aggr_pkt_limit *
-				MLAN_SDIO_BLOCK_SIZE;
+				pmadapter->pcard_sd->sdio_blk_size;
 			if (pmadapter->callbacks.moal_vmalloc &&
 			    pmadapter->callbacks.moal_vfree)
 				ret = pmadapter->callbacks.moal_vmalloc(
@@ -467,6 +468,20 @@ mlan_status wlan_init_priv(pmlan_private priv)
 
 	memset(pmadapter, &priv->assoc_rsp_buf, 0, sizeof(priv->assoc_rsp_buf));
 	priv->assoc_rsp_size = 0;
+	// coverity[no_effect:SUPPRESS]
+	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
+	memset(pmadapter, &priv->assoc_req_buf, 0, sizeof(priv->assoc_req_buf));
+	priv->assoc_req_size = 0;
+	// coverity[no_effect:SUPPRESS]
+	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
+	memset(pmadapter, &priv->prior_assoc_rsp, 0,
+	       sizeof(priv->prior_assoc_rsp));
+	priv->prior_assoc_rsp_size = 0;
+	// coverity[no_effect:SUPPRESS]
+	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
+	memset(pmadapter, &priv->prior_assoc_req, 0,
+	       sizeof(priv->prior_assoc_req));
+	priv->prior_assoc_req_size = 0;
 
 	wlan_11d_priv_init(priv);
 	wlan_11h_priv_init(priv);
@@ -549,6 +564,8 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	SET_EXTCAP_OPERMODENTF(priv->ext_cap);
 	SET_EXTCAP_TDLS(priv->ext_cap);
 	SET_EXTCAP_QOS_MAP(priv->ext_cap);
+	/* Set FILS Capability */
+	SET_EXTCAP_FILS(priv->ext_cap);
 	/* Save default Extended Capability */
 	memcpy_ext(priv->adapter, &priv->def_ext_cap, &priv->ext_cap,
 		   sizeof(priv->ext_cap), sizeof(priv->def_ext_cap));
@@ -743,6 +760,10 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->specific_scan_time = MRVDRV_SPECIFIC_SCAN_CHAN_TIME;
 	pmadapter->active_scan_time = MRVDRV_ACTIVE_SCAN_CHAN_TIME;
 	pmadapter->passive_scan_time = MRVDRV_PASSIVE_SCAN_CHAN_TIME;
+	pmadapter->wifi_6g_scan_time = MRVDRV_6G_SCAN_CHAN_TIME;
+	pmadapter->wifi_6g_scan_split = MFALSE;
+	pmadapter->wifi_6g_scan_coloc_ap = MFALSE; /* configurable */
+	pmadapter->scan_6g = MFALSE;
 	if (!pmadapter->init_para.passive_to_active_scan)
 		pmadapter->passive_to_active_scan = MLAN_PASS_TO_ACT_SCAN_EN;
 	else if (pmadapter->init_para.passive_to_active_scan ==
@@ -1238,7 +1259,16 @@ mlan_status wlan_init_lock_list(pmlan_adapter pmadapter)
 	util_init_list_head((t_void *)pmadapter->pmoal_handle,
 			    &pmadapter->ioctl_pending_q, MTRUE,
 			    pmadapter->callbacks.moal_init_lock);
-
+	/* Initialize coloc_ap_list */
+	util_init_list_head((t_void *)pmadapter->pmoal_handle,
+			    &pmadapter->coloc_ap_list, MTRUE,
+			    pmadapter->callbacks.moal_init_lock);
+#ifdef PCIE
+	util_scalar_init((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->rx_refill_start_index,
+			 MLAN_INVALID_TXRX_INDEX_VAL, MNULL,
+			 pmadapter->callbacks.moal_init_lock);
+#endif
 error:
 	LEAVE();
 	return ret;
@@ -1357,6 +1387,14 @@ t_void wlan_free_lock_list(pmlan_adapter pmadapter)
 			    &pmadapter->ioctl_pending_q,
 			    pmadapter->callbacks.moal_free_lock);
 
+	util_free_list_head((t_void *)pmadapter->pmoal_handle,
+			    &pmadapter->coloc_ap_list,
+			    pmadapter->callbacks.moal_free_lock);
+#ifdef PCIE
+	util_scalar_free((t_void *)pmadapter->pmoal_handle,
+			 &pmadapter->rx_refill_start_index,
+			 pcb->moal_free_lock);
+#endif
 	for (i = 0; i < pmadapter->priv_num; i++)
 		util_free_list_head((t_void *)pmadapter->pmoal_handle,
 				    &pmadapter->bssprio_tbl[i].bssprio_head,
@@ -1546,6 +1584,14 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 			goto done;
 		}
 	}
+	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693) {
+		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
+				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
 #endif /* PCIE */
 #endif /* MFG_CMD_SUPPORT */
 	if (wlan_is_cmd_pending(pmadapter)) {
@@ -1598,7 +1644,10 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 		pmadapter->fw_bands |= BAND_AN;
 	if (!(pmadapter->fw_bands & BAND_G) && (pmadapter->fw_bands & BAND_GN))
 		pmadapter->fw_bands &= ~BAND_GN;
-
+	if (!(pmadapter->fw_bands & BAND_A) && (pmadapter->fw_bands & BAND_AAC))
+		pmadapter->fw_bands &= ~BAND_AAC;
+	if (!(pmadapter->fw_bands & BAND_G) && (pmadapter->fw_bands & BAND_GAC))
+		pmadapter->fw_bands &= ~BAND_GAC;
 	pmadapter->config_bands = pmadapter->fw_bands;
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
@@ -1702,6 +1751,18 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
 			}
 		}
+	}
+	if (IS_FW_SUPPORT_6G(pmadapter)) {
+		pmadapter->fw_bands |= BAND_6G;
+		pmadapter->config_bands |= BAND_6G;
+		for (i = 0; i < pmadapter->priv_num; i++) {
+			if (pmadapter->priv[i]) {
+				pmadapter->priv[i]->config_bands =
+					pmadapter->config_bands;
+			}
+		}
+		pmadapter->wifi_6g_scan_split = MTRUE;
+		pmadapter->wifi_6g_scan_coloc_ap = MTRUE;
 	}
 	LEAVE();
 	return;
@@ -1841,6 +1902,7 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		pmadapter->wakeup_fw_timer_is_set = MFALSE;
 	}
 	wlan_free_fw_cfp_tables(pmadapter);
+	wlan_free_fw_6g_cfp_tables(pmadapter);
 #ifdef STA_SUPPORT
 	PRINTM(MINFO, "Free ScanTable\n");
 	if (pmadapter->pscan_table) {
@@ -1909,6 +1971,8 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 
 	wlan_free_mlan_buffer(pmadapter, pmadapter->psleep_cfm);
 	pmadapter->psleep_cfm = MNULL;
+
+	wlan_free_rnr_coloc_ap(pmadapter);
 
 	/* Free timers */
 	wlan_free_timer(pmadapter);

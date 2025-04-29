@@ -3,7 +3,7 @@
  * @brief This file contains wireless extension standard ioctl functions
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -303,16 +303,16 @@ static t_u8 woal_rssi_to_quality(t_s16 rssi)
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param dwrq                 A pointer to iw_point structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_nick(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
+	struct iw_point *dwrq = &wrqu->data;
 	ENTER();
 	/*
 	 * Check the size of the string
@@ -333,16 +333,16 @@ static int woal_set_nick(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param dwrq                 A pointer to iw_point structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success
  */
 static int woal_get_nick(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
+	struct iw_point *dwrq = &wrqu->data;
 	ENTER();
 	/*
 	 * Get the Nick Name saved
@@ -873,17 +873,17 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0, disabled;
+	struct iw_param *vwrq = &wrqu->param;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -892,10 +892,10 @@ static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
 		LEAVE();
 		return ret;
 	}
-	disabled = vwrq_->disabled;
+	disabled = vwrq->disabled;
 
 	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_power_mgmt(priv, MLAN_ACT_SET, &disabled, vwrq_->flags,
+	    woal_set_get_power_mgmt(priv, MLAN_ACT_SET, &disabled, vwrq->flags,
 				    MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 	}
@@ -909,17 +909,17 @@ static int woal_set_power(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     MLAN_STATUS_SUCCESS --success, otherwise fail
  */
 static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0, ps_mode = 0;
+	struct iw_param *vwrq = &wrqu->param;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -930,11 +930,11 @@ static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	if (ps_mode)
-		vwrq_->disabled = 0;
+		vwrq->disabled = 0;
 	else
-		vwrq_->disabled = 1;
+		vwrq->disabled = 1;
 
-	vwrq_->value = 0;
+	vwrq->value = 0;
 
 	LEAVE();
 	return ret;
@@ -945,21 +945,21 @@ static int woal_get_power(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_retry(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
-	int ret = 0, retry_val = vwrq_->value;
+	struct iw_param *vwrq = &wrqu->retry;
+	int ret = 0, retry_val = vwrq->value;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 
 	ENTER();
 
-	if (vwrq_->flags == IW_RETRY_LIMIT) {
+	if (vwrq->flags == IW_RETRY_LIMIT) {
 		/*
 		 * The MAC has a 4-bit Total_Tx_Count register
 		 * Total_Tx_Count = 1 + Tx_Retry_Count
@@ -986,17 +986,17 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_retry(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	int retry_val, ret = 0;
+	struct iw_param *vwrq = &wrqu->retry;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1007,11 +1007,11 @@ static int woal_get_retry(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq_->disabled = 0;
-	if (!vwrq_->flags) {
-		vwrq_->flags = IW_RETRY_LIMIT;
+	vwrq->disabled = 0;
+	if (!vwrq->flags) {
+		vwrq->flags = IW_RETRY_LIMIT;
 		/* Get Tx retry count */
-		vwrq_->value = retry_val;
+		vwrq->value = retry_val;
 	}
 
 done:
@@ -1024,22 +1024,22 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param dwrq                 A pointer to iw_point structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
-			   union iwreq_data *vwrq, char *extra)
+			   union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = &wrqu->encoding;
 	mlan_ds_sec_cfg *sec = NULL;
 	mlan_ioctl_req *req = NULL;
 	int index = 0;
 	t_u32 auth_mode = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -1149,7 +1149,7 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param dwrq                 A pointer to iw_point structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
@@ -1254,29 +1254,29 @@ done:
  *
  *  @param dev          A pointer to net_device structure
  *  @param info         A pointer to iw_request_info structure
- *  @param vwrq         A pointer to iw_param structure
+ *  @param wrqu         A pointer to iwreq_data union
  *  @param extra        A pointer to extra data buf
  *
  *  @return             0 --success, otherwise fail
  */
 static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq = &wrqu->bitrate;
 	mlan_rate_cfg_t rate_cfg;
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
 	memset(&rate_cfg, 0, sizeof(mlan_rate_cfg_t));
 
-	if (vwrq_->value == -1) {
+	if (vwrq->value == -1) {
 		rate_cfg.is_rate_auto = 1;
 	} else {
 		rate_cfg.is_rate_auto = 0;
 		rate_cfg.rate_type = MLAN_RATE_VALUE;
-		rate_cfg.rate = vwrq_->value / 500000;
+		rate_cfg.rate = vwrq->value / 500000;
 	}
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_get_data_rate(priv, MLAN_ACT_SET, &rate_cfg)) {
@@ -1292,18 +1292,18 @@ static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev          A pointer to net_device structure
  *  @param info         A pointer to iw_request_info structure
- *  @param vwrq         A pointer to iw_param structure
+ *  @param wrqu         A pointer to iwreq_data union
  *  @param extra        A pointer to extra data buf
  *
  *  @return             0 --success, otherwise fail
  */
 static int woal_get_rate(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq = &wrqu->bitrate;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_rate_cfg_t rate_cfg;
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1314,10 +1314,10 @@ static int woal_get_rate(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	if (rate_cfg.is_rate_auto)
-		vwrq_->fixed = 0;
+		vwrq->fixed = 0;
 	else
-		vwrq_->fixed = 1;
-	vwrq_->value = rate_cfg.rate * 500000;
+		vwrq->fixed = 1;
+	vwrq->value = rate_cfg.rate * 500000;
 done:
 	LEAVE();
 	return ret;
@@ -1328,22 +1328,22 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_rts(struct net_device *dev, struct iw_request_info *info,
-			union iwreq_data *vwrq, char *extra)
+			union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq = &wrqu->rts;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
-	int rthr = vwrq_->value;
+	int rthr = vwrq->value;
 
 	ENTER();
 
-	if (vwrq_->disabled) {
+	if (vwrq->disabled) {
 		rthr = MLAN_RTS_MAX_VALUE;
 	} else {
 		if (rthr < MLAN_RTS_MIN_VALUE || rthr > MLAN_RTS_MAX_VALUE) {
@@ -1368,17 +1368,17 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_rts(struct net_device *dev, struct iw_request_info *info,
-			union iwreq_data *vwrq, char *extra)
+			union iwreq_data *wrqu, char *extra)
 {
 	int rthr, ret = 0;
+	struct iw_param *vwrq = &wrqu->rts;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 
 	ENTER();
 
@@ -1388,10 +1388,10 @@ static int woal_get_rts(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq_->value = rthr;
-	vwrq_->disabled = ((vwrq_->value < MLAN_RTS_MIN_VALUE) ||
-			  (vwrq_->value > MLAN_RTS_MAX_VALUE));
-	vwrq_->fixed = 1;
+	vwrq->value = rthr;
+	vwrq->disabled = ((vwrq->value < MLAN_RTS_MIN_VALUE) ||
+			  (vwrq->value > MLAN_RTS_MAX_VALUE));
+	vwrq->fixed = 1;
 
 done:
 	LEAVE();
@@ -1403,22 +1403,22 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_frag(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq = &wrqu->frag;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
-	int fthr = vwrq_->value;
+	int fthr = vwrq->value;
 
 	ENTER();
 
-	if (vwrq_->disabled) {
+	if (vwrq->disabled) {
 		fthr = MLAN_FRAG_MAX_VALUE;
 	} else {
 		if (fthr < MLAN_FRAG_MIN_VALUE || fthr > MLAN_FRAG_MAX_VALUE) {
@@ -1443,17 +1443,17 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param wrqu                 A pointer to iwreq_data union
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_frag(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0, fthr;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
-	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
+	struct iw_param *vwrq = &wrqu->frag;
 
 	ENTER();
 
@@ -1463,10 +1463,10 @@ static int woal_get_frag(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq_->value = fthr;
-	vwrq_->disabled = ((vwrq_->value < MLAN_FRAG_MIN_VALUE) ||
-			  (vwrq_->value > MLAN_FRAG_MAX_VALUE));
-	vwrq_->fixed = 1;
+	vwrq->value = fthr;
+	vwrq->disabled = ((vwrq->value < MLAN_FRAG_MIN_VALUE) ||
+			  (vwrq->value > MLAN_FRAG_MAX_VALUE));
+	vwrq->fixed = 1;
 
 done:
 	LEAVE();
@@ -1495,8 +1495,8 @@ static int woal_get_gen_ie(struct net_device *dev, struct iw_request_info *info,
 
 	ENTER();
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_gen_ie(priv, MLAN_ACT_GET, ie,
-						       &ie_len,
+	if (MLAN_STATUS_SUCCESS != woal_set_get_gen_ie(priv, MLAN_ACT_GET, NULL,
+						       ie, &ie_len,
 						       MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 		goto done;
@@ -1560,9 +1560,9 @@ static int woal_set_gen_ie(struct net_device *dev, struct iw_request_info *info,
 		}
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_gen_ie(priv, MLAN_ACT_SET,
-						       (t_u8 *)extra, &ie_len,
-						       MOAL_IOCTL_WAIT)) {
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_get_gen_ie(priv, MLAN_ACT_SET, (t_u8 *)extra, NULL,
+				&ie_len, MOAL_IOCTL_WAIT)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1938,13 +1938,13 @@ done:
  *
  *  @param dev      A pointer to net_device structure
  *  @param info     A pointer to iw_request_info structure
- *  @param vwrq     A pointer to iw_param structure
+ *  @param wrqu     A pointer to iwreq_data union
  *  @param extra    A pointer to extra data buf
  *
  *  @return         -EOPNOTSUPP
  */
 static int woal_set_pmksa(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	ENTER();
 	LEAVE();
@@ -2206,6 +2206,8 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 	t_u8 country_code[COUNTRY_CODE_LEN];
 	int len = 0;
 	gfp_t flag;
+	unsigned int link_speed = 0;
+
 	ENTER();
 	if (!priv || !priv->phandle) {
 		PRINTM(MERROR, "priv or handle is NULL\n");
@@ -2266,8 +2268,9 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			goto done;
 		}
 		PRINTM(MIOCTL, "tx rate=%d\n", (int)rate.rate);
+		link_speed = rate.rate * 500000 / 1000000;
 		len = snprintf(buf, MAX_BUF_LEN, "LinkSpeed %d\n",
-			       (int)(rate.rate * 500000 / 1000000)) +
+			       (int)link_speed) +
 		      1;
 	} else if (strncmp(buf, "MACADDR", strlen("MACADDR")) == 0) {
 		len = snprintf(buf, MAX_BUF_LEN,
@@ -2542,10 +2545,11 @@ static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
  *  @return             0--success, otherwise fail
  */
 static int woal_set_scan(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	int ret = 0;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_param *vwrq = &wrqu->param;
 	moal_handle *handle = priv->phandle;
 #if WIRELESS_EXT >= 18
 	struct iw_scan_req *req;
@@ -2671,7 +2675,7 @@ static int woal_owe_specific_scan(moal_private *priv,
  *
  *  @param dev          A pointer to net_device structure
  *  @param info         A pointer to iw_request_info structure
- *  @param dwrq         A pointer to iw_point structure
+ *  @param wrqu         A pointer to iwreq_data union
  *  @param extra        A pointer to extra data buf
  *
  *  @return             0--success, otherwise fail
@@ -2922,18 +2926,18 @@ setessid_ret:
  *
  *  @param dev      A pointer to net_device structure
  *  @param info     A pointer to iw_request_info structure
- *  @param dwrq     A pointer to iw_point structure
+ *  @param wrqu     A pointer to iwreq_data union
  *  @param extra    A pointer to extra data buf
  *
  *  @return         0--success, otherwise fail
  */
 static int woal_get_essid(struct net_device *dev, struct iw_request_info *info,
-			  union iwreq_data *vwrq, char *extra)
+			  union iwreq_data *wrqu, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = &wrqu->essid;
 	mlan_bss_info bss_info;
 	int ret = 0;
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
 
 	ENTER();
 
@@ -2967,15 +2971,16 @@ done:
  *
  *  @param dev          A pointer to net_device structure
  *  @param info         A pointer to iw_request_info structure
- *  @param dwrq         A pointer to iw_point structure
+ *  @param wrqu         A pointer to iwreq_data union
  *  @param extra        A pointer to extra data buf
  *
  *  @return             0--success, otherwise fail
  */
 static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
-			 union iwreq_data *vwrq, char *extra)
+			 union iwreq_data *wrqu, char *extra)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+	struct iw_point *dwrq = &wrqu->data;
 	int ret = 0;
 	char *current_ev = extra;
 	char *end_buf = extra + IW_SCAN_MAX_DATA;
@@ -2997,7 +3002,7 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 	IEEEtypes_ElementId_e element_id;
 	t_u8 element_len;
 	gfp_t flag;
-	struct iw_point *dwrq = (struct iw_point *)vwrq;
+	int event_len = 0;
 
 	ENTER();
 
@@ -3160,7 +3165,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		}
 
 		/* Check if an event is added */
-		if ((unsigned int)(current_val - current_ev) >= IW_EV_PARAM_LEN)
+		event_len = current_val - current_ev;
+		if ((unsigned int)event_len >= IW_EV_PARAM_LEN)
 			current_ev = current_val;
 
 		/* Beacon Interval */
@@ -3261,7 +3267,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		/*
 		 * Check if we added any event
 		 */
-		if ((unsigned int)(current_val - current_ev) > IW_EV_LCP_LEN)
+		event_len = current_val - current_ev;
+		if ((unsigned int)event_len > IW_EV_LCP_LEN)
 			current_ev = current_val;
 	}
 
@@ -3399,7 +3406,11 @@ void woal_send_iwevcustom_event(moal_private *priv, char *str)
 	memset(&iwrq, 0, sizeof(union iwreq_data));
 	memset(buf, 0, sizeof(buf));
 
-	snprintf(buf, sizeof(buf) - 1, "%s", str);
+	if (snprintf(buf, sizeof(buf) - 1, "%s", str) <= 0) {
+		PRINTM(MERROR, "Failed to write custom event in iwreq buf\n");
+		LEAVE();
+		return;
+	}
 
 	iwrq.data.pointer = (t_u8 __user *)buf;
 	iwrq.data.length = strlen(buf) + 1;
@@ -3453,9 +3464,9 @@ struct iw_handler_def woal_handler_def = {
 	.num_standard = ARRAY_SIZE(woal_handler),
 	.num_private = ARRAY_SIZE(woal_private_handler),
 	.num_private_args = ARRAY_SIZE(woal_private_args),
-	.standard = (iw_handler *)woal_handler,
-	.private = (iw_handler *)woal_private_handler,
-	.private_args = (struct iw_priv_args *)woal_private_args,
+	.standard = (const iw_handler *)woal_handler,
+	.private = (const iw_handler *)woal_private_handler,
+	.private_args = (const struct iw_priv_args *)woal_private_args,
 #if WIRELESS_EXT > 20
 	.get_wireless_stats = woal_get_wireless_stats,
 #endif

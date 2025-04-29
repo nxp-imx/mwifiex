@@ -3,7 +3,7 @@
  *  @brief This file contains functions for WMM.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -839,6 +839,7 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 /**
  *  @brief Calculates byte budget based on time budget and currect PHY rate
  *
+ *  @param pmadapter        Pointer to the mlan_adapter structure
  *  @param time_budget_us   Time budget in usec
  *  @param phy_rate_kbps    TX PHY rate in kbit/sec
  *
@@ -1499,6 +1500,9 @@ static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 	void *const pmoal_handle = pmadapter->pmoal_handle;
 	raListTbl *ra_list = MNULL;
 
+	if (!pmadapter->priv_num)
+		return MNULL;
+
 	if (!pmadapter->mclient_tx_supported)
 		return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
 
@@ -1590,6 +1594,10 @@ static INLINE void wlan_send_single_packet(pmlan_private priv, raListTbl *ptr,
 
 	ENTER();
 
+	if (ptrindex < 0 || ptrindex >= MAX_NUM_TID) {
+		LEAVE();
+		return;
+	}
 	pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
 						&ptr->buf_head, MNULL, MNULL);
 	if (pmbuf) {
@@ -1816,9 +1824,14 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 
 	ENTER();
 
+	if (!pmadapter->priv_num) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	ptr = wlan_wmm_get_next_priolist_ptr(pmadapter, &priv, &ptrindex);
 
-	if (!ptr) {
+	if (!ptr || ptrindex < 0) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -2577,6 +2590,8 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 				ra_list->is_tdls_link = MTRUE;
 			} else {
 				ra_list->is_wmm_enabled = IS_11N_ENABLED(priv);
+				ra_list->is_wmm_enabled |=
+					IS_116E_ENABLED(priv);
 				if (ra_list->is_wmm_enabled)
 					ra_list->max_amsdu = priv->max_amsdu;
 			}
@@ -2968,6 +2983,8 @@ int wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 							priv, new_ra);
 			} else {
 				ra_list->is_wmm_enabled = IS_11N_ENABLED(priv);
+				ra_list->is_wmm_enabled |=
+					IS_116E_ENABLED(priv);
 				if (ra_list->is_wmm_enabled)
 					ra_list->max_amsdu = priv->max_amsdu;
 			}
@@ -3394,7 +3411,7 @@ mlan_status wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv,
 	while (resp_len >= (int)sizeof(ptlv_hdr->header)) {
 		ptlv_hdr = (MrvlIEtypes_Data_t *)pcurrent;
 		tlv_len = wlan_le16_to_cpu(ptlv_hdr->header.len);
-		if ((int)(tlv_len + sizeof(ptlv_hdr->header)) > resp_len) {
+		if ((tlv_len + sizeof(ptlv_hdr->header)) > resp_len) {
 			PRINTM(MERROR,
 			       "WMM get status: Error in processing  TLV buffer\n");
 			resp_len = 0;
@@ -3615,7 +3632,7 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 {
 	t_u8 ret_val = 0;
 	t_u32 out_ts_sec, out_ts_usec;
-	t_s32 queue_delay;
+	t_s32 queue_delay, delay;
 	t_s32 temp_delay = 0;
 	ENTER();
 
@@ -3645,8 +3662,8 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 	 *
 	 * Pass max value if queue_delay is beyond the uint8 range
 	 */
-	ret_val = (t_u8)(MIN(queue_delay, (t_s32)priv->wmm.drv_pkt_delay_max) >>
-			 1);
+	delay = MIN(queue_delay, (t_s32)priv->wmm.drv_pkt_delay_max) >> 1;
+	ret_val = (t_u8)delay;
 
 	PRINTM(MINFO, "WMM: Pkt Delay: %d ms, %d ms sent to FW\n", queue_delay,
 	       ret_val);
@@ -3665,6 +3682,11 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 void wlan_wmm_process_tx(pmlan_adapter pmadapter)
 {
 	ENTER();
+
+	if (!pmadapter->priv_num) {
+		LEAVE();
+		return;
+	}
 
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
@@ -3741,6 +3763,11 @@ static INLINE t_u8 wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 	pmlan_buffer pmbuf = MNULL;
 	t_u8 ret = MFALSE;
 	ENTER();
+
+	if (tid < 0 || tid >= MAX_NUM_TID) {
+		LEAVE();
+		return ret;
+	}
 	ra_list = (raListTbl *)util_peek_list(priv->adapter->pmoal_handle,
 					      ra_list_head, MNULL, MNULL);
 	while (ra_list && ra_list != (raListTbl *)ra_list_head) {
@@ -3795,6 +3822,8 @@ t_void wlan_drop_tx_pkts(pmlan_private priv)
 	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
 					    priv->wmm.ra_list_spinlock);
 	for (j = 0; j < MAX_NUM_TID; j++, i++) {
+		if (i < 0)
+			break;
 		if (i == MAX_NUM_TID)
 			i = 0;
 		if (wlan_del_tx_pkts_in_ralist(
@@ -4149,6 +4178,7 @@ mlan_status wlan_ret_wmm_addts_req(pmlan_private pmpriv,
 
 			/* Copy the TSPEC data include any extra IEs after the
 			 * TSPEC */
+			// coverity[cert_arr30_c_violation: SUPPRESS]
 			memcpy_ext(pmpriv->adapter, paddts->ie_data,
 				   presp_addts->tspec_data, paddts->ie_data_len,
 				   sizeof(paddts->ie_data));
@@ -4212,7 +4242,7 @@ mlan_status wlan_ret_wmm_delts_req(pmlan_private pmpriv,
 				   mlan_ioctl_req *pioctl_buf)
 {
 	mlan_ds_wmm_cfg *pwmm;
-	IEEEtypes_WMM_TSPEC_t *ptspec_ie;
+	const IEEEtypes_WMM_TSPEC_t *ptspec_ie;
 	const HostCmd_DS_WMM_DELTS_REQ *presp_delts = &resp->params.del_ts;
 
 	ENTER();
@@ -4226,7 +4256,7 @@ mlan_status wlan_ret_wmm_delts_req(pmlan_private pmpriv,
 		       presp_delts->command_result);
 
 		if (pwmm->param.delts.result == 0) {
-			ptspec_ie = (IEEEtypes_WMM_TSPEC_t *)
+			ptspec_ie = (const IEEEtypes_WMM_TSPEC_t *)
 					    presp_delts->tspec_data;
 			wlan_send_wmmac_host_event(
 				pmpriv, "DELTS_TX", MNULL,
@@ -4679,7 +4709,7 @@ static mlan_status wlan_wmm_ioctl_ts_status(pmlan_adapter pmadapter,
  *  @return             MLAN_STATUS_SUCCESS
  */
 mlan_status wlan_cmd_wmm_param_config(pmlan_private pmpriv,
-				      HostCmd_DS_COMMAND *cmd, t_u8 cmd_action,
+				      HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				      t_void *pdata_buf)
 {
 	wmm_ac_parameters_t *ac_params = (wmm_ac_parameters_t *)pdata_buf;
@@ -4721,22 +4751,22 @@ mlan_status wlan_ret_wmm_param_config(pmlan_private pmpriv,
 				      mlan_ioctl_req *pioctl_buf)
 {
 	mlan_ds_wmm_cfg *pwmm = MNULL;
-	HostCmd_DS_WMM_PARAM_CONFIG *pcfg =
-		(HostCmd_DS_WMM_PARAM_CONFIG *)&resp->params.param_config;
+	const HostCmd_DS_WMM_PARAM_CONFIG *pcfg =
+		(const HostCmd_DS_WMM_PARAM_CONFIG *)&resp->params.param_config;
 	t_u8 i;
 
 	ENTER();
 
 	if (pioctl_buf) {
 		pwmm = (mlan_ds_wmm_cfg *)pioctl_buf->pbuf;
-		for (i = 0; i < MAX_AC_QUEUES; i++) {
-			pcfg->ac_params[i].tx_op_limit = wlan_le16_to_cpu(
-				pcfg->ac_params[i].tx_op_limit);
-		}
 		memcpy_ext(pmpriv->adapter, pwmm->param.ac_params,
 			   pcfg->ac_params,
 			   sizeof(wmm_ac_parameters_t) * MAX_AC_QUEUES,
 			   sizeof(wmm_ac_parameters_t) * MAX_AC_QUEUES);
+		for (i = 0; i < MAX_AC_QUEUES; i++) {
+			pwmm->param.ac_params[i].tx_op_limit = wlan_le16_to_cpu(
+				pwmm->param.ac_params[i].tx_op_limit);
+		}
 	}
 
 	LEAVE();
@@ -5029,12 +5059,29 @@ static t_u32 wlam_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs)
 	t_u32 rate;
 
 	static const t_u32 he_80_3p2_gi_mcS_to_rate[] = {
-		ieee_mbit_rate(30.6),  ieee_mbit_rate(61.3),
-		ieee_mbit_rate(91.9),  ieee_mbit_rate(122.5),
+		/* intentional float value multiplication with 1000 */
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(30.6),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(61.3),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(91.9),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(122.5),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 		ieee_mbit_rate(183.8), ieee_mbit_rate(245),
-		ieee_mbit_rate(275.6), ieee_mbit_rate(306.3),
-		ieee_mbit_rate(367.5), ieee_mbit_rate(408.3),
-		ieee_mbit_rate(459.4), ieee_mbit_rate(510.4)};
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(275.6),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(306.3),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(367.5),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(408.3),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(459.4),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(510.4)};
 
 	if (mcs >= NELEMENTS(he_80_3p2_gi_mcS_to_rate))
 		return 0;
@@ -5088,11 +5135,27 @@ static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
 	t_u32 rate;
 
 	static const t_u32 vht_80_lgi_mcs_to_rate[] = {
-		ieee_mbit_rate(29.3),  ieee_mbit_rate(58.5),
-		ieee_mbit_rate(87.8),  ieee_mbit_rate(117.0),
-		ieee_mbit_rate(175.5), ieee_mbit_rate(234.0),
-		ieee_mbit_rate(263.3), ieee_mbit_rate(292.5),
-		ieee_mbit_rate(351.0), ieee_mbit_rate(390.0)};
+		/* intentional float value multiplication with 1000 */
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(29.3),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(58.5),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(87.8),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(117.0),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(175.5),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(234.0),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(263.3),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(292.5),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(351.0),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(390.0)};
 
 	if (mcs >= NELEMENTS(vht_80_lgi_mcs_to_rate))
 		return 0;
@@ -5138,11 +5201,25 @@ static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
 	t_u32 rate;
 
 	static const t_u32 ht_20_lgi_mcs_to_rate[] = {
-		ieee_mbit_rate(6.5),  ieee_mbit_rate(13),  ieee_mbit_rate(19.5),
-		ieee_mbit_rate(26),   ieee_mbit_rate(39),  ieee_mbit_rate(52),
-		ieee_mbit_rate(58.5), ieee_mbit_rate(65),  ieee_mbit_rate(13),
-		ieee_mbit_rate(26),   ieee_mbit_rate(39),  ieee_mbit_rate(52),
-		ieee_mbit_rate(78),   ieee_mbit_rate(104), ieee_mbit_rate(117),
+		/* intentional float value multiplication with 1000 */
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(6.5),
+		ieee_mbit_rate(13),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(19.5),
+		ieee_mbit_rate(26),
+		ieee_mbit_rate(39),
+		ieee_mbit_rate(52),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(58.5),
+		ieee_mbit_rate(65),
+		ieee_mbit_rate(13),
+		ieee_mbit_rate(26),
+		ieee_mbit_rate(39),
+		ieee_mbit_rate(52),
+		ieee_mbit_rate(78),
+		ieee_mbit_rate(104),
+		ieee_mbit_rate(117),
 		ieee_mbit_rate(130),
 	};
 
@@ -5176,11 +5253,22 @@ static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
 static t_u32 wlam_wmm_get_legacy_rate(t_u32 rate_idx)
 {
 	static const t_u32 legacy_rate_idx_to_rate[] = {
-		ieee_mbit_rate(1),  ieee_mbit_rate(2),	ieee_mbit_rate(5.5),
-		ieee_mbit_rate(11), ieee_mbit_rate(22), ieee_mbit_rate(6),
-		ieee_mbit_rate(9),  ieee_mbit_rate(12), ieee_mbit_rate(18),
-		ieee_mbit_rate(24), ieee_mbit_rate(36), ieee_mbit_rate(48),
-		ieee_mbit_rate(54), ieee_mbit_rate(72),
+		/* intentional float value multiplication with 1000 */
+		ieee_mbit_rate(1),
+		ieee_mbit_rate(2),
+		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
+		ieee_mbit_rate(5.5),
+		ieee_mbit_rate(11),
+		ieee_mbit_rate(22),
+		ieee_mbit_rate(6),
+		ieee_mbit_rate(9),
+		ieee_mbit_rate(12),
+		ieee_mbit_rate(18),
+		ieee_mbit_rate(24),
+		ieee_mbit_rate(36),
+		ieee_mbit_rate(48),
+		ieee_mbit_rate(54),
+		ieee_mbit_rate(72),
 	};
 
 	if (rate_idx >= NELEMENTS(legacy_rate_idx_to_rate))

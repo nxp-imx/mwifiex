@@ -64,6 +64,7 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	t_u8 *head_ptr = MNULL;
 	t_u32 pkt_type;
 	t_u32 tx_control;
+	t_s32 offset = 0;
 
 	ENTER();
 
@@ -98,8 +99,9 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	/* head_ptr should be aligned */
 	head_ptr = pmbuf->pbuf + pmbuf->data_offset - Tx_PD_SIZEOF(pmadapter) -
 		   pmpriv->intf_hr_len;
+	// Typecasting is done for alignment of head_ptr
+	// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
-
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
 	// coverity[bad_memset:SUPPRESS]
 	memset(pmadapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmadapter));
@@ -211,7 +213,8 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 
 	/* Adjust the data offset and length to include TxPD in pmbuf */
 	pmbuf->data_len += pmbuf->data_offset;
-	pmbuf->data_offset = (t_u32)(head_ptr - pmbuf->pbuf);
+	offset = head_ptr - pmbuf->pbuf;
+	pmbuf->data_offset = (t_u32)offset;
 	pmbuf->data_len -= pmbuf->data_offset;
 
 done:

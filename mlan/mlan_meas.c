@@ -12,7 +12,7 @@
  *    - ENABLE_MEAS
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021,2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -251,7 +251,7 @@ static int wlan_meas_cmd_request(mlan_private *pmpriv,
 				 const void *pinfo_buf)
 {
 	const HostCmd_DS_MEASUREMENT_REQUEST *pmeas_req =
-		(HostCmd_DS_MEASUREMENT_REQUEST *)pinfo_buf;
+		(const HostCmd_DS_MEASUREMENT_REQUEST *)pinfo_buf;
 
 	ENTER();
 

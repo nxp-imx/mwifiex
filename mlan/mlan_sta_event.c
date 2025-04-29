@@ -731,6 +731,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	chan_band_info *pchan_band_info = MNULL;
 	t_u8 radar_chan;
 	t_u8 bandwidth;
+	chan_band_reginfo_t *psta_info = MNULL;
+	chan_band_reginfo_t *psta_reg_info = MNULL;
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
 
@@ -1084,7 +1086,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		/* Send as passthru first, this event can cause other events */
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-		pevent->event_len = pmbuf->data_len;
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1117,6 +1119,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		/* Also send this event as passthru */
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1317,7 +1321,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		       eventcause);
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1338,7 +1343,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_parse_tdls_event(pmpriv, pmbuf);
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1369,7 +1375,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MINFO, "EVENT: Dump FW info\n");
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
-		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1379,7 +1386,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MINFO, "EVENT: TX_STATUS\n");
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_TX_STATUS;
-		pevent->event_len = pmbuf->data_len;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
@@ -1491,7 +1499,9 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 						  pmbuf->data_len, pevent);
 		else {
 			pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-			pevent->event_len = pmbuf->data_len;
+			// Ensure event_len does not exceed buffer size
+			pevent->event_len =
+				MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 			memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 				   pmbuf->pbuf + pmbuf->data_offset,
 				   pevent->event_len, pevent->event_len);
@@ -1521,6 +1531,11 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_IMD3_CAL_END:
 		PRINTM(MEVENT, "EVENT: EVENT_IMD3_CAL_END\n");
 		break;
+
+	case EVENT_DPD_CAL:
+		wlan_process_dpd_cal_event(pmpriv, pmbuf);
+		break;
+
 	case EVENT_CHAN_LOAD: {
 		t_u8 *ptr = MNULL;
 		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
@@ -1532,6 +1547,32 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		pmpriv->rx_quality = wlan_le16_to_cpu(cfg_cmd->rx_quality);
 		break;
 	}
+	case EVENT_CHANNEL_SWITCH_REGINFO:
+		PRINTM(MEVENT, "EVENT: Channel Switch Reginfo (%#x)\n",
+		       eventcause);
+		psta_info = (chan_band_reginfo_t *)(pmadapter->event_body);
+		DBG_HEXDUMP(MCMD_D, "chan band reginfo", (t_u8 *)psta_info,
+			    sizeof(chan_band_reginfo_t));
+		/* Setup event buffer */
+		pevent->bss_index = pmpriv->bss_index;
+		pevent->event_id = MLAN_EVENT_ID_FW_CHAN_SWITCH_REGINFO;
+		pevent->event_len = sizeof(chan_band_reginfo_t);
+		psta_reg_info = (chan_band_reginfo_t *)pevent->event_buf;
+		/* Copy event data */
+		if (psta_reg_info->bandcfg.chanBand == BAND_6GHZ) {
+			memcpy_ext(pmadapter, (t_u8 *)&psta_reg_info->bandcfg,
+				   (t_u8 *)&psta_info->bandcfg,
+				   sizeof(psta_info->bandcfg),
+				   sizeof(psta_reg_info->bandcfg));
+			psta_reg_info->channel = psta_info->channel;
+			psta_reg_info->regInfo = psta_info->regInfo;
+			wlan_recv_event(pmpriv,
+					MLAN_EVENT_ID_FW_CHAN_SWITCH_REGINFO,
+					pevent);
+		} else
+			PRINTM(MEVENT,
+			       "Ignoring the Channel Switch Reg Info Event\n");
+		break;
 	default:
 		PRINTM(MEVENT, "EVENT: unknown event id: %#x\n", eventcause);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_UNKNOWN, MNULL);

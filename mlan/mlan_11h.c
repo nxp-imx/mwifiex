@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 802.11H.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2024-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -466,7 +466,7 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv, t_u16 band,
  */
 static mlan_status wlan_11h_cmd_tpc_request(mlan_private *priv,
 					    HostCmd_DS_COMMAND *pcmd_ptr,
-					    const t_void *pinfo_buf)
+					    t_void *pinfo_buf)
 {
 	ENTER();
 
@@ -499,7 +499,7 @@ static mlan_status wlan_11h_cmd_tpc_request(mlan_private *priv,
  */
 static mlan_status wlan_11h_cmd_tpc_info(mlan_private *priv,
 					 HostCmd_DS_COMMAND *pcmd_ptr,
-					 const t_void *pinfo_buf)
+					 t_void *pinfo_buf)
 {
 	HostCmd_DS_802_11_TPC_INFO *ptpc_info = &pcmd_ptr->params.tpc_info;
 	MrvlIEtypes_LocalPowerConstraint_t *pconstraint =
@@ -543,7 +543,7 @@ static mlan_status wlan_11h_cmd_tpc_info(mlan_private *priv,
  */
 static mlan_status wlan_11h_cmd_chan_sw_ann(mlan_private *priv,
 					    HostCmd_DS_COMMAND *pcmd_ptr,
-					    const t_void *pinfo_buf)
+					    t_void *pinfo_buf)
 {
 	const HostCmd_DS_802_11_CHAN_SW_ANN *pch_sw_ann =
 		(HostCmd_DS_802_11_CHAN_SW_ANN *)pinfo_buf;
@@ -580,7 +580,7 @@ static mlan_status wlan_11h_cmd_chan_sw_ann(mlan_private *priv,
  */
 static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 					     HostCmd_DS_COMMAND *pcmd_ptr,
-					     const t_void *pinfo_buf)
+					     t_void *pinfo_buf)
 {
 	HostCmd_DS_CHAN_RPT_REQ *pchan_rpt_req =
 		(HostCmd_DS_CHAN_RPT_REQ *)pinfo_buf;
@@ -708,6 +708,7 @@ static t_u32 wlan_11h_set_local_power_constraint_tlv(
 	MrvlIEtypes_PowerCapability_t *pcap;
 	MrvlIEtypes_LocalPowerConstraint_t *pconstraint;
 	t_u8 *start_ptr = MNULL;
+	t_u32 ret_len = 0;
 
 	ENTER();
 
@@ -737,9 +738,10 @@ static t_u32 wlan_11h_set_local_power_constraint_tlv(
 	pconstraint->chan = channel;
 	pconstraint->constraint = power_constraint;
 	*ppbuffer += sizeof(MrvlIEtypesHeader_t) + 2;
+	ret_len = *ppbuffer - start_ptr;
 
 	LEAVE();
-	return (t_u32)(*ppbuffer - start_ptr);
+	return ret_len;
 }
 
 /**
@@ -2533,7 +2535,7 @@ t_s32 wlan_11h_process_join(mlan_private *priv, t_u8 **ppbuffer,
  */
 mlan_status wlan_11h_cmd_process(mlan_private *priv,
 				 HostCmd_DS_COMMAND *pcmd_ptr,
-				 const t_void *pinfo_buf)
+				 t_void *pinfo_buf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
@@ -2651,7 +2653,7 @@ mlan_status wlan_11h_process_bss_elem(mlan_adapter *pmadapter,
 				      const t_u8 *pelement)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	t_u8 element_len = *((t_u8 *)pelement + 1);
+	t_u8 element_len = *((const t_u8 *)pelement + 1);
 
 	ENTER();
 	switch (*pelement) {
