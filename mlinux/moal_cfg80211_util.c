@@ -4689,7 +4689,7 @@ static int woal_cfg80211_subcmd_secure_ranging_ctx(struct wiphy *wiphy,
 	t_u32 action = 0;
 	int key_len = 0;
 	int peer_addr_set = 0;
-	t_u8 peer_addr[ETH_ALEN];
+	t_u8 peer_addr[ETH_ALEN] = {0};
 	t_u8 own_addr[ETH_ALEN];
 	t_u32 cipher = 0;
 	t_u32 sha_type = 0;

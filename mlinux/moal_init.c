@@ -339,7 +339,7 @@ static int mon_filter = DEFAULT_NETMON_FILTER;
 #endif
 #endif
 
-int dual_nb;
+int dual_nb = 1;
 
 /** disable 802.11h tpc configuration */
 static int disable_11h_tpc = 0;
@@ -358,9 +358,6 @@ t_u32 drvdbg = DEFAULT_DEBUG_MASK;
 #endif /* DEBUG_LEVEL1 */
 
 static card_type_entry card_type_map_tbl[] = {
-#ifdef SD8801
-	{CARD_TYPE_SD8801, 0, CARD_SD8801},
-#endif
 #ifdef SD8887
 	{CARD_TYPE_SD8887, 0, CARD_SD8887},
 #endif
@@ -414,9 +411,6 @@ static card_type_entry card_type_map_tbl[] = {
 #endif
 #ifdef PCIEIW624
 	{CARD_TYPE_PCIEIW624, 0, CARD_PCIEIW624},
-#endif
-#ifdef USB8801
-	{CARD_TYPE_USB8801, 0, CARD_USB8801},
 #endif
 
 #ifdef USB8897
@@ -649,6 +643,37 @@ out:
 }
 
 /**
+ *  @brief This function validates and converts string to mac address
+ *
+ *  @param str     A pointer to a string
+ *  @param mac     A pointer to save mac address
+ *
+ *  @return         true: if mac address is valid or false:otherwise
+ */
+static bool woal_str2mac(char *str, t_u8 *mac)
+{
+	size_t max_len = 3 * MLAN_MAC_ADDR_LENGTH - 1;
+	int i;
+
+	if (!str || strnlen(str, max_len) < max_len)
+		return MFALSE;
+
+	for (i = 0; i < MLAN_MAC_ADDR_LENGTH; i++) {
+		if (!isxdigit(str[i * 3]) || !isxdigit(str[i * 3 + 1]))
+			return MFALSE;
+		if (i != MLAN_MAC_ADDR_LENGTH - 1 && str[i * 3 + 2] != ':')
+			return MFALSE;
+	}
+
+	for (i = 0; i < MLAN_MAC_ADDR_LENGTH; i++) {
+		mac[i] = (woal_hexval(str[i * 3]) << 4) |
+			 woal_hexval(str[i * 3 + 1]);
+	}
+
+	return MTRUE;
+}
+
+/**
  *  @brief This function read blocks in module parameter file
  *
  *  @param data     A pointer to a line
@@ -664,6 +689,7 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 	char *out_str = NULL;
 	t_u8 line[MAX_LINE_LEN];
 	moal_mod_para *params = &handle->params;
+	t_u8 addr[ETH_ALEN];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	while ((int)parse_cfg_get_line(data, size, line) != -1) {
@@ -758,8 +784,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			if (parse_line_read_string(line, &out_str) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
-			woal_dup_string(&params->mac_addr, out_str);
-			PRINTM(MMSG, "mac_addr=%s\n", params->mac_addr);
+
+			if (woal_str2mac(out_str, addr) &&
+			    is_unicast_ether_addr(addr)) {
+				woal_dup_string(&params->mac_addr, out_str);
+				PRINTM(MMSG, "mac_addr=%s\n", params->mac_addr);
+			} else {
+				PRINTM(MERROR, "Invalid mac addr %s in cfg\n",
+				       out_str);
+			}
 		}
 #ifdef MFG_CMD_SUPPORT
 		else if (strncmp(line, "mfg_mode", strlen("mfg_mode")) == 0) {
@@ -1068,6 +1101,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			woal_dup_string(&params->txpwrlimit_cfg, out_str);
 			PRINTM(MMSG, "txpwrlimit_cfg=%s\n",
 			       params->txpwrlimit_cfg);
+			if (params->txpwrlimit_cfg) {
+				memset(handle->mode_psd_file, 0,
+				       sizeof(handle->mode_psd_file));
+				strncpy(handle->mode_psd_file,
+					params->txpwrlimit_cfg,
+					strlen(params->txpwrlimit_cfg) + 1);
+				PRINTM(MMSG, "Mode PSD file name: %s",
+				       handle->mode_psd_file);
+			}
 		} else if (strncmp(line, "cntry_txpwr",
 				   strlen("cntry_txpwr")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1720,6 +1762,9 @@ err:
  */
 static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 {
+	t_u8 addr[ETH_ALEN];
+	bool is_valid_mac_addr = false;
+
 	if (hw_test)
 		moal_extflg_set(handle, EXT_HW_TEST);
 #ifdef CONFIG_OF
@@ -1750,9 +1795,26 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params && params->hw_name)
 		woal_dup_string(&handle->params.hw_name, params->hw_name);
 
-	woal_dup_string(&handle->params.mac_addr, mac_addr);
-	if (params && params->mac_addr)
-		woal_dup_string(&handle->params.mac_addr, params->mac_addr);
+	if (mac_addr) {
+		is_valid_mac_addr = woal_str2mac(mac_addr, addr);
+		if (is_valid_mac_addr && is_unicast_ether_addr(addr)) {
+			woal_dup_string(&handle->params.mac_addr, mac_addr);
+		} else {
+			PRINTM(MMSG, "Invalid mac addr %s in module param\n",
+			       mac_addr);
+		}
+	}
+
+	if (params && params->mac_addr) {
+		is_valid_mac_addr = woal_str2mac(params->mac_addr, addr);
+		if (is_valid_mac_addr && is_unicast_ether_addr(addr)) {
+			woal_dup_string(&handle->params.mac_addr,
+					params->mac_addr);
+		} else {
+			PRINTM(MMSG, "Invalid mac addr %s in params\n",
+			       params->mac_addr);
+		}
+	}
 #ifdef MFG_CMD_SUPPORT
 	handle->params.mfg_mode = mfg_mode;
 	if (params)
@@ -3100,7 +3162,7 @@ MODULE_PARM_DESC(
 module_param(rps, uint, 0660);
 MODULE_PARM_DESC(
 	rps,
-	"bit0-bit4 (0x1-0xf): Enables rps on specific cpu ; 0: Disables rps (default)");
+	"bit0-bit4 (0x1-0xf): Enables rps on specific cpu (0xf default); 0: Disables rps");
 #endif
 #endif
 module_param(edmac_ctrl, int, 0660);
@@ -3366,7 +3428,7 @@ MODULE_PARM_DESC(
 #endif
 
 module_param(dual_nb, int, 0);
-MODULE_PARM_DESC(dual_nb, "0: Single BT (Default); 1: Dual BT");
+MODULE_PARM_DESC(dual_nb, "0: Single Narrowband; 1: Dual Narrowband (default)");
 
 module_param(reject_addba_req, int, 0);
 MODULE_PARM_DESC(

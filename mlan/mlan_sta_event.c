@@ -538,6 +538,7 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 		   pevent->event_len);
 	wlan_recv_event(priv, MLAN_EVENT_ID_FW_DISCONNECTED, pevent);
 	priv->disconnect_reason_code = 0;
+	priv->delay_link_lost = MFALSE;
 
 	LEAVE();
 }
@@ -735,6 +736,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	chan_band_reginfo_t *psta_reg_info = MNULL;
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
+	remain_on_channel_info *roc_info = MNULL;
 
 	ENTER();
 
@@ -818,6 +820,9 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_LINK_LOST:
 		if (pmpriv->curr_bss_params.host_mlme &&
 		    !pmpriv->assoc_rsp_size) {
+			pmpriv->prior_assoc_rsp_size = 0;
+			pmpriv->prior_assoc_req_size = 0;
+			pmpriv->delay_link_lost = MTRUE;
 			PRINTM(MMSG,
 			       "wlan: skip link lost event before associate complete\n");
 			break;
@@ -837,6 +842,9 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			if (memcmp(pmpriv->adapter, link_lost_evt->bssid,
 				   &pmpriv->curr_bss_params.attemp_bssid,
 				   MLAN_MAC_ADDR_LENGTH)) {
+				pmpriv->prior_assoc_rsp_size = 0;
+				pmpriv->prior_assoc_req_size = 0;
+				pmpriv->delay_link_lost = MTRUE;
 				PRINTM(MMSG, "wlan: skip link lost event\n");
 				PRINTM(MMSG, "pattempted_bssid: " MACSTR "\n",
 				       MAC2STR((
@@ -1337,6 +1345,20 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_FLUSH_RX_WORK, MNULL);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED,
 				MNULL);
+
+		pevent->event_id = MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED;
+		pevent->bss_index = pmpriv->bss_index;
+		pevent->event_len = sizeof(remain_on_channel_info);
+		roc_info = (remain_on_channel_info *)pevent->event_buf;
+
+		roc_info->delay_link_lost = pmpriv->delay_link_lost;
+		if (pmpriv->delay_link_lost && pmpriv->media_connected) {
+			pmpriv->delay_link_lost = MFALSE;
+			wlan_handle_disconnect_event(pmpriv);
+		}
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED,
+				pevent);
+
 		break;
 	case EVENT_TDLS_GENERIC_EVENT:
 		PRINTM(MEVENT, "EVENT: TDLS event %d\n", eventcause);
@@ -1408,7 +1430,11 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_SSU_DUMP_DMA\n");
 		if (!pmadapter->ssu_buf || !pmadapter->ssu_buf->pbuf)
 			break;
-
+		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
+				       pmadapter->ssu_buf->pbuf +
+					       pmadapter->ssu_buf->data_offset,
+				       pmadapter->ssu_buf->buf_pa,
+				       MLAN_SSU_BUF_SIZE, PCI_DMA_FROMDEVICE);
 		/* If ADMA is supported, SSU header could not be received with
 		 * SSU data. Instead, SSU header is received through this event.
 		 * So, copy the header into the buffer before passing the buffer

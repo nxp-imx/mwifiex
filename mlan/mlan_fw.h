@@ -933,6 +933,8 @@ enum host_cmd_id {
 #define FW_CAPINFO_EASY_MESH MBIT(21)
 /** FW cap info bit 22: ADDBA support with scan */
 #define FW_CAPINFO_ALLOW_ADDBA_RESP_ON_SCAN MBIT(22)
+/** FW cap info bit 23: MAC2 is not available */
+#define FW_CAPINFO_EXT_NO_MAC2 MBIT(23)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -3285,10 +3287,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
-	/** Current SOC Temperature*/
-	t_u32 currTemp;
-	/** TX Power Control Method*/
-	t_u32 TXpwrMethod;
 	/** SDMA FSM stuck Count*/
 	t_u32 SdmaStuckCnt;
 	// Ownership error counters
@@ -3300,6 +3298,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 dwMgtErrCnt;
 	/*Control Ownership error count*/
 	t_u32 dwDatErrCnt;
+	/*Rx 20MHz UL OFDM error count*/
+	t_u32 Rx2040BWError;
 	/*BIGTK MME good count*/
 	t_u32 bigtk_mmeGoodCnt;
 	/*BIGTK Replay error count*/
@@ -3308,6 +3308,12 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 bigtk_micErrCnt;
 	/*BIGTK MME not included count*/
 	t_u32 bigtk_mmeNotFoundCnt;
+	/** Current SOC Temperature*/
+	t_u32 currTemp;
+	/** TX Power Control Method*/
+	t_u32 TXpwrMethod;
+	/** DPD training status*/
+	t_u32 isDPDdone;
 } MLAN_PACK_END HostCmd_DS_802_11_GET_LOG;
 
 /* maln wifi rate */

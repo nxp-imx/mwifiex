@@ -1741,60 +1741,6 @@ t_u16 wlan_adjust_data_rate(mlan_private *priv, t_u8 rx_rate, t_u8 rate_info)
 #endif /* STA_SUPPORT */
 
 /**
- *  @brief convert TX rate_info from v14 to v15+ FW rate_info
- *
- *  @param v14_rate_info      v14 rate info
- *
- *  @return             v15+ rate info
- */
-t_u8 wlan_convert_v14_tx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info)
-{
-	t_u8 rate_info = 0;
-
-	if (!pmpriv->adapter->pcard_info->v14_fw_api) {
-		PRINTM(MERROR, "%s: Not convert for this is not V14 FW\n",
-		       __func__);
-		return v14_rate_info;
-	}
-
-	rate_info = v14_rate_info & 0x01;
-	/* band */
-	rate_info |= (v14_rate_info & MBIT(1)) << 1;
-	/* short GI */
-	rate_info |= (v14_rate_info & MBIT(2)) << 2;
-	return rate_info;
-}
-
-/**
- *  @brief convert RX rate_info from v14 to v15+ FW rate_info
- *
- *  @param v14_rate_info      v14 rate info
- *
- *  @return             v15+ rate info
- */
-t_u8 wlan_convert_v14_rx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info)
-{
-	t_u8 rate_info = 0;
-	t_u8 mode = 0;
-	t_u8 bw = 0;
-	t_u8 sgi = 0;
-
-	if (!pmpriv->adapter->pcard_info->v14_fw_api) {
-		PRINTM(MERROR, "%s: Not convert for this is not V14 FW\n",
-		       __func__);
-		return v14_rate_info;
-	}
-
-	mode = v14_rate_info & MBIT(0);
-	bw = v14_rate_info & MBIT(1);
-	sgi = (v14_rate_info & 0x04) >> 2;
-
-	rate_info = (mode & 0x01) | ((bw & 0x01) << 2) | ((sgi & 0x01) << 4);
-
-	return rate_info;
-}
-
-/**
  *  @brief Use index to get the data rate
  *
  *  @param pmadapter        A pointer to mlan_adapter structure

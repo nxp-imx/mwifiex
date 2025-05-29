@@ -102,46 +102,6 @@ static int reg_work;
 		Local Variables
 ********************************************************/
 
-#ifdef SD8801
-static struct _card_info card_info_SD8801 = {
-	.embedded_supp = 0,
-	.drcs = 0,
-	.go_noa = 0,
-	.v14_fw_api = 1,
-	.v16_fw_api = 0,
-	.v17_fw_api = 0,
-	.pmic = 0,
-	.cal_data_cfg = 0,
-	.low_power_enable = 1,
-	.rx_rate_max = 76,
-	.histogram_table_num = 1,
-	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
-	.fw_name = SD8801_DEFAULT_WLAN_FW_NAME,
-	.fw_name_wlan = SD8801_DEFAULT_WLAN_FW_NAME,
-#ifdef SDIO
-	.dump_fw_info = 0,
-	.dump_fw_ctrl_reg = 0x63,
-	.dump_fw_start_reg = 0x64,
-	.dump_fw_end_reg = 0x6A,
-	.dump_fw_host_ready = 0xee,
-	.dump_reg.reg_table = {0x28, 0x30, 0x34, 0x38, 0x3c},
-	.dump_reg.reg_table_size = 5,
-	.scratch_reg = 0x60,
-	.func1_reg_start = 0x10,
-	.func1_reg_end = 0x17,
-	.fw_stuck_code_reg = 0,
-	.fw_reset_reg = 0x64,
-	.fw_reset_val = 0,
-	.fw_wakeup_reg = 0,
-	.fw_wakeup_val = 2,
-	.slew_rate_reg = 0x8000231C,
-	.slew_rate_bit_offset = 14,
-#endif
-	.sniffer_support = 1,
-	.per_pkt_cfg_support = 0,
-	.host_mlme_required = 1,
-};
-#endif
 #ifdef SD8887
 static struct _card_info card_info_SD8887 = {
 	.embedded_supp = 1,
@@ -810,28 +770,6 @@ static struct _card_info card_info_PCIEAW693 = {
 };
 #endif
 
-#ifdef USB8801
-static struct _card_info card_info_USB8801 = {
-	.embedded_supp = 0,
-	.drcs = 0,
-	.go_noa = 0,
-	.v14_fw_api = 1,
-	.v16_fw_api = 0,
-	.v17_fw_api = 0,
-	.pmic = 0,
-	.cal_data_cfg = 0,
-	.low_power_enable = 1,
-	.rx_rate_max = 76,
-	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
-	.histogram_table_num = 1,
-	.fw_name = USB8801_DEFAULT_WLAN_FW_NAME,
-	.fw_name_wlan = USB8801_DEFAULT_WLAN_FW_NAME,
-	.sniffer_support = 1,
-	.per_pkt_cfg_support = 0,
-	.host_mlme_required = 1,
-};
-#endif
-
 #ifdef USB8978
 static struct _card_info card_info_USB8978 = {
 	.embedded_supp = 1,
@@ -1137,6 +1075,8 @@ void woal_print_firmware_dump_buf(t_u8 *pfd_buf, t_u64 fwdump_len)
 	t_u64 i = 0, count = 0;
 	u8 buf[MAX_BUF_SIZE] = {0};
 	u8 *ptr = NULL;
+	size_t remaining = MAX_BUF_SIZE;
+	int written = 0;
 	ENTER();
 
 	if (!pfd_buf || !fwdump_len) {
@@ -1163,7 +1103,11 @@ void woal_print_firmware_dump_buf(t_u8 *pfd_buf, t_u64 fwdump_len)
 	if (i < fwdump_len) {
 		ptr = buf;
 		for (; i < fwdump_len; i++) {
-			ptr += snprintf(ptr, MAX_BUF_SIZE, " %02X", pfd_buf[i]);
+			written = snprintf(ptr, remaining, " %02X", pfd_buf[i]);
+			if (written < 0 || (size_t)written >= remaining)
+				break;
+			ptr += written;
+			remaining -= written;
 		}
 		PRINTM(MFW_D, "[FW Dump]%s\n", buf);
 	}
@@ -1842,7 +1786,8 @@ static int woal_netdevice_event(struct notifier_block *nb, unsigned long event,
 				sizeof(priv->ip_addr));
 		priv->ip_addr_type = IPADDR_TYPE_IPV4;
 #ifdef STA_CFG80211
-		if (!moal_extflg_isset(priv->phandle, EXT_HW_TEST)) {
+		if (!moal_extflg_isset(priv->phandle, EXT_HW_TEST) &&
+		    !priv->cqm_rssi_thold) {
 			if (snprintf(rssi_low, sizeof(rssi_low), "%d",
 				     priv->rssi_low) <= 0)
 				PRINTM(MERROR,
@@ -2568,6 +2513,24 @@ mlan_status woal_init_sw(moal_handle *handle)
 	/* Initialize moal_handle structure */
 	handle->hardware_status = HardwareStatusInitializing;
 	handle->main_state = MOAL_STATE_IDLE;
+
+	if (handle->params.mac_addr
+#ifdef MFG_CMD_SUPPORT
+	    && handle->params.mfg_mode != MLAN_INIT_PARA_ENABLED
+#endif
+	) {
+		t_u8 temp[20];
+		t_u8 len = strlen(handle->params.mac_addr);
+		if (len < sizeof(temp)) {
+			moal_memcpy_ext(handle, temp, handle->params.mac_addr,
+					len, sizeof(temp));
+			temp[len] = '\0';
+			handle->set_mac_addr = 1;
+			/* note: the following function overwrites the
+			 * temp buffer */
+			woal_mac2u8(handle->mac_addr, temp);
+		}
+	}
 
 #ifdef DEBUG_LEVEL1
 	drvdbg = handle->params.drvdbg;
@@ -4300,6 +4263,8 @@ static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 	mutex_lock(&local_rps_map_mutex);
 	old_map = rcu_dereference_protected(
 		queue->rps_map, mutex_is_locked(&local_rps_map_mutex));
+	// Coverity violation raised for kernel's API and kernel's struct
+	// coverity[overrun-local:SUPPRESS]
 	rcu_assign_pointer(queue->rps_map, map);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
 	if (map)
@@ -9917,11 +9882,6 @@ static int woal_get_card_info(moal_handle *phandle)
 	ENTER();
 
 	switch (phandle->card_type) {
-#ifdef SD8801
-	case CARD_TYPE_SD8801:
-		phandle->card_info = &card_info_SD8801;
-		break;
-#endif
 #ifdef SD8887
 	case CARD_TYPE_SD8887:
 		phandle->card_info = &card_info_SD8887;
@@ -10016,11 +9976,6 @@ static int woal_get_card_info(moal_handle *phandle)
 	case CARD_TYPE_PCIE9098:
 		phandle->card_info = &card_info_PCIE9098;
 		phandle->event_fw_dump = MTRUE;
-		break;
-#endif
-#ifdef USB8801
-	case CARD_TYPE_USB8801:
-		phandle->card_info = &card_info_USB8801;
 		break;
 #endif
 #ifdef USB8997
@@ -10813,7 +10768,7 @@ t_void woal_send_disconnect_to_system(moal_private *priv,
 	if (netif_carrier_ok(priv->netdev))
 		netif_carrier_off(priv->netdev);
 	woal_flush_tx_stat_queue(priv);
-	woal_sched_timeout(100);
+	mdelay(5);
 	woal_flush_tcp_sess_queue(priv);
 
 #ifdef STA_CFG80211
@@ -12800,6 +12755,8 @@ t_void woal_scan_timeout_handler(struct work_struct *work)
 			if (!auto_fw_dump && !handle->fw_dump && priv)
 				woal_process_hang(priv->phandle);
 			wifi_status = WIFI_STATUS_SCAN_TIMEOUT;
+		} else {
+			spin_unlock_irqrestore(&handle->scan_req_lock, flags);
 		}
 	}
 
@@ -13570,24 +13527,6 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 #ifdef MFG_CMD_SUPPORT
 	mfg_mode = handle->params.mfg_mode;
 #endif
-
-	if (handle->params.mac_addr
-#ifdef MFG_CMD_SUPPORT
-	    && handle->params.mfg_mode != MLAN_INIT_PARA_ENABLED
-#endif
-	) {
-		t_u8 temp[20];
-		t_u8 len = strlen(handle->params.mac_addr);
-		if (len < sizeof(temp)) {
-			moal_memcpy_ext(handle, temp, handle->params.mac_addr,
-					len, sizeof(temp));
-			temp[len] = '\0';
-			handle->set_mac_addr = 1;
-			/* note: the following function overwrites the
-			 * temp buffer */
-			woal_mac2u8(handle->mac_addr, temp);
-		}
-	}
 
 	/* Get card info */
 	if (woal_get_card_info(handle)) {

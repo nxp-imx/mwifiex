@@ -1586,11 +1586,7 @@ process_start:
 
 		/* Send the scan command to the firmware with the specified cfg
 		 */
-		if (pmadapter->ext_scan
-#ifdef USB8801
-		    && !IS_USB8801(pmadapter->card_type)
-#endif
-		)
+		if (pmadapter->ext_scan)
 			cmd_no = HostCmd_CMD_802_11_SCAN_EXT;
 		else
 			cmd_no = HostCmd_CMD_802_11_SCAN;
@@ -4322,7 +4318,9 @@ static t_void wlan_scan_process_results(mlan_private *pmpriv)
 							1,
 						pmadapter->num_in_scan_table,
 						bss_new_entry);
-					if (bss_new_entry->pbeacon_buf == MNULL)
+					if (bss_new_entry->pbeacon_buf ==
+						    MNULL &&
+					    pmadapter->num_in_scan_table)
 						pmadapter->num_in_scan_table--;
 					else
 						memcpy_ext(

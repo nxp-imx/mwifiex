@@ -208,14 +208,19 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 	moal_handle *handle = (moal_handle *)pmoal;
 	pcie_service_card *card = (pcie_service_card *)handle->card;
 	dma_addr_t dma;
+	gfp_t flag;
+
 	*pbuf_pa = 0;
 
 	if (!card)
 		return MLAN_STATUS_FAILURE;
 
+	flag = in_atomic()     ? GFP_ATOMIC :
+	       irqs_disabled() ? GFP_ATOMIC :
+				 GFP_KERNEL;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 	*ppbuf = (t_u8 *)dma_alloc_coherent(&card->dev->dev, size,
-					    (dma_addr_t *)&dma, GFP_KERNEL);
+					    (dma_addr_t *)&dma, flag);
 #else
 	*ppbuf = (t_u8 *)pci_alloc_consistent(card->dev, size,
 					      (dma_addr_t *)&dma);
@@ -931,7 +936,7 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 	moal_handle *handle = (moal_handle *)pmoal;
 	int i;
 	t_u32 drv_mode = handle->params.drv_mode;
-#ifdef PCIE9098
+#if defined(PCIE9098) || defined(PCIEAW693) || defined(SDAW693)
 	size_t drv_ver_len = strlen(driver_version);
 #endif
 	ENTER();
@@ -966,6 +971,47 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 			handle->driver_version[drv_ver_len] = '\0';
 		}
 #endif
+#ifdef PCIEAW693
+		/**
+		 *  Special/Temporary handling to manage the driver version
+		 * string to identify AW693/IW623 based on fw_cap value set by
+		 * Fw
+		 */
+		if ((phw->fw_cap_ext & MBIT(23)) &&
+		    IS_PCIEAW693(handle->card_type)) {
+			moal_memcpy_ext(handle, driver_version, CARD_PCIEIW623,
+					strlen(CARD_PCIEIW623),
+					strlen(driver_version));
+			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
+				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
+			}
+			moal_memcpy_ext(handle, handle->driver_version,
+					driver_version, drv_ver_len,
+					MLAN_MAX_VER_STR_LEN - 1);
+			handle->driver_version[drv_ver_len] = '\0';
+		}
+#endif
+#ifdef SDAW693
+		/**
+		 *  Special/Temporary handling to manage the driver version
+		 * string to identify AW693/IW623 based on fw_cap value set by
+		 * Fw
+		 */
+		if ((phw->fw_cap_ext & MBIT(23)) &&
+		    IS_SDAW693(handle->card_type)) {
+			moal_memcpy_ext(handle, driver_version, CARD_SDIW623,
+					strlen(CARD_SDIW623),
+					strlen(driver_version));
+			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
+				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
+			}
+			moal_memcpy_ext(handle, handle->driver_version,
+					driver_version, drv_ver_len,
+					MLAN_MAX_VER_STR_LEN - 1);
+			handle->driver_version[drv_ver_len] = '\0';
+		}
+#endif
+
 		if (phw->fw_cap & FW_CAPINFO_DISABLE_NAN)
 			handle->params.drv_mode &= ~DRV_MODE_NAN;
 		/** FW should only enable DFS on one mac */
@@ -2498,9 +2544,10 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 			if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
 				aid = (pmbuf->priority & 0xFF000000) >> 24;
-				if (!priv->vlan_sta_list[(aid - 1) %
-							 MAX_STA_COUNT]
-					     ->is_valid) {
+				if ((aid > 0) &&
+				    (!priv->vlan_sta_list[(aid - 1) %
+							  MAX_STA_COUNT]
+					      ->is_valid)) {
 					status = MLAN_STATUS_FAILURE;
 					priv->stats.rx_dropped++;
 					goto done;
@@ -3244,7 +3291,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			memset(wrqu.ap_addr.sa_data, 0x00, ETH_ALEN);
 			moal_memcpy_ext(priv->phandle, wrqu.ap_addr.sa_data,
 					pmevent->event_buf, ETH_ALEN,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80)
 					sizeof(wrqu.ap_addr.sa_data_min));
 #else
 					sizeof(wrqu.ap_addr.sa_data));
@@ -3532,6 +3579,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						   CUS_EVT_BEACON_RSSI_LOW);
 #endif
 #ifdef STA_CFG80211
+		if (priv->sinfo)
+			priv->sinfo->signal = *(t_s16 *)pmevent->event_buf;
 		if (IS_STA_CFG80211(cfg80211_wext)) {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 			cfg80211_cqm_rssi_notify(
@@ -3564,6 +3613,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						   CUS_EVT_BEACON_RSSI_HIGH);
 #endif
 #ifdef STA_CFG80211
+		if (priv->sinfo)
+			priv->sinfo->signal = *(t_s16 *)pmevent->event_buf;
 		if (IS_STA_CFG80211(cfg80211_wext)) {
 			if (!priv->mrvl_rssi_low) {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
@@ -4443,6 +4494,21 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				priv->auth_flag = 0;
 				priv->host_mlme = MFALSE;
 				priv->auth_alg = 0xFFFF;
+				// Consider it is fallback, if media is still
+				// connected.
+				if (priv->phandle->params.make_before_break &&
+				    priv->media_connected) {
+					remain_on_channel_info *roc_info =
+						(remain_on_channel_info *)
+							pmevent->event_buf;
+					if (!roc_info->delay_link_lost) {
+						PRINTM(MMSG,
+						       "HostMlme: media connected, fallback to previous AP.\n");
+						priv->host_mlme = MTRUE;
+						woal_request_set_host_mlme(
+							priv, priv->cfg_bssid);
+					}
+				}
 			}
 #endif
 			priv->phandle->remain_on_channel = MFALSE;

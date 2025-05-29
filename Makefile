@@ -176,7 +176,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"537.p2"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"537.p9"'
 
 	ccflags-y += -DFPNUM='"92"'
 

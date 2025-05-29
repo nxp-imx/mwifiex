@@ -2393,7 +2393,7 @@ static int woal_cfg80211_auth_scan(moal_private *priv,
  *  @return       MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING
  *                  -- success, otherwise fail
  */
-static mlan_status woal_request_set_host_mlme(moal_private *priv, t_u8 *bssid)
+mlan_status woal_request_set_host_mlme(moal_private *priv, t_u8 *bssid)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
@@ -3077,7 +3077,8 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 	    priv->sme_current.auth_type != NL80211_AUTHTYPE_SHARED_KEY &&
 	    priv->sme_current.auth_type != NL80211_AUTHTYPE_FT &&
 	    assoc_info->assoc_req_len && assoc_info->assoc_resp_len) {
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 		roam_info.links[0].bssid = assoc_info->bssid;
 #else
 		roam_info.bssid = assoc_info->bssid;
@@ -3090,6 +3091,7 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 		cfg80211_roamed(priv->netdev, &roam_info, GFP_KERNEL);
 		priv->cfg_disconnect = MFALSE;
 		priv->host_mlme = MTRUE;
+		priv->auth_flag |= HOST_MLME_ASSOC_DONE;
 		moal_memcpy_ext(priv->phandle, priv->cfg_bssid,
 				assoc_info->bssid, MLAN_MAC_ADDR_LENGTH,
 				MLAN_MAC_ADDR_LENGTH);

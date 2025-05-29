@@ -80,9 +80,9 @@ static int woal_uap_addba_param(struct net_device *dev, struct ifreq *req)
 		goto done;
 	}
 	PRINTM(MIOCTL,
-	       "addba param: action=%d, timeout=%d, txwinsize=%d, rxwinsize=%d txamsdu=%d rxamsdu=%d\n",
-	       (int)param.action, (int)param.timeout, (int)param.txwinsize,
-	       (int)param.rxwinsize, (int)param.txamsdu, (int)param.rxamsdu);
+	       "addba param: action=%u, timeout=%u, txwinsize=%u, rxwinsize=%u txamsdu=%u rxamsdu=%u\n",
+	       param.action, param.timeout, param.txwinsize, param.rxwinsize,
+	       param.txamsdu, param.rxamsdu);
 	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
 	if (ioctl_req == NULL) {
 		LEAVE();
@@ -1547,8 +1547,8 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 	}
 
 	PRINTM(MIOCTL,
-	       "ioctl hscfg: flags=0x%x condition=0x%x gpio=%d gap=0x%x\n",
-	       hs_cfg.flags, hs_cfg.conditions, (int)hs_cfg.gpio, hs_cfg.gap);
+	       "ioctl hscfg: flags=0x%x condition=0x%x gpio=%u gap=0x%x\n",
+	       hs_cfg.flags, hs_cfg.conditions, hs_cfg.gpio, hs_cfg.gap);
 
 	/* HS config is blocked if HS is already activated */
 	if ((hs_cfg.flags & HS_CFG_FLAG_CONDITION) &&
@@ -2689,7 +2689,7 @@ static int woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 		goto done;
 	}
 
-	PRINTM(MIOCTL, "ioctl subcmd=%d\n", (int)subcmd);
+	PRINTM(MIOCTL, "ioctl subcmd=%u\n", subcmd);
 	switch (subcmd) {
 	case UAP_ADDBA_PARA:
 		ret = woal_uap_addba_param(dev, req);
@@ -3045,8 +3045,8 @@ static int woal_uap_set_key_ioctl(struct net_device *dev, struct ifreq *req)
 	}
 
 	PRINTM(MIOCTL,
-	       "ioctl report set key: " MACSTR " key_index=%d, key_len=%d \n",
-	       MAC2STR(key.mac_addr), (int)key.key_index, (int)key.key_len);
+	       "ioctl report set key: " MACSTR " key_index=%u, key_len=%u \n",
+	       MAC2STR(key.mac_addr), key.key_index, key.key_len);
 
 	if ((key.key_len > MLAN_MAX_KEY_LENGTH) || (key.key_index > 3)) {
 		ret = -EINVAL;
@@ -3175,15 +3175,12 @@ static int woal_uap_power_mode_ioctl(struct net_device *dev, struct ifreq *req)
 		goto done;
 	}
 	PRINTM(MIOCTL,
-	       "ioctl power: flag=0x%x ps_mode=%d ctrl_bitmap=%d min_sleep=%d max_sleep=%d "
-	       "inact_to=%d min_awake=%d max_awake=%d\n",
-	       ps_mgmt.flags, (int)ps_mgmt.ps_mode,
-	       (int)ps_mgmt.sleep_param.ctrl_bitmap,
-	       (int)ps_mgmt.sleep_param.min_sleep,
-	       (int)ps_mgmt.sleep_param.max_sleep,
-	       (int)ps_mgmt.inact_param.inactivity_to,
-	       (int)ps_mgmt.inact_param.min_awake,
-	       (int)ps_mgmt.inact_param.max_awake);
+	       "ioctl power: flag=0x%x ps_mode=%u ctrl_bitmap=%u min_sleep=%u max_sleep=%u "
+	       "inact_to=%u min_awake=%u max_awake=%u\n",
+	       ps_mgmt.flags, ps_mgmt.ps_mode, ps_mgmt.sleep_param.ctrl_bitmap,
+	       ps_mgmt.sleep_param.min_sleep, ps_mgmt.sleep_param.max_sleep,
+	       ps_mgmt.inact_param.inactivity_to, ps_mgmt.inact_param.min_awake,
+	       ps_mgmt.inact_param.max_awake);
 
 	if (ps_mgmt.flags & ~(PS_FLAG_PS_MODE | PS_FLAG_SLEEP_PARAM |
 			      PS_FLAG_INACT_SLEEP_PARAM)) {

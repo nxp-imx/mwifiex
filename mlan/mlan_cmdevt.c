@@ -4342,15 +4342,6 @@ mlan_status wlan_ret_802_11_tx_rate_query(pmlan_private pmpriv,
 
 	pmpriv->tx_rate = resp->params.tx_rate.tx_rate;
 	pmpriv->tx_rate_info = resp->params.tx_rate.tx_rate_info;
-	if (pmpriv->adapter->pcard_info->v14_fw_api) {
-		pmpriv->tx_rate_info = wlan_convert_v14_tx_rate_info(
-			pmpriv, pmpriv->tx_rate_info);
-		PRINTM(MINFO,
-		       "%s: v14_fw_api=%d tx_rate=%d tx_rate_info=0x%x->0x%x\n",
-		       __func__, pmpriv->adapter->pcard_info->v14_fw_api,
-		       pmpriv->tx_rate, resp->params.tx_rate.tx_rate_info,
-		       pmpriv->tx_rate_info);
-	}
 	if ((pmpriv->tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE)
 		pmpriv->ext_tx_rate_info =
 			resp->params.tx_rate.ext_tx_rate_info;

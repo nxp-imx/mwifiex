@@ -626,4 +626,6 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 
 mlan_status woal_dnld_default_6e_psd_table(moal_private *priv);
 
+mlan_status woal_request_set_host_mlme(moal_private *priv, t_u8 *bssid);
+
 #endif /* _MOAL_CFG80211_H_ */

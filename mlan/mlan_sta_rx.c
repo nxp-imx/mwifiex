@@ -676,6 +676,10 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	t_u8 antenna = 0;
 	ENTER();
 
+	if (!priv) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
@@ -683,15 +687,6 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 		endian_convert_RxPD_extra_header(
 			(rxpd_extra_info *)((t_u8 *)prx_pd +
 					    Rx_PD_SIZEOF(pmadapter)));
-	}
-	if (priv->adapter->pcard_info->v14_fw_api) {
-		t_u8 rxpd_rate_info_orig = prx_pd->rate_info;
-		prx_pd->rate_info = wlan_convert_v14_rx_rate_info(
-			priv, rxpd_rate_info_orig);
-		PRINTM(MINFO,
-		       "STA RX: v14_fw_api=%d rx_rate =%d rxpd_rate_info=0x%x->0x%x\n",
-		       priv->adapter->pcard_info->v14_fw_api, prx_pd->rx_rate,
-		       rxpd_rate_info_orig, prx_pd->rate_info);
 	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
 	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {

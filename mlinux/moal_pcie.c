@@ -2774,6 +2774,9 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 						strcpy(handle->card_info
 							       ->fw_name,
 						       PCIEUSB9098_COMBO_V1_FW_NAME);
+				} else {
+					strcpy(handle->card_info->fw_name,
+					       PCIEUART9098_COMBO_V1_FW_NAME);
 				}
 				strcpy(handle->card_info->fw_name_wlan,
 				       PCIE9098_WLAN_V1_FW_NAME);
@@ -2824,6 +2827,9 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 				else
 					strcpy(handle->card_info->fw_name,
 					       PCIEUSB9097_COMBO_V1_FW_NAME);
+			} else {
+				strcpy(handle->card_info->fw_name,
+				       PCIEUART9097_COMBO_V1_FW_NAME);
 			}
 			strcpy(handle->card_info->fw_name_wlan,
 			       PCIE9097_WLAN_V1_FW_NAME);
@@ -2864,6 +2870,9 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 						strcpy(handle->card_info
 							       ->fw_name,
 						       PCIEAW693_COMBO_V1_FW_NAME);
+				} else {
+					strcpy(handle->card_info->fw_name,
+					       PCIEAW693_COMBO_V1_FW_NAME);
 				}
 				strcpy(handle->card_info->fw_name_wlan,
 				       PCIEAW693_WLAN_V1_FW_NAME);
@@ -3090,6 +3099,10 @@ static void woal_pcie_work(struct work_struct *work)
 		return;
 	}
 	handle->surprise_removed = MFALSE;
+
+	woal_free_module_param(handle);
+	woal_init_module_param(handle);
+
 	if (MLAN_STATUS_SUCCESS == woal_do_flr(handle, false, true))
 		handle->fw_reseting = MFALSE;
 	else {
@@ -3099,6 +3112,10 @@ static void woal_pcie_work(struct work_struct *work)
 	}
 	if (ref_handle) {
 		ref_handle->surprise_removed = MFALSE;
+
+		woal_free_module_param(ref_handle);
+		woal_init_module_param(ref_handle);
+
 		if (MLAN_STATUS_SUCCESS == woal_do_flr(ref_handle, false, true))
 			ref_handle->fw_reseting = MFALSE;
 	}

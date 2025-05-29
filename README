@@ -11,7 +11,7 @@
 	Goto source code directory.
 	make [clean] build
 	The driver and utility binaries can be found in bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.14.0.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.14.2.
 
 2) FOR DRIVER INSTALL
 
@@ -23,7 +23,7 @@
 			Bit 1 :  uAP
 			Bit 2 :  WIFIDIRECT
 			Bit 4 :  NAN
-
+			Bit 7 :  Zero-Wait DFS
 		max_sta_bss: Maximum number of STA BSS (default 1, max 1)
 		sta_name: Name of the STA interface (default: "mlan")
 		max_uap_bss: Maximum number of uAP BSS (default 1, max 2)
@@ -93,6 +93,10 @@
 	pm_keep_power=1|0 <PM keep power in suspend (default) | PM no power in suspend>
 	shutdown_hs=1|0 <Enable HS when shutdown | No HS when shutdown (default)>
 	cfg_11d=0|1|2 <use MLAN default | enable 11d | disable 11d>
+	disable_11h_tpc=0|1 <enable 80211h TPC (default) | disable 80211h TPC of uAP and STA both>
+	(Note: This feature will be supported for IW416 and IW610x chipsets with host_mlme=1 case as of now.)
+	tpe_ie_ignore=0|1 <obey TPE IEs from ex-AP (default) | ignore TPE IEs from ex-AP>
+	make_before_break=0|1, <No make before break during roam (default) | make_before_break during roam)>
 	dts_enable=0|1 <Disable DTS | Enable DTS (default)>
 	fw_name = <FW file name>
 		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin
@@ -145,7 +149,7 @@
 	tx_work=0|1 <Disable tx_work_queue | Enable tx_work_queue (default on iMX)>
 	tx_skb_clone=0|1 <Disable tx_skb_clone | Enable tx_skb_clone (default)>
 	pmqos=0|1 <Disable pmqos | Enable pmqos (default on iMX)>
-	rps=0|x <Disables rps (default) | bit0-bit4 (0x1-0xf) Enables rps on specific cpu>
+	rps=0|x <Disables rps | bit0-bit4 (0x1-0xf) Enables rps on specific cpu (0xf default)>
 	intmode=0|1 <SDIO Interrupt Mode (default) | GPIO Interrupt Mode>
 	gpiopin=0|x <GPIO pin number when intmode=1 (default 0, HW mapped intr on GPIO-21)>
 	pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
@@ -180,12 +184,15 @@
 	wacp_mode=0|1|2 <disable WACP (default) | WACP mode 1 | WACP mode 2>
 	dfs_offload=0|1 <disable dfs offload (default) | enable dfs offload>
 	indrstcfg=x <high byte: GPIO pin number (255 default); low byte: IR mode (0: disable, 1: out-of-band, 2: in band)>
-	auto_fw_reload=0|1|3 <disable|enable PCIE FLR|enable PCIE InBand Reset (default)>
-	auto_fw_reload=0|1 <disable|enable InBand Reset (default)>
+	auto_fw_reload=0|1|3
+	  0: disable auto recovery feature
+	  1: default for SDIO, use SDIO InBandReset in auto recovery
+	  3: default for PCIE, use PCIE InBandReset in auto recovery
 	dmcs=0|1|2 <firmware default (default) | enable dynamic mapping | disable dynamic mapping>
 	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
 		for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
 		for chipset 89xx FP-92, 90xx and later, host_mlme restricted to 1
+	cfg80211_eapol_offload=0|1 <Disable eapol offload (default) | Enable eapol offload>
 	disable_regd_by_driver=0|1 <reg domain set by driver enable | reg domain set by driver disable (default)>
 	reg_alpha2=<Regulatory alpha2 (default NULL)>
 	country_ie_ignore=0|1 <Follow countryIE from AP and beacon hint enable | Ignore countryIE from AP and beacon hint disable (default)>
@@ -195,7 +202,7 @@
 	chan_track=0|1 <restore channel tracking parameters(default) | set channel tracking new parameters> for 9098 only
 	keep_previous_scan=0|1, <Flush previous scan result before start scan | Keep previous scan result(default)>
 	auto_11ax=0|1, <disable auto_11ax | enable auto_11ax(default)>
-	dual_nb=0|1, <default combo FW name - single narrowband (default) | default combo FW name - dual narrowband>
+	dual_nb=0|1, <default combo FW name - single narrowband | default combo FW name - dual narrowband (default)>
 	fw_data_cfg=0|x <disable configuration for custom Fw data(default) | set configuration for custom Fw data>
 		Configurations for fw_data_cfg:
 		Bit 0: Configuration for Fw remapping addr
@@ -389,13 +396,13 @@
 
     c) Trigger FW reload
        echo "fw_reload=1" > /proc/mwlan/adapterX/config   trigger SDIO inband firmware reset and reload firmware
-       echo "fw_reload=2" > /proc/mwlan/adapterX/config   trigger firmware reload
-       echo "fw_reload=3" > /proc/mwlan/adapterX/config   set firmware reload flag in driver.
-       echo "fw_reload=4" > /proc/mwlan/config   trigger PCIe FLR and reload firmware.
-       echo "fw_reload=6" > /proc/mwlan/config   trigger PCIe inband firmware reset and reload firmware.
+       echo "fw_reload=2" > /proc/mwlan/adapterX/config   trigger firmware reload for GPIO based reset
+       echo "fw_reload=3" > /proc/mwlan/adapterX/config   This option is used for USB reset
+       echo "fw_reload=4" > /proc/mwlan/adapterX/config   trigger PCIe FLR and reload firmware.
+       echo "fw_reload=6" > /proc/mwlan/adapterX/config   trigger PCIe inband firmware reset and reload firmware.
 
-    (Note: This feature will be supported on Robin3 and KF2.
-           For CAC-A2, it only work with the board which supports parallel fw download)
+    (Note: This feature will be supported on IW416 and 8997.
+           For 8987, it only work with the board which supports parallel fw download)
 
 5) FOR RF test mode commands:
 
@@ -510,10 +517,15 @@
 	QNum                  (0-12|17-20, -1:Set to default Value if 11ax QNum:17 else QNum:0)
 	BSSID                 (xx:xx:xx:xx:xx:xx)
 
+	Note: NumPkt, MaxPktExt, BeamChange,DCM , Doppler, MidamblePeriod and QNum are 11ax paramters
+
 	Example: To start Tx frame with duty cycle, first stop any ongoing Tx
         and then start Tx frame:
 	echo "tx_frame=0" > /proc/mwlan/adapterX/config
+	For 11ax chips:
 	echo "tx_frame=1 7 0xAAA 0x100 1 20 0 0 0 0 0 0 0 0 -1 -1 -1 -1 -1 -1 -1 05:43:3f:c4:51" > /proc/mwlan/adapterX/config
+	For non-11ax chips:
+	echo "tx_frame=1 7 0xAAA 0x100 1 20 0 0 0 0 0 0 0 0 05:43:3f:c4:51" > /proc/mwlan/adapterX/config
 
     Configure Trigger Frame
     	Start                 	(0|1, 0:disable, 1:enable)

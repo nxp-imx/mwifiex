@@ -130,10 +130,6 @@ Change log:
 #define REG_PORT 0
 /** Port for memory */
 #define MEM_PORT 0x10000
-/** Ctrl port */
-#define CTRL_PORT 0
-/** Ctrl port mask */
-#define CTRL_PORT_MASK 0x0001
 /** Card Control Registers : cmd53 new mode */
 #define CMD53_NEW_MODE (0x1U << 0)
 /** Card Control Registers : cmd53 tx len format 1 (0x10) */
@@ -194,29 +190,6 @@ Change log:
 		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
 	} while (0)
 
-#define MP_TX_AGGR_BUF_PUT_NONEWMODE(a, mbuf, port)                            \
-	do {                                                                   \
-		pmadapter->callbacks.moal_memmove(                             \
-			a->pmoal_handle,                                       \
-			&a->pcard_sd->mpa_tx.buf[a->pcard_sd->mpa_tx.buf_len], \
-			mbuf->pbuf + mbuf->data_offset, mbuf->data_len);       \
-		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
-		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
-			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
-		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \
-			a->pcard_sd->mpa_tx.start_port = port;                 \
-		}                                                              \
-		if (a->pcard_sd->mpa_tx.start_port <= port) {                  \
-			a->pcard_sd->mpa_tx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_tx.pkt_cnt));          \
-		} else {                                                       \
-			a->pcard_sd->mpa_tx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_tx.pkt_cnt + 1 +       \
-				       (a->pcard_sd->max_ports -               \
-					a->pcard_sd->mp_end_port)));           \
-		}                                                              \
-		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
-	} while (0)
 #define MP_TX_AGGR_BUF_PUT_SG(a, mbuf, port)                                   \
 	do {                                                                   \
 		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
@@ -230,36 +203,10 @@ Change log:
 		a->pcard_sd->mpa_tx.ports |= (1 << port);                      \
 		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
 	} while (0)
-#define MP_TX_AGGR_BUF_PUT_SG_NONEWMODE(a, mbuf, port)                         \
-	do {                                                                   \
-		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
-		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
-			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
-		a->pcard_sd->mpa_tx.mbuf_arr[a->pcard_sd->mpa_tx.pkt_cnt] =    \
-			mbuf;                                                  \
-		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \
-			a->pcard_sd->mpa_tx.start_port = port;                 \
-		}                                                              \
-		if (a->pcard_sd->mpa_tx.start_port <= port) {                  \
-			a->pcard_sd->mpa_tx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_tx.pkt_cnt));          \
-		} else {                                                       \
-			a->pcard_sd->mpa_tx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_tx.pkt_cnt + 1 +       \
-				       (a->pcard_sd->max_ports -               \
-					a->pcard_sd->mp_end_port)));           \
-		}                                                              \
-		a->pcard_sd->mpa_tx.pkt_cnt++;                                 \
-	} while (0)
 
 /** SDIO Tx aggregation limit ? */
 #define MP_TX_AGGR_PKT_LIMIT_REACHED(a)                                        \
 	((a->pcard_sd->mpa_tx.pkt_cnt) == (a->pcard_sd->mpa_tx.pkt_aggr_limit))
-
-#define MP_TX_AGGR_PORT_LIMIT_REACHED(a)                                       \
-	((a->pcard_sd->curr_wr_port < a->pcard_sd->mpa_tx.start_port) &&       \
-	 (((a->pcard_sd->max_ports - a->pcard_sd->mpa_tx.start_port) +         \
-	   a->pcard_sd->curr_wr_port) >= a->pcard_sd->mp_aggr_pkt_limit))
 
 /** Reset SDIO Tx aggregation buffer parameters */
 #define MP_TX_AGGR_BUF_RESET(a)                                                \
@@ -289,11 +236,6 @@ Change log:
 	 ((a->pcard_sd->curr_rd_port - a->pcard_sd->mpa_rx.start_port) >=      \
 	  (a->pcard_sd->mp_end_port >> 1)))
 
-#define MP_RX_AGGR_PORT_LIMIT_REACHED_NONEWMODE(a)                             \
-	((a->pcard_sd->curr_rd_port < a->pcard_sd->mpa_rx.start_port) &&       \
-	 (((a->pcard_sd->max_ports - a->pcard_sd->mpa_rx.start_port) +         \
-	   a->pcard_sd->curr_rd_port) >= a->pcard_sd->mp_aggr_pkt_limit))
-
 /** SDIO Rx aggregation in progress ? */
 #define MP_RX_AGGR_IN_PROGRESS(a) (a->pcard_sd->mpa_rx.pkt_cnt > 0)
 
@@ -315,26 +257,6 @@ Change log:
 			rx_len;                                                \
 		a->pcard_sd->mpa_rx.pkt_cnt++;                                 \
 	} while (0)
-
-#define MP_RX_AGGR_SETUP_NONEWMODE(a, mbuf, port, rx_len)                      \
-	do {                                                                   \
-		a->pcard_sd->mpa_rx.buf_len += rx_len;                         \
-		if (!a->pcard_sd->mpa_rx.pkt_cnt) {                            \
-			a->pcard_sd->mpa_rx.start_port = port;                 \
-		}                                                              \
-		if (a->pcard_sd->mpa_rx.start_port <= port) {                  \
-			a->pcard_sd->mpa_rx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_rx.pkt_cnt));          \
-		} else {                                                       \
-			a->pcard_sd->mpa_rx.ports |=                           \
-				(1 << (a->pcard_sd->mpa_rx.pkt_cnt + 1));      \
-		}                                                              \
-		a->pcard_sd->mpa_rx.mbuf_arr[a->pcard_sd->mpa_rx.pkt_cnt] =    \
-			mbuf;                                                  \
-		a->pcard_sd->mpa_rx.len_arr[a->pcard_sd->mpa_rx.pkt_cnt] =     \
-			rx_len;                                                \
-		a->pcard_sd->mpa_rx.pkt_cnt++;                                 \
-	} while (0);
 
 /** Reset SDIO Rx aggregation buffer parameters */
 #define MP_RX_AGGR_BUF_RESET(a)                                                \

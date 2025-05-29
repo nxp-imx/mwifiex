@@ -4892,10 +4892,6 @@ mlan_status wlan_alloc_ssu_pcie_buf(pmlan_adapter pmadapter)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_buffer *pmbuf = MNULL;
-	/** Virtual base address of ssu buffer */
-	t_u8 *ssu_vbase = MNULL;
-	/** Physical base address of ssu buffer */
-	t_u64 ssu_pbase = 0;
 
 	ENTER();
 
@@ -4905,31 +4901,25 @@ mlan_status wlan_alloc_ssu_pcie_buf(pmlan_adapter pmadapter)
 		return ret;
 	}
 	/* Allocate buffer here so that firmware can DMA data on it */
-	pmbuf = wlan_alloc_mlan_buffer(pmadapter, 0, 0, MOAL_MALLOC_BUFFER);
+	pmbuf = wlan_alloc_mlan_buffer(pmadapter, MLAN_SSU_BUF_SIZE,
+				       MLAN_SSU_HEADER_SIZE,
+				       MOAL_ALLOC_MLAN_BUFFER);
 	if (!pmbuf) {
 		PRINTM(MERROR,
 		       "SSU buffer create : Unable to allocate mlan_buffer\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	ret = pcb->moal_malloc_consistent(pmadapter->pmoal_handle,
-					  MLAN_SSU_BUF_SIZE, &ssu_vbase,
-					  &ssu_pbase);
-
-	if (ret != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "%s: No free moal_malloc_consistent\n",
-		       __FUNCTION__);
+	if (MLAN_STATUS_FAILURE ==
+	    pcb->moal_map_memory(
+		    pmadapter->pmoal_handle, pmbuf->pbuf + pmbuf->data_offset,
+		    &pmbuf->buf_pa, MLAN_SSU_BUF_SIZE, PCI_DMA_FROMDEVICE)) {
+		PRINTM(MERROR, "%s: moal_map_memory failed\n", __FUNCTION__);
 		/* free pmbuf */
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-
-	pmbuf->buf_pa = ssu_pbase;
-	pmbuf->pbuf = ssu_vbase;
-	pmbuf->data_offset = 0;
-	pmbuf->data_len = MLAN_SSU_BUF_SIZE;
-	pmbuf->total_pcie_buf_len = MLAN_SSU_BUF_SIZE;
 
 	PRINTM(MCMND,
 	       "SSU buffer: add new mlan_buffer base: %p, "
@@ -4956,8 +4946,6 @@ mlan_status wlan_free_ssu_pcie_buf(pmlan_adapter pmadapter)
 {
 	pmlan_callbacks pcb = MNULL;
 	mlan_buffer *pmbuf = MNULL;
-	t_u8 *ssu_vbase;
-	t_u64 ssu_pbase;
 
 	ENTER();
 	if (!pmadapter) {
@@ -4968,12 +4956,6 @@ mlan_status wlan_free_ssu_pcie_buf(pmlan_adapter pmadapter)
 	pcb = &pmadapter->callbacks;
 	if (pmadapter->ssu_buf) {
 		pmbuf = pmadapter->ssu_buf;
-		ssu_vbase = pmbuf->pbuf;
-		ssu_pbase = pmbuf->buf_pa;
-		if (ssu_vbase)
-			pcb->moal_mfree_consistent(pmadapter->pmoal_handle,
-						   pmbuf->total_pcie_buf_len,
-						   ssu_vbase, ssu_pbase);
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	}
 	pmadapter->ssu_buf = MNULL;

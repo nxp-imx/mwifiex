@@ -1774,6 +1774,11 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 
 	tid = (padd_ba_rsp->block_ack_param_set & BLOCKACKPARAM_TID_MASK) >>
 	      BLOCKACKPARAM_TID_POS;
+	if (tid >= 8) {
+		PRINTM(MERROR, "Invalid TID value: %d\n", tid);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	tid_down = wlan_get_wmm_tid_down(priv, tid);
 	ra_list = wlan_wmm_get_ralist_node(priv, tid_down,
 					   padd_ba_rsp->peer_mac_addr);

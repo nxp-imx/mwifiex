@@ -610,9 +610,9 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define MIN_BA_THRESHOLD 16
 
 /** High threshold at which to start drop packets */
-#define RX_HIGH_THRESHOLD 1024
+#define RX_HIGH_THRESHOLD 8192
 /** Low threshold to allow Rx BA */
-#define RX_LOW_THRESHOLD 128
+#define RX_LOW_THRESHOLD 1024
 
 #define MFG_CMD_SET_TEST_MODE 1
 #define MFG_CMD_UNSET_TEST_MODE 0
@@ -1377,6 +1377,8 @@ typedef struct _mlan_private {
 	t_u8 assoc_req_buf[ASSOC_RSP_BUF_SIZE];
 	/** Length of the data stored in assoc_rsp_buf */
 	t_u32 assoc_req_size;
+	/** delay link lost flag */
+	t_u8 delay_link_lost;
 	/** prev_bssid */
 	mlan_802_11_mac_addr prev_bssid;
 	/** Buffer to store the association response for application retrieval
@@ -2422,8 +2424,6 @@ typedef struct _mlan_usb_card {
 typedef struct _mlan_card_info {
 	/** Max Tx buffer size */
 	t_u32 max_tx_buf_size;
-	/** support V14_FW_API */
-	t_u8 v14_fw_api;
 	/** support V16_FW_API */
 	t_u8 v16_fw_api;
 	/** support V17_FW_API */
@@ -3966,8 +3966,6 @@ t_void wlan_free_curr_bcn(mlan_private *pmpriv);
 #endif /* STA_SUPPORT */
 
 /* Rate related functions */
-t_u8 wlan_convert_v14_tx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info);
-t_u8 wlan_convert_v14_rx_rate_info(pmlan_private pmpriv, t_u8 v14_rate_info);
 /** Convert index into data rate */
 t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 			      t_u8 rate_info, t_u8 ext_rate_info);

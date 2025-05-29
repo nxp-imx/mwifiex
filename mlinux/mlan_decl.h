@@ -477,6 +477,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SDAW693 "SDAW693"
 /** SDIW610 Card */
 #define CARD_SDIW610 "SDIW610"
+/** SDIW623 Card */
+#define CARD_SDIW623 "SDIW623"
 #endif
 
 #ifdef PCIE
@@ -518,6 +520,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_PCIEAW693 "PCIEAW693"
 /** PCIEIW629 Card */
 #define CARD_PCIEIW629 "PCIEIW629"
+/** PCIEIW623 Card */
+#define CARD_PCIEIW623 "PCIEIW623"
 #endif
 
 #ifdef USB
@@ -1097,6 +1101,12 @@ typedef MLAN_PACK_START struct _chan_band_info {
 	/** dfs channel flag */
 	t_u8 is_dfs_chan;
 } MLAN_PACK_END chan_band_info;
+
+/** remain_on_channel_info  */
+typedef MLAN_PACK_START struct _remain_on_channel_info {
+	/* Is previous AP lost when waiting doing Auth RoC */
+	t_bool delay_link_lost;
+} MLAN_PACK_END remain_on_channel_info;
 
 #if defined(STA_SUPPORT)
 /** MrvlIEtypes_chan_band_reginfo_t */

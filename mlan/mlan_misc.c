@@ -3499,6 +3499,7 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 #endif
 	case SUBTYPE_AUTH:
 		unicast = MTRUE;
+		priv->delay_link_lost = MFALSE;
 		PRINTM_NETINTF(MMSG, priv);
 		PRINTM(MMSG, "wlan: HostMlme Auth received from " MACSTR "\n",
 		       MAC2STR(pieee_pkt_hdr->addr2));
@@ -5456,7 +5457,7 @@ mlan_status wlan_radio_ioctl_remain_chan_cfg(pmlan_adapter pmadapter,
 			PRINTM(MCMND, "Ignore New Remain on channe: chan=%d\n",
 			       radio_cfg->param.remain_chan.channel);
 			LEAVE();
-			return MLAN_STATUS_FAILURE;
+			return MLAN_STATUS_SUCCESS;
 		}
 	}
 
@@ -7237,7 +7238,6 @@ mlan_status wlan_misc_ioctl_ch_load(pmlan_adapter pmadapter,
 	LEAVE();
 	return ret;
 }
-
 /**
  *  @brief  Get CHAN_TPRC setting
  *

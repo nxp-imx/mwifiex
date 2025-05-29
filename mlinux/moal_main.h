@@ -569,9 +569,17 @@ static inline void woal_mod_timer(pmoal_drv_timer timer,
 static inline void woal_cancel_timer(moal_drv_timer *timer)
 {
 	if (timer->timer_is_periodic || in_atomic() || irqs_disabled())
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+		timer_delete(&timer->tl);
+#else
 		del_timer(&timer->tl);
+#endif
 	else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+		timer_delete_sync(&timer->tl);
+#else
 		del_timer_sync(&timer->tl);
+#endif
 	timer->timer_is_canceled = MTRUE;
 	timer->time_period = 0;
 }
@@ -2110,8 +2118,6 @@ typedef struct _card_info {
 	t_bool drcs;
 	/** support Go NOA*/
 	t_bool go_noa;
-	/** support V14_FW_API*/
-	t_bool v14_fw_api;
 	/** support V16_FW_API*/
 	t_bool v16_fw_api;
 	/** support V17_FW_API*/

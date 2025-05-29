@@ -1832,10 +1832,6 @@ typedef struct _mlan_ds_get_stats {
 	t_u32 gdma_abort_cnt;
 	/** Rx Reset MAC Count */
 	t_u32 g_reset_rx_mac_cnt;
-	/** Current SOC Temperature*/
-	t_u32 currTemp;
-	/** TX Power Control Method*/
-	t_u32 TXpwrMethod;
 	/** SDMA FSM stuck Count*/
 	t_u32 SdmaStuckCnt;
 	// Ownership error counters
@@ -1847,6 +1843,8 @@ typedef struct _mlan_ds_get_stats {
 	t_u32 dwMgtErrCnt;
 	/*Control Ownership error count*/
 	t_u32 dwDatErrCnt;
+	/*Rx 20MHz UL OFDM error count*/
+	t_u32 Rx2040BWError;
 	/*BIGTK MME good count*/
 	t_u32 bigtk_mmeGoodCnt;
 	/*BIGTK Replay error count*/
@@ -1855,6 +1853,12 @@ typedef struct _mlan_ds_get_stats {
 	t_u32 bigtk_micErrCnt;
 	/*BIGTK MME not included count*/
 	t_u32 bigtk_mmeNotFoundCnt;
+	/** Current SOC Temperature*/
+	t_u32 currTemp;
+	/** TX Power Control Method*/
+	t_u32 TXpwrMethod;
+	/** DPD training status*/
+	t_u32 isDPDdone;
 } mlan_ds_get_stats, *pmlan_ds_get_stats;
 
 /** Type definition of mlan_ds_uap_stats for MLAN_OID_GET_STATS */

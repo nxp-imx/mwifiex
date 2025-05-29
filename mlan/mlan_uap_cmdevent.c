@@ -3437,8 +3437,9 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 					HostCmd_DS_COMMAND *resp,
 					mlan_ioctl_req *pioctl_buf)
 {
-	HostCmd_DS_802_11_GET_LOG *pget_log =
-		(HostCmd_DS_802_11_GET_LOG *)&resp->params.get_log;
+	HostCmd_DS_802_11_GET_LOG get_log_tmp = {0},
+				  *pget_log = (HostCmd_DS_802_11_GET_LOG *)&resp
+						      ->params.get_log;
 	mlan_ds_get_info *pget_info = MNULL;
 	int i = 0;
 
@@ -3446,6 +3447,17 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 
 	if (pioctl_buf) {
 		pget_info = (mlan_ds_get_info *)pioctl_buf->pbuf;
+		// coverity[bad_memset:SUPPRESS]
+		// coverity[too_many_arguments:SUPPRESS]
+		// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
+		memset(pmpriv->adapter, &pget_info->param.stats, 0,
+		       sizeof(HostCmd_DS_802_11_GET_LOG));
+		memcpy_ext(pmpriv->adapter, (t_u8 *)&get_log_tmp,
+			   (t_u8 *)pget_log,
+			   ((resp->size) - (sizeof(HostCmd_DS_GEN))),
+			   sizeof(HostCmd_DS_802_11_GET_LOG));
+		pget_log = &get_log_tmp;
+
 		pget_info->param.stats.mcast_tx_frame =
 			wlan_le32_to_cpu(pget_log->mcast_tx_frame);
 		pget_info->param.stats.failed =
@@ -3524,10 +3536,6 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->gdma_abort_cnt);
 		pget_info->param.stats.g_reset_rx_mac_cnt =
 			wlan_le32_to_cpu(pget_log->g_reset_rx_mac_cnt);
-		pget_info->param.stats.currTemp =
-			wlan_le32_to_cpu(pget_log->currTemp);
-		pget_info->param.stats.TXpwrMethod =
-			wlan_le32_to_cpu(pget_log->TXpwrMethod);
 		pget_info->param.stats.SdmaStuckCnt =
 			wlan_le32_to_cpu(pget_log->SdmaStuckCnt);
 		// Ownership error counters
@@ -3547,6 +3555,12 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->bigtk_micErrCnt);
 		pget_info->param.stats.bigtk_mmeNotFoundCnt =
 			wlan_le32_to_cpu(pget_log->bigtk_mmeNotFoundCnt);
+		pget_info->param.stats.currTemp =
+			wlan_le32_to_cpu(pget_log->currTemp);
+		pget_info->param.stats.TXpwrMethod =
+			wlan_le32_to_cpu(pget_log->TXpwrMethod);
+		pget_info->param.stats.isDPDdone =
+			wlan_le32_to_cpu(pget_log->isDPDdone);
 
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
