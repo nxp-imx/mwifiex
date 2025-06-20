@@ -4428,6 +4428,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_nav_mitigation(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
 		break;
+	case HostCmd_CMD_NAV_MITIGATION_HW_CFG:
+		ret = wlan_cmd_nav_mitigation_hw(pmpriv, cmd_ptr, cmd_action,
+						 pdata_buf);
+		break;
 	case HostCmd_CMD_802_11_LED_CONTROL:
 		ret = wlan_cmd_led_config(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
@@ -4497,6 +4501,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_auth_assoc_timeout_cfg(pmpriv, cmd_ptr,
 						      cmd_action, pdata_buf);
 		break;
+
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		ret = MLAN_STATUS_FAILURE;
@@ -4552,7 +4557,10 @@ mlan_status wlan_ops_sta_init_cmd(t_void *priv, t_u8 first_bss)
 	}
 
 	memset(pmpriv->adapter, &amsdu_aggr_ctrl, 0, sizeof(amsdu_aggr_ctrl));
-	amsdu_aggr_ctrl.enable = MLAN_ACT_ENABLE;
+	if (pmpriv->adapter->init_para.amsdu_disable)
+		amsdu_aggr_ctrl.enable = MLAN_ACT_DISABLE;
+	else
+		amsdu_aggr_ctrl.enable = MLAN_ACT_ENABLE;
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_AMSDU_AGGR_CTRL,
 			       HostCmd_ACT_GEN_SET, 0, MNULL,

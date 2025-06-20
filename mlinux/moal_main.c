@@ -1353,6 +1353,32 @@ done:
 }
 
 /**
+ *  @brief This function send the auto recovery start event to kernel
+ *
+ *  @param handle       Pointer to structure moal_handle
+ *
+ *  @return        N/A
+ */
+void woal_send_auto_recovery_start_event(moal_handle *handle)
+{
+	moal_private *priv;
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (priv) {
+		woal_broadcast_event(priv, CUS_EVT_FW_RECOVER_START,
+				     strlen(CUS_EVT_FW_RECOVER_START));
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		if (IS_STA_OR_UAP_CFG80211(handle->params.cfg80211_wext))
+			woal_cfg80211_vendor_event(
+				priv, event_fw_reset_success,
+				CUS_EVT_FW_RECOVER_START,
+				strlen(CUS_EVT_FW_RECOVER_START));
+#endif
+#endif
+	}
+}
+
+/**
  *  @brief This function send the auto recovery complete event to kernel
  *
  *  @param handle       Pointer to structure moal_handle
@@ -2829,6 +2855,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device.reject_addba_req = handle->params.reject_addba_req;
 	device.disable_11h_tpc = (t_u32)handle->params.disable_11h_tpc;
 	device.tpe_ie_ignore = (t_u32)handle->params.tpe_ie_ignore;
+	device.amsdu_disable = handle->params.amsdu_disable;
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device.bss_attr[i].bss_type =
@@ -2851,6 +2878,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device.mclient_scheduling = handle->params.mclient_scheduling;
 	/* Clean up the mode_psd_string for 6E Indoor/Outdoor */
 	memset(handle->mode_psd_string, 0, sizeof(handle->mode_psd_string));
+
 	moal_memcpy_ext(handle, &device.callbacks, &woal_callbacks,
 			sizeof(mlan_callbacks), sizeof(mlan_callbacks));
 	if (!handle->params.amsdu_deaggr)
@@ -2937,6 +2965,7 @@ void woal_free_moal_handle(moal_handle *handle)
 		kfree(fwdump_fname);
 		fwdump_fname = NULL;
 	}
+
 	/* Free module params */
 	woal_free_module_param(handle);
 	/** clear pref_mac to avoid later crash */
@@ -4838,7 +4867,11 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 			PRINTM(MERROR,
 			       "WLAN: Fail download FW with nowwait: %u\n",
 			       moal_extflg_isset(handle, EXT_REQ_FW_NOWAIT));
-			if (handle->ops.reg_dbg)
+			if (handle->ops.reg_dbg
+#ifdef PCIE
+			    && !IS_PCIEAW693(handle->card_type)
+#endif
+			)
 				handle->ops.reg_dbg(handle);
 			goto done;
 		}
@@ -4914,11 +4947,19 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 	if (handle->hardware_status != HardwareStatusReady) {
 		wifi_status = WIFI_STATUS_INIT_FW_FAIL;
 		handle->event_fw_dump = MFALSE;
-		if (handle->ops.reg_dbg)
+		if (handle->ops.reg_dbg
+#ifdef PCIE
+		    && !IS_PCIEAW693(handle->card_type)
+#endif
+		)
 			handle->ops.reg_dbg(handle);
 #ifdef DEBUG_LEVEL1
 		if (drvdbg & MFW_D) {
-			if (handle->ops.dump_fw_info) {
+			if (handle->ops.dump_fw_info
+#ifdef PCIE
+			    && !IS_PCIEAW693(handle->card_type)
+#endif
+			) {
 				handle->ops.dump_fw_info(handle);
 #ifdef DUMP_TO_PROC
 				woal_print_firmware_dump_buf(
@@ -5495,7 +5536,7 @@ static int woal_mon_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		       "woal_mon_do_ioctl: mon_if == NULL || mon_if->base_ndev == NULL\n");
 		goto fail;
 	}
-	PRINTM(MERROR, "woal_mon_do_ioctl: ioctl cmd = 0x%x\n", cmd);
+	PRINTM(MIOCTL, "woal_mon_do_ioctl: ioctl cmd = 0x%x\n", cmd);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	ret = woal_do_ioctl(mon_if->base_ndev, req, data, cmd);
@@ -6807,6 +6848,7 @@ void woal_flush_workqueue(moal_handle *handle)
 #endif
 	}
 #endif
+	cancel_delayed_work_sync(&handle->emergency_reset_work);
 	LEAVE();
 }
 
@@ -6873,6 +6915,7 @@ void woal_terminate_workqueue(moal_handle *handle)
 #endif
 	}
 #endif
+	cancel_delayed_work_sync(&handle->emergency_reset_work);
 	LEAVE();
 }
 
@@ -9321,7 +9364,9 @@ void woal_set_multicast_list(struct net_device *dev)
 {
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	ENTER();
-	queue_work(priv->mclist_workqueue, &priv->mclist_work);
+	if (priv && priv->mclist_workqueue) {
+		queue_work(priv->mclist_workqueue, &priv->mclist_work);
+	}
 	LEAVE();
 }
 #endif
@@ -9530,6 +9575,8 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 	moal_memcpy_ext(priv->phandle, priv->netdev->dev_addr,
 			priv->current_addr, ETH_ALEN, ETH_ALEN);
 #endif
+
+	woal_set_multicast_list(priv->netdev);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	priv->host_mlme = 0;
 	priv->auth_flag = 0;
@@ -9589,8 +9636,10 @@ mlan_status woal_reset_intf(moal_private *priv, t_u8 wait_option, int all_intf)
 					 MFALSE, 0, NULL)) {
 			PRINTM(MERROR, "%s: stop net monitor failed \n",
 			       __func__);
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
+			/* Even if stop net monitor is failed still continue to
+			 * clean the kernel related config otherwise it leads to
+			 * kernel crash.
+			 */
 		}
 #endif
 		netif_device_detach(handle->mon_if->mon_ndev);
@@ -11491,7 +11540,11 @@ static int woal_dump_moal_drv_info(moal_handle *phandle, t_u8 *buf)
 	ptr += snprintf(ptr, MAX_BUF_LEN,
 			"------------moal_debug_info End-------------\n");
 
-	if (phandle->ops.dump_reg_info)
+	if (phandle->ops.dump_reg_info
+#ifdef PCIE
+	    && !IS_PCIEAW693(phandle->card_type)
+#endif
+	)
 		ptr += phandle->ops.dump_reg_info(phandle, ptr);
 
 	LEAVE();
@@ -12414,7 +12467,11 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 #ifdef PCIE
 	if (IS_PCIE(phandle->card_type)) {
 #ifdef DEBUG_LEVEL1
-		if (phandle->ops.reg_dbg) {
+		if (phandle->ops.reg_dbg
+#ifdef PCIE
+		    && !IS_PCIEAW693(phandle->card_type)
+#endif
+		) {
 			phandle->ops.reg_dbg(phandle);
 		}
 #endif
@@ -12425,8 +12482,11 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 		if (flag && ((phandle->main_state == MOAL_END_MAIN_PROCESS) ||
 			     (phandle->main_state == MOAL_STATE_IDLE))) {
 #ifdef DEBUG_LEVEL1
-			if (phandle->ops.reg_dbg &&
-			    (drvdbg & (MREG_D | MFW_D))) {
+			if (phandle->ops.reg_dbg && (drvdbg & (MREG_D | MFW_D))
+#ifdef PCIE
+			    && !IS_PCIEAW693(phandle->card_type)
+#endif
+			) {
 				phandle->ops.reg_dbg(phandle);
 			}
 #endif
@@ -12765,6 +12825,57 @@ t_void woal_scan_timeout_handler(struct work_struct *work)
 #endif
 
 /**
+ *  @brief This workqueue function handles woal emergency reset work
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+t_void woal_emergency_reset_handler(struct work_struct *work)
+{
+	struct delayed_work *delayed_work = to_delayed_work(work);
+	// Coverity violation raised for kernel's API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	moal_handle *handle =
+		container_of(delayed_work, moal_handle, emergency_reset_work);
+	moal_handle *ref_handle = NULL;
+	moal_private *priv = NULL;
+	t_u8 auto_fw_dump = MFALSE;
+
+	ENTER();
+
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		LEAVE();
+		return;
+	}
+	priv->phandle->driver_status = MTRUE;
+	ref_handle = (moal_handle *)priv->phandle->pref_mac;
+	if (!ref_handle) {
+		LEAVE();
+		return;
+	}
+	ref_handle->driver_status = MTRUE;
+
+#ifdef DEBUG_LEVEL1
+	if (drvdbg & MFW_D)
+		auto_fw_dump = MTRUE;
+#endif
+
+	woal_moal_debug_info(priv, NULL, MFALSE);
+
+	PRINTM(MEVENT, "RESET FW NOW !!\n");
+
+	mlan_pm_wakeup_card(priv->phandle->pmlan_adapter, MFALSE);
+
+	woal_process_hang(priv->phandle);
+
+	wifi_status = WIFI_STATUS_EMERGENCY_TEMP_REACHED;
+
+	LEAVE();
+}
+
+/**
  *  @brief This workqueue function handles woal event queue
  *
  *  @param work    A pointer to work_struct
@@ -12898,6 +13009,21 @@ t_void woal_evt_work_queue(struct work_struct *work)
 					       "Fail to request country power table\n");
 			}
 			break;
+#ifdef UAP_SUPPORT
+		case WOAL_EVENT_AGCS:
+			if (evt->agcs_evt.type ==
+			    AGCS_EVENT_TYPE_PROCESS_EVENT) {
+				woal_process_agcs_event(
+					(moal_private *)evt->priv,
+					&evt->agcs_evt.stats);
+			} else if (evt->agcs_evt.type ==
+				   AGCS_EVENT_TYPE_SEL_CHANNEL) {
+				woal_process_ch_sel_and_switch(
+					(moal_private *)evt->priv,
+					&evt->agcs_evt);
+			}
+			break;
+#endif /* UAP_SUPPORT */
 		default:
 			break;
 		}
@@ -13253,7 +13379,11 @@ t_void woal_main_work_queue(struct work_struct *work)
 	}
 	if (handle->reg_dbg == MTRUE) {
 		handle->reg_dbg = MFALSE;
-		if (handle->ops.reg_dbg)
+		if (handle->ops.reg_dbg
+#ifdef PCIE
+		    && !IS_PCIEAW693(handle->card_type)
+#endif
+		)
 			handle->ops.reg_dbg(handle);
 	}
 	if (handle->fw_dbg == MTRUE) {
@@ -13261,7 +13391,11 @@ t_void woal_main_work_queue(struct work_struct *work)
 #ifdef DEBUG_LEVEL1
 		drvdbg &= ~MFW_D;
 #endif
-		if (handle->ops.dump_fw_info)
+		if (handle->ops.dump_fw_info
+#ifdef PCIE
+		    && !IS_PCIEAW693(handle->card_type)
+#endif
+		)
 			handle->ops.dump_fw_info(handle);
 		LEAVE();
 		return;
@@ -13652,6 +13786,9 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 	INIT_DELAYED_WORK(&handle->scan_timeout_work,
 			  woal_scan_timeout_handler);
 #endif
+
+	INIT_DELAYED_WORK(&handle->emergency_reset_work,
+			  &woal_emergency_reset_handler);
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)

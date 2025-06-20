@@ -167,9 +167,9 @@ static int tx_work = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 /**
  * RPS to steer packets to specific CPU
- * Default value of 0 keeps rps disabled by default
+ * Default value of 0xf keeps rps enabled by default
  */
-static int rps = 0;
+static int rps = 0x0F;
 
 /**
  * rps cpu mask
@@ -206,6 +206,7 @@ static int cfg_11d;
 #if defined(UAP_SUPPORT)
 static int custom_11d_bcn_country_ie_en;
 #endif
+static int amsdu_disable;
 /** fw serial download check */
 static int fw_serial = 1;
 
@@ -1064,6 +1065,15 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			       params->custom_11d_bcn_country_ie_en);
 		}
 #endif
+		else if (strncmp(line, "amsdu_disable",
+				 strlen("amsdu_disable")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->amsdu_disable = out_data;
+			PRINTM(MERROR, "amsdu_disable = %d\n",
+			       params->amsdu_disable);
+		}
 #if defined(SDIO)
 		else if (strncmp(line, "slew_rate", strlen("slew_rate")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1764,7 +1774,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 {
 	t_u8 addr[ETH_ALEN];
 	bool is_valid_mac_addr = false;
-
+	unsigned int rps_mask = 0, nr_cpu = 0;
 	if (hw_test)
 		moal_extflg_set(handle, EXT_HW_TEST);
 #ifdef CONFIG_OF
@@ -1965,6 +1975,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 		handle->params.custom_11d_bcn_country_ie_en =
 			params->custom_11d_bcn_country_ie_en;
 #endif
+	handle->params.amsdu_disable = amsdu_disable;
+	if (params)
+		handle->params.amsdu_disable = params->amsdu_disable;
+
 #if defined(SDIO)
 	handle->params.slew_rate = slew_rate;
 	if (params)
@@ -2094,7 +2108,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 
 #if defined(CONFIG_RPS)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+	nr_cpu = num_online_cpus();
+	rps_mask = (1U << nr_cpu) - 1;
 	handle->params.rps = rps & RPS_CPU_MASK;
+	handle->params.rps &= rps_mask;
 	PRINTM(MMSG, "rps set to %x from module param\n", handle->params.rps);
 #endif
 #endif
@@ -3146,6 +3163,11 @@ MODULE_PARM_DESC(
 	custom_11d_bcn_country_ie_en,
 	"1: Enable Custom BCN Country ie; 0: Disable Custom BCN Country ie");
 #endif
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
+module_param(amsdu_disable, int, 0);
+MODULE_PARM_DESC(amsdu_disable, "1: Disable AMSDU aggr; 0: Enable AMSDU aggr");
 
 #if defined(SDIO)
 module_param(slew_rate, int, 0);
@@ -3232,6 +3254,9 @@ MODULE_PARM_DESC(ring_size,
 module_param(pcie_int_mode, int, 0);
 MODULE_PARM_DESC(pcie_int_mode, "0: Legacy mode; 1: MSI mode");
 #endif /* PCIE */
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(low_power_mode_enable, int, 0);
 MODULE_PARM_DESC(low_power_mode_enable, "0/1: Disable/Enable Low Power Mode");
 
@@ -3287,6 +3312,9 @@ module_param(indication_gpio, int, 0);
 MODULE_PARM_DESC(
 	indication_gpio,
 	"GPIO to indicate wakeup source; high four bits: level for normal wakeup; low four bits: GPIO pin number.");
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(disconnect_on_suspend, int, 0);
 MODULE_PARM_DESC(
 	disconnect_on_suspend,
@@ -3301,6 +3329,9 @@ MODULE_PARM_DESC(
 	indrstcfg,
 	"Independent reset configuration; high byte: GPIO pin number; low byte: IR mode");
 
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(fixed_beacon_buffer, int, 0);
 MODULE_PARM_DESC(
 	fixed_beacon_buffer,
@@ -3376,6 +3407,9 @@ MODULE_PARM_DESC(
 #endif
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
+// It raises warning for same input name used for
+// module_param and MODULE_PARM_DESC.
+// coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(disable_regd_by_driver, int, 0);
 MODULE_PARM_DESC(
 	disable_regd_by_driver,

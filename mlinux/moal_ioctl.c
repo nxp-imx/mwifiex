@@ -337,6 +337,24 @@ static inline void woal_copy_mc_addr(mlan_multicast_list *mlist,
 }
 
 /**
+ *  @brief Copy NAN network mcast addr to multicast table
+ *
+ *  @param mlist    A pointer to mlan_multicast_list structure
+ *
+ *  @return         Number of multicast addresses
+ */
+static inline int woal_copy_nan_mcast_addr(mlan_multicast_list *mlist)
+{
+	t_u8 nan_network_addr[6] = {0x51, 0x6f, 0x9a, 0x01, 0, 0};
+	ENTER();
+
+	woal_copy_mc_addr(mlist, nan_network_addr);
+
+	LEAVE();
+	return mlist->num_multicast_addr;
+}
+
+/**
  *  @brief Copy multicast table
  *
  *  @param mlist    A pointer to mlan_multicast_list structure
@@ -400,6 +418,9 @@ static int woal_copy_all_mc_list(moal_handle *handle,
 					woal_copy_mcast_addr(mlist,
 							     priv->netdev);
 			}
+			// NAN mcast addr supposed to download whatever the
+			// media_connected is
+			woal_copy_nan_mcast_addr(mlist);
 		}
 #endif
 	}
@@ -3405,7 +3426,7 @@ static mlan_status woal_set_wake_on_mdns(moal_handle *handle, t_u8 enable)
 	filter->type = TYPE_BYTE_EQ;
 	filter->repeat = 1;
 	filter->offset = 38;
-	filter->num_bytes = 4;
+	filter->num_byte_seq = 4;
 	moal_memcpy_ext(handle, filter->byte_seq, "\xe0\x00\x00\xfb", 4,
 			sizeof(filter->byte_seq));
 	entry->rpn[2] = RPN_TYPE_AND;

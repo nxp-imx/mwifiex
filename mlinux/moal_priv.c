@@ -3,7 +3,7 @@
  * @brief This file contains standard ioctl functions
  *
  *
- * Copyright 2008-2024 NXP
+ * Copyright 2008-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991

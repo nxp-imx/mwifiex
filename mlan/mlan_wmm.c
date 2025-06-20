@@ -2747,8 +2747,13 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 			}
 #endif
 			priv->user_rxwinsize = priv->add_ba_param.rx_win_size;
-			priv->add_ba_param.tx_amsdu = MTRUE;
-			priv->add_ba_param.rx_amsdu = MTRUE;
+			if (pmadapter->init_para.amsdu_disable) {
+				priv->add_ba_param.tx_amsdu = MFALSE;
+				priv->add_ba_param.rx_amsdu = MFALSE;
+			} else {
+				priv->add_ba_param.tx_amsdu = MTRUE;
+				priv->add_ba_param.rx_amsdu = MTRUE;
+			}
 			memset(priv->adapter, priv->rx_seq, 0xff,
 			       sizeof(priv->rx_seq));
 			wlan_wmm_default_queue_priorities(priv);

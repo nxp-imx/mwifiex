@@ -1651,8 +1651,6 @@ struct _sta_node {
 	IEEEtypes_HTInfo_t HTInfo;
 	/** peer BSSCO_20_40*/
 	IEEEtypes_2040BSSCo_t BSSCO_20_40;
-	/*Extended capability*/
-	IEEEtypes_ExtCap_t ExtCap;
 	/*RSN IE*/
 	IEEEtypes_Generic_t rsn_ie;
 	/**Link ID*/
@@ -1684,6 +1682,10 @@ struct _sta_node {
 	t_u8 vendor_oui[VENDOR_OUI_LEN * MAX_VENDOR_OUI_NUM];
 	/** vendor OUI count */
 	t_u8 vendor_oui_count;
+	/* Support operating class IE */
+	IEEEtypes_Generic_t OperClass;
+	/*Extended capability*/
+	IEEEtypes_ExtCap_t ExtCap;
 };
 
 /** 802.11h State information kept in the 'mlan_adapter' driver structure */
@@ -2072,6 +2074,7 @@ typedef struct _mlan_init_para {
 	t_u32 reject_addba_req;
 	t_u8 disable_11h_tpc;
 	t_u8 tpe_ie_ignore;
+	t_u32 amsdu_disable;
 } mlan_init_para, *pmlan_init_para;
 
 #ifdef SDIO
@@ -3109,7 +3112,7 @@ struct _mlan_adapter {
 	/** LLDE enable/disable */
 	t_u8 llde_enabled;
 	/** LLDE modes 0 - default; 1 - carplay; 2 - gameplay; 3 - sound bar, 4
-	 * � validation, 5- event driven */
+	 * - validation, 5- event driven */
 	t_u8 llde_mode;
 	/** high priority data packet type. 0: All traffic, 1: ping, 2: TCP ACK,
 	 * 4: TCP Data, 8: UDP */
@@ -3125,6 +3128,10 @@ struct _mlan_adapter {
 	/** iPhone device list */
 	t_u8 llde_iphonefilters[MAX_IPHONE_FILTER_ENTRIES *
 				MLAN_MAC_ADDR_LENGTH];
+#ifdef UAP_SUPPORT
+	/** agiled channel switch info */
+	agcs_stats agcs_info;
+#endif /* UAP_SUPPORT */
 };
 
 /** IPv4 ARP request header */
@@ -3997,6 +4004,9 @@ mlan_status wlan_cmd_rxabortcfg_ext(pmlan_private pmpriv,
 mlan_status wlan_cmd_nav_mitigation(pmlan_private pmpriv,
 				    HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				    t_void *pdata_buf);
+mlan_status wlan_cmd_nav_mitigation_hw(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *cmd,
+				       t_u16 cmd_action, t_void *pdata_buf);
 mlan_status wlan_cmd_led_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				t_u16 cmd_action, t_void *pdata_buf);
 mlan_status wlan_ret_rxabortcfg_ext(pmlan_private pmpriv,
@@ -4005,6 +4015,9 @@ mlan_status wlan_ret_rxabortcfg_ext(pmlan_private pmpriv,
 mlan_status wlan_ret_nav_mitigation(pmlan_private pmpriv,
 				    HostCmd_DS_COMMAND *resp,
 				    mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_ret_nav_mitigation_hw(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf);
 mlan_status wlan_ret_led_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				mlan_ioctl_req *pioctl_buf);
 mlan_status wlan_cmd_tx_ampdu_prot_mode(pmlan_private pmpriv,
@@ -4055,6 +4068,8 @@ mlan_status wlan_misc_ioctl_rxabortcfg_ext(pmlan_adapter pmadapter,
 					   pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_nav_mitigation(pmlan_adapter pmadapter,
 					   pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_nav_mitigation_hw(pmlan_adapter pmadapter,
+					      pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_led(pmlan_adapter pmadapter,
 				pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_tx_ampdu_prot_mode(pmlan_adapter pmadapter,
@@ -4528,7 +4543,8 @@ mlan_status wlan_ret_boot_sleep(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 int wlan_add_supported_oper_class_ie(mlan_private *pmpriv, t_u8 **pptlv_out,
 				     t_u8 curr_oper_class);
 mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
-				     t_u8 bw, t_u8 *oper_class);
+				     t_u8 bw, t_u8 *oper_class,
+				     t_u8 *global_oper_class);
 mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 					    t_u8 oper_class, t_u8 bandwidth);
 mlan_status wlan_misc_ioctl_operclass_validation(pmlan_adapter pmadapter,
@@ -4884,6 +4900,12 @@ typedef enum _delay_unit {
 	MSEC,
 	SEC,
 } t_delay_unit;
+
+enum tls_message_id {
+	TLS_HOST_HELLO = 1,
+	TLS_DEVICE_HELLO = 2,
+	TLS_HOST_FINISHED = 3,
+};
 
 /** delay function */
 t_void wlan_delay_func(mlan_adapter *pmadapter, t_u32 delay, t_delay_unit u);

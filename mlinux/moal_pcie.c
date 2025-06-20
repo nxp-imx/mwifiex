@@ -299,9 +299,7 @@ static mlan_status woal_reset_adma(moal_handle *handle)
 	t_u32 value;
 	t_u32 reset_reg = handle->card_info->fw_reset_reg;
 	t_u8 reset_adma_val = 0x97;
-	/* wake up device before set the reset reg */
-	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
-	udelay(100);
+
 	if (handle->ops.write_reg(handle, reset_reg, reset_adma_val) !=
 	    MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Failed to write register.\n");
@@ -492,7 +490,11 @@ perform_init:
 	}
 	if (woal_init_fw(handle)) {
 		PRINTM(MFATAL, "Firmware Init Failed\n");
-		woal_pcie_reg_dbg(handle);
+#ifdef PCIE
+		if (!IS_PCIEAW693(handle->card_type))
+#endif
+			woal_pcie_reg_dbg(handle);
+
 		if (fw_serial_bkp)
 			moal_extflg_set(handle, EXT_FW_SERIAL);
 		goto err_init_fw;
@@ -949,6 +951,11 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 	pcie_service_card *card;
 	moal_handle *handle;
 	moal_handle *ref_handle = NULL;
+#if defined(PCIEAW693)
+	pcie_service_card *ref_card = NULL;
+	t_u32 value;
+	t_u32 count = 0;
+#endif
 
 	ENTER();
 
@@ -984,8 +991,34 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
 	}
+
+#if defined(PCIEAW693)
+	/* WAR to Poll firmware dump flag for 5 seconds */
+	while (count < 50 &&
+	       (handle->fw_dump || (ref_handle && ref_handle->fw_dump))) {
+		woal_sched_timeout(100);
+		count++;
+	}
+
+	// This is just WAR for PRC release
+	/* wake up device before set the reset reg */
+	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
+	mdelay(50);
+
+	/*Disable L1 before start of FLR*/
+	pci_write_config_dword(card->dev, 0x80, 0x40);
+	if (ref_handle)
+		ref_card = (pcie_service_card *)ref_handle->card;
+	if (ref_card)
+		pci_write_config_dword(ref_card->dev, 0x80, 0x40);
+#endif
+
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;
+	if (ref_handle) {
+		ref_handle->surprise_removed = MTRUE;
+		ref_handle->fw_reseting = MTRUE;
+	}
 	// TODO: Can add more chips once the related code has been ported to fw
 	// v18
 	if (IS_PCIE9097(handle->card_type) || IS_PCIE9098(handle->card_type) ||
@@ -995,8 +1028,6 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 
 	woal_do_flr(handle, true, true);
 	if (ref_handle) {
-		ref_handle->surprise_removed = MTRUE;
-		ref_handle->fw_reseting = MTRUE;
 		woal_do_flr(ref_handle, true, true);
 	}
 
@@ -1012,6 +1043,9 @@ static void woal_pcie_reset_done(struct pci_dev *pdev)
 	pcie_service_card *card;
 	moal_handle *handle;
 	moal_handle *ref_handle = NULL;
+#if defined(PCIEAW693)
+	pcie_service_card *ref_card = NULL;
+#endif
 	ENTER();
 
 	card = pci_get_drvdata(pdev);
@@ -1058,6 +1092,17 @@ static void woal_pcie_reset_done(struct pci_dev *pdev)
 	wifi_status = WIFI_STATUS_OK;
 	if (handle)
 		woal_send_auto_recovery_complete_event(handle);
+
+		// This is just WAR for PRC release
+#if defined(PCIEAW693)
+	/*Re-enable L1 before start of FLR*/
+	pci_write_config_dword(card->dev, 0x80, 0x143);
+	if (ref_handle)
+		ref_card = (pcie_service_card *)ref_handle->card;
+	if (ref_card)
+		pci_write_config_dword(ref_card->dev, 0x80, 0x143);
+#endif
+
 	LEAVE();
 }
 #else
@@ -3058,12 +3103,17 @@ static void woal_pcie_work(struct work_struct *work)
 		container_of(work, pcie_service_card, reset_work);
 	moal_handle *handle = NULL;
 	moal_handle *ref_handle = NULL;
+#if defined(PCIEAW693)
+	pcie_service_card *ref_card = NULL;
+	t_u32 value;
+#endif
 	handle = card->handle;
 	if (!handle)
 		return;
 
 	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 
+	woal_send_auto_recovery_start_event(handle);
 	// handle-> mac0 , ref_handle->second mac
 	if (handle->pref_mac) {
 		if (handle->second_mac) {
@@ -3078,6 +3128,20 @@ static void woal_pcie_work(struct work_struct *work)
 			mlan_ioctl(ref_handle->pmlan_adapter, NULL);
 		}
 	}
+	// This is just WAR for PRC release
+#if defined(PCIEAW693)
+	/* wake up device before set the reset reg */
+	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
+	mdelay(50);
+
+	/*Disable L1 state before start of IN-BAND RESET*/
+	pci_write_config_dword(card->dev, 0x80, 0x40);
+	if (ref_handle)
+		ref_card = (pcie_service_card *)ref_handle->card;
+	if (ref_card)
+		pci_write_config_dword(ref_card->dev, 0x80, 0x40);
+#endif
+
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;
 	// TODO: Can add more chips once the related code has been ported to fw
@@ -3122,6 +3186,15 @@ static void woal_pcie_work(struct work_struct *work)
 	card->work_flags = MFALSE;
 	wifi_status = WIFI_STATUS_OK;
 	woal_send_auto_recovery_complete_event(handle);
+
+	// This is just WAR for PRC release
+#if defined(PCIEAW693)
+	/*Re-enable L1 state once IN-BAND RESET is done*/
+	pci_write_config_dword(card->dev, 0x80, 0x143);
+	if (ref_card)
+		pci_write_config_dword(ref_card->dev, 0x80, 0x143);
+#endif
+
 	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }

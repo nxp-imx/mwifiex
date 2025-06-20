@@ -479,6 +479,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->init_para.disable_11h_tpc = pmdevice->disable_11h_tpc;
 	pmadapter->init_para.tpe_ie_ignore = pmdevice->tpe_ie_ignore;
+	pmadapter->init_para.amsdu_disable = pmdevice->amsdu_disable;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
 

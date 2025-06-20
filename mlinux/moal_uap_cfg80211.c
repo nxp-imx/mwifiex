@@ -1867,13 +1867,14 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
-			else
+			else if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
 				sys_config->ht_cap_info =
 					(ht_cap &
 					 (wiphy->bands[IEEE80211_BAND_5GHZ]
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
+			}
 		}
 		PRINTM(MCMND,
 		       "11n=%d, ht_cap=0x%x, channel=%d, bandcfg:chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x\n",

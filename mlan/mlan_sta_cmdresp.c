@@ -3758,6 +3758,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_NAV_MITIGATION_CFG:
 		ret = wlan_ret_nav_mitigation(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_NAV_MITIGATION_HW_CFG:
+		ret = wlan_ret_nav_mitigation_hw(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCmd_CMD_802_11_LED_CONTROL:
 		ret = wlan_ret_led_config(pmpriv, resp, pioctl_buf);
 		break;

@@ -1943,6 +1943,7 @@ static mlan_status wlan_scan_setup_scan_config(
 	if (pmpriv->adapter->ecsa_enable) {
 		t_u8 bandwidth = BW_20MHZ;
 		t_u8 oper_class = 1;
+		t_u8 global_oper_class = 0;
 		t_u32 usr_dot_11n_dev_cap;
 		if (pmpriv->media_connected) {
 			if (pmpriv->config_bands & BAND_A)
@@ -1961,7 +1962,7 @@ static mlan_status wlan_scan_setup_scan_config(
 			wlan_get_curr_oper_class(
 				pmpriv,
 				pmpriv->curr_bss_params.bss_descriptor.channel,
-				bandwidth, &oper_class);
+				bandwidth, &oper_class, &global_oper_class);
 		}
 		wlan_add_supported_oper_class_ie(pmpriv, &ptlv_pos, oper_class);
 	}
@@ -8692,6 +8693,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		t_u8 bandwidth = BW_20MHZ;
 		t_u8 oper_class = 1;
 		t_u32 usr_dot_11n_dev_cap;
+		t_u8 global_oper_class = 0;
 		if (pmpriv->media_connected) {
 			if (pmpriv->config_bands & BAND_A)
 				usr_dot_11n_dev_cap =
@@ -8709,7 +8711,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 			wlan_get_curr_oper_class(
 				pmpriv,
 				pmpriv->curr_bss_params.bss_descriptor.channel,
-				bandwidth, &oper_class);
+				bandwidth, &oper_class, &global_oper_class);
 		}
 		len = wlan_add_supported_oper_class_ie(pmpriv, &tlv,
 						       oper_class);

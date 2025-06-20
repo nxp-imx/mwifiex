@@ -1558,6 +1558,16 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_IMD3_CAL_END\n");
 		break;
 
+	case EVENT_EMERGENCY_TEMP_REACHED:
+		PRINTM(MEVENT, "EVENT: EVENT_EMERGENCY_TEMP_REACHED\n");
+
+		pevent->event_id = MLAN_EVENT_ID_EMERGENCY_TEMP_REACHED;
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
+		wlan_recv_event(pmpriv, pevent->event_id, pevent);
+		break;
 	case EVENT_DPD_CAL:
 		wlan_process_dpd_cal_event(pmpriv, pmbuf);
 		break;
@@ -1573,6 +1583,13 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		pmpriv->rx_quality = wlan_le16_to_cpu(cfg_cmd->rx_quality);
 		break;
 	}
+#if defined(PCIE) || defined(SDIO)
+	case EVENT_FW_IN_BAND_RESET:
+		DBG_HEXDUMP(MCMD_D, "EVENT_FW_IN_BAND_RESET",
+			    pmbuf->pbuf + pmbuf->data_offset, pmbuf->data_len);
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+		break;
+#endif
 	case EVENT_CHANNEL_SWITCH_REGINFO:
 		PRINTM(MEVENT, "EVENT: Channel Switch Reginfo (%#x)\n",
 		       eventcause);

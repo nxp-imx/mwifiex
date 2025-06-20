@@ -7399,6 +7399,20 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_NAV_MITIGATION_CFG {
 	t_u16 stop_cnt;
 } MLAN_PACK_END HostCmd_DS_CMD_NAV_MITIGATION_CFG;
 
+/** HostCmd_CMD_NAV_MITIGATION_HW_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_NavMitigationHw {
+	/** Action */
+	t_u16 action;
+	/** start/stop nav mitigation */
+	t_u16 start_nav_mitigation;
+	/** Duration value in us to set as threshold in ACT_SET action */
+	t_u16 duration_threshold;
+	/** HOnoring duration threshold for NAV mitigation */
+	t_u16 honoring_duration;
+	/** TxOP duration threshold for NAV mitigation */
+	t_u16 txop_duration_threshold;
+} MLAN_PACK_END HostCmd_DS_CMD_NavMitigationHwCfg;
+
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_LED_CFG {
 	t_u16 action;
 	t_u8 enable;
@@ -7536,7 +7550,7 @@ typedef MLAN_PACK_START struct _HostCmd_CMD_802_11_STA_TX_RATE {
 
 	/** actual number of entries in array */
 	t_u16 num_entries;
-} HostCmd_CMD_802_11_STA_TX_RATE;
+} MLAN_PACK_END HostCmd_CMD_802_11_STA_TX_RATE;
 
 /** HostCmd_MCLIENT_SCHEDULE_CFG */
 typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
@@ -7548,7 +7562,42 @@ typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
 
 	/** enable PS mode change reporting */
 	t_u8 ps_mode_change_report;
-} HostCmd_MCLIENT_SCHEDULE_CFG;
+} MLAN_PACK_END HostCmd_MCLIENT_SCHEDULE_CFG;
+
+#ifdef UAP_SUPPORT
+/** HostCmd_DS_AGCS_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_AGCS_CFG {
+	/** action - get/set */
+	t_u16 action;
+
+	/* BIT0 - Enable Agile channel switching in CarPlay
+	 * BIT1 - no specific interference type check, but only check Tx or Rx
+	 * throughput drop
+	 */
+	t_u32 features;
+
+	/* Adjust the weight of TX/RX average packet count */
+	t_u8 avg_threshold_percentage;
+
+	/* The conservative amount of rx packet per second */
+	t_u16 rx_min_pkt_count;
+
+	/* The conservative amount of tx packet per second */
+	t_u16 tx_min_pkt_count;
+
+	/* Unit is ms */
+	t_u32 sample_time;
+
+	/* The latest sampled windows size */
+	t_u8 sample_count_window;
+
+	/* Continuous drop rapidly times */
+	t_u8 continuous_hit_count;
+
+	/* Make sure a reasonable rate can be sustained. */
+	t_s8 nf_margin;
+} MLAN_PACK_END HostCmd_DS_AGCS_CFG;
+#endif /* UAP_SUPPORT */
 
 /** HostCmd_DS_COMMAND */
 typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
@@ -7809,6 +7858,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_CMD_OFDM_DESENSE_CFG ofdm_desense_cfg;
 		HostCmd_DS_CMD_RX_ABORT_CFG_EXT rx_abort_cfg_ext;
 		HostCmd_DS_CMD_NAV_MITIGATION_CFG nav_mitigation;
+		HostCmd_DS_CMD_NavMitigationHwCfg nav_mitigation_hw;
 		HostCmd_DS_CMD_LED_CFG ledcntrcfg;
 		HostCmd_DS_CMD_TX_AMPDU_PROT_MODE tx_ampdu_prot_mode;
 		HostCmd_DS_CMD_RATE_ADAPT_CFG rate_adapt_cfg;
@@ -7849,6 +7899,10 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Auth, (Re)Assoc timeout configuration */
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
+#ifdef UAP_SUPPORT
+		/** Agiled channel switch configuration */
+		HostCmd_DS_AGCS_CFG agcs_cfg;
+#endif /* UAP_SUPPORT */
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 
@@ -7944,6 +7998,26 @@ typedef enum _BLOCK_6G_CHAN_SWITCH_REASON {
 	BLOCK_6G_CHAN_SWITCH_REASON_STA_MMH = 3,
 	BLOCK_6G_CHAN_SWITCH_REASON_STA_RX_ECSA = 4,
 } BLOCK_6G_CHAN_SWITCH_REASON;
+
+#ifdef UAP_SUPPORT
+/** FW trigger the agiled channel switch */
+#define AGCS_TYPE_CS_TRIGGER 0
+/** FW send current channel statistics */
+#define AGCS_TYPE_STATS_REPORT 1
+
+/* Fw agcs statistics structure */
+typedef MLAN_PACK_START struct _agcs_stats_info_t {
+	/** This is STATS_REPORT or CS_TRIGGER */
+	t_u16 type;
+	/** Channel utilization in the last 100ms */
+	t_u16 ch_load;
+	/** noise in the last 100ms */
+	t_s16 noise;
+	/** nf_threshold is used to check the noise floor of candidate channels
+	 */
+	t_s16 nf_threshold;
+} MLAN_PACK_END agcs_stats_info_t;
+#endif /* UAP_SUPPORT */
 
 #ifdef PRAGMA_PACK
 #pragma pack(pop)

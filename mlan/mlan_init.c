@@ -1584,6 +1584,7 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 			goto done;
 		}
 	}
+
 	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693) {
 		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
 				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);

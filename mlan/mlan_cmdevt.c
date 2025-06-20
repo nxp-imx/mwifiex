@@ -1472,6 +1472,7 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 	       sec, usec, wlan_hostcmd_get_name(cmd_code), cmd_code,
 	       wlan_le16_to_cpu(*(t_u16 *)((t_u8 *)pcmd + S_DS_GEN)), cmd_size,
 	       wlan_le16_to_cpu(pcmd->seq_num), timeout);
+
 	DBG_HEXDUMP(MCMD_D, "DNLD_CMD", (t_u8 *)pcmd, cmd_size);
 
 #if defined(SDIO) || defined(PCIE)
@@ -2358,14 +2359,20 @@ done:
  *  @return             N/A
  */
 static void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter,
-					       t_u16 cmd_no)
+					       t_u16 cmd_no,
+					       HostCmd_DS_COMMAND *rsp)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
+
 	ENTER();
+
 	PRINTM(MERROR, "CMD_RESP: 0x%x block in pre_asleep!\n", cmd_no);
+
 	wlan_request_cmd_lock(pmadapter);
+
 	pcmd_node = pmadapter->curr_cmd;
 	pmadapter->curr_cmd = MNULL;
+
 	if (pcmd_node) {
 		if (!IS_USB(pmadapter->card_type)) {
 			pcmd_node->cmdbuf->data_offset +=
@@ -2381,6 +2388,7 @@ static void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter,
 		}
 		wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node, MFALSE);
 	}
+
 	wlan_release_cmd_lock(pmadapter);
 	LEAVE();
 }
@@ -2441,6 +2449,7 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 
 	resp = (HostCmd_DS_COMMAND *)(pmadapter->curr_cmd->respbuf->pbuf +
 				      pmadapter->curr_cmd->respbuf->data_offset);
+
 	orig_cmdresp_no = wlan_le16_to_cpu(resp->command);
 	cmdresp_no = (orig_cmdresp_no & HostCmd_CMD_ID_MASK);
 	if (pmadapter->curr_cmd->cmd_no != cmdresp_no) {
@@ -2546,7 +2555,7 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		if (!IS_USB(pmadapter->card_type) && pmadapter->curr_cmd &&
 		    cmdresp_result == HostCmd_RESULT_PRE_ASLEEP) {
 			wlan_handle_cmd_error_in_pre_aleep(pmadapter,
-							   cmdresp_no);
+							   cmdresp_no, resp);
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -2560,7 +2569,7 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		if (!IS_USB(pmadapter->card_type) && pmadapter->curr_cmd &&
 		    cmdresp_result == HostCmd_RESULT_PRE_ASLEEP) {
 			wlan_handle_cmd_error_in_pre_aleep(pmadapter,
-							   cmdresp_no);
+							   cmdresp_no, resp);
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -2666,6 +2675,9 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		   (HostCmd_CMD_GET_HW_SPEC == cmdresp_no)) {
 		pmadapter->hw_status = WlanHardwareStatusGetHwSpecdone;
 	}
+#if defined(PCIEAW693)
+#endif
+
 done:
 	LEAVE();
 	return ret;
@@ -5328,6 +5340,7 @@ mlan_status wlan_adapter_get_hw_spec(pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+
 	/** DPD data dnld cmd prepare */
 	if ((pmadapter->pdpd_data) && (pmadapter->dpd_data_len > 0)) {
 		ret = wlan_process_hostcmd_cfg(priv, CFG_TYPE_DPDFILE,
@@ -10434,6 +10447,47 @@ mlan_status wlan_cmd_nav_mitigation(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function prepares command of HW based nav mitigation
+ *
+ *  @param pmpriv      A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_nav_mitigation_hw(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *cmd,
+				       t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_CMD_NavMitigationHwCfg *cfg_cmd =
+		(HostCmd_DS_CMD_NavMitigationHwCfg *)&cmd->params
+			.nav_mitigation_hw;
+	mlan_ds_misc_nav_mitigation_hw *cfg =
+		(mlan_ds_misc_nav_mitigation_hw *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_NAV_MITIGATION_HW_CFG);
+	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_CMD_NavMitigationHwCfg) +
+				     S_DS_GEN);
+	cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		cfg_cmd->start_nav_mitigation =
+			wlan_cpu_to_le16(cfg->start_nav_mitigation);
+		cfg_cmd->duration_threshold =
+			wlan_cpu_to_le16(cfg->duration_threshold);
+		cfg_cmd->honoring_duration =
+			wlan_cpu_to_le16(cfg->honoring_duration);
+		cfg_cmd->txop_duration_threshold =
+			wlan_cpu_to_le16(cfg->txop_duration_threshold);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command of LED config parameter
  *
  *  @param pmpriv      A pointer to mlan_private structure
@@ -10610,6 +10664,41 @@ mlan_status wlan_ret_nav_mitigation(pmlan_private pmpriv,
 			wlan_le16_to_cpu(cfg_cmd->detect_cnt);
 		misc_cfg->param.nav_mitigation.stop_cnt =
 			wlan_le16_to_cpu(cfg_cmd->stop_cnt);
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of HW based nav mitigation
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_nav_mitigation_hw(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CMD_NavMitigationHwCfg *cfg_cmd =
+		(HostCmd_DS_CMD_NavMitigationHwCfg *)&resp->params
+			.nav_mitigation_hw;
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.nav_mitigation_hw.start_nav_mitigation =
+			wlan_le16_to_cpu(cfg_cmd->start_nav_mitigation);
+		misc_cfg->param.nav_mitigation_hw.duration_threshold =
+			wlan_le16_to_cpu(cfg_cmd->duration_threshold);
+		misc_cfg->param.nav_mitigation_hw.honoring_duration =
+			wlan_le16_to_cpu(cfg_cmd->honoring_duration);
+		misc_cfg->param.nav_mitigation_hw.txop_duration_threshold =
+			wlan_le16_to_cpu(cfg_cmd->txop_duration_threshold);
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

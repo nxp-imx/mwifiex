@@ -1046,6 +1046,9 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 		}
 		PRINTM(MCMND, "org_drv_mode=0x%x drv_mode=0x%x\n", drv_mode,
 		       handle->params.drv_mode);
+
+		moal_memcpy_ext(handle, &(handle->hw_info), phw,
+				sizeof(mlan_hw_info), sizeof(mlan_hw_info));
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -3230,6 +3233,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 	addba_timeout_event *evtbuf = NULL;
 
 	t_u8 auto_fw_dump = MFALSE;
+	static int fw_reset_cnt = 0;
+	t_u8 fw_reset_time = 0;
 	ENTER();
 	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
 		if (!handle->is_fw_dump_timer_set) {
@@ -3424,6 +3429,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			priv->phandle->scan_time_start.time_usec = 0;
 		}
 
+		moal_agcs_trans_state(priv, AGCS_STATE_SCAN_REPORT);
 		break;
 
 	case MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM:
@@ -3786,6 +3792,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				     pmevent->event_len +
 					     strlen(FW_DEBUG_INFO) + 1);
 		break;
+
 	case MLAN_EVENT_ID_FW_WMM_CONFIG_CHANGE:
 #ifdef STA_WEXT
 		if (IS_STA_WEXT(cfg80211_wext))
@@ -4269,6 +4276,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 		}
 #endif
+#ifdef UAP_SUPPORT
+		moal_agcs_trans_state(priv, AGCS_STATE_COMPLETE);
+#endif /* UAP_SUPPORT */
 		break;
 	case MLAN_EVENT_ID_FW_STOP_TX:
 		woal_stop_queue(priv->netdev);
@@ -5316,6 +5326,25 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			       "Ignoring the Channel Switch Reg Info Event\n");
 #endif
 		break;
+	case MLAN_EVENT_ID_EMERGENCY_TEMP_REACHED:
+		fw_reset_time = (t_u8)pmevent->event_buf[4];
+		if (fw_reset_time <= 0)
+			fw_reset_time = 60;
+		fw_reset_cnt++;
+		PRINTM(MEVENT,
+		       "EMERGENCY TEMPRETURE REACHED: %d times...Wait for %d sec to cool down radio!!\n",
+		       fw_reset_cnt, fw_reset_time);
+
+		queue_delayed_work(priv->phandle->evt_workqueue,
+				   &priv->phandle->emergency_reset_work,
+				   msecs_to_jiffies(fw_reset_time * 1000));
+
+		break;
+#ifdef UAP_SUPPORT
+	case MLAN_EVENT_ID_FW_AGCS_TRIGGER: {
+		woal_agcs_event(priv, (pagcs_event)pmevent->event_buf);
+	} break;
+#endif /* UAP_SUPPORT */
 	default:
 		break;
 	}

@@ -6812,6 +6812,7 @@ static int woal_priv_warmreset(moal_private *priv, t_u8 *respbuf,
 	moal_handle *ref_handle;
 	moal_private *ref_priv;
 	ENTER();
+
 	ret = woal_pre_warmreset(priv);
 	if (ret)
 		goto done;
@@ -13316,6 +13317,556 @@ void woal_process_chan_event(moal_private *priv, t_u8 type, t_u8 channel,
 		}
 	}
 }
+
+#ifdef UAP_SUPPORT
+/**
+ *  @brief This function prepare agcs event
+ *
+ *  @param priv pointer to the moal_private structure.
+ *
+ *  @return         N/A
+ */
+void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event)
+{
+	struct woal_event *evt;
+	unsigned long flags;
+	moal_handle *handle = priv->phandle;
+
+	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
+	if (evt) {
+		evt->priv = priv;
+		evt->type = WOAL_EVENT_AGCS;
+		evt->evt.event_len = sizeof(agcs_event);
+		moal_memcpy_ext(priv->phandle, &evt->agcs_evt, pacs_start_event,
+				evt->evt.event_len, sizeof(agcs_event));
+		INIT_LIST_HEAD(&evt->link);
+		spin_lock_irqsave(&handle->evt_lock, flags);
+		list_add_tail(&evt->link, &handle->evt_queue);
+		spin_unlock_irqrestore(&handle->evt_lock, flags);
+		queue_work(handle->evt_workqueue, &handle->evt_work);
+	}
+	// coverity[misra_c_2012_rule_22_1_violation:SUPPRESS]
+	// coverity[leaked_storage:SUPPRESS]
+}
+
+/**
+ * @brief               Print AGCS state machine
+ *
+ * @param state         AGCS state
+ *
+ *  @return             String to be printed
+ *
+ */
+static char *moal_agcs_print_state(agcs_state state)
+{
+	switch (state) {
+	case AGCS_STATE_IDLE:
+		return "AGCS_STATE_IDLE";
+	case AGCS_STATE_START:
+		return "AGCS_STATE_START";
+	case AGCS_STATE_TRIGGERED:
+		return "AGCS_STATE_TRIGGERED";
+	case AGCS_STATE_IN_SCAN:
+		return "AGCS_STATE_IN_SCAN";
+	case AGCS_STATE_SCAN_REPORT:
+		return "AGCS_STATE_SCAN_REPORT";
+	case AGCS_STATE_SCAN_DONE:
+		return "AGCS_STATE_SCAN_DONE";
+	case AGCS_STATE_CSA_START:
+		return "AGCS_STATE_CSA_START";
+	case AGCS_STATE_COMPLETE:
+		return "AGCS_STATE_COMPLETE";
+	default:
+		break;
+	}
+	return "UNKNOWN STATE";
+}
+
+/**
+ * @brief               AGCS transfer state machine
+ *
+ * @param phandle       Pointer to moal_handle structure
+ * @param next_state    Transer to next state
+ *
+ *  @return             MLAN_STATUS_SUCCESS -- success, otherwise fail
+ *
+ */
+mlan_status moal_agcs_trans_state(moal_private *priv, agcs_state next_state)
+{
+	moal_handle *phandle = NULL;
+	agcs_state cur_state = AGCS_STATE_IDLE;
+	mlan_status ret = MLAN_STATUS_FAILURE;
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		return ret;
+	}
+	phandle = priv->phandle;
+	cur_state = phandle->agcs_state;
+	switch (next_state) {
+	case AGCS_STATE_IDLE:
+		if ((phandle->agcs_state < AGCS_STATE_TRIGGERED) ||
+		    (phandle->agcs_state >= AGCS_STATE_COMPLETE)) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_START:
+		if ((phandle->agcs_state < AGCS_STATE_TRIGGERED) ||
+		    (phandle->agcs_state >= AGCS_STATE_COMPLETE)) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_TRIGGERED:
+		if ((phandle->agcs_state == AGCS_STATE_START) ||
+		    (phandle->agcs_state == AGCS_STATE_IN_SCAN) ||
+		    (phandle->agcs_state == AGCS_STATE_SCAN_REPORT)) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_IN_SCAN:
+		if (phandle->agcs_state == AGCS_STATE_TRIGGERED) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_SCAN_REPORT:
+		if ((phandle->agcs_state == AGCS_STATE_IN_SCAN) ||
+		    (phandle->agcs_state == AGCS_STATE_SCAN_REPORT)) {
+			pagcs_event pacs_start_event = NULL;
+
+			phandle->agcs_state = next_state;
+			pacs_start_event =
+				kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
+			if (pacs_start_event) {
+				pacs_start_event->type =
+					AGCS_EVENT_TYPE_SEL_CHANNEL;
+				woal_agcs_event(priv, pacs_start_event);
+				kfree(pacs_start_event);
+			}
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_SCAN_DONE:
+		if (phandle->agcs_state == AGCS_STATE_SCAN_REPORT) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_CSA_START:
+		if (phandle->agcs_state == AGCS_STATE_SCAN_DONE) {
+			phandle->agcs_state = next_state;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	case AGCS_STATE_COMPLETE:
+		if ((phandle->agcs_state == AGCS_STATE_SCAN_DONE) ||
+		    (phandle->agcs_state == AGCS_STATE_CSA_START)) {
+			phandle->agcs_state = AGCS_STATE_START;
+			ret = MLAN_STATUS_SUCCESS;
+		}
+		break;
+	default:
+		break;
+	}
+	if (phandle->agcs_state != AGCS_STATE_IDLE)
+		PRINTM(MEVENT, "AGCS trans state: (%s) -> (%s) , ret=%d\n",
+		       moal_agcs_print_state(cur_state),
+		       moal_agcs_print_state(next_state), ret);
+	return ret;
+}
+
+/**
+ * @brief               Process agiled cs event
+ *
+ * @param priv          a pointer to moal_private structure
+ * @param pstart_event	a pointer to agcs_stats structure
+ *
+ * @return              N/A
+ *
+ */
+void woal_process_agcs_event(moal_private *priv, pagcs_stats pstart_event)
+{
+	moal_private *pmpriv = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	chan_band_info chaninfo;
+	t_u8 chidx, next_ch;
+	moal_handle *phandle = NULL;
+	wlan_user_scan_cfg *scan_cfg = NULL;
+	wlan_user_scan_chan *pchan_list;
+
+	memset(&chaninfo, 0, sizeof(chaninfo));
+
+	pmpriv = woal_get_active_uap_interface(priv->phandle);
+	if (!pmpriv) {
+		phandle = (moal_handle *)priv->phandle->pref_mac;
+		pmpriv = woal_get_active_uap_interface(phandle);
+	}
+	if (pmpriv) {
+		phandle = pmpriv->phandle;
+		if (!phandle) {
+			PRINTM(MERROR, "moal_handle is NULL\n");
+			status = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		status = moal_agcs_trans_state(priv, AGCS_STATE_TRIGGERED);
+		if (status == MLAN_STATUS_FAILURE) {
+			PRINTM(MERROR,
+			       "agcs state failed(AGCS_STATE_TRIGGERED)\n");
+			goto done;
+		}
+		pchan_list = phandle->agcs_info.chan_list;
+
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_set_get_ap_channel(pmpriv, MLAN_ACT_GET,
+					    MOAL_IOCTL_WAIT, &chaninfo)) {
+			PRINTM(MERROR, "Fail to get ap channel \n");
+			status = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
+		/* select one channel */
+		scan_cfg = kzalloc(sizeof(wlan_user_scan_cfg), GFP_ATOMIC);
+		if (scan_cfg == NULL) {
+			PRINTM(MERROR, "Fail to allocate scan_cfg buffer\n");
+			status = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
+		next_ch = 0;
+		chidx = 0;
+		if (pstart_event->all_sta_ecs) {
+			/* If all connected STAs support ECS, channel switch to
+			 * diff operating class */
+			if ((pstart_event->all_sta_6g) &&
+			    (priv->phandle->hw_info.fw_cap_ext &
+			     FW_CAPINFO_EXT_6G)) {
+				/* If all connected STAs support 6g, switch to
+				 * diff band(5g<->6g) */
+				if (chaninfo.bandcfg.chanBand == BAND_6GHZ) {
+					for (chidx = 0, next_ch = 0;
+					     (pchan_list[chidx].chan_number !=
+					      0) &&
+					     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+					     chidx++) {
+						if (pchan_list[chidx]
+							    .radio_type ==
+						    BAND_5GHZ) {
+							moal_memcpy_ext(
+								phandle,
+								(t_void *)&scan_cfg
+									->chan_list
+										[next_ch],
+								(const t_void
+									 *)&pchan_list
+									[chidx],
+								sizeof(wlan_user_scan_chan),
+								sizeof(wlan_user_scan_chan));
+							next_ch++;
+						}
+					}
+				} else {
+					for (chidx = 0, next_ch = 0;
+					     (pchan_list[chidx].chan_number !=
+					      0) &&
+					     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+					     chidx++) {
+						if (pchan_list[chidx]
+							    .radio_type ==
+						    BAND_6GHZ) {
+							moal_memcpy_ext(
+								phandle,
+								(t_void *)&scan_cfg
+									->chan_list
+										[next_ch],
+								(const t_void
+									 *)&pchan_list
+									[chidx],
+								sizeof(wlan_user_scan_chan),
+								sizeof(wlan_user_scan_chan));
+							next_ch++;
+						}
+					}
+				}
+			} else {
+				/* switch to diff operating class(upper 5g <->
+				 * lower 5g) */
+				if (chaninfo.channel < 149) {
+					for (chidx = 0, next_ch = 0;
+					     (pchan_list[chidx].chan_number !=
+					      0) &&
+					     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+					     chidx++) {
+						if ((pchan_list[chidx]
+							     .radio_type ==
+						     BAND_5GHZ) &&
+						    (pchan_list[chidx]
+							     .chan_number >=
+						     149)) {
+							moal_memcpy_ext(
+								phandle,
+								(t_void *)&scan_cfg
+									->chan_list
+										[next_ch],
+								(const t_void
+									 *)&pchan_list
+									[chidx],
+								sizeof(wlan_user_scan_chan),
+								sizeof(wlan_user_scan_chan));
+							next_ch++;
+						}
+					}
+				} else {
+					for (chidx = 0, next_ch = 0;
+					     (pchan_list[chidx].chan_number !=
+					      0) &&
+					     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+					     chidx++) {
+						if ((pchan_list[chidx]
+							     .radio_type ==
+						     BAND_5GHZ) &&
+						    (pchan_list[chidx]
+							     .chan_number <
+						     149)) {
+							moal_memcpy_ext(
+								phandle,
+								(t_void *)&scan_cfg
+									->chan_list
+										[next_ch],
+								(const t_void
+									 *)&pchan_list
+									[chidx],
+								sizeof(wlan_user_scan_chan),
+								sizeof(wlan_user_scan_chan));
+							next_ch++;
+						}
+					}
+				}
+			}
+		} else {
+			/* channel switch to same operating class */
+			if (chaninfo.channel < 14) {
+				for (chidx = 0, next_ch = 0;
+				     (pchan_list[chidx].chan_number != 0) &&
+				     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+				     chidx++) {
+					if ((pchan_list[chidx].radio_type ==
+					     BAND_2GHZ) &&
+					    (chaninfo.channel !=
+					     pchan_list[chidx].chan_number)) {
+						moal_memcpy_ext(
+							phandle,
+							(t_void *)&scan_cfg
+								->chan_list
+									[next_ch],
+							(const t_void
+								 *)&pchan_list
+								[chidx],
+							sizeof(wlan_user_scan_chan),
+							sizeof(wlan_user_scan_chan));
+						next_ch++;
+					}
+				}
+			} else if (chaninfo.channel < 149) {
+				/* lower 5g channels */
+				for (chidx = 0, next_ch = 0;
+				     (pchan_list[chidx].chan_number != 0) &&
+				     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+				     chidx++) {
+					if ((pchan_list[chidx].radio_type ==
+					     BAND_5GHZ) &&
+					    (pchan_list[chidx].chan_number <
+					     149) &&
+					    (chaninfo.channel !=
+					     pchan_list[chidx].chan_number)) {
+						moal_memcpy_ext(
+							phandle,
+							(t_void *)&scan_cfg
+								->chan_list
+									[next_ch],
+							(const t_void
+								 *)&pchan_list
+								[chidx],
+							sizeof(wlan_user_scan_chan),
+							sizeof(wlan_user_scan_chan));
+						next_ch++;
+					}
+				}
+			} else {
+				/* upper 5g channels */
+				for (chidx = 0, next_ch = 0;
+				     (pchan_list[chidx].chan_number != 0) &&
+				     (chidx < WLAN_USER_SCAN_CHAN_MAX);
+				     chidx++) {
+					if ((pchan_list[chidx].radio_type ==
+					     BAND_5GHZ) &&
+					    (pchan_list[chidx].chan_number >=
+					     149) &&
+					    (chaninfo.channel !=
+					     pchan_list[chidx].chan_number)) {
+						moal_memcpy_ext(
+							phandle,
+							(t_void *)&scan_cfg
+								->chan_list
+									[next_ch],
+							(const t_void
+								 *)&pchan_list
+								[chidx],
+							sizeof(wlan_user_scan_chan),
+							sizeof(wlan_user_scan_chan));
+						next_ch++;
+					}
+				}
+			}
+		}
+
+		if (scan_cfg->chan_list[0].chan_number == 0) {
+			PRINTM(MERROR, "Fail to select channel\n");
+			status = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		/** scan type: 0 legacy, 1: enhance scan*/
+		scan_cfg->ext_scan_type = EXT_SCAN_ENHANCE;
+		phandle->agcs_num_in_chan_stats = next_ch;
+		/* Call for scan */
+		status = woal_request_userscan(priv, MOAL_NO_WAIT, scan_cfg);
+		if (status == MLAN_STATUS_FAILURE) {
+			PRINTM(MERROR,
+			       "AGCS request the scan of candidate channel list failed\n");
+		}
+		status = moal_agcs_trans_state(priv, AGCS_STATE_IN_SCAN);
+		if (status == MLAN_STATUS_FAILURE) {
+			PRINTM(MERROR,
+			       "agcs state failed(AGCS_STATE_IN_SCAN)\n");
+			goto done;
+		}
+	}
+
+done:
+	if (scan_cfg)
+		kfree(scan_cfg);
+}
+
+/**
+ * @brief               Process agiled cs event to select channel and switch
+ *
+ * @param priv          a pointer to moal_private structure
+ * @param pstart_event	a pointer to agcs_stats structure
+ *
+ * @return              N/A
+ *
+ */
+void woal_process_ch_sel_and_switch(moal_private *priv, pagcs_event pevent)
+{
+	moal_handle *handle = NULL;
+	mlan_scan_resp scan_resp;
+	ChanStatistics_t *pchan_stats, *pbest_chan_stats;
+	int i;
+	t_u16 best_ch_load = 0;
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		return;
+	}
+	handle = priv->phandle;
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_scan_table(priv, MOAL_NO_WAIT, &scan_resp)) {
+		PRINTM(MERROR, "AGCS get scan table failed!\n");
+		return;
+	}
+
+	if (scan_resp.pchan_stats != NULL) {
+		pbest_chan_stats = pchan_stats =
+			(ChanStatistics_t *)scan_resp.pchan_stats;
+
+		if (scan_resp.num_in_chan_stats <
+		    handle->agcs_num_in_chan_stats) {
+			PRINTM(MMSG,
+			       "AGCS there are still channels that have not been scanned.\n");
+			return;
+		}
+		if (MLAN_STATUS_SUCCESS !=
+		    moal_agcs_trans_state(priv, AGCS_STATE_SCAN_DONE)) {
+			PRINTM(MERROR,
+			       "agcs state failed(AGCS_STATE_SCAN_DONE)\n");
+			return;
+		}
+
+		for (i = 0; i < (int)scan_resp.num_in_chan_stats; i++) {
+			if (pchan_stats[i].cca_scan_duration) {
+				if (pbest_chan_stats->noise >
+				    pchan_stats[i].noise) {
+					pbest_chan_stats = &pchan_stats[i];
+				}
+			}
+		}
+		if (pbest_chan_stats->cca_scan_duration) {
+			best_ch_load = pbest_chan_stats->cca_busy_duration *
+				       100 /
+				       pbest_chan_stats->cca_scan_duration;
+		}
+		/* (NF_newChannel < NF_threshold) && (channelLoad_newChannel <
+		 * ChLoad_TH%) */
+		if ((pbest_chan_stats->noise < pevent->stats.nf_threshold) &&
+		    (best_ch_load <
+		     handle->agcs_info.chload_threshold_percentage)) {
+			chan_band_info chaninfo;
+			t_u8 band_width = CHANNEL_BW_20MHZ;
+			t_u8 new_oper_class = 0;
+
+			memset(&chaninfo, 0, sizeof(chaninfo));
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_set_get_ap_channel(priv, MLAN_ACT_GET,
+						    MOAL_IOCTL_WAIT,
+						    &chaninfo)) {
+				PRINTM(MERROR, "Fail to get ap channel \n");
+				return;
+			}
+			switch (chaninfo.bandcfg.chanWidth) {
+			case CHAN_BW_40MHZ:
+				if (chaninfo.bandcfg.chan2Offset ==
+				    SEC_CHAN_BELOW)
+					band_width = CHANNEL_BW_40MHZ_BELOW;
+				else if (chaninfo.bandcfg.chan2Offset ==
+					 SEC_CHAN_ABOVE)
+					band_width = CHANNEL_BW_40MHZ_ABOVE;
+				if (pbest_chan_stats->bandcfg.chanBand ==
+				    BAND_6GHZ)
+					new_oper_class = 132;
+				break;
+			case CHAN_BW_80MHZ:
+				band_width = CHANNEL_BW_80MHZ;
+				if (pbest_chan_stats->bandcfg.chanBand ==
+				    BAND_6GHZ)
+					new_oper_class = 133;
+				break;
+			default:
+				band_width = CHANNEL_BW_20MHZ;
+				if (pbest_chan_stats->bandcfg.chanBand ==
+				    BAND_6GHZ)
+					new_oper_class = 131;
+				break;
+			}
+
+			moal_agcs_trans_state(priv, AGCS_STATE_CSA_START);
+			woal_channel_switch(priv, MTRUE, new_oper_class,
+					    pbest_chan_stats->chan_num,
+					    handle->agcs_info.csa_cnt,
+					    pbest_chan_stats->bandcfg.chanBand,
+					    band_width, MTRUE);
+		} else {
+			moal_agcs_trans_state(priv, AGCS_STATE_COMPLETE);
+			PRINTM(MEVENT,
+			       "AGCS no channel switch NF_newChannel(%d) < NF_threshold(%d) && chload_newChannel(%d) < ChLoad_TH(%d)\n",
+			       pbest_chan_stats->noise,
+			       pevent->stats.nf_threshold, best_ch_load,
+			       handle->agcs_info.chload_threshold_percentage);
+		}
+	}
+}
+#endif /* UAP_SUPPORT */
 
 /**
  * @brief               check if channel under nop
@@ -20128,6 +20679,103 @@ done:
 }
 
 /**
+ *  @brief Set/Get NAV mitigation HW based config parameters
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_nav_mitigation_hw(moal_private *priv, t_u8 *respbuf,
+				       t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[4] = {0};
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_NAV_MITIGATION_HW);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_NAV_MITIGATION_HW;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len > 4 ||
+		    (user_data_len == 1 && data[0] != MFALSE)) {
+			PRINTM(MERROR, "Invalid number of args!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
+		misc->param.nav_mitigation_hw.start_nav_mitigation = data[0];
+		if (data[0] == MTRUE) {
+			PRINTM(MERROR, "Value set!\n");
+			misc->param.nav_mitigation_hw.duration_threshold =
+				data[1];
+			misc->param.nav_mitigation_hw.honoring_duration =
+				data[2];
+			misc->param.nav_mitigation_hw.txop_duration_threshold =
+				data[3];
+		} else {
+			PRINTM(MERROR, "Value not set!\n");
+			misc->param.nav_mitigation_hw.duration_threshold = 0;
+			misc->param.nav_mitigation_hw.honoring_duration = 0;
+			misc->param.nav_mitigation_hw.txop_duration_threshold =
+				0;
+		}
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (req->action == MLAN_ACT_GET) {
+		data[0] = misc->param.nav_mitigation_hw.start_nav_mitigation;
+		data[1] = misc->param.nav_mitigation_hw.duration_threshold;
+		data[2] = misc->param.nav_mitigation_hw.honoring_duration;
+		data[3] = misc->param.nav_mitigation_hw.txop_duration_threshold;
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
+				sizeof(data), respbuflen);
+	}
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set/Get LED config parameters
  *
  *  @param priv         A pointer to moal_private structure
@@ -21111,6 +21759,254 @@ static int woal_priv_get_uuid(moal_private *priv, t_u8 *respbuf,
 	return ret;
 }
 
+#ifdef UAP_SUPPORT
+
+/* Adjust the weight of TX/RX average packet count percentage */
+#define AGCS_PARAMS_AVG_THR_PERCENT 50
+/* The conservative amount of rx packet per second */
+#define AGCS_PARAMS_RX_MIN_GPKTCNT 850
+/* The conservative amount of tx packet per second */
+#define AGCS_PARAMS_TX_MIN_GPKTCNT 430
+/* Check current channel throughput/noise periodic, unit is ms */
+#define AGCS_PARAMS_SAMPLE_TIME 500
+/* The latest sampled windows size */
+#define AGCS_PARAMS_SAMPLE_CNT_WINDOWS 10
+/* The count of consecutive hits required */
+#define AGCS_PARAMS_CONTINUOUS_HIT_CNT 2
+/* 25 for 64-QAM, make sure a reasonable rate can be sustained. */
+#define AGCS_PARAMS_NF_MARGIN 25
+/* The channel load threshold that the new channel needs to reach. */
+#define AGCS_PARAMS_CHLOAD_THR_PERCENT 50
+/* Channel switch announcement count */
+#define AGCS_PARAMS_CSA_COUNT 5
+
+/* After AGCS triggered, scan the candidate channel list with duration, unit is
+ * ms */
+#define AGCS_PARAMS_SCAN_TIME 30
+
+/* Carplay candidate channel list */
+static t_u8 agcs_chan_2g[] = {1, 6, 11};
+static t_u8 agcs_chan_5g[] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
+static t_u8 agcs_chan_6g[] = {37};
+
+/**
+ *  @brief Copy AGCS configuration values from source or default
+ *
+ *  @param phandle          Pointer to moal_handle structure
+ *  @param pagcs_info_req   Dest pagcs_info pointer to wlan_agcs_info structure
+ *  @param psrc_agcs_info   Source pagcs_info pointer to wlan_agcs_info
+ * structure
+ *
+ *  @return                 N/A
+ */
+static void wlan_copy_agcs_info(moal_handle *phandle,
+				wlan_agcs_info *pagcs_info_req,
+				wlan_agcs_info *psrc_agcs_info)
+{
+	t_u8 tmp_idx = 0;
+	t_u8 chan_cmd_idx = 0;
+
+	moal_memcpy_ext(phandle, (char *)pagcs_info_req, psrc_agcs_info,
+			sizeof(wlan_agcs_info), sizeof(wlan_agcs_info));
+	if (pagcs_info_req->avg_threshold_percentage == 0)
+		pagcs_info_req->avg_threshold_percentage =
+			AGCS_PARAMS_AVG_THR_PERCENT;
+	if (pagcs_info_req->rx_min_pkt_count == 0)
+		pagcs_info_req->rx_min_pkt_count = AGCS_PARAMS_RX_MIN_GPKTCNT;
+	if (pagcs_info_req->tx_min_pkt_count == 0)
+		pagcs_info_req->tx_min_pkt_count = AGCS_PARAMS_TX_MIN_GPKTCNT;
+	if (pagcs_info_req->sample_time == 0)
+		pagcs_info_req->sample_time = AGCS_PARAMS_SAMPLE_TIME;
+	if (pagcs_info_req->sample_count_window == 0)
+		pagcs_info_req->sample_count_window =
+			AGCS_PARAMS_SAMPLE_CNT_WINDOWS;
+	if (pagcs_info_req->continuous_hit_count == 0)
+		pagcs_info_req->continuous_hit_count =
+			AGCS_PARAMS_CONTINUOUS_HIT_CNT;
+	if (pagcs_info_req->nf_margin == 0)
+		pagcs_info_req->nf_margin = AGCS_PARAMS_NF_MARGIN;
+	if (pagcs_info_req->chload_threshold_percentage == 0)
+		pagcs_info_req->chload_threshold_percentage =
+			AGCS_PARAMS_CHLOAD_THR_PERCENT;
+	if (pagcs_info_req->csa_cnt == 0)
+		pagcs_info_req->csa_cnt = AGCS_PARAMS_CSA_COUNT;
+
+	if (pagcs_info_req->chan_list[0].chan_number == 0) {
+		for (tmp_idx = 0; (tmp_idx < sizeof(agcs_chan_2g)) &&
+				  (chan_cmd_idx < WLAN_USER_SCAN_CHAN_MAX);
+		     tmp_idx++, chan_cmd_idx++) {
+			pagcs_info_req->chan_list[chan_cmd_idx].chan_number =
+				agcs_chan_2g[tmp_idx];
+			pagcs_info_req->chan_list[chan_cmd_idx].radio_type =
+				BAND_2GHZ;
+			pagcs_info_req->chan_list[chan_cmd_idx].scan_time =
+				AGCS_PARAMS_SCAN_TIME;
+		}
+		for (tmp_idx = 0; (tmp_idx < sizeof(agcs_chan_5g)) &&
+				  (chan_cmd_idx < WLAN_USER_SCAN_CHAN_MAX);
+		     tmp_idx++, chan_cmd_idx++) {
+			pagcs_info_req->chan_list[chan_cmd_idx].chan_number =
+				agcs_chan_5g[tmp_idx];
+			pagcs_info_req->chan_list[chan_cmd_idx].radio_type =
+				BAND_5GHZ;
+			pagcs_info_req->chan_list[chan_cmd_idx].scan_time =
+				AGCS_PARAMS_SCAN_TIME;
+		}
+		for (tmp_idx = 0; (tmp_idx < sizeof(agcs_chan_6g)) &&
+				  (chan_cmd_idx < WLAN_USER_SCAN_CHAN_MAX);
+		     tmp_idx++, chan_cmd_idx++) {
+			pagcs_info_req->chan_list[chan_cmd_idx].chan_number =
+				agcs_chan_6g[tmp_idx];
+			pagcs_info_req->chan_list[chan_cmd_idx].radio_type =
+				BAND_6GHZ;
+			pagcs_info_req->chan_list[chan_cmd_idx].scan_time =
+				AGCS_PARAMS_SCAN_TIME;
+		}
+	}
+}
+
+/**
+ *  @brief Set Agiled channel switch
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_agcs(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	wlan_agcs_info *pagcs_info_req = NULL;
+	wlan_agcs_info *pagcs_info_src = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int header_len = 0;
+	int ret = 0;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	pagcs_info_req =
+		(wlan_agcs_info *)kmalloc(sizeof(wlan_agcs_info), GFP_KERNEL);
+	if (!pagcs_info_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	header_len = strlen(PRIV_CMD_AGCS);
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_AGCS_CONFIG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	pagcs_info_src = (wlan_agcs_info *)(respbuf + header_len);
+	if (pagcs_info_src->action == MLAN_ACT_GET) {
+		/* GET operation */
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* Create the agcs_info_req structure */
+		/* We expect the agcs_info_req structure to be passed in respbuf
+		 */
+		memset(pagcs_info_req, 0, sizeof(wlan_agcs_info));
+		wlan_copy_agcs_info(priv->phandle, pagcs_info_req,
+				    (wlan_agcs_info *)(respbuf + header_len));
+
+		misc->param.agcs_cfg.features = pagcs_info_req->mode;
+		misc->param.agcs_cfg.avg_threshold_percentage =
+			pagcs_info_req->avg_threshold_percentage;
+		misc->param.agcs_cfg.rx_min_pkt_count =
+			pagcs_info_req->rx_min_pkt_count;
+		misc->param.agcs_cfg.tx_min_pkt_count =
+			pagcs_info_req->tx_min_pkt_count;
+		misc->param.agcs_cfg.sample_time = pagcs_info_req->sample_time;
+		misc->param.agcs_cfg.sample_count_window =
+			pagcs_info_req->sample_count_window;
+		misc->param.agcs_cfg.continuous_hit_count =
+			pagcs_info_req->continuous_hit_count;
+		misc->param.agcs_cfg.nf_margin = pagcs_info_req->nf_margin;
+
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		PRINTM(MERROR, "request ioctl failed\n");
+		goto done;
+	}
+
+	if (req->action == MLAN_ACT_GET) {
+		pagcs_info_req->mode = misc->param.agcs_cfg.features;
+		pagcs_info_req->avg_threshold_percentage =
+			misc->param.agcs_cfg.avg_threshold_percentage;
+		pagcs_info_req->rx_min_pkt_count =
+			misc->param.agcs_cfg.rx_min_pkt_count;
+		pagcs_info_req->tx_min_pkt_count =
+			misc->param.agcs_cfg.tx_min_pkt_count;
+		pagcs_info_req->sample_time = misc->param.agcs_cfg.sample_time;
+		pagcs_info_req->sample_count_window =
+			misc->param.agcs_cfg.sample_count_window;
+		pagcs_info_req->continuous_hit_count =
+			misc->param.agcs_cfg.continuous_hit_count;
+		pagcs_info_req->nf_margin = misc->param.agcs_cfg.nf_margin;
+
+		if (priv->phandle->agcs_info.chload_threshold_percentage == 0)
+			pagcs_info_req->chload_threshold_percentage =
+				AGCS_PARAMS_CHLOAD_THR_PERCENT;
+		else
+			pagcs_info_req->chload_threshold_percentage =
+				priv->phandle->agcs_info
+					.chload_threshold_percentage;
+
+		if (priv->phandle->agcs_info.csa_cnt == 0)
+			pagcs_info_req->csa_cnt = AGCS_PARAMS_CSA_COUNT;
+		else
+			pagcs_info_req->csa_cnt =
+				priv->phandle->agcs_info.csa_cnt;
+	} else {
+		/* When fw cmd succeeds, copy it to moal_handle->agcs_info */
+		moal_memcpy_ext(priv->phandle,
+				(char *)&(priv->phandle->agcs_info),
+				(char *)pagcs_info_req, sizeof(wlan_agcs_info),
+				sizeof(wlan_agcs_info));
+		if (pagcs_info_req->mode & 0x1) {
+			moal_agcs_trans_state(priv, AGCS_STATE_START);
+		} else {
+			moal_agcs_trans_state(priv, AGCS_STATE_IDLE);
+		}
+	}
+
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)pagcs_info_req,
+			sizeof(wlan_agcs_info), respbuflen);
+
+	ret = sizeof(wlan_agcs_info);
+
+done:
+	kfree(pagcs_info_req);
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+#endif /* UAP_SUPPORT */
+
 /**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
@@ -21626,6 +22522,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* dynamic Rx Abort config */
 			len = woal_priv_rx_abort_cfg_ext(priv, buf,
 							 priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_NAV_MITIGATION_HW,
+				    strlen(PRIV_CMD_NAV_MITIGATION_HW)) == 0) {
+			/* dconfigure nav mitigate */
+			len = woal_priv_nav_mitigation_hw(priv, buf,
+							  priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_NAV_MITIGATION,
@@ -23121,8 +24024,16 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		/* Get chnrgpwr */
 		len = woal_priv_get_chnrgpwr(priv, buf, priv_cmd.total_len);
 		goto handled;
-	} else if (strnicmp(buf, PRIV_CMD_GET_TXPWR_LIMIT,
-			    strlen(PRIV_CMD_GET_TXPWR_LIMIT)) == 0) {
+	}
+#ifdef UAP_SUPPORT
+	else if (strnicmp(buf, PRIV_CMD_AGCS, strlen(PRIV_CMD_AGCS)) == 0) {
+		/* Set agiled channel switch */
+		len = woal_priv_agcs(priv, buf, priv_cmd.total_len);
+		goto handled;
+	}
+#endif /* UAP_SUPPORT */
+	else if (strnicmp(buf, PRIV_CMD_GET_TXPWR_LIMIT,
+			  strlen(PRIV_CMD_GET_TXPWR_LIMIT)) == 0) {
 		/* Get txpwrlimit */
 		len = woal_priv_get_txpwrlimit(priv, buf, priv_cmd.total_len);
 		goto handled;

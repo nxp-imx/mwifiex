@@ -5306,6 +5306,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_NAV_MITIGATION:
 		status = wlan_misc_ioctl_nav_mitigation(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_NAV_MITIGATION_HW:
+		status = wlan_misc_ioctl_nav_mitigation_hw(pmadapter,
+							   pioctl_req);
+		break;
 	case MLAN_OID_MISC_LED_CONFIG:
 		status = wlan_misc_ioctl_led(pmadapter, pioctl_req);
 		break;
