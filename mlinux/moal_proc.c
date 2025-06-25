@@ -634,7 +634,8 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
-	databuf = kzalloc(count, flag);
+	/* Allocate additional byte for null-termination in case user buffer wasn't null-terminated */
+	databuf = kzalloc(count + 1, flag);
 	if (databuf == NULL) {
 		LEAVE();
 		return -ENOMEM;
