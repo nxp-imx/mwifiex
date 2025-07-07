@@ -5,17 +5,186 @@
 # the build file, modify the Android.bp file instead. Do *not* modify this file
 # unless you have coordinated with the team managing the Soong to Bazel
 # migration.
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module", "ddk_headers")
 
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
-
-kernel_module(
-    name = "wlan.imx",
-    outs = [
-        "mlan.ko",
-        "moal.ko",
+# The various "-I" flags in the Makefiles.
+ddk_headers(
+    name = "mwifiex_headers",
+    hdrs = glob([
+        "mlan/**/*.h",
+        "mlinux/**/*.h",
+    ]),
+    includes = [
+        "mlan",
+        "mlinux",
     ],
+)
+
+# The various "-D" flags in the Makefiles.
+ANDROID_MWIFIEX_COPTS = [
+    # Base flags
+    "-DLINUX",
+    "-DMLAN_64BIT", #CONFIG_64BIT
+    "-DMLAN_RELEASE_VERSION=\"540\"",
+    "-DFPNUM=\"92\"",
+    "-DDEBUG_LEVEL1", # from CONFIG_DEBUG=1
+    # Android specific flags from mxmwifi.mk and Makefile logic
+    "-DANDROID",
+    "-DANDROID_KERNEL",
+    "-DIMX_SUPPORT",
+    "-DIMX_ANDROID",
+    "-Wno-implicit-fallthrough",
+    "-DANDROID_SDK_VERSION=36", # $ANDROID_BUILD_TOP/build/soong/soong_ui.bash --dumpvar-mode PLATFORM_SDK_VERSION
+    #"-DLINUX_VERSION_CODE=396308", # LINUX_VERSION_CODE will be automatically defined during the bazel build
+    # Feature Support based on Makefile defaults and Android context
+    "-DSTA_SUPPORT",
+    "-DREASSOCIATION",
+    "-DUAP_SUPPORT",
+    "-DWIFI_DIRECT_SUPPORT",
+    "-DMFG_CMD_SUPPORT",
+    "-DSDIO_SUSPEND_RESUME",
+    "-DMULTI_CHAN_SUPPORT",
+    "-DDFS_TESTING_SUPPORT",
+    "-DDUMP_TO_PROC", # Forced by CONFIG_ANDROID_KERNEL
+    "-DSTA_CFG80211", # CONFIG_CFG80211 for Android
+    "-DUAP_CFG80211", # CONFIG_CFG80211 for Android
+    "-DSTA_WEXT", # CONFIG_WIRELESS_EXT and CONFIG_WEXT_PRIV for Android
+    "-DUAP_WEXT", # CONFIG_WIRELESS_EXT and CONFIG_WEXT_PRIV for Android
+    # Bus Support based on Makefile defaults
+    "-DSDIO",
+    "-DSDIO_MMC",
+    "-DPCIE",
+    # Chip Support based on Makefile defaults
+    "-DSD8978",
+    "-DSD8997",
+    "-DSD8987",
+    "-DSD9177",
+    "-DSD8801",
+    "-DSD9098",
+    "-DPCIE8997",
+    "-DPCIE9098",
+    "-DPCIEAW693",
+]
+
+# Module: mlan.ko
+ddk_module(
+    name = "mlan",
+    out = "mlan.ko",
+    srcs = [
+        "mlan/mlan_shim.c", "mlan/mlan_init.c", "mlan/mlan_txrx.c",
+        "mlan/mlan_cmdevt.c", "mlan/mlan_misc.c", "mlan/mlan_cfp.c",
+        "mlan/mlan_module.c", "mlan/mlan_wmm.c", "mlan/mlan_11n_aggr.c",
+        "mlan/mlan_11n_rxreorder.c", "mlan/mlan_11n.c", "mlan/mlan_11ac.c",
+        "mlan/mlan_11ax.c", "mlan/mlan_11d.c", "mlan/mlan_11h.c",
+        # Conditional objects
+        "mlan/mlan_sdio.c",
+        "mlan/mlan_pcie.c",
+        "mlan/mlan_meas.c", "mlan/mlan_scan.c", "mlan/mlan_sta_ioctl.c",
+        "mlan/mlan_sta_rx.c", "mlan/mlan_sta_tx.c", "mlan/mlan_sta_event.c",
+        "mlan/mlan_sta_cmd.c", "mlan/mlan_sta_cmdresp.c", "mlan/mlan_join.c",
+        "mlan/mlan_uap_ioctl.c", "mlan/mlan_uap_cmdevent.c", "mlan/mlan_uap_txrx.c",
+    ],
+    hdrs = [":mwifiex_headers"],
+    copts = ANDROID_MWIFIEX_COPTS,
+    kernel_build = "//kernel_imx:imx_ddk_modules",
+    deps = ["//common:all_headers_aarch64"],
+    visibility = ["//kernel_imx:__pkg__"],
+)
+
+# Module: moal.ko
+ddk_module(
+    name = "moal",
+    out = "moal.ko",
+    srcs = [
+        "mlinux/moal_main.c", "mlinux/moal_ioctl.c", "mlinux/moal_shim.c",
+        "mlinux/moal_eth_ioctl.c", "mlinux/moal_init.c",
+        # Conditional objects
+        "mlinux/moal_uap.c",
+        "mlinux/moal_proc.c", # Enabled by CONFIG_PROC_FS
+        "mlinux/moal_debug.c", # Enabled by CONFIG_PROC_FS
+        "mlinux/moal_sdio_mmc.c",
+        "mlinux/moal_pcie.c",
+        "mlinux/moal_cfg80211.c",
+        "mlinux/moal_cfg80211_util.c",
+        "mlinux/moal_sta_cfg80211.c",
+        "mlinux/moal_uap_cfg80211.c",
+        "mlinux/moal_priv.c",
+        "mlinux/moal_wext.c",
+        "mlinux/moal_uap_priv.c",
+        "mlinux/moal_uap_wext.c",
+    ],
+    hdrs = [":mwifiex_headers"],
+    deps = [":mlan",
+            "//common:all_headers_aarch64",
+    ], # moal.ko depends on symbols from mlan.ko
+    copts = ANDROID_MWIFIEX_COPTS,
+    kernel_build = "//kernel_imx:imx_ddk_modules",
+    visibility = ["//kernel_imx:__pkg__"],
+)
+
+
+# Module: mlan.ko
+ddk_module(
+    name = "mlan-ddk",
+    out = "mlan.ko",
+    srcs = [
+        "mlan/mlan_shim.c", "mlan/mlan_init.c", "mlan/mlan_txrx.c",
+        "mlan/mlan_cmdevt.c", "mlan/mlan_misc.c", "mlan/mlan_cfp.c",
+        "mlan/mlan_module.c", "mlan/mlan_wmm.c", "mlan/mlan_11n_aggr.c",
+        "mlan/mlan_11n_rxreorder.c", "mlan/mlan_11n.c", "mlan/mlan_11ac.c",
+        "mlan/mlan_11ax.c", "mlan/mlan_11d.c", "mlan/mlan_11h.c",
+        # Conditional objects
+        "mlan/mlan_sdio.c",
+        "mlan/mlan_pcie.c",
+        "mlan/mlan_meas.c", "mlan/mlan_scan.c", "mlan/mlan_sta_ioctl.c",
+        "mlan/mlan_sta_rx.c", "mlan/mlan_sta_tx.c", "mlan/mlan_sta_event.c",
+        "mlan/mlan_sta_cmd.c", "mlan/mlan_sta_cmdresp.c", "mlan/mlan_join.c",
+        "mlan/mlan_uap_ioctl.c", "mlan/mlan_uap_cmdevent.c", "mlan/mlan_uap_txrx.c",
+    ],
+    hdrs = [":mwifiex_headers"],
+    copts = ANDROID_MWIFIEX_COPTS,
     kernel_build = "//common:imx",
-    visibility = [
-        "//common:__pkg__",
+    deps = ["//common:all_headers_aarch64"],
+    visibility = ["//common:__pkg__"],
+)
+
+# Module: moal.ko
+ddk_module(
+    name = "moal-ddk",
+    out = "moal.ko",
+    srcs = [
+        "mlinux/moal_main.c", "mlinux/moal_ioctl.c", "mlinux/moal_shim.c",
+        "mlinux/moal_eth_ioctl.c", "mlinux/moal_init.c",
+        # Conditional objects
+        "mlinux/moal_uap.c",
+        "mlinux/moal_proc.c", # Enabled by CONFIG_PROC_FS
+        "mlinux/moal_debug.c", # Enabled by CONFIG_PROC_FS
+        "mlinux/moal_sdio_mmc.c",
+        "mlinux/moal_pcie.c",
+        "mlinux/moal_cfg80211.c",
+        "mlinux/moal_cfg80211_util.c",
+        "mlinux/moal_sta_cfg80211.c",
+        "mlinux/moal_uap_cfg80211.c",
+        "mlinux/moal_priv.c",
+        "mlinux/moal_wext.c",
+        "mlinux/moal_uap_priv.c",
+        "mlinux/moal_uap_wext.c",
     ],
+    hdrs = [":mwifiex_headers"],
+    deps = [":mlan-ddk",
+            "//common:all_headers_aarch64",
+    ], # moal.ko depends on symbols from mlan.ko
+    copts = ANDROID_MWIFIEX_COPTS,
+    kernel_build = "//common:imx",
+    visibility = ["//common:__pkg__"],
+)
+
+# Filegroup
+filegroup(
+    name = "mwifiex_modules",
+    srcs = [
+        ":mlan-ddk",
+        ":moal-ddk",
+    ],
+    visibility = ["//common:__pkg__"],
 )
