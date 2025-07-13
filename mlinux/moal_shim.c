@@ -936,7 +936,7 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 	moal_handle *handle = (moal_handle *)pmoal;
 	int i;
 	t_u32 drv_mode = handle->params.drv_mode;
-#if defined(PCIE9098) || defined(PCIEAW693) || defined(SDAW693)
+#ifdef PCIE9098
 	size_t drv_ver_len = strlen(driver_version);
 #endif
 	ENTER();
@@ -944,13 +944,26 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 		PRINTM(MCMND, "Get Hw Spec done, fw_cap=0x%x\n", phw->fw_cap);
 #ifdef PCIE9098
 		/** Special/Temporary handling to manage the driver version
-		 * string to identify Seahawk/AW690 (skyhawk based) based on
+		 * string to identify AW690/AW590/AW592 (skyhawk based) based on
 		 * fw_cap_ext value set by Fw */
-		if (phw->fw_cap_ext & MBIT(31) &&
+		if (phw->fw_cap_ext & (MBIT(31) | MBIT(30) | MBIT(29)) &&
 		    IS_PCIE9098(handle->card_type)) {
-			moal_memcpy_ext(handle, driver_version, CARD_PCIEAW690,
-					strlen(CARD_PCIEAW690),
-					strlen(driver_version));
+			if (phw->fw_cap_ext & MBIT(29)) {
+				moal_memcpy_ext(handle, driver_version,
+						CARD_PCIEAW592,
+						strlen(CARD_PCIEAW592),
+						strlen(driver_version));
+			} else if (phw->fw_cap_ext & MBIT(30)) {
+				moal_memcpy_ext(handle, driver_version,
+						CARD_PCIEAW590,
+						strlen(CARD_PCIEAW590),
+						strlen(driver_version));
+			} else if (phw->fw_cap_ext & MBIT(31)) {
+				moal_memcpy_ext(handle, driver_version,
+						CARD_PCIEAW690,
+						strlen(CARD_PCIEAW690),
+						strlen(driver_version));
+			}
 			// coverity[string_null:SUPPRESS]
 			// coverity[cert_str32_c_violation:SUPPRESS]
 			moal_memcpy_ext(handle,
@@ -971,47 +984,6 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 			handle->driver_version[drv_ver_len] = '\0';
 		}
 #endif
-#ifdef PCIEAW693
-		/**
-		 *  Special/Temporary handling to manage the driver version
-		 * string to identify AW693/IW623 based on fw_cap value set by
-		 * Fw
-		 */
-		if ((phw->fw_cap_ext & MBIT(23)) &&
-		    IS_PCIEAW693(handle->card_type)) {
-			moal_memcpy_ext(handle, driver_version, CARD_PCIEIW623,
-					strlen(CARD_PCIEIW623),
-					strlen(driver_version));
-			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
-				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
-			}
-			moal_memcpy_ext(handle, handle->driver_version,
-					driver_version, drv_ver_len,
-					MLAN_MAX_VER_STR_LEN - 1);
-			handle->driver_version[drv_ver_len] = '\0';
-		}
-#endif
-#ifdef SDAW693
-		/**
-		 *  Special/Temporary handling to manage the driver version
-		 * string to identify AW693/IW623 based on fw_cap value set by
-		 * Fw
-		 */
-		if ((phw->fw_cap_ext & MBIT(23)) &&
-		    IS_SDAW693(handle->card_type)) {
-			moal_memcpy_ext(handle, driver_version, CARD_SDIW623,
-					strlen(CARD_SDIW623),
-					strlen(driver_version));
-			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
-				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
-			}
-			moal_memcpy_ext(handle, handle->driver_version,
-					driver_version, drv_ver_len,
-					MLAN_MAX_VER_STR_LEN - 1);
-			handle->driver_version[drv_ver_len] = '\0';
-		}
-#endif
-
 		if (phw->fw_cap & FW_CAPINFO_DISABLE_NAN)
 			handle->params.drv_mode &= ~DRV_MODE_NAN;
 		/** FW should only enable DFS on one mac */
@@ -1046,9 +1018,6 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 		}
 		PRINTM(MCMND, "org_drv_mode=0x%x drv_mode=0x%x\n", drv_mode,
 		       handle->params.drv_mode);
-
-		moal_memcpy_ext(handle, &(handle->hw_info), phw,
-				sizeof(mlan_hw_info), sizeof(mlan_hw_info));
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -3247,10 +3216,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		wake_up(&handle->init_wait_q);
 		woal_store_firmware_dump(pmoal, pmevent);
 		handle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
 		wifi_status = WIFI_STATUS_FW_DUMP;
 		ref_handle = (moal_handle *)handle->pref_mac;
-		if (ref_handle)
+		if (ref_handle) {
 			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
+		}
 		goto done;
 	}
 	if (MLAN_STATUS_SUCCESS ==
@@ -3429,7 +3403,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			priv->phandle->scan_time_start.time_usec = 0;
 		}
 
-		moal_agcs_trans_state(priv, AGCS_STATE_SCAN_REPORT);
 		break;
 
 	case MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM:
@@ -3792,7 +3765,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				     pmevent->event_len +
 					     strlen(FW_DEBUG_INFO) + 1);
 		break;
-
 	case MLAN_EVENT_ID_FW_WMM_CONFIG_CHANGE:
 #ifdef STA_WEXT
 		if (IS_STA_WEXT(cfg80211_wext))
@@ -3824,9 +3796,14 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		break;
 	case MLAN_EVENT_ID_DRV_DBG_DUMP:
 		priv->phandle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
 		ref_handle = (moal_handle *)priv->phandle->pref_mac;
-		if (ref_handle)
+		if (ref_handle) {
 			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
+		}
 #ifdef DEBUG_LEVEL1
 		if (drvdbg & MFW_D)
 			auto_fw_dump = MTRUE;
@@ -4042,6 +4019,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 							 priv->wdev
 								 ->cac_time_ms));
 #endif
+					// coverity violation raised for
+					// kernel's API
 					// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 					if (!time_after_eq(jiffies, timeout)) {
 						/* Exact time to make host and
@@ -4263,7 +4242,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 #endif
 			) {
-				PRINTM(MEVENT,
+				PRINTM(MMSG,
 				       "CHAN_SWITCH: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
 				       pchan_info->is_11n_enabled,
 				       pchan_info->channel,
@@ -4276,9 +4255,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 		}
 #endif
-#ifdef UAP_SUPPORT
-		moal_agcs_trans_state(priv, AGCS_STATE_COMPLETE);
-#endif /* UAP_SUPPORT */
 		break;
 	case MLAN_EVENT_ID_FW_STOP_TX:
 		woal_stop_queue(priv->netdev);
@@ -4434,7 +4410,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			if (woal_chandef_create(priv, &chandef, pchan_info))
 				PRINTM(MERROR,
 				       "Failed to create cfg80211_chan_def structure\n");
-			PRINTM(MEVENT,
+			PRINTM(MMSG,
 			       "UAP: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
 			       pchan_info->is_11n_enabled, pchan_info->channel,
 			       pchan_info->center_chan,
@@ -4458,12 +4434,23 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
 		moal_connection_status_check_pmqos(pmoal);
+		if ((drvdbg & MBIT(11)) &&
+		    priv->plinkstats_cfg.enable == MTRUE) {
+			handle->is_plinkstats_timer_set = MTRUE;
+			woal_mod_timer(&handle->plinkstats_timer,
+				       priv->plinkstats_cfg.interval *
+					       MOAL_TIMER_1S);
+		}
 		break;
 	case MLAN_EVENT_ID_UAP_FW_BSS_IDLE:
 		priv->media_connected = MFALSE;
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
 		moal_connection_status_check_pmqos(pmoal);
+		if (handle->is_plinkstats_timer_set) {
+			woal_cancel_timer(&handle->plinkstats_timer);
+			handle->is_plinkstats_timer_set = MFALSE;
+		}
 		break;
 	case MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES: {
 		t_u16 status = 0;
@@ -4646,6 +4633,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						 GFP_KERNEL);
 
 #endif /* KERNEL_VERSION */
+			priv->plinkstats.num_evt_deauth_rx++;
 		}
 #endif /* UAP_CFG80211 */
 		memmove((pmevent->event_buf + strlen(CUS_EVT_STA_DISCONNECTED) +
@@ -4753,9 +4741,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 							    ->frame_control)) {
 						priv->auth_tx_cnt = 0;
 						PRINTM(MEVENT,
-						       "HostMlme %s: Received auth frame type = 0x%x\n",
+						       "HostMlme %s: Received auth frame type = 0x%x auth_mgmt_tx:%d\n",
 						       priv->netdev->name,
-						       priv->auth_alg);
+						       priv->auth_alg,
+						       priv->auth_mgmt_tx);
 
 						if (priv->auth_flag &
 						    HOST_MLME_AUTH_PENDING) {
@@ -4768,6 +4757,33 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 								priv->phandle
 									->host_mlme_priv =
 									priv;
+
+								if (priv->auth_mgmt_tx &&
+								    (((struct ieee80211_mgmt
+									       *)
+									      pkt)
+									     ->u
+									     .auth
+									     .auth_alg ==
+								     WLAN_AUTH_FT)) {
+									priv->auth_flag =
+										0;
+									priv->auth_mgmt_tx =
+										0;
+									woal_mgmt_frame_register(
+										priv,
+										IEEE80211_STYPE_AUTH,
+										MFALSE);
+									/* Need
+									 * to
+									 * indicate
+									 * using
+									 * cfg80211_rx_mgmt
+									 */
+									// coverity[misra_c_2012_rule_15_3_violation:SUPPRESS]
+									goto rx_mgmt;
+								}
+
 								queue_work(
 									priv->phandle
 										->evt_workqueue,
@@ -4787,6 +4803,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 						PRINTM(MEVENT,
 						       "HostMlme %s: Receive deauth/disassociate\n",
 						       priv->netdev->name);
+						priv->plinkstats
+							.num_evt_deauth_rx++;
 #if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 						if (!priv->wdev->connected) {
@@ -4805,9 +4823,11 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 							/* subtype 12 deauth
 							 * packet */
 							priv->deauth_evt_cnt++;
-#define MAX_DEAUTH_COUNTER 5
-							if (priv->deauth_evt_cnt >=
-							    MAX_DEAUTH_COUNTER) {
+							if (handle->params
+								    .wifi_reset_config &&
+							    priv->deauth_evt_cnt >
+								    handle->params
+									    .wifi_reset_config) {
 								woal_wifi_reset_event(
 									priv,
 									priv->deauth_evt_cnt);
@@ -4869,6 +4889,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 				} else
 #endif
+				rx_mgmt:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 					cfg80211_rx_mgmt(
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
@@ -5340,11 +5361,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				   msecs_to_jiffies(fw_reset_time * 1000));
 
 		break;
-#ifdef UAP_SUPPORT
-	case MLAN_EVENT_ID_FW_AGCS_TRIGGER: {
-		woal_agcs_event(priv, (pagcs_event)pmevent->event_buf);
-	} break;
-#endif /* UAP_SUPPORT */
 	default:
 		break;
 	}

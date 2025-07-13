@@ -71,7 +71,7 @@ t_u8 fw_data_dpd_current_opt[FW_DATA_DPD_CURRENT_OPT_LEN] = {
 	0x93, 0xCC, 0x0E, 0xB8, 0xF8, 0xAF, 0x00, 0xB0, 0xCC, 0x1B, 0x6A, 0x41,
 	0xFC, 0xAF, 0x00, 0xB0, 0x01, 0x00, 0x00, 0x00, 0xF5, 0x1D, 0xBA, 0x80};
 #endif
-
+#define FCS_SIZE (4)
 /********************************************************
 			Local Functions
 ********************************************************/
@@ -3413,6 +3413,8 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 		LEAVE();
 		return ret;
 	}
+	if (pmadapter->enable_net_mon)
+		payload_len -= FCS_SIZE;
 	switch (sub_type) {
 	case SUBTYPE_ASSOC_REQUEST:
 	case SUBTYPE_REASSOC_REQUEST:
@@ -4168,8 +4170,6 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 		(MrvlIEtypesHeader_t *)(pevent->pbuf + pevent->data_offset +
 					ASSOC_EVENT_FIX_SIZE);
 	MrvlIETypes_MgmtFrameSet_t *mgmt_tlv = MNULL;
-	IEEEtypes_ExtCap_t *pExtCap = MNULL;
-	IEEEtypes_Generic_t *pOperClass = MNULL;
 
 	ENTER();
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypesHeader_t)) {
@@ -4365,57 +4365,6 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 					priv->adapter, assoc_req_ie, ie_len,
 					&sta_ptr->multi_ap_ie);
 #endif
-				pExtCap = (IEEEtypes_ExtCap_t *)
-					wlan_get_specific_ie(priv, assoc_req_ie,
-							     ie_len,
-							     EXT_CAPABILITY, 0);
-				if (pExtCap) {
-					memcpy_ext(
-						priv->adapter,
-						(t_u8 *)&sta_ptr->ExtCap,
-						pExtCap,
-						pExtCap->ieee_hdr.len +
-							sizeof(IEEEtypes_Header_t),
-						sizeof(IEEEtypes_ExtCap_t));
-					sta_ptr->ExtCap.ieee_hdr.len = MIN(
-						pExtCap->ieee_hdr.len,
-						sizeof(IEEEtypes_ExtCap_t) -
-							sizeof(IEEEtypes_Header_t));
-					PRINTM(MCMND,
-					       "Check STA capab mac_addr" MACSTR
-					       " ExtChanSwitching:%d\n",
-					       MAC2STR(sta_ptr->mac_addr),
-					       sta_ptr->ExtCap.ext_cap
-						       .ExtChanSwitching);
-				} else {
-					PRINTM(MCMND,
-					       "STA doesn't support EXT_CAPABILITY\n");
-				}
-
-				pOperClass = (IEEEtypes_Generic_t *)
-					wlan_get_specific_ie(priv, assoc_req_ie,
-							     ie_len,
-							     REGULATORY_CLASS,
-							     0);
-				if (pOperClass) {
-					memcpy_ext(
-						priv->adapter,
-						(t_u8 *)&sta_ptr->OperClass,
-						pOperClass,
-						pOperClass->ieee_hdr.len +
-							sizeof(MrvlIEtypesHeader_t),
-						sizeof(IEEEtypes_Generic_t));
-					sta_ptr->OperClass.ieee_hdr.len = MIN(
-						pOperClass->ieee_hdr.len,
-						sizeof(IEEEtypes_Generic_t) -
-							sizeof(IEEEtypes_Header_t));
-					PRINTM(MCMND,
-					       "Check STA capab OperClass:%d",
-					       sta_ptr->OperClass.data[0]);
-				} else {
-					PRINTM(MCMND,
-					       "STA doesn't support REGULATORY_CLASS\n");
-				}
 				break;
 			}
 		}
@@ -7337,7 +7286,7 @@ mlan_status wlan_misc_ioctl_oper_class(pmlan_adapter pmadapter,
 {
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_misc_cfg *misc = MNULL;
-	t_u8 channel, bandwidth, oper_class = 0, global_oper_class = 0;
+	t_u8 channel, bandwidth, oper_class = 0;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -7361,7 +7310,7 @@ mlan_status wlan_misc_ioctl_oper_class(pmlan_adapter pmadapter,
 
 	if (pioctl_req->action == MLAN_ACT_GET) {
 		ret = wlan_get_curr_oper_class(pmpriv, channel, bandwidth,
-					       &oper_class, &global_oper_class);
+					       &oper_class);
 		misc->param.bw_chan_oper.oper_class = oper_class;
 	} else {
 		PRINTM(MERROR, "Unsupported cmd_action\n");

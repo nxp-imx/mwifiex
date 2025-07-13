@@ -1063,7 +1063,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	IEEEtypes_CapInfo_t *pcap_info;
 	t_u8 ft_akm = 0;
 	t_u8 oper_class;
-	t_u8 global_oper_class;
 	t_u8 oper_class_flag = MFALSE;
 	t_u8 akm_type = 0;
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
@@ -1474,8 +1473,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				    pmpriv,
 				    pbss_desc->phy_param_set.ds_param_set
 					    .current_chan,
-				    pbss_desc->curr_bandwidth, &oper_class,
-				    &global_oper_class))
+				    pbss_desc->curr_bandwidth, &oper_class))
 				wlan_add_supported_oper_class_ie(pmpriv, &pos,
 								 oper_class);
 		}

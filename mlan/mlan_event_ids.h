@@ -223,10 +223,7 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 
 	ENUM_ELEMENT(EVENT_EMERGENCY_TEMP_REACHED, 0x00A9),
 
-#ifdef UAP_SUPPORT
-	/** Event ID: Agiled Channel Switch report */
-	ENUM_ELEMENT(EVENT_AGCS_REPORT, 0x00AA),
-#endif /* UAP_SUPPORT */
+	ENUM_ELEMENT(EVENT_TSP_CONFIG, 0x00AB),
 
 #if defined(PCIE) || defined(SDIO)
 	/** Card Event definition : In Band reset triggered by FW */

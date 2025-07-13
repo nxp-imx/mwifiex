@@ -965,6 +965,11 @@ static t_u8 wlan_scan_create_channel_list(
 			if (cfp->dynamic.flags & NXP_CHANNEL_DISABLED)
 				continue;
 
+			/* Make sure null channel entries are not added into
+			 * pscan_chan_list */
+			if (!cfp->channel)
+				continue;
+
 			if ((pscan_region->band == BAND_6G) &&
 			    (pmadapter->wifi_6g_scan_coloc_ap)) {
 				if (!wlan_scan_add_6g_chan(
@@ -1943,7 +1948,6 @@ static mlan_status wlan_scan_setup_scan_config(
 	if (pmpriv->adapter->ecsa_enable) {
 		t_u8 bandwidth = BW_20MHZ;
 		t_u8 oper_class = 1;
-		t_u8 global_oper_class = 0;
 		t_u32 usr_dot_11n_dev_cap;
 		if (pmpriv->media_connected) {
 			if (pmpriv->config_bands & BAND_A)
@@ -1962,7 +1966,7 @@ static mlan_status wlan_scan_setup_scan_config(
 			wlan_get_curr_oper_class(
 				pmpriv,
 				pmpriv->curr_bss_params.bss_descriptor.channel,
-				bandwidth, &oper_class, &global_oper_class);
+				bandwidth, &oper_class);
 		}
 		wlan_add_supported_oper_class_ie(pmpriv, &ptlv_pos, oper_class);
 	}
@@ -8693,7 +8697,6 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		t_u8 bandwidth = BW_20MHZ;
 		t_u8 oper_class = 1;
 		t_u32 usr_dot_11n_dev_cap;
-		t_u8 global_oper_class = 0;
 		if (pmpriv->media_connected) {
 			if (pmpriv->config_bands & BAND_A)
 				usr_dot_11n_dev_cap =
@@ -8711,7 +8714,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 			wlan_get_curr_oper_class(
 				pmpriv,
 				pmpriv->curr_bss_params.bss_descriptor.channel,
-				bandwidth, &oper_class, &global_oper_class);
+				bandwidth, &oper_class);
 		}
 		len = wlan_add_supported_oper_class_ie(pmpriv, &tlv,
 						       oper_class);

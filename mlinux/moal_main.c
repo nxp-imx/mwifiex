@@ -1014,6 +1014,22 @@ static mlan_callbacks woal_callbacks = {
 	.moal_calc_short_ssid = moal_calc_short_ssid,
 };
 
+#define PLSTATS_FILTER_TX_BYTES MBIT(0)
+#define PLSTATS_FILTER_RX_BYTES MBIT(1)
+#define PLSTATS_FILTER_CHLOAD MBIT(2)
+#define PLSTATS_FILTER_CHANNEL MBIT(3)
+#define PLSTATS_FILTER_REGION MBIT(4)
+#define PLSTATS_FILTER_RETRY_CNT MBIT(5)
+#define PLSTATS_FILTER_FAILED_CNT MBIT(6)
+#define PLSTATS_FILTER_RTSFAILURE MBIT(7)
+#define PLSTATS_FILTER_FCSERROR MBIT(8)
+#define PLSTATS_FILTER_TXFRAME MBIT(9)
+#define PLSTATS_FILTER_TX_DROPPED MBIT(10)
+#define PLSTATS_FILTER_DEAUTH_TX MBIT(11)
+#define PLSTATS_FILTER_DEAUTH_RX MBIT(12)
+#define PLSTATS_FILTER_SIGNAL MBIT(13)
+#define PLSTATS_FILTER_STA_LIST MBIT(14)
+
 int woal_open(struct net_device *dev);
 int woal_close(struct net_device *dev);
 int woal_set_mac_address(struct net_device *dev, void *addr);
@@ -1213,6 +1229,7 @@ void woal_clean_up(moal_handle *handle)
 			if (netif_carrier_ok(priv->netdev))
 				netif_carrier_off(priv->netdev);
 			priv->media_connected = MFALSE;
+			priv->plinkstats_cfg.enable = MFALSE;
 			// disconnect
 			moal_connection_status_check_pmqos(priv->phandle);
 #ifdef STA_CFG80211
@@ -1260,6 +1277,12 @@ void woal_clean_up(moal_handle *handle)
 #endif
 		}
 	}
+
+	if (handle->is_plinkstats_timer_set) {
+		woal_cancel_timer(&handle->plinkstats_timer);
+		handle->is_plinkstats_timer_set = MFALSE;
+	}
+
 	woal_flush_evt_queue(handle);
 	return;
 }
@@ -2722,6 +2745,12 @@ mlan_status woal_init_sw(moal_handle *handle)
 #endif
 #endif
 
+	/* Initialize the timer for print Wi-Fi link stats*/
+	woal_initialize_timer(&handle->plinkstats_timer,
+			      &woal_print_linkstats_event, handle);
+
+	handle->is_plinkstats_timer_set = MFALSE;
+
 	handle->rtt_capa.rtt_one_sided_supported = MTRUE;
 	handle->rtt_capa.rtt_ftm_supported = MTRUE;
 	handle->rtt_capa.lci_support = MTRUE;
@@ -2805,6 +2834,11 @@ mlan_status woal_init_sw(moal_handle *handle)
 		device.mpa_tx_cfg = MLAN_INIT_PARA_ENABLED;
 		device.mpa_rx_cfg = MLAN_INIT_PARA_ENABLED;
 #endif /* SDIO_MMC */
+		device.spi_mode = (((sdio_mmc_card *)handle->card)
+					   ->func->card->host->caps &
+				   MMC_CAP_SPI) ?
+					  1 :
+					  0;
 	}
 #endif /* SDIO */
 	device.feature_control = handle->card_info->feature_control;
@@ -2878,7 +2912,6 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device.mclient_scheduling = handle->params.mclient_scheduling;
 	/* Clean up the mode_psd_string for 6E Indoor/Outdoor */
 	memset(handle->mode_psd_string, 0, sizeof(handle->mode_psd_string));
-
 	moal_memcpy_ext(handle, &device.callbacks, &woal_callbacks,
 			sizeof(mlan_callbacks), sizeof(mlan_callbacks));
 	if (!handle->params.amsdu_deaggr)
@@ -2965,7 +2998,6 @@ void woal_free_moal_handle(moal_handle *handle)
 		kfree(fwdump_fname);
 		fwdump_fname = NULL;
 	}
-
 	/* Free module params */
 	woal_free_module_param(handle);
 	/** clear pref_mac to avoid later crash */
@@ -4239,6 +4271,7 @@ done:
 
 #if defined(CONFIG_RPS)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+#define MAX_SUPPORTED_CPUS 8
 static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 				size_t len)
 {
@@ -4315,7 +4348,7 @@ static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
 		kfree_rcu(old_map, rcu);
 	}
 
-	PRINTM(MMSG, "%s on %s: buf=%s(%u) (%d i=%d)\n", __func__,
+	PRINTM(MINFO, "%s on %s: buf=%s(%u) (%d i=%d)\n", __func__,
 	       queue->dev->name, buf, (t_u32)len, nr_cpumask_bits, i);
 	free_cpumask_var(mask);
 	return len;
@@ -4341,6 +4374,7 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 	int j;
 	moal_private *priv_rps = NULL;
 	t_u8 rps_buf[3];
+	unsigned int rps_mask = 0, nr_cpus = 0;
 #endif
 #endif
 
@@ -4462,6 +4496,9 @@ static mlan_status woal_add_card_dpc(moal_handle *handle)
 #if defined(CONFIG_RPS)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	if (handle->params.rps) {
+		nr_cpus = MIN(nr_cpumask_bits, MAX_SUPPORTED_CPUS);
+		rps_mask = (1UL << nr_cpus) - 1UL;
+		handle->params.rps &= rps_mask;
 		if (snprintf(rps_buf, sizeof(rps_buf), "%x",
 			     handle->params.rps) <= 0)
 			PRINTM(MERROR, "Failed to write into rps_buf\n");
@@ -4867,11 +4904,7 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 			PRINTM(MERROR,
 			       "WLAN: Fail download FW with nowwait: %u\n",
 			       moal_extflg_isset(handle, EXT_REQ_FW_NOWAIT));
-			if (handle->ops.reg_dbg
-#ifdef PCIE
-			    && !IS_PCIEAW693(handle->card_type)
-#endif
-			)
+			if (handle->ops.reg_dbg)
 				handle->ops.reg_dbg(handle);
 			goto done;
 		}
@@ -4947,19 +4980,11 @@ static mlan_status woal_init_fw_dpc(moal_handle *handle)
 	if (handle->hardware_status != HardwareStatusReady) {
 		wifi_status = WIFI_STATUS_INIT_FW_FAIL;
 		handle->event_fw_dump = MFALSE;
-		if (handle->ops.reg_dbg
-#ifdef PCIE
-		    && !IS_PCIEAW693(handle->card_type)
-#endif
-		)
+		if (handle->ops.reg_dbg)
 			handle->ops.reg_dbg(handle);
 #ifdef DEBUG_LEVEL1
 		if (drvdbg & MFW_D) {
-			if (handle->ops.dump_fw_info
-#ifdef PCIE
-			    && !IS_PCIEAW693(handle->card_type)
-#endif
-			) {
+			if (handle->ops.dump_fw_info) {
 				handle->ops.dump_fw_info(handle);
 #ifdef DUMP_TO_PROC
 				woal_print_firmware_dump_buf(
@@ -7079,7 +7104,7 @@ int woal_close(struct net_device *dev)
 
 	if ((priv->media_connected == MTRUE)
 #ifdef UAP_SUPPORT
-	    || (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
+	    && (GET_BSS_ROLE(priv) != MLAN_BSS_ROLE_UAP)
 #endif
 	) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -7616,9 +7641,15 @@ void woal_tx_timeout(struct net_device *dev
 		woal_mlan_debug_info(priv);
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		priv->phandle->driver_status = MTRUE;
+		mlan_set_driver_status(priv->phandle->pmlan_adapter,
+				       priv->phandle->driver_status);
+
 		ref_handle = (moal_handle *)priv->phandle->pref_mac;
-		if (ref_handle)
+		if (ref_handle) {
 			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
+		}
 		if (!auto_fw_dump && !priv->phandle->fw_dump)
 			woal_process_hang(priv->phandle);
 
@@ -9598,6 +9629,14 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 #endif
 	priv->auth_tx_wait_time = AUTH_TX_DEFAULT_WAIT_TIME;
 	woal_set_interface_pending_limits(priv->phandle, priv);
+
+	/* Init plinkstats parameter to default */
+	priv->plinkstats_cfg.filter = PRINT_LINTSTATS_FILTER;
+	priv->plinkstats_cfg.interval = PRINT_LINTSTATS_INTERVAL;
+	priv->plinkstats_cfg.netlink_evt = MFALSE;
+	if (priv->phandle->params.drvdbg & MBIT(11))
+		priv->plinkstats_cfg.enable = MTRUE;
+
 	LEAVE();
 }
 
@@ -11540,11 +11579,7 @@ static int woal_dump_moal_drv_info(moal_handle *phandle, t_u8 *buf)
 	ptr += snprintf(ptr, MAX_BUF_LEN,
 			"------------moal_debug_info End-------------\n");
 
-	if (phandle->ops.dump_reg_info
-#ifdef PCIE
-	    && !IS_PCIEAW693(phandle->card_type)
-#endif
-	)
+	if (phandle->ops.dump_reg_info)
 		ptr += phandle->ops.dump_reg_info(phandle, ptr);
 
 	LEAVE();
@@ -12467,11 +12502,7 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 #ifdef PCIE
 	if (IS_PCIE(phandle->card_type)) {
 #ifdef DEBUG_LEVEL1
-		if (phandle->ops.reg_dbg
-#ifdef PCIE
-		    && !IS_PCIEAW693(phandle->card_type)
-#endif
-		) {
+		if (phandle->ops.reg_dbg) {
 			phandle->ops.reg_dbg(phandle);
 		}
 #endif
@@ -12482,11 +12513,8 @@ void woal_moal_debug_info(moal_private *priv, moal_handle *handle, u8 flag)
 		if (flag && ((phandle->main_state == MOAL_END_MAIN_PROCESS) ||
 			     (phandle->main_state == MOAL_STATE_IDLE))) {
 #ifdef DEBUG_LEVEL1
-			if (phandle->ops.reg_dbg && (drvdbg & (MREG_D | MFW_D))
-#ifdef PCIE
-			    && !IS_PCIEAW693(phandle->card_type)
-#endif
-			) {
+			if (phandle->ops.reg_dbg &&
+			    (drvdbg & (MREG_D | MFW_D))) {
 				phandle->ops.reg_dbg(phandle);
 			}
 #endif
@@ -12808,9 +12836,16 @@ t_void woal_scan_timeout_handler(struct work_struct *work)
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}
 			handle->driver_status = MTRUE;
+			mlan_set_driver_status(handle->pmlan_adapter,
+					       handle->driver_status);
+
 			ref_handle = (moal_handle *)handle->pref_mac;
-			if (ref_handle)
+			if (ref_handle) {
 				ref_handle->driver_status = MTRUE;
+				mlan_set_driver_status(
+					ref_handle->pmlan_adapter,
+					ref_handle->driver_status);
+			}
 
 			if (!auto_fw_dump && !handle->fw_dump && priv)
 				woal_process_hang(priv->phandle);
@@ -12850,12 +12885,13 @@ t_void woal_emergency_reset_handler(struct work_struct *work)
 		return;
 	}
 	priv->phandle->driver_status = MTRUE;
+	mlan_set_driver_status(handle->pmlan_adapter, handle->driver_status);
 	ref_handle = (moal_handle *)priv->phandle->pref_mac;
-	if (!ref_handle) {
-		LEAVE();
-		return;
+	if (ref_handle) {
+		ref_handle->driver_status = MTRUE;
+		mlan_set_driver_status(ref_handle->pmlan_adapter,
+				       ref_handle->driver_status);
 	}
-	ref_handle->driver_status = MTRUE;
 
 #ifdef DEBUG_LEVEL1
 	if (drvdbg & MFW_D)
@@ -12873,6 +12909,268 @@ t_void woal_emergency_reset_handler(struct work_struct *work)
 	wifi_status = WIFI_STATUS_EMERGENCY_TEMP_REACHED;
 
 	LEAVE();
+}
+
+/**
+ * @brief               Process print link statistics
+ *
+ * @param priv          a pointer to moal_private structure
+ *
+ * @return              N/A
+ *
+ */
+void woal_print_linkstats_info(moal_private *priv, bool is_reset)
+{
+	moal_handle *handle = priv->phandle;
+	mlan_fw_info fw_info;
+	mlan_ds_get_stats stats;
+	mlan_ds_get_signal signal;
+	mlan_ds_sta_list *sta_list = NULL;
+	t_u16 ch_load = 0;
+	t_s16 noise = 0;
+	if ((is_reset == MFALSE) &&
+	    (handle->plinkstats_chload_timer == MFALSE)) {
+		/* Not yet to get chload */
+		goto done;
+	}
+
+	/* Get Region code from the fw info */
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
+		PRINTM(MERROR, "Fail to get fw info\n");
+		goto done;
+	}
+	/* Get Log from the firmware */
+	memset(&stats, 0, sizeof(mlan_ds_get_stats));
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+		PRINTM(MERROR, "Error getting stats information\n");
+		goto done;
+	}
+
+	/*RSSI/SNR, only support in STA mode*/
+	if (priv->bss_role == MLAN_BSS_ROLE_STA) {
+		memset(&signal, 0, sizeof(mlan_ds_get_signal));
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_signal_info(priv, MOAL_IOCTL_WAIT, &signal)) {
+			PRINTM(MERROR, "Error getting signal information\n");
+			goto done;
+		}
+	}
+	woal_get_ch_load_results(priv, &ch_load, &noise);
+
+	if (is_reset) {
+		memset(&priv->plinkstats, 0, sizeof(moal_priv_linkstats));
+		priv->plinkstats.tx_bytes_base = priv->stats.tx_bytes;
+		priv->plinkstats.tx_packets_base = priv->stats.tx_packets;
+		priv->plinkstats.rx_bytes_base = priv->stats.rx_bytes;
+		priv->plinkstats.rx_packets_base = priv->stats.rx_packets;
+		priv->plinkstats.retry_cnt_base = stats.retry;
+		priv->plinkstats.failed_cnt_base = stats.failed;
+		priv->plinkstats.rtsfailure_base = stats.rts_failure;
+		priv->plinkstats.fcserror_base = stats.fcs_error;
+		priv->plinkstats.txframe_base = stats.tx_frame;
+		priv->plinkstats.tx_dropped_base = priv->stats.tx_dropped;
+	} else {
+		priv->plinkstats.tx_bytes =
+			priv->stats.tx_bytes - priv->plinkstats.tx_bytes_base;
+		priv->plinkstats.tx_packets = priv->stats.tx_packets -
+					      priv->plinkstats.tx_packets_base;
+		priv->plinkstats.rx_bytes =
+			priv->stats.rx_bytes - priv->plinkstats.rx_bytes_base;
+		priv->plinkstats.rx_packets = priv->stats.rx_packets -
+					      priv->plinkstats.rx_packets_base;
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+		priv->plinkstats.channel = priv->channel;
+#endif
+		priv->plinkstats.region_code = fw_info.region_code;
+		priv->plinkstats.retry_cnt =
+			stats.retry - priv->plinkstats.retry_cnt_base;
+		priv->plinkstats.failed_cnt =
+			stats.failed - priv->plinkstats.failed_cnt_base;
+		priv->plinkstats.rtsfailure =
+			stats.rts_failure - priv->plinkstats.rtsfailure_base;
+		priv->plinkstats.fcserror =
+			stats.fcs_error - priv->plinkstats.fcserror_base;
+		priv->plinkstats.txframe =
+			stats.tx_frame - priv->plinkstats.txframe_base;
+		priv->plinkstats.tx_dropped = priv->stats.tx_dropped -
+					      priv->plinkstats.tx_dropped_base;
+		priv->plinkstats.data_rssi = signal.data_rssi_last;
+		priv->plinkstats.data_snr = signal.data_snr_last;
+		priv->plinkstats.data_nf = signal.data_nf_last;
+		priv->plinkstats.chload = ch_load;
+		priv->plinkstats.noise = noise;
+
+		if ((priv->plinkstats_cfg.filter & PLSTATS_FILTER_STA_LIST) &&
+		    (priv->bss_role == MLAN_BSS_ROLE_UAP)) {
+			sta_list =
+				kzalloc(sizeof(mlan_ds_sta_list), GFP_ATOMIC);
+			if (!sta_list) {
+				PRINTM(MERROR,
+				       "%s: Fail to alloc mlan_ds_sta_list buffer\n",
+				       __func__);
+				goto done;
+			}
+			woal_get_sta_list(priv, sta_list);
+		}
+
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_TX_BYTES) {
+			PRINTM(MLSTATS,
+			       "Num_tx_bytes = %lu, \t Num_tx_packets = %lu\n",
+			       priv->plinkstats.tx_bytes,
+			       priv->plinkstats.tx_packets);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_RX_BYTES) {
+			PRINTM(MLSTATS,
+			       "Num_rx_bytes = %lu, \t Num_rx_packets = %lu\n",
+			       priv->plinkstats.rx_bytes,
+			       priv->plinkstats.rx_packets);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_CHLOAD) {
+			PRINTM(MLSTATS, "Channel Load = %d %%, noise = %d\n",
+			       priv->plinkstats.chload, priv->plinkstats.noise);
+		}
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_CHANNEL) {
+			PRINTM(MLSTATS, "Channel = %d\n",
+			       priv->plinkstats.channel);
+		}
+#endif
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_REGION) {
+			char *region_str = region_code_2_string(
+				priv->plinkstats.region_code);
+			if (region_str)
+				PRINTM(MLSTATS, "Region = %c%c\n",
+				       region_str[0], region_str[1]);
+			else
+				PRINTM(MLSTATS, "Region = Unknown\n");
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_RETRY_CNT) {
+			PRINTM(MLSTATS, "Retry count = %lu\n",
+			       priv->plinkstats.retry_cnt);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_FAILED_CNT) {
+			PRINTM(MLSTATS, "Failed count = %lu\n",
+			       priv->plinkstats.failed_cnt);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_RTSFAILURE) {
+			PRINTM(MLSTATS, "RTS failure count = %lu\n",
+			       priv->plinkstats.rtsfailure);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_FCSERROR) {
+			PRINTM(MLSTATS, "FCS error count = %lu\n",
+			       priv->plinkstats.fcserror);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_TXFRAME) {
+			PRINTM(MLSTATS, "Tx frame count = %lu\n",
+			       priv->plinkstats.txframe);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_TX_DROPPED) {
+			PRINTM(MLSTATS, "Tx dropped packets = %lu\n",
+			       priv->plinkstats.tx_dropped);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_DEAUTH_TX) {
+			PRINTM(MLSTATS, "Deauth TX event count = %lu\n",
+			       priv->plinkstats.num_evt_deauth_tx);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_DEAUTH_RX) {
+			PRINTM(MLSTATS, "Deauth RX event count = %lu\n",
+			       priv->plinkstats.num_evt_deauth_rx);
+		}
+		if ((priv->plinkstats_cfg.filter & PLSTATS_FILTER_SIGNAL) &&
+		    (priv->bss_role == MLAN_BSS_ROLE_STA)) {
+			PRINTM(MLSTATS, "Signal RSSI = %d dBm\n",
+			       priv->plinkstats.data_rssi);
+			PRINTM(MLSTATS, "SNR = %d dB\n",
+			       priv->plinkstats.data_snr);
+		}
+		if (priv->plinkstats_cfg.filter & PLSTATS_FILTER_STA_LIST) {
+			int sta_idx;
+			int rssi = 0;
+
+			PRINTM(MLSTATS, "Number of STA = %d\n",
+			       sta_list->sta_count);
+			for (sta_idx = 0; sta_idx < sta_list->sta_count;
+			     sta_idx++) {
+				PRINTM(MLSTATS, "STA %d information:\n",
+				       sta_idx + 1);
+				PRINTM(MLSTATS, "=====================\n");
+				PRINTM(MLSTATS, "MAC Address: " MACSTR "\n",
+				       MAC2STR(sta_list->info[sta_idx]
+						       .mac_address));
+				PRINTM(MLSTATS, "Power mgmt status: %s\n",
+				       (sta_list->info[sta_idx]
+						.power_mgmt_status == 0) ?
+					       "active" :
+					       "power save");
+				PRINTM(MLSTATS, "Mode: %s\n",
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_B) ?
+					       "11b," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_G) ?
+					       "11g," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_A) ?
+					       "11a," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_GN) ?
+					       "2.4G_11n," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_AN) ?
+					       "5G_11n," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_GAC) ?
+					       "2.4G_11ac," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_AAC) ?
+					       "5G_11ac," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_GAX) ?
+					       "2.4G_11ax," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_AAX) ?
+					       "5G_11ax," :
+				       (sta_list->info[sta_idx].bandmode ==
+					BAND_6G) ?
+					       "6G_11ax," :
+					       "unknown");
+				/** On some platform, s8 is same as unsigned
+				 * char*/
+				rssi = (int)sta_list->info[sta_idx].rssi;
+				if (rssi > 0x7f)
+					rssi = -(256 - rssi);
+				PRINTM(MLSTATS, "Rssi : %d dBm\n\n", rssi);
+			}
+		}
+	}
+
+done:
+	if (sta_list)
+		kfree(sta_list);
+
+	if (!(handle->is_plinkstats_timer_set) &&
+	    (priv->plinkstats_cfg.enable == MTRUE)) {
+		handle->plinkstats_chload_timer ^= MTRUE;
+		handle->is_plinkstats_timer_set = MTRUE;
+		if (handle->plinkstats_chload_timer) {
+			/* Set a duration time to get chload from fw */
+			woal_get_ch_load(priv, PRINT_LINTSTATS_CHLOAD_DURATION);
+			woal_mod_timer(&handle->plinkstats_timer,
+				       PRINT_LINTSTATS_CHLOAD_DELAY);
+		} else {
+			/* Reserve CHLOAD_DELAY time to call woal_get_ch_load()
+			 */
+			woal_mod_timer(&handle->plinkstats_timer,
+				       (priv->plinkstats_cfg.interval *
+					MOAL_TIMER_1S) -
+					       PRINT_LINTSTATS_CHLOAD_DELAY);
+		}
+	}
+
+	return;
 }
 
 /**
@@ -13009,21 +13307,10 @@ t_void woal_evt_work_queue(struct work_struct *work)
 					       "Fail to request country power table\n");
 			}
 			break;
-#ifdef UAP_SUPPORT
-		case WOAL_EVENT_AGCS:
-			if (evt->agcs_evt.type ==
-			    AGCS_EVENT_TYPE_PROCESS_EVENT) {
-				woal_process_agcs_event(
-					(moal_private *)evt->priv,
-					&evt->agcs_evt.stats);
-			} else if (evt->agcs_evt.type ==
-				   AGCS_EVENT_TYPE_SEL_CHANNEL) {
-				woal_process_ch_sel_and_switch(
-					(moal_private *)evt->priv,
-					&evt->agcs_evt);
-			}
+		case WOAL_EVENT_PRINT_LINKSTATS:
+			woal_print_linkstats_info((moal_private *)evt->priv,
+						  MFALSE);
 			break;
-#endif /* UAP_SUPPORT */
 		default:
 			break;
 		}
@@ -13379,11 +13666,7 @@ t_void woal_main_work_queue(struct work_struct *work)
 	}
 	if (handle->reg_dbg == MTRUE) {
 		handle->reg_dbg = MFALSE;
-		if (handle->ops.reg_dbg
-#ifdef PCIE
-		    && !IS_PCIEAW693(handle->card_type)
-#endif
-		)
+		if (handle->ops.reg_dbg)
 			handle->ops.reg_dbg(handle);
 	}
 	if (handle->fw_dbg == MTRUE) {
@@ -13391,11 +13674,7 @@ t_void woal_main_work_queue(struct work_struct *work)
 #ifdef DEBUG_LEVEL1
 		drvdbg &= ~MFW_D;
 #endif
-		if (handle->ops.dump_fw_info
-#ifdef PCIE
-		    && !IS_PCIEAW693(handle->card_type)
-#endif
-		)
+		if (handle->ops.dump_fw_info)
 			handle->ops.dump_fw_info(handle);
 		LEAVE();
 		return;
@@ -14159,6 +14438,11 @@ mlan_status woal_remove_card(void *card)
 #endif
 #endif
 #endif
+	if (handle->is_plinkstats_timer_set) {
+		woal_cancel_timer(&handle->plinkstats_timer);
+		priv->plinkstats_cfg.enable = MFALSE;
+		handle->is_plinkstats_timer_set = MFALSE;
+	}
 	if (handle->tp_acnt.on) {
 		handle->tp_acnt.on = 0;
 		handle->tp_acnt.drop_point = 0;

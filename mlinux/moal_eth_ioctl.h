@@ -80,6 +80,7 @@ Change log:
 #ifdef UAP_SUPPORT
 #define PRIV_CMD_AP_DEAUTH "apdeauth"
 #define PRIV_CMD_GET_STA_LIST "getstalist"
+#define PRIV_CMD_PRINT_LINK_STATS "plinkstats"
 #define PRIV_CMD_BSS_CONFIG "bssconfig"
 #endif
 #if defined(UAP_SUPPORT)
@@ -794,9 +795,4 @@ typedef struct {
 } __ATTRIB_PACK__ wlan_ieee80211_chan_list;
 
 #define PRIV_CMD_TP_STATE "tp_state"
-
-#ifdef UAP_SUPPORT
-#define PRIV_CMD_AGCS "agcs"
-#endif
-
 #endif /* _WOAL_ETH_PRIV_H_ */

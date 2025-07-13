@@ -2618,6 +2618,8 @@ static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 	       (drvdbg & MREG) ? "X" : "");
 	printk(KERN_ALERT "MREG_D (%08x) %s\n", MREG_D,
 	       (drvdbg & MREG_D) ? "X" : "");
+	printk(KERN_ALERT "MLSTATS (%08x) %s\n", MLSTATS,
+	       (drvdbg & MLSTATS) ? "X" : "");
 	printk(KERN_ALERT "MIOCTL (%08x) %s\n", MIOCTL,
 	       (drvdbg & MIOCTL) ? "X" : "");
 	printk(KERN_ALERT "MINTR  (%08x) %s\n", MINTR,

@@ -650,6 +650,13 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		return 0;
 	}
 
+	if (handle->fw_reseting) {
+		PRINTM(MERROR,
+		       "Firmware reset in progress, ignore proc file write\n");
+		LEAVE();
+		return -EINVAL;
+	}
+
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
 
 	if (!woal_secure_add(&count, 1, &tmp_count, TYPE_UINT32)) {
@@ -707,9 +714,13 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (!IS_USB(handle->card_type))
 #endif
 			handle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
 			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
 				ref_handle->fw_dump_status = MTRUE;

@@ -396,11 +396,8 @@ enum _mlan_ioctl_req_id {
 
 	MLAN_OID_MISC_PREV_ASSOC_INFO = 0x0020009A,
 
-#ifdef UAP_SUPPORT
-	MLAN_OID_MISC_AGCS_CONFIG = 0x0020009C,
-#endif /* UAP_SUPPORT */
+	MLAN_OID_MISC_NAV_MITIGATION_HW = 0x0020009C,
 
-	MLAN_OID_MISC_NAV_MITIGATION_HW = 0x0020009D,
 };
 
 /** Sub command size */
@@ -6010,6 +6007,10 @@ typedef MLAN_PACK_START struct _mlan_ds_csi_params {
 	/** CSI data received in cfg channel with mac addr filter, not only RA
 	 * is us or other*/
 	t_u8 ra4us;
+	/** flag to enable common AGC */
+	t_u8 commonAGCflag;
+	/** CSI format */
+	t_u8 csiformat;
 	/** CSI filters */
 	mlan_csi_filter_t csi_filter[CSI_FILTER_MAX];
 } MLAN_PACK_END mlan_ds_csi_params;
@@ -6585,33 +6586,6 @@ typedef struct _mlan_ds_auth_assoc_timeout_cfg {
 	t_u16 retry_timeout;
 } mlan_ds_auth_assoc_timeout_cfg;
 
-#ifdef UAP_SUPPORT
-/** Agiled channel switch configuration parameters */
-typedef struct _mlan_ds_agcs_cfg {
-	/**agcs cfg action 0-GET, 1-SET */
-	t_u16 action;
-	/* BIT0 - Enable Agile channel switching in CarPlay
-	 * BIT1 - no specific interference type check, but only check Tx or Rx
-	 * throughput drop
-	 */
-	t_u32 features;
-	/* Adjust the weight of TX/RX average packet count */
-	t_u8 avg_threshold_percentage;
-	/* The requires at least average rx packets per second */
-	t_u16 rx_min_pkt_count;
-	/* The requires at least average tx packets per second */
-	t_u16 tx_min_pkt_count;
-	/* Unit is ms */
-	t_u32 sample_time;
-	/* The latest sampled windows size */
-	t_u8 sample_count_window;
-	/* Continuous drop rapidly times */
-	t_u8 continuous_hit_count;
-	/* Make sure a reasonable rate can be sustained. */
-	t_s8 nf_margin;
-} mlan_ds_agcs_cfg;
-#endif /* UAP_SUPPORT */
-
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
 	/** Sub-command */
@@ -6793,10 +6767,6 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_ed_mac_cfg edmac_cfg;
 		mlan_ds_gpio_cfg_ops gpio_cfg_ops;
 		mlan_ds_auth_assoc_timeout_cfg auth_assoc_cfg;
-#ifdef UAP_SUPPORT
-		/** config AGCS for MLAN_OID_MISC_AGCS_CONFIG */
-		mlan_ds_agcs_cfg agcs_cfg;
-#endif /* UAP_SUPPORT */
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 
@@ -6835,34 +6805,4 @@ typedef struct _mlan_cfpinfo {
 #define MLAN_REASON_CLASS3_FRAME_FROM_NOASSOC_STA 7
 #define MLAN_REASON_DISASSOC_STA_HAS_LEFT 8
 #define MLAN_REASON_STA_REQ_ASSOC_WITHOUT_AUTH 9
-
-#ifdef UAP_SUPPORT
-/* Processing AGCS report */
-#define AGCS_EVENT_TYPE_PROCESS_EVENT 1
-/* After AGCS scan, select and switch to new channel */
-#define AGCS_EVENT_TYPE_SEL_CHANNEL 2
-
-/** Type definition of agcs_stats for agcs_event */
-typedef struct _agcs_stats {
-	/** All STAs support ECS */
-	t_u8 all_sta_ecs;
-	/** All STAs support 6g */
-	t_u8 all_sta_6g;
-	/** ch_load of current channel */
-	t_u16 ch_load;
-	/** noise of current channel */
-	t_s16 noise;
-	/** The noise floor threshold currently used by fw */
-	t_s16 nf_threshold;
-} agcs_stats, *pagcs_stats;
-
-/** Type definition of agcs_event for WOAL_EVENT_AGCS */
-typedef struct _agcs_event {
-	/** AGCS_EVENT_TYPE_PROCESS_EVENT or AGCS_EVENT_TYPE_SEL_CHANNEL */
-	t_u32 type;
-	/** AGCS stats info */
-	agcs_stats stats;
-} agcs_event, *pagcs_event;
-#endif /* UAP_SUPPORT */
-
 #endif /* !_MLAN_IOCTL_H_ */

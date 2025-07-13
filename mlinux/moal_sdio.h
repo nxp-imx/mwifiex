@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2022, 2024 NXP
+ * Copyright 2008-2022, 2024-2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -54,6 +54,9 @@ Change log:
 /** Fixed address mode */
 #define FIXED_ADDRESS 0
 #endif
+
+/** SDIO register card control 3 */
+#define SD_CARD_CTRL3 0xF3
 
 #if defined(SD8977)
 #define SD8977_V0 0x0

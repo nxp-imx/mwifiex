@@ -933,8 +933,6 @@ enum host_cmd_id {
 #define FW_CAPINFO_EASY_MESH MBIT(21)
 /** FW cap info bit 22: ADDBA support with scan */
 #define FW_CAPINFO_ALLOW_ADDBA_RESP_ON_SCAN MBIT(22)
-/** FW cap info bit 23: MAC2 is not available */
-#define FW_CAPINFO_EXT_NO_MAC2 MBIT(23)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -3706,6 +3704,16 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_csi_channel_bandcfg_t {
 	t_u8 channel;
 } MLAN_PACK_END MrvlIEtypes_csi_channel_bandcfg_t;
 
+/** MrvlIEtypes_csi_agc_conf */
+typedef MLAN_PACK_START struct _MrvlIEtypes_csi_agc_conf_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** flag to Enable common AGC */
+	t_u8 commonAGCflag;
+	/** CSI format value */
+	t_u8 csiformat;
+} MLAN_PACK_END MrvlIEtypes_csi_agc_conf_t;
+
 /** HostCmd_CMD_CSI_START */
 typedef MLAN_PACK_START struct _HostCmd_DS_CSI_CFG {
 	/** Action */
@@ -3722,6 +3730,8 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CSI_CFG {
 	mlan_csi_filter_t csi_filter[CSI_FILTER_MAX];
 	/**channel and bandconfig*/
 	MrvlIEtypes_csi_channel_bandcfg_t csi_channel_bandconfig;
+	/**Common AGC flag and csi format config */
+	MrvlIEtypes_csi_agc_conf_t csi_agc_config;
 } MLAN_PACK_END HostCmd_DS_CSI_CFG;
 
 typedef MLAN_PACK_START struct _HostCmd_DS_HAL_PHY_CFG {
@@ -7550,7 +7560,7 @@ typedef MLAN_PACK_START struct _HostCmd_CMD_802_11_STA_TX_RATE {
 
 	/** actual number of entries in array */
 	t_u16 num_entries;
-} MLAN_PACK_END HostCmd_CMD_802_11_STA_TX_RATE;
+} HostCmd_CMD_802_11_STA_TX_RATE;
 
 /** HostCmd_MCLIENT_SCHEDULE_CFG */
 typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
@@ -7562,42 +7572,7 @@ typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
 
 	/** enable PS mode change reporting */
 	t_u8 ps_mode_change_report;
-} MLAN_PACK_END HostCmd_MCLIENT_SCHEDULE_CFG;
-
-#ifdef UAP_SUPPORT
-/** HostCmd_DS_AGCS_CFG */
-typedef MLAN_PACK_START struct _HostCmd_DS_AGCS_CFG {
-	/** action - get/set */
-	t_u16 action;
-
-	/* BIT0 - Enable Agile channel switching in CarPlay
-	 * BIT1 - no specific interference type check, but only check Tx or Rx
-	 * throughput drop
-	 */
-	t_u32 features;
-
-	/* Adjust the weight of TX/RX average packet count */
-	t_u8 avg_threshold_percentage;
-
-	/* The conservative amount of rx packet per second */
-	t_u16 rx_min_pkt_count;
-
-	/* The conservative amount of tx packet per second */
-	t_u16 tx_min_pkt_count;
-
-	/* Unit is ms */
-	t_u32 sample_time;
-
-	/* The latest sampled windows size */
-	t_u8 sample_count_window;
-
-	/* Continuous drop rapidly times */
-	t_u8 continuous_hit_count;
-
-	/* Make sure a reasonable rate can be sustained. */
-	t_s8 nf_margin;
-} MLAN_PACK_END HostCmd_DS_AGCS_CFG;
-#endif /* UAP_SUPPORT */
+} HostCmd_MCLIENT_SCHEDULE_CFG;
 
 /** HostCmd_DS_COMMAND */
 typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
@@ -7899,10 +7874,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Auth, (Re)Assoc timeout configuration */
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
-#ifdef UAP_SUPPORT
-		/** Agiled channel switch configuration */
-		HostCmd_DS_AGCS_CFG agcs_cfg;
-#endif /* UAP_SUPPORT */
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 
@@ -7998,26 +7969,6 @@ typedef enum _BLOCK_6G_CHAN_SWITCH_REASON {
 	BLOCK_6G_CHAN_SWITCH_REASON_STA_MMH = 3,
 	BLOCK_6G_CHAN_SWITCH_REASON_STA_RX_ECSA = 4,
 } BLOCK_6G_CHAN_SWITCH_REASON;
-
-#ifdef UAP_SUPPORT
-/** FW trigger the agiled channel switch */
-#define AGCS_TYPE_CS_TRIGGER 0
-/** FW send current channel statistics */
-#define AGCS_TYPE_STATS_REPORT 1
-
-/* Fw agcs statistics structure */
-typedef MLAN_PACK_START struct _agcs_stats_info_t {
-	/** This is STATS_REPORT or CS_TRIGGER */
-	t_u16 type;
-	/** Channel utilization in the last 100ms */
-	t_u16 ch_load;
-	/** noise in the last 100ms */
-	t_s16 noise;
-	/** nf_threshold is used to check the noise floor of candidate channels
-	 */
-	t_s16 nf_threshold;
-} MLAN_PACK_END agcs_stats_info_t;
-#endif /* UAP_SUPPORT */
 
 #ifdef PRAGMA_PACK
 #pragma pack(pop)

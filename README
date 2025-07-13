@@ -1,6 +1,6 @@
 # MXM Wi-Fi Driver
 
-===============================================================================
+================================================================================
 			U S E R  M A N U A L
 
  Copyright 2008-2025 NXP
@@ -11,7 +11,7 @@
 	Goto source code directory.
 	make [clean] build
 	The driver and utility binaries can be found in bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.14.2.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.15.0.
 
 2) FOR DRIVER INSTALL
 
@@ -30,7 +30,7 @@
 		uap_name: Name of the uAP interface (default: "uap")
 		max_wfd_bss: Maximum number of WIFIDIRECT BSS (default 1, max 1)
 		wfd_name: Name of the WIFIDIRECT interface (default: "wfd")
-		max_vir_bss: Number of Virtual interfaces (default 0)
+		max_vir_bss: Number of Virtual interfaces (default 1)
 		nan_name: Name of the NAN interface (default: "nan")
 		max_nan_bss: Number of NAN interfaces (default 1)
 		uap_oper_ctrl: uAP operation control when in-STA disconnect with ext-AP

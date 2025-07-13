@@ -91,6 +91,10 @@ static int net_rx = 1;
 /** amsdu deaggr mode */
 static int amsdu_deaggr = 1;
 
+/** wifi_reset_config */
+/**Default reset is after 5 EAPOL failures, 0 disables the reset */
+static int wifi_reset_config = 5;
+
 static int tx_budget = 2600;
 static int mclient_scheduling = 1;
 
@@ -916,6 +920,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				goto err;
 			params->net_rx = out_data;
 			PRINTM(MMSG, "net_rx = %d\n", params->net_rx);
+		} else if (strncmp(line, "wifi_reset_config",
+				   strlen("wifi_reset_config")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->wifi_reset_config = out_data;
+			PRINTM(MMSG, "wifi_reset_config = %d\n",
+			       params->wifi_reset_config);
 		} else if (strncmp(line, "amsdu_deaggr",
 				   strlen("amsdu_deaggr")) == 0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1774,7 +1786,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 {
 	t_u8 addr[ETH_ALEN];
 	bool is_valid_mac_addr = false;
-	unsigned int rps_mask = 0, nr_cpu = 0;
 	if (hw_test)
 		moal_extflg_set(handle, EXT_HW_TEST);
 #ifdef CONFIG_OF
@@ -1906,6 +1917,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.net_rx = net_rx;
 	if (params)
 		handle->params.net_rx = params->net_rx;
+
+	handle->params.wifi_reset_config = wifi_reset_config;
+	if (params)
+		handle->params.wifi_reset_config = params->wifi_reset_config;
 
 	handle->params.amsdu_deaggr = amsdu_deaggr;
 	if (params)
@@ -2108,10 +2123,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 
 #if defined(CONFIG_RPS)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-	nr_cpu = num_online_cpus();
-	rps_mask = (1U << nr_cpu) - 1;
 	handle->params.rps = rps & RPS_CPU_MASK;
-	handle->params.rps &= rps_mask;
 	PRINTM(MMSG, "rps set to %x from module param\n", handle->params.rps);
 #endif
 #endif
@@ -3092,7 +3104,7 @@ module_param(wfd_name, charp, 0);
 MODULE_PARM_DESC(wfd_name, "WIFIDIRECT interface name");
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 module_param(max_vir_bss, int, 0);
-MODULE_PARM_DESC(max_vir_bss, "Number of Virtual interfaces (0)");
+MODULE_PARM_DESC(max_vir_bss, "Number of Virtual interfaces (1)");
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
 module_param(nan_name, charp, 0);
@@ -3271,6 +3283,10 @@ module_param(net_rx, int, 0);
 MODULE_PARM_DESC(
 	net_rx,
 	"0: use netif_rx/netif_rx_ni in rx; 1: use netif_receive_skb in rx (default)");
+module_param(wifi_reset_config, int, 0);
+MODULE_PARM_DESC(
+	wifi_reset_config,
+	"0: disable Wi-Fi reset, positive integer: max retries before reset (default 5)");
 module_param(amsdu_deaggr, int, 0);
 MODULE_PARM_DESC(
 	amsdu_deaggr,

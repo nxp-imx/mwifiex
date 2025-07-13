@@ -610,9 +610,9 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define MIN_BA_THRESHOLD 16
 
 /** High threshold at which to start drop packets */
-#define RX_HIGH_THRESHOLD 8192
+#define RX_HIGH_THRESHOLD 1024
 /** Low threshold to allow Rx BA */
-#define RX_LOW_THRESHOLD 1024
+#define RX_LOW_THRESHOLD 128
 
 #define MFG_CMD_SET_TEST_MODE 1
 #define MFG_CMD_UNSET_TEST_MODE 0
@@ -1651,6 +1651,8 @@ struct _sta_node {
 	IEEEtypes_HTInfo_t HTInfo;
 	/** peer BSSCO_20_40*/
 	IEEEtypes_2040BSSCo_t BSSCO_20_40;
+	/*Extended capability*/
+	IEEEtypes_ExtCap_t ExtCap;
 	/*RSN IE*/
 	IEEEtypes_Generic_t rsn_ie;
 	/**Link ID*/
@@ -1682,10 +1684,6 @@ struct _sta_node {
 	t_u8 vendor_oui[VENDOR_OUI_LEN * MAX_VENDOR_OUI_NUM];
 	/** vendor OUI count */
 	t_u8 vendor_oui_count;
-	/* Support operating class IE */
-	IEEEtypes_Generic_t OperClass;
-	/*Extended capability*/
-	IEEEtypes_ExtCap_t ExtCap;
 };
 
 /** 802.11h State information kept in the 'mlan_adapter' driver structure */
@@ -2244,6 +2242,8 @@ typedef struct _mlan_sdio_card {
 	t_bool sdio_rx_aggr_enable;
 	/** fw rx block size */
 	t_u16 sdio_rx_block_size;
+	/** SDIO bus mode (0: Non-SPI mode, 1: SPI mode) */
+	t_u8 spi_mode;
 } mlan_sdio_card, *pmlan_sdio_card;
 #endif
 
@@ -2509,6 +2509,7 @@ struct _mlan_adapter {
 	t_void *pmlan_lock;
 	/** main_proc_lock for main_process */
 	t_void *pmain_proc_lock;
+	/** selected mlan bss */
 	mlan_private *selected_mlan_bss;
 #ifdef PCIE
 	/** rx data lock to synchronize wlan_pcie_process_recv_data */
@@ -2534,6 +2535,8 @@ struct _mlan_adapter {
 	/** pcie lock to synchronize rxbd_wr_ptr and txbd_wr_ptr */
 	t_void *pmlan_pcie_lock;
 #endif
+	/** driver status */
+	t_u8 driver_status;
 	/** mlan_processing */
 	t_u32 mlan_processing;
 	/** main_process_cnt */
@@ -3112,7 +3115,7 @@ struct _mlan_adapter {
 	/** LLDE enable/disable */
 	t_u8 llde_enabled;
 	/** LLDE modes 0 - default; 1 - carplay; 2 - gameplay; 3 - sound bar, 4
-	 * - validation, 5- event driven */
+	 * � validation, 5- event driven */
 	t_u8 llde_mode;
 	/** high priority data packet type. 0: All traffic, 1: ping, 2: TCP ACK,
 	 * 4: TCP Data, 8: UDP */
@@ -3128,10 +3131,6 @@ struct _mlan_adapter {
 	/** iPhone device list */
 	t_u8 llde_iphonefilters[MAX_IPHONE_FILTER_ENTRIES *
 				MLAN_MAC_ADDR_LENGTH];
-#ifdef UAP_SUPPORT
-	/** agiled channel switch info */
-	agcs_stats agcs_info;
-#endif /* UAP_SUPPORT */
 };
 
 /** IPv4 ARP request header */
@@ -4543,8 +4542,7 @@ mlan_status wlan_ret_boot_sleep(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 int wlan_add_supported_oper_class_ie(mlan_private *pmpriv, t_u8 **pptlv_out,
 				     t_u8 curr_oper_class);
 mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
-				     t_u8 bw, t_u8 *oper_class,
-				     t_u8 *global_oper_class);
+				     t_u8 bw, t_u8 *oper_class);
 mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 					    t_u8 oper_class, t_u8 bandwidth);
 mlan_status wlan_misc_ioctl_operclass_validation(pmlan_adapter pmadapter,
@@ -4900,12 +4898,6 @@ typedef enum _delay_unit {
 	MSEC,
 	SEC,
 } t_delay_unit;
-
-enum tls_message_id {
-	TLS_HOST_HELLO = 1,
-	TLS_DEVICE_HELLO = 2,
-	TLS_HOST_FINISHED = 3,
-};
 
 /** delay function */
 t_void wlan_delay_func(mlan_adapter *pmadapter, t_u32 delay, t_delay_unit u);

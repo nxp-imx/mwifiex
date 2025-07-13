@@ -340,19 +340,6 @@ typedef t_u8 BOOLEAN;
 #define MAX_TIME_LEN 128
 #endif
 
-/** FW cap info bit 12: 2G Support */
-#ifndef ISSUPP_11AC2GENABLED
-#define ISSUPP_11AC2GENABLED(FwCapInfo) (FwCapInfo & MBIT(12))
-#endif
-/** FW cap info bit 13: 5G Support */
-#ifndef ISSUPP_11AC5GENABLED
-#define ISSUPP_11AC5GENABLED(FwCapInfo) (FwCapInfo & MBIT(13))
-#endif
-/** FW cap info Ext bit 14: 6G Support */
-#ifndef FW_CAPINFO_EXT_6G
-#define FW_CAPINFO_EXT_6G MBIT(14)
-#endif
-
 /** Driver version */
 extern char driver_version[MLAN_MAX_VER_STR_LEN];
 
@@ -583,9 +570,17 @@ static inline void woal_mod_timer(pmoal_drv_timer timer,
 static inline void woal_cancel_timer(moal_drv_timer *timer)
 {
 	if (timer->timer_is_periodic || in_atomic() || irqs_disabled())
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+		timer_delete(&timer->tl);
+#else
 		del_timer(&timer->tl);
+#endif
 	else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+		timer_delete_sync(&timer->tl);
+#else
 		del_timer_sync(&timer->tl);
+#endif
 	timer->timer_is_canceled = MTRUE;
 	timer->time_period = 0;
 }
@@ -1149,7 +1144,7 @@ typedef struct _wait_queue {
 /** Default WIFIDIRECT BSS */
 #define DEF_WIFIDIRECT_BSS 1
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
-#define DEF_VIRTUAL_BSS 0
+#define DEF_VIRTUAL_BSS 1
 #endif
 #endif /* WIFI_DIRECT_SUPPORT */
 /** Driver mode NAN bit */
@@ -1295,9 +1290,7 @@ enum woal_event_type {
 #endif
 	WOAL_EVENT_RGPWR_KEY_MISMATCH,
 	WOAL_EVENT_RESET_WIFI,
-#ifdef UAP_SUPPORT
-	WOAL_EVENT_AGCS,
-#endif /* UAP_SUPPORT */
+	WOAL_EVENT_PRINT_LINKSTATS,
 };
 
 /** chan_rpt_info */
@@ -1331,10 +1324,6 @@ struct woal_event {
 		mlan_deauth_param deauth_info;
 		chan_radar_info radar_info;
 		t_u8 deauth_evt_cnt;
-#ifdef UAP_SUPPORT
-		/** AGCS event data for WOAL_EVENT_AGCS */
-		agcs_event agcs_evt;
-#endif /* UAP_SUPPORT */
 	};
 };
 
@@ -1697,6 +1686,91 @@ struct ipv6addr_entry {
 	t_u8 ipv6_addr[16];
 };
 
+/** second */
+#define PRINT_LINTSTATS_INTERVAL 5
+#define PRINT_LINTSTATS_FILTER 0xF
+#define PRINT_LINTSTATS_CHLOAD_DURATION 100 // unit is ms
+#define PRINT_LINTSTATS_CHLOAD_DELAY                                           \
+	(PRINT_LINTSTATS_CHLOAD_DURATION + 20) // unit is ms
+
+/** print linkstats parameters */
+typedef struct _moal_priv_linkstats_cfg {
+	/** enable/disable */
+	t_u8 enable;
+	/** filter for print items */
+	t_u32 filter;
+	/** Periodic time(ms) for print */
+	t_u32 interval;
+	/** netlink event flag */
+	t_u8 netlink_evt;
+} moal_priv_linkstats_cfg;
+
+/** print linkstats info */
+typedef struct _moal_priv_linkstats {
+	/** channel */
+	t_u16 channel;
+	/** region code */
+	t_u32 region_code;
+
+	/* Num TX packets */
+	unsigned long tx_packets;
+	/* Num TX packets base */
+	unsigned long tx_packets_base;
+	/* Num TX packets in bytes */
+	unsigned long tx_bytes;
+	/* Num TX packets in bytes base */
+	unsigned long tx_bytes_base;
+
+	/* Num RX packets */
+	unsigned long rx_packets;
+	/* Num RX packets base */
+	unsigned long rx_packets_base;
+	/* Num RX packets in bytes */
+	unsigned long rx_bytes;
+	/* Num RX packets in bytes base */
+	unsigned long rx_bytes_base;
+
+	/** dot11 retry count */
+	unsigned long retry_cnt;
+	/** dot11 retry base count */
+	unsigned long retry_cnt_base;
+	/** dot11 failed count */
+	unsigned long failed_cnt;
+	/** dot11 failed base count */
+	unsigned long failed_cnt_base;
+	/** dot11 rts failure count */
+	unsigned long rtsfailure;
+	/** dot11 rts base failure count for reset*/
+	unsigned long rtsfailure_base;
+	/** dot11 fcs error count */
+	unsigned long fcserror;
+	/** dot11 fcs base error count */
+	unsigned long fcserror_base;
+	/** dot11 tx frame count */
+	unsigned long txframe;
+	/** dot11 tx frame base count */
+	unsigned long txframe_base;
+	/** dot11 tx frame dropped count */
+	unsigned long tx_dropped;
+	/** dot11 tx frame dropped base count */
+	unsigned long tx_dropped_base;
+	/** Num of deauth sent by our device */
+	unsigned long num_evt_deauth_tx;
+	/** Num of deauth received by our device */
+	unsigned long num_evt_deauth_rx;
+
+	/** Last DATA RSSI in dBm */
+	t_s16 data_rssi;
+	/** SNR of last data packet */
+	t_s16 data_snr;
+	/** Noise floor of last data packet */
+	t_s16 data_nf;
+	/** Channel Load (max = 100) */
+	t_u16 chload;
+	/** Noise floor */
+	t_s16 noise;
+} moal_priv_linkstats;
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -1954,6 +2028,8 @@ struct _moal_private {
 	t_u8 delay_deauth_notify;
 	/** notify bssid */
 	t_u8 bssid_notify[ETH_ALEN];
+	/** notify auth from mgmt_tx */
+	t_u8 auth_mgmt_tx;
 #endif
 #ifdef CONFIG_PROC_FS
 	/** Proc entry */
@@ -2107,6 +2183,9 @@ struct _moal_private {
 	t_u16 auth_tx_wait_time;
 
 	t_u32 rx_pkt_ac[MAX_AC_QUEUES];
+
+	moal_priv_linkstats_cfg plinkstats_cfg;
+	moal_priv_linkstats plinkstats;
 };
 
 #ifdef SDIO
@@ -2700,6 +2779,7 @@ typedef struct _moal_mod_para {
 	int max_nan_bss;
 	int auto_ds;
 	int net_rx;
+	int wifi_reset_config;
 	int amsdu_deaggr;
 	int tx_budget;
 	int mclient_scheduling;
@@ -2860,37 +2940,6 @@ typedef struct _moal_tp_acnt_t {
 	/* periodic timer */
 	moal_drv_timer timer;
 } moal_tp_acnt_t;
-
-#ifdef UAP_SUPPORT
-typedef MLAN_PACK_START struct {
-	t_u16 action;
-	/* BIT0 - Enable Agile channel switching in CarPlay
-	 * BIT1 - no specific interference type check, but only check Tx or Rx
-	 * throughput drop
-	 */
-	t_u32 mode;
-	/* Adjust the weight of TX/RX average packet count */
-	t_u8 avg_threshold_percentage;
-	/* The conservative amount of rx packet per second */
-	t_u16 rx_min_pkt_count;
-	/* The conservative amount of tx packet per second */
-	t_u16 tx_min_pkt_count;
-	/* Unit is ms */
-	t_u32 sample_time;
-	/* The latest sampled windows size */
-	t_u8 sample_count_window;
-	/* Continuous drop rapidly times */
-	t_u8 continuous_hit_count;
-	/* Make sure a reasonable rate can be sustained. */
-	t_s8 nf_margin;
-	/* The channel load threshold that the new channel needs to reach. */
-	t_u8 chload_threshold_percentage;
-	/* channel switch announcement count, default is 5 */
-	t_u8 csa_cnt;
-	/** Variable number (fixed maximum) of channels to scan up */
-	wlan_user_scan_chan chan_list[WLAN_USER_SCAN_CHAN_MAX];
-} MLAN_PACK_END wlan_agcs_info;
-#endif /* UAP_SUPPORT */
 
 /** Handle data structure for MOAL */
 struct _moal_handle {
@@ -3157,6 +3206,12 @@ struct _moal_handle {
 	t_u8 cfg80211_suspend;
 #endif
 #endif
+	/** print link stats timer set flag */
+	BOOLEAN is_plinkstats_timer_set;
+	/** print link stats timer */
+	moal_drv_timer plinkstats_timer;
+	/** print link stats timer for getchload or print info */
+	BOOLEAN plinkstats_chload_timer;
 	/** FW debug flag */
 	t_u8 fw_dbg;
 	/** reg debug flag */
@@ -3373,17 +3428,6 @@ struct _moal_handle {
 	t_u32 ips_ctrl;
 	BOOLEAN is_edmac_enabled;
 	bool driver_init;
-
-#ifdef UAP_SUPPORT
-	/** agiled channel switch state */
-	t_u32 agcs_state;
-	/** The number of channels in the scan list */
-	t_u32 agcs_num_in_chan_stats;
-	/** Agiled channel switch info from cmd */
-	wlan_agcs_info agcs_info;
-	/* fw cap and cap_ext */
-	mlan_hw_info hw_info;
-#endif /* UAP_SUPPORT */
 };
 
 /**
@@ -3585,7 +3629,12 @@ extern t_u32 drvdbg;
 		if (drvdbg & MIF_D)                                            \
 			printk(KERN_DEBUG msg);                                \
 	} while (0)
-
+#define PRINTM_MLSTATS(msg...)                                                 \
+	do {                                                                   \
+		woal_print(MLSTATS, msg);                                      \
+		if (drvdbg & MLSTATS)                                          \
+			printk(KERN_DEBUG msg);                                \
+	} while (0)
 #define PRINTM_MREG(msg...)                                                    \
 	do {                                                                   \
 		woal_print(MREG, msg);                                         \
@@ -3792,7 +3841,6 @@ static inline moal_private *woal_get_priv(moal_handle *handle,
 					  mlan_bss_role bss_role)
 {
 	int i;
-
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 		if (handle->priv[i]) {
 			if (bss_role == MLAN_BSS_ROLE_ANY ||
@@ -4697,6 +4745,12 @@ t_bool woal_secure_sub(t_void *datain, t_s32 sub, t_void *dataout,
 		       data_type type);
 
 mlan_status woal_edmac_cfg(moal_private *priv, t_u8 *country_code);
+void woal_print_linkstats_event(void *context);
+void woal_print_linkstats_info(moal_private *priv, bool is_reset);
+mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration);
+mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
+				     t_s16 *noise);
+mlan_status woal_get_sta_list(moal_private *priv, mlan_ds_sta_list *sta_list);
 
 #ifdef DUMP_TO_PROC
 void woal_print_firmware_dump_buf(t_u8 *pfd_buf, t_u64 fwdump_len);
@@ -4740,14 +4794,5 @@ mlan_status woal_ioctl_hostcmd_htc_cap(moal_private *priv, t_u16 action,
 				       t_u8 *enable);
 int woal_getset_regrdwr(moal_private *priv, t_u32 action, t_u32 type,
 			t_u32 offset, t_u32 *value);
-#ifdef UAP_SUPPORT
-extern void woal_process_agcs_event(moal_private *priv,
-				    pagcs_stats pstart_event);
-extern void woal_process_ch_sel_and_switch(moal_private *priv,
-					   pagcs_event pevent);
-extern mlan_status moal_agcs_trans_state(moal_private *priv,
-					 agcs_state next_state);
-extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
-#endif /* UAP_SUPPORT */
 
 #endif /* _MOAL_MAIN_H */

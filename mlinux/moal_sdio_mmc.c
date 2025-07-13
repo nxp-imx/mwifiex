@@ -1289,6 +1289,30 @@ static mlan_status woal_sdio_f0_readb(moal_handle *handle, t_u32 reg,
 }
 
 /**
+ *  @brief This function writes data to card register FN0
+ *
+ *  @param handle   A Pointer to the moal_handle structure
+ *  @param reg      Register offset
+ *  @param data     Value
+ *
+ *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status woal_sdio_f0_writeb(moal_handle *handle, t_u32 reg,
+				       t_u8 data)
+{
+	mlan_status ret = MLAN_STATUS_FAILURE;
+
+	sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
+	sdio_f0_writeb(((sdio_mmc_card *)handle->card)->func, data, reg,
+		       (int *)&ret);
+	sdio_release_host(((sdio_mmc_card *)handle->card)->func);
+
+	PRINTM(MREG, "sdio f0 w %x = %x (%x)\n", reg, data, ret);
+
+	return ret;
+}
+
+/**
  *  @brief This function use SG mode to read/write data into card memory
  *
  *  @param handle   A Pointer to the moal_handle structure
@@ -1585,6 +1609,21 @@ static mlan_status woal_sdiommc_register_dev(moal_handle *handle)
 			goto release_host;
 		}
 		ret = woal_sdio_claim_irq(card, woal_sdio_interrupt);
+		/* For SDIO over SPI, set CCCR_IF register bit5 ECSI to enable
+		 * IRQ mode. Set CCCR CARD_CTRL3 bit 1 to configure start token
+		 * is 0xFE for CMD53 single block write operation.
+		 */
+		if ((((sdio_mmc_card *)handle->card)->func->card->host->caps &
+		     MMC_CAP_SPI)) {
+			t_u8 data = 0;
+			woal_sdio_f0_readb(handle, SDIO_CCCR_IF, &data);
+			data |= SDIO_BUS_ECSI;
+			woal_sdio_f0_writeb(handle, SDIO_CCCR_IF, data);
+
+			woal_sdio_f0_readb(handle, SD_CARD_CTRL3, &data);
+			data |= 0x02;
+			woal_sdio_f0_writeb(handle, SD_CARD_CTRL3, data);
+		}
 	} else
 #endif
 		ret = sdio_claim_irq(func, woal_sdio_interrupt);

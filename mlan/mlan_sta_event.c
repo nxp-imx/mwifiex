@@ -737,6 +737,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
 	remain_on_channel_info *roc_info = MNULL;
+	t_u8 tsp_status = 0;
 
 	ENTER();
 
@@ -1558,6 +1559,35 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_IMD3_CAL_END\n");
 		break;
 
+	case EVENT_TSP_CONFIG:
+		evt_buf =
+			(pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause));
+		tsp_status = evt_buf[4];
+		switch (tsp_status) {
+		case TSP_PWR_BACKOFF_START:
+			PRINTM(MEVENT,
+			       "EVENT: EVENT_TSP_POWER_BACKOFF_START\n");
+			break;
+		case TSP_PWR_BACKOFF_END:
+			PRINTM(MEVENT, "EVENT: EVENT_TSP_POWER_BACKOFF_END\n");
+			break;
+		case TSP_STREAM_1X1:
+			PRINTM(MEVENT, "EVENT: EVENT_NOTIFY_STREAM_1X1\n");
+			break;
+		case TSP_STREAM_2X2:
+			PRINTM(MEVENT, "EVENT: EVENT_NOTIFY_STREAM_2X2\n");
+			break;
+		case DTM_DC_THROTTLE_START:
+			PRINTM(MEVENT, "EVENT: EVENT_DTM_DC_THROTTLE_ENABLE\n");
+			break;
+		case DTM_DC_THROTTLE_END:
+			PRINTM(MEVENT,
+			       "EVENT: EVENT_DTM_DC_THROTTLE_DISABLE\n");
+			break;
+		default:
+			break;
+		}
+		break;
 	case EVENT_EMERGENCY_TEMP_REACHED:
 		PRINTM(MEVENT, "EVENT: EVENT_EMERGENCY_TEMP_REACHED\n");
 

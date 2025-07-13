@@ -52,9 +52,9 @@ static mode_psd_t mode_psd_uap_FCC_6G[] = {
  * @brief Band: 6G, Region: EU UAP-Mode-PSD Table
  */
 static mode_psd_t mode_psd_uap_EU_6G[] = {
-	{"indoor_", "plus7"},
+	{"indoor_", "plus10"},
 	{"sp_", ""},
-	{"vlp_", "minus5"},
+	{"vlp_", "plus1"},
 };
 
 /**
@@ -536,6 +536,7 @@ static int woal_deauth_station(moal_private *priv, const u8 *mac_addr,
 		ret = -EFAULT;
 		goto done;
 	}
+	priv->plinkstats.num_evt_deauth_tx++;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -1867,14 +1868,13 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
-			else if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
+			else
 				sys_config->ht_cap_info =
 					(ht_cap &
 					 (wiphy->bands[IEEE80211_BAND_5GHZ]
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
-			}
 		}
 		PRINTM(MCMND,
 		       "11n=%d, ht_cap=0x%x, channel=%d, bandcfg:chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x\n",
@@ -2371,18 +2371,18 @@ static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 		goto fail;
 	}
 	if (woal_is_any_interface_active(handle)) {
-		/* set current band channel config */
-		chan_info.bandcfg.chanBand = mon_if->band_chan_cfg.band;
-		if (mon_if->band_chan_cfg.band &
-		    (BAND_B | BAND_G | BAND_GN | BAND_GAC))
-			chan_info.bandcfg.chanBand = BAND_2GHZ;
-		else
-			/* TODO: Add support for BAND_4GHZ */
-			chan_info.bandcfg.chanBand = BAND_5GHZ;
-		chan_info.bandcfg.chanWidth =
-			mon_if->band_chan_cfg.chan_bandwidth;
-		chan_info.channel = mon_if->band_chan_cfg.channel;
-		chan_info.is_11n_enabled = MTRUE;
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_active_intf_channel(priv, &chan_info)) {
+			/* stop monitor mode on error */
+			woal_set_net_monitor(priv, MOAL_IOCTL_WAIT, MFALSE, 0,
+					     NULL);
+			ret = -EFAULT;
+			goto fail;
+		}
+		mon_if->band_chan_cfg.band = chan_info.bandcfg.chanBand;
+		mon_if->band_chan_cfg.channel = chan_info.channel;
+		mon_if->band_chan_cfg.chan_bandwidth =
+			chan_info.bandcfg.chanWidth;
 	}
 	if (MLAN_STATUS_FAILURE ==
 	    woal_chandef_create(priv, &mon_if->chandef, &chan_info)) {
@@ -2749,24 +2749,37 @@ moal_private *woal_alloc_virt_interface(moal_handle *handle, t_u8 bss_index,
 	priv->bss_role = MLAN_BSS_ROLE_STA;
 
 	INIT_LIST_HEAD(&priv->tcp_sess_queue);
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->tcp_sess_lock);
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->tx_stat_lock);
 	INIT_LIST_HEAD(&priv->mcast_list);
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->mcast_lock);
 
 #ifdef STA_CFG80211
 	INIT_LIST_HEAD(&priv->dhcp_discover_queue);
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->dhcp_discover_lock);
+	// Coverity raised warning for kernel API
 	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->arp_request_lock);
 #endif
 
 #ifdef STA_CFG80211
 	INIT_LIST_HEAD(&priv->ipv6_addrses);
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->ipv6addr_lock);
 #endif
+	// Coverity raised warning for kernel API
+	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&priv->connect_lock);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)

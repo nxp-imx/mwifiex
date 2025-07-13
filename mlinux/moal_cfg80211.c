@@ -3493,7 +3493,8 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	if ((ieee80211_is_action(
 		    ((const struct ieee80211_mgmt *)buf)->frame_control))
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
-	    || moal_extflg_isset(priv->phandle, EXT_HOST_MLME)
+	    || (moal_extflg_isset(priv->phandle, EXT_HOST_MLME) &&
+		(priv->bss_type != MLAN_BSS_TYPE_STA))
 #endif
 	) {
 #ifdef WIFI_DIRECT_SUPPORT
@@ -3510,16 +3511,6 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			woal_remain_timer_func(priv->phandle);
 		}
 
-		if (ieee80211_is_auth(
-			    ((struct ieee80211_mgmt *)buf)->frame_control) &&
-		    (priv->bss_type == MLAN_BSS_TYPE_STA)) {
-			woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH,
-						 MTRUE);
-			priv->auth_flag = HOST_MLME_AUTH_PENDING;
-			priv->auth_alg = woal_cpu_to_le16(
-				((struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
-			priv->host_mlme = MTRUE;
-		}
 		/* With sd8777 We have difficulty to receive response packet in
 		 * 500ms
 		 */
@@ -3613,6 +3604,18 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		}
 	}
 #endif
+
+	if (ieee80211_is_auth(
+		    ((const struct ieee80211_mgmt *)buf)->frame_control) &&
+	    (priv->bss_type == MLAN_BSS_TYPE_STA)) {
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
+		woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
+		priv->auth_flag = HOST_MLME_AUTH_PENDING;
+		priv->auth_mgmt_tx = 1;
+		priv->auth_alg = woal_cpu_to_le16(
+			((const struct ieee80211_mgmt *)buf)->u.auth.auth_alg);
+		priv->host_mlme = MTRUE;
+	}
 
 #if KERNEL_VERSION(3, 8, 0) > LINUX_VERSION_CODE
 	*cookie = random32() | 1;
@@ -4288,8 +4291,7 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 			if (!(priv->phandle->fw_bands & BAND_GAX) &&
 			    !(priv->phandle->fw_bands & BAND_AAX)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
-			    && (!(priv->phandle->fw_bands & BAND_6G))
-
+			    && !(priv->phandle->fw_bands & BAND_6G)
 #endif
 			)
 				break;

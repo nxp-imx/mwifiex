@@ -3,7 +3,7 @@
  *  @brief This file contains TLV ID definitions.
  *
  *
- *  Copyright 2023-2024 NXP
+ *  Copyright 2023-2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -506,5 +506,6 @@
 
 #define VENDOR_IE_OUIS_TLV_ID (PROPRIETARY_TLV_BASE_ID + 357) /* 0x0265 */
 #define TLV_TYPE_AP_INFO (PROPRIETARY_TLV_BASE_ID + 358) /* 0x0266 */
+#define TLV_TYPE_CSI_AGC_CONFIG (PROPRIETARY_TLV_BASE_ID + 363) /* 0x026b */
 
 #endif /* !MLAN_TLV_IDS_H_ */

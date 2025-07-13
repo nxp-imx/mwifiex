@@ -98,16 +98,16 @@ static const u32 cfg80211_akm_suites[] = {
 mode_psd_t mode_psd_sta_FCC_6G[] = {
 	{"indoor_", "minus1"},
 	{"sp_", ""},
-	{"vlp_", "minus7"},
+	{"vlp_", "minus5"},
 };
 
 /**
  * @brief Band: 6G, Region: EU STA-Mode-PSD Table
  */
 mode_psd_t mode_psd_sta_EU_6G[] = {
-	{"indoor_", "minus1"},
+	{"indoor_", "plus10"},
 	{"sp_", ""},
-	{"vlp_", "minus10"},
+	{"vlp_", "plus1"},
 };
 
 /**
@@ -1757,6 +1757,7 @@ mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason)
 	wifi_timeval ts;
 	t_u64 diff;
 	t_u8 intf_num;
+	moal_handle *ref_handle;
 
 	/* Disconnect all interfaces */
 	for (intf_num = 0; intf_num < handle->priv_num; intf_num++) {
@@ -1775,6 +1776,15 @@ mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason)
 	if (reset_time.time_sec == 0 || diff >= MAX_WIFI_RESET_INTERVAL) {
 		reset_time = ts;
 		PRINTM(MERROR, "WiFi Reset due to %s cnt %d\n", reason, cnt);
+		handle->driver_status = MTRUE;
+		mlan_set_driver_status(handle->pmlan_adapter,
+				       handle->driver_status);
+		ref_handle = (moal_handle *)handle->pref_mac;
+		if (ref_handle) {
+			ref_handle->driver_status = MTRUE;
+			mlan_set_driver_status(ref_handle->pmlan_adapter,
+					       ref_handle->driver_status);
+		}
 		/* Do wifi independent reset */
 		woal_process_hang(handle);
 		return MLAN_STATUS_SUCCESS;
@@ -1943,6 +1953,20 @@ static int woal_process_country_ie(moal_private *priv, struct cfg80211_bss *bss)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	if (!priv) {
+		PRINTM(MERROR, "%s(): priv is NULL!\n", __func__);
+		LEAVE();
+		return 0;
+	}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	if (priv->wdev && priv->wdev->wiphy &&
+	    (priv->wdev->wiphy->regulatory_flags &
+	     REGULATORY_WIPHY_SELF_MANAGED)) {
+		LEAVE();
+		return 0;
+	}
+#endif
 	rcu_read_lock();
 	country_ie = (const u8 *)ieee80211_bss_get_ie(bss, WLAN_EID_COUNTRY);
 	if (!country_ie) {
@@ -3031,8 +3055,10 @@ void woal_host_mlme_work_queue(struct work_struct *work)
 					    (t_u8 *)&status, NULL, 0, 0)) {
 					PRINTM(MERROR,
 					       "failed to cancel remain on channel\n");
+				} else {
+					priv->phandle->remain_on_channel =
+						MFALSE;
 				}
-				priv->phandle->remain_on_channel = MFALSE;
 			}
 			PRINTM(MCMND, "wlan: HostMlme %s auth success\n",
 			       priv->netdev->name);
@@ -3082,7 +3108,8 @@ static mlan_status woal_host_mlme_fallback_to_prev_ap(moal_private *priv)
 		roam_info.resp_ie_len = assoc_info->assoc_resp_len;
 
 		if (priv->conn_ssid_len) {
-#if (CFG80211_VERSION_CODE > KERNEL_VERSION(5, 19, 1))
+#if ((CFG80211_VERSION_CODE > KERNEL_VERSION(5, 19, 1)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			if (priv->wdev->u.client.ssid_len == 0) {
 				priv->wdev->u.client.ssid_len =
 					priv->conn_ssid_len;
@@ -3192,6 +3219,30 @@ void woal_host_mlme_process_assoc_timeout(moal_private *priv,
 	cfg80211_assoc_timeout(priv->netdev, bss);
 	mutex_unlock(&priv->wdev->mtx);
 #endif
+
+// Issue explicit Disconnect to CFG80211, on Assoc failure.
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	if (priv->wdev &&
+#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || IMX_ANDROID_13 ||  \
+     IMX_ANDROID_12_BACKPORT)
+	    priv->wdev->connected) {
+#else
+	    priv->wdev->current_bss) {
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		if (priv->host_mlme)
+			woal_deauth_event(priv, MLAN_REASON_DEAUTH_LEAVING,
+					  priv->cfg_bssid);
+		else
+#endif
+			cfg80211_disconnected(priv->netdev, 0, NULL, 0,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+					      true,
+#endif
+					      GFP_KERNEL);
+	}
+#endif
+
 	memset(priv->cfg_bssid, 0, ETH_ALEN);
 	woal_clear_conn_params(priv);
 }
@@ -4990,32 +5041,29 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 	moal_memcpy_ext(priv->phandle, region, request->alpha2,
 			sizeof(request->alpha2), sizeof(region));
 	region[2] = ' ';
-	if ((handle->country_code[0] != request->alpha2[0]) ||
-	    (handle->country_code[1] != request->alpha2[1])) {
-		if (handle->params.cntry_txpwr) {
-			t_u8 country_code[COUNTRY_CODE_LEN];
-			handle->country_code[0] = request->alpha2[0];
-			handle->country_code[1] = request->alpha2[1];
-			handle->country_code[2] = ' ';
-			memset(country_code, 0, sizeof(country_code));
-			if (MTRUE == is_cfg80211_special_region_code(region)) {
-				country_code[0] = 'W';
-				country_code[1] = 'W';
-			} else {
-				country_code[0] = request->alpha2[0];
-				country_code[1] = request->alpha2[1];
-			}
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_request_country_power_table(
-				    priv, country_code, MOAL_IOCTL_WAIT, 0)) {
-#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
-				return -EFAULT;
-#else
-				return;
-#endif
-			}
-			load_power_table = MTRUE;
+	if (handle->params.cntry_txpwr) {
+		t_u8 country_code[COUNTRY_CODE_LEN];
+		handle->country_code[0] = request->alpha2[0];
+		handle->country_code[1] = request->alpha2[1];
+		handle->country_code[2] = ' ';
+		memset(country_code, 0, sizeof(country_code));
+		if (MTRUE == is_cfg80211_special_region_code(region)) {
+			country_code[0] = 'W';
+			country_code[1] = 'W';
+		} else {
+			country_code[0] = request->alpha2[0];
+			country_code[1] = request->alpha2[1];
 		}
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_request_country_power_table(priv, country_code,
+						     MOAL_IOCTL_WAIT, 0)) {
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+			return -EFAULT;
+#else
+			return;
+#endif
+		}
+		load_power_table = MTRUE;
 	}
 	if (!handle->params.cntry_txpwr) {
 		handle->country_code[0] = request->alpha2[0];
