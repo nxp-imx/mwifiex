@@ -111,20 +111,30 @@ int woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 			break;
 		}
 		break;
-#ifdef WIFI_DIRECT_SUPPORT
-#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	case WOAL_UAP_SETONEINT_GETONEINT:
 		switch (wrq->u.data.flags) {
+#ifdef WIFI_DIRECT_SUPPORT
+#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		case WOAL_UAP_SET_GET_BSS_ROLE:
 			ret = woal_set_get_bss_role(priv, wrq);
 			break;
+#endif
+#endif
+#if defined(UAP_CFG80211)
+#if defined(STA_WEXT) || defined(UAP_WEXT)
+		case WOAL_UAP_SET_MODE:
+			PRINTM(MINFO,
+			       "%s: setting multi_ap flag through user command\n",
+			       __func__);
+			ret = woal_uap_set_get_multi_ap_mode(priv, wrq);
+			break;
+#endif
+#endif
 		default:
 			ret = -EINVAL;
 			break;
 		}
 		break;
-#endif
-#endif
 	case WOAL_UAP_HOST_CMD:
 		ret = woal_host_command(priv, wrq);
 		break;

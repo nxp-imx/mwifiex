@@ -40,6 +40,343 @@ Change log:
 /********************************************************
 		Local Variables
 ********************************************************/
+#ifdef SD8887
+static const struct _mlan_sdio_card_reg mlan_reg_sd8887 = {
+	.start_rd_port = 0,
+	.start_wr_port = 0,
+	.base_0_reg = 0x6C,
+	.base_1_reg = 0x6D,
+	.poll_reg = 0x5C,
+	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
+			   CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
+			   DN_LD_CMD_PORT_HOST_INT_STATUS |
+			   UP_LD_CMD_PORT_HOST_INT_STATUS,
+	.status_reg_0 = 0x90,
+	.status_reg_1 = 0x91,
+	.sdio_int_mask = 0xff,
+	.data_port_mask = 0xffffffff,
+	.max_mp_regs = 196,
+	.rd_bitmap_l = 0x10,
+	.rd_bitmap_u = 0x11,
+	.rd_bitmap_1l = 0x12,
+	.rd_bitmap_1u = 0x13,
+	.wr_bitmap_l = 0x14,
+	.wr_bitmap_u = 0x15,
+	.wr_bitmap_1l = 0x16,
+	.wr_bitmap_1u = 0x17,
+	.rd_len_p0_l = 0x18,
+	.rd_len_p0_u = 0x19,
+	.card_config_2_1_reg = 0xD9,
+	.cmd_config_0 = 0xC4,
+	.cmd_config_1 = 0xC5,
+	.cmd_config_2 = 0xC6,
+	.cmd_config_3 = 0xC7,
+	.cmd_rd_len_0 = 0xC0,
+	.cmd_rd_len_1 = 0xC1,
+	.cmd_rd_len_2 = 0xC2,
+	.cmd_rd_len_3 = 0xC3,
+	.io_port_0_reg = 0xE4,
+	.io_port_1_reg = 0xE5,
+	.io_port_2_reg = 0xE6,
+	.host_int_rsr_reg = 0x04,
+	.host_int_mask_reg = 0x08,
+	.host_int_status_reg = 0x0C,
+	.host_restart_reg = 0x58,
+	.card_to_host_event_reg = 0x5C,
+	.host_interrupt_mask_reg = 0x60,
+	.card_interrupt_status_reg = 0x64,
+	.card_interrupt_rsr_reg = 0x68,
+	.card_revision_reg = 0xC8,
+	.card_ocr_0_reg = 0xD4,
+	.card_ocr_1_reg = 0xD5,
+	.card_ocr_3_reg = 0xD6,
+	.card_config_reg = 0xD7,
+	.card_misc_cfg_reg = 0xD8,
+	.debug_0_reg = 0xDC,
+	.debug_1_reg = 0xDD,
+	.debug_2_reg = 0xDE,
+	.debug_3_reg = 0xDF,
+	.fw_reset_reg = 0x0B6,
+	.fw_reset_val = 1,
+	.winner_check_reg = 0x90,
+};
+
+static const struct _mlan_card_info mlan_card_info_sd8887 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
+};
+#endif
+
+#ifdef SD8801
+static const struct _mlan_sdio_card_reg mlan_reg_sd8801 = {
+	.start_rd_port = 1,
+	.start_wr_port = 1,
+	.base_0_reg = 0x40,
+	.base_1_reg = 0x41,
+	.poll_reg = 0x30,
+	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK,
+	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS,
+	.status_reg_0 = 0x60,
+	.status_reg_1 = 0x61,
+	.sdio_int_mask = 0x3f,
+	.data_port_mask = 0x0000fffe,
+	.max_mp_regs = 64,
+	.rd_bitmap_l = 0x4,
+	.rd_bitmap_u = 0x5,
+	.wr_bitmap_l = 0x6,
+	.wr_bitmap_u = 0x7,
+	.rd_len_p0_l = 0x8,
+	.rd_len_p0_u = 0x9,
+	.io_port_0_reg = 0x78,
+	.io_port_1_reg = 0x79,
+	.io_port_2_reg = 0x7A,
+	.host_int_rsr_reg = 0x01,
+	.host_int_mask_reg = 0x02,
+	.host_int_status_reg = 0x03,
+	.card_misc_cfg_reg = 0x6c,
+	.fw_reset_reg = 0x64,
+	.fw_reset_val = 0,
+};
+
+static const struct _mlan_card_info mlan_card_info_sd8801 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v14_fw_api = 1,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
+};
+#endif
+
+#ifdef SD8897
+static const struct _mlan_sdio_card_reg mlan_reg_sd8897 = {
+	.start_rd_port = 0,
+	.start_wr_port = 0,
+	.base_0_reg = 0x60,
+	.base_1_reg = 0x61,
+	.poll_reg = 0x50,
+	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
+			   CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
+			   DN_LD_CMD_PORT_HOST_INT_STATUS |
+			   UP_LD_CMD_PORT_HOST_INT_STATUS,
+	.status_reg_0 = 0xC0,
+	.status_reg_1 = 0xC1,
+	.sdio_int_mask = 0xff,
+	.data_port_mask = 0xffffffff,
+	.max_mp_regs = 184,
+	.rd_bitmap_l = 0x04,
+	.rd_bitmap_u = 0x05,
+	.rd_bitmap_1l = 0x06,
+	.rd_bitmap_1u = 0x07,
+	.wr_bitmap_l = 0x08,
+	.wr_bitmap_u = 0x09,
+	.wr_bitmap_1l = 0x0A,
+	.wr_bitmap_1u = 0x0B,
+	.rd_len_p0_l = 0x0C,
+	.rd_len_p0_u = 0x0D,
+	.card_config_2_1_reg = 0xCD,
+	.cmd_config_0 = 0xB8,
+	.cmd_config_1 = 0xB9,
+	.cmd_config_2 = 0xBA,
+	.cmd_config_3 = 0xBB,
+	.cmd_rd_len_0 = 0xB4,
+	.cmd_rd_len_1 = 0xB5,
+	.cmd_rd_len_2 = 0xB6,
+	.cmd_rd_len_3 = 0xB7,
+	.io_port_0_reg = 0xD8,
+	.io_port_1_reg = 0xD9,
+	.io_port_2_reg = 0xDA,
+	.host_int_rsr_reg = 0x01,
+	.host_int_mask_reg = 0x02,
+	.host_int_status_reg = 0x03,
+	.host_restart_reg = 0x4C,
+	.card_to_host_event_reg = 0x50,
+	.host_interrupt_mask_reg = 0x54,
+	.card_interrupt_status_reg = 0x58,
+	.card_interrupt_rsr_reg = 0x5C,
+	.card_revision_reg = 0xBC,
+	.card_ocr_0_reg = 0xC8,
+	.card_ocr_1_reg = 0xC9,
+	.card_ocr_3_reg = 0xCA,
+	.card_config_reg = 0xCB,
+	.card_misc_cfg_reg = 0xCC,
+	.debug_0_reg = 0xD0,
+	.debug_1_reg = 0xD1,
+	.debug_2_reg = 0xD2,
+	.debug_3_reg = 0xD3,
+	.fw_reset_reg = 0x0E8,
+	.fw_reset_val = 1,
+	.winner_check_reg = 0xC0,
+};
+
+static const struct _mlan_card_info mlan_card_info_sd8897 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 0,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 0,
+};
+#endif
+
+#if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
+	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
+	defined(SD8978) || defined(SD9177) || defined(SDIW615)
+static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
+	.start_rd_port = 0,
+	.start_wr_port = 0,
+	.base_0_reg = 0xf8,
+	.base_1_reg = 0xf9,
+	.poll_reg = 0x5C,
+	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
+			   CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
+			   DN_LD_CMD_PORT_HOST_INT_STATUS |
+			   UP_LD_CMD_PORT_HOST_INT_STATUS,
+	.status_reg_0 = 0xe8,
+	.status_reg_1 = 0xe9,
+	.sdio_int_mask = 0xff,
+	.data_port_mask = 0xffffffff,
+	.max_mp_regs = 196,
+	.rd_bitmap_l = 0x10,
+	.rd_bitmap_u = 0x11,
+	.rd_bitmap_1l = 0x12,
+	.rd_bitmap_1u = 0x13,
+	.wr_bitmap_l = 0x14,
+	.wr_bitmap_u = 0x15,
+	.wr_bitmap_1l = 0x16,
+	.wr_bitmap_1u = 0x17,
+	.rd_len_p0_l = 0x18,
+	.rd_len_p0_u = 0x19,
+	.card_config_2_1_reg = 0xD9,
+	.cmd_config_0 = 0xC4,
+	.cmd_config_1 = 0xC5,
+	.cmd_config_2 = 0xC6,
+	.cmd_config_3 = 0xC7,
+	.cmd_rd_len_0 = 0xC0,
+	.cmd_rd_len_1 = 0xC1,
+	.cmd_rd_len_2 = 0xC2,
+	.cmd_rd_len_3 = 0xC3,
+	.io_port_0_reg = 0xE4,
+	.io_port_1_reg = 0xE5,
+	.io_port_2_reg = 0xE6,
+	.host_int_rsr_reg = 0x04,
+	.host_int_mask_reg = 0x08,
+	.host_int_status_reg = 0x0C,
+	.host_restart_reg = 0x58,
+	.card_to_host_event_reg = 0x5C,
+	.host_interrupt_mask_reg = 0x60,
+	.card_interrupt_status_reg = 0x64,
+	.card_interrupt_rsr_reg = 0x68,
+	.card_revision_reg = 0xC8,
+	.card_ocr_0_reg = 0xD4,
+	.card_ocr_1_reg = 0xD5,
+	.card_ocr_3_reg = 0xD6,
+	.card_config_reg = 0xD7,
+	.card_misc_cfg_reg = 0xD8,
+	.debug_0_reg = 0xDC,
+	.debug_1_reg = 0xDD,
+	.debug_2_reg = 0xDE,
+	.debug_3_reg = 0xDF,
+	.fw_reset_reg = 0x0EE,
+	.fw_reset_val = 0x99,
+	.fw_dnld_offset_0_reg = 0xEC,
+	.fw_dnld_offset_1_reg = 0xED,
+	.fw_dnld_offset_2_reg = 0xEE,
+	.fw_dnld_offset_3_reg = 0xEF,
+	.fw_dnld_status_0_reg = 0xE8,
+	.fw_dnld_status_1_reg = 0xE9,
+	.winner_check_reg = 0xFC,
+};
+#endif
+
+#ifdef SD8997
+static const struct _mlan_card_info mlan_card_info_sd8997 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SD9097
+static const struct _mlan_card_info mlan_card_info_sd9097 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SDIW624
+static const struct _mlan_card_info mlan_card_info_sdiw624 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SD9098
+static const struct _mlan_card_info mlan_card_info_sd9098 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+#ifdef SD9177
+static const struct _mlan_card_info mlan_card_info_sd9177 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SDIW615
+static const struct _mlan_card_info mlan_card_info_sdiw615 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
+};
+#endif
+
+#if defined(SD8977) || defined(SD8978)
+static const struct _mlan_card_info mlan_card_info_sd8977 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v16_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef SD8987
+static const struct _mlan_card_info mlan_card_info_sd8987 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+	.v16_fw_api = 1,
+	.supp_ps_handshake = 0,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 1,
+};
+#endif
 
 /********************************************************
 		Global Variables
@@ -257,8 +594,8 @@ static mlan_status wlan_get_rd_port(mlan_adapter *pmadapter, t_u8 *pport)
 	} else {
 		if (pmadapter->pcard_sd->mp_rd_bitmap &
 		    (1 << pmadapter->pcard_sd->curr_rd_port)) {
-			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(
-				~(1 << pmadapter->pcard_sd->curr_rd_port));
+			pmadapter->pcard_sd->mp_rd_bitmap &= (t_u32)(~(
+				1 << pmadapter->pcard_sd->curr_rd_port));
 			*pport = pmadapter->pcard_sd->curr_rd_port;
 
 			/* hw rx wraps round only after port (MAX_PORT-1) */
@@ -660,7 +997,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 	t_u8 *firmware = fw;
 	t_u32 firmwarelen = fw_len;
 	t_u32 offset = 0;
-	t_u32 base0, base1;
+	t_u32 base0 = 0, base1 = 0;
 	t_void *tmpfwbuf = MNULL;
 	t_u32 tmpfwbufsz;
 	t_u8 *fwbuf;
@@ -699,7 +1036,6 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	memset(pmadapter, tmpfwbuf, 0, tmpfwbufsz);
 	/* Ensure 8-byte aligned firmware buffer */
 	fwbuf = (t_u8 *)ALIGN_ADDR(tmpfwbuf, DMA_ALIGNMENT);
 #if defined(SD9098)
@@ -719,14 +1055,14 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			check_fw_status = MTRUE;
 	}
 #endif
-#if defined(SD9097)
-	if (IS_SD9097(pmadapter->card_type))
+#if defined(SD9097) || defined(SD9177) || defined(SDIW624) || defined(SDIW615)
+	if (IS_SD9097(pmadapter->card_type) ||
+	    IS_SDIW624(pmadapter->card_type) ||
+	    IS_SDAW693(pmadapter->card_type) ||
+	    IS_SDIW615(pmadapter->card_type) || IS_SD9177(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
-#if defined(SD9177)
-	if (IS_SD9177(pmadapter->card_type))
-		check_fw_status = MTRUE;
-#endif
+
 	/* Perform firmware data transfer */
 	do {
 		/* The host polls for the DN_LD_CARD_RDY and CARD_IO_READY bits
@@ -849,7 +1185,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			 * for last block */
 			if (firmwarelen && firmwarelen - offset < txlen)
 				txlen = firmwarelen - offset;
-			PRINTM(MINFO, ".");
+			PRINTM(MINFO, ".\n");
 
 			tx_blocks = (txlen + MLAN_SDIO_BLOCK_SIZE_FW_DNLD - 1) /
 				    MLAN_SDIO_BLOCK_SIZE_FW_DNLD;
@@ -931,6 +1267,8 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 {
 	t_u8 *cmd_buf;
 	t_u32 event;
+	t_u32 in_ts_sec, in_ts_usec;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
 
@@ -973,19 +1311,43 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 		pmbuf->data_len = (pmadapter->upld_len - SDIO_INTF_HEADER_LEN);
 		pmbuf->data_offset += SDIO_INTF_HEADER_LEN;
 		if (pmadapter->rx_work_flag) {
-			if (lock_flag)
-				pmadapter->callbacks.moal_spin_lock(
+			// rx_trace 5
+			if (pmadapter->tp_state_on) {
+				pmadapter->callbacks.moal_tp_accounting(
+					pmadapter->pmoal_handle, pmbuf,
+					5 /*RX_DROP_P1*/);
+				pcb->moal_get_system_time(
+					pmadapter->pmoal_handle, &in_ts_sec,
+					&in_ts_usec);
+				pmbuf->in_ts_sec = in_ts_sec;
+				pmbuf->in_ts_usec = in_ts_usec;
+			}
+			if (pmadapter->tp_state_drop_point ==
+			    5 /*RX_DROP_P1*/) {
+				pmadapter->ops.data_complete(
+					pmadapter, pmbuf, MLAN_STATUS_SUCCESS);
+			} else {
+				if (lock_flag)
+					pmadapter->callbacks.moal_spin_lock(
+						pmadapter->pmoal_handle,
+						pmadapter->rx_data_queue.plock);
+				util_enqueue_list_tail(
 					pmadapter->pmoal_handle,
-					pmadapter->rx_data_queue.plock);
-			util_enqueue_list_tail(pmadapter->pmoal_handle,
-					       &pmadapter->rx_data_queue,
-					       (pmlan_linked_list)pmbuf, MNULL,
-					       MNULL);
-			pmadapter->rx_pkts_queued++;
-			if (lock_flag)
-				pmadapter->callbacks.moal_spin_unlock(
-					pmadapter->pmoal_handle,
-					pmadapter->rx_data_queue.plock);
+					&pmadapter->rx_data_queue,
+					(pmlan_linked_list)pmbuf, MNULL, MNULL);
+				pmadapter->rx_pkts_queued++;
+				if (pmadapter->tp_state_on)
+					pmadapter->callbacks
+						.moal_tp_accounting_rx_param(
+							pmadapter->pmoal_handle,
+							1,
+							pmadapter
+								->rx_pkts_queued);
+				if (lock_flag)
+					pmadapter->callbacks.moal_spin_unlock(
+						pmadapter->pmoal_handle,
+						pmadapter->rx_data_queue.plock);
+			}
 		} else {
 			wlan_handle_rx_packet(pmadapter, pmbuf);
 		}
@@ -994,6 +1356,8 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 
 	case MLAN_TYPE_CMD:
 		PRINTM(MINFO, "--- Rx: Cmd Response ---\n");
+		if (pmadapter->cmd_sent && !pmadapter->vdll_ctrl.vdll_len)
+			pmadapter->cmd_sent = MFALSE;
 		/* take care of curr_cmd = NULL case */
 		if (!pmadapter->curr_cmd) {
 			cmd_buf = pmadapter->upld_buf;
@@ -1030,6 +1394,7 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 
 	case MLAN_TYPE_EVENT:
 		PRINTM(MINFO, "--- Rx: Event ---\n");
+
 		event = *(t_u32 *)&pmbuf->pbuf[pmbuf->data_offset +
 					       SDIO_INTF_HEADER_LEN];
 		pmadapter->event_cause = wlan_le32_to_cpu(event);
@@ -1819,7 +2184,7 @@ static mlan_status wlan_sdio_check_fw_status(mlan_adapter *pmadapter,
 			ret = MLAN_STATUS_SUCCESS;
 			break;
 		} else {
-			wlan_mdelay(pmadapter, 100);
+			wlan_mdelay(pmadapter, 10);
 			ret = MLAN_STATUS_FAILURE;
 		}
 	}
@@ -1944,10 +2309,6 @@ poll_fw:
 		LEAVE();
 		return ret;
 	}
-#ifdef SD9177
-	if (IS_SD9177(pmadapter->card_type))
-		wlan_mdelay(pmadapter, 1000);
-#endif
 done:
 
 	/* re-enable host interrupt for mlan after fw dnld is successful */
@@ -2077,6 +2438,18 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_sd9097;
 		break;
 #endif
+#ifdef SDIW624
+	case CARD_TYPE_SDIW624:
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_info = &mlan_card_info_sdiw624;
+		break;
+#endif
+#ifdef SDIW615
+	case CARD_TYPE_SDIW615:
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_info = &mlan_card_info_sdiw615;
+		break;
+#endif
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
 		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
@@ -2094,6 +2467,83 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 }
 
 /**
+ *  @brief This function dump the mp registers when issue happened
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @return             N/A
+ */
+static void wlan_dump_mp_registers(pmlan_adapter pmadapter)
+{
+	t_u32 mp_wr_bitmap;
+	t_bool new_mode = pmadapter->pcard_sd->supports_sdio_new_mode;
+	t_u32 mp_rd_bitmap;
+	t_u16 rx_len = 0;
+	const mlan_sdio_card_reg *reg = pmadapter->pcard_sd->reg;
+	t_u8 cmd_rd_len_0 = reg->cmd_rd_len_0;
+	t_u8 cmd_rd_len_1 = reg->cmd_rd_len_1;
+	t_u8 host_int_status_reg = reg->host_int_status_reg;
+	t_u32 sdio_ireg = 0;
+
+	mp_wr_bitmap = (t_u32)pmadapter->pcard_sd->mp_regs[reg->wr_bitmap_l];
+	mp_wr_bitmap |= ((t_u32)pmadapter->pcard_sd->mp_regs[reg->wr_bitmap_u])
+			<< 8;
+	if (new_mode) {
+		mp_wr_bitmap |=
+			((t_u32)pmadapter->pcard_sd->mp_regs[reg->wr_bitmap_1l])
+			<< 16;
+		mp_wr_bitmap |=
+			((t_u32)pmadapter->pcard_sd->mp_regs[reg->wr_bitmap_1u])
+			<< 24;
+	}
+	PRINTM(MMSG, "wlan: mp_data_port_mask = 0x%x\n",
+	       pmadapter->pcard_sd->mp_data_port_mask);
+	PRINTM(MMSG, "wlan: HW wr_bitmap=0x%08x Host: wr_bitmap=0x%08x\n",
+	       mp_wr_bitmap, pmadapter->pcard_sd->mp_wr_bitmap);
+	mp_rd_bitmap = (t_u32)pmadapter->pcard_sd->mp_regs[reg->rd_bitmap_l];
+	mp_rd_bitmap |= ((t_u32)pmadapter->pcard_sd->mp_regs[reg->rd_bitmap_u])
+			<< 8;
+	if (new_mode) {
+		mp_rd_bitmap |=
+			((t_u32)pmadapter->pcard_sd->mp_regs[reg->rd_bitmap_1l])
+			<< 16;
+		mp_rd_bitmap |=
+			((t_u32)pmadapter->pcard_sd->mp_regs[reg->rd_bitmap_1u])
+			<< 24;
+	}
+	PRINTM(MMSG, "wlan: HW rd_bitmap=0x%08x Host: rd_bitmap=0x%08x\n",
+	       mp_rd_bitmap, pmadapter->pcard_sd->mp_rd_bitmap);
+
+	if (new_mode) {
+		rx_len = ((t_u16)pmadapter->pcard_sd->mp_regs[cmd_rd_len_1])
+			 << 8;
+		rx_len |= (t_u16)pmadapter->pcard_sd->mp_regs[cmd_rd_len_0];
+		PRINTM(MMSG, "wlan: cmd rx buffer rx_len = %d\n", rx_len);
+	}
+	PRINTM(MMSG, "wlan: HW sdio_ireg = 0x%x\n",
+	       pmadapter->pcard_sd->mp_regs[host_int_status_reg]);
+	sdio_ireg = pmadapter->pcard_sd->mp_regs[host_int_status_reg];
+
+	if (new_mode && rx_len)
+		sdio_ireg |= UP_LD_CMD_PORT_HOST_INT_STATUS;
+
+	if (new_mode && pmadapter->cmd_sent)
+		sdio_ireg |= DN_LD_CMD_PORT_HOST_INT_STATUS;
+
+	if (!(pmadapter->pcard_sd->mp_wr_bitmap &
+	      pmadapter->pcard_sd->mp_data_port_mask)) {
+		if (mp_wr_bitmap & pmadapter->pcard_sd->mp_data_port_mask)
+			sdio_ireg |= DN_LD_HOST_INT_STATUS;
+	}
+
+	if ((!pmadapter->pcard_sd->mp_rd_bitmap) && mp_rd_bitmap)
+		sdio_ireg |= UP_LD_HOST_INT_STATUS;
+
+	pmadapter->pcard_sd->mp_regs[host_int_status_reg] = sdio_ireg;
+	PRINTM(MMSG, "wlan: recovered sdio_ireg=0x%x\n", sdio_ireg);
+	return;
+}
+
+/**
  *  @brief This function gets interrupt status.
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -2101,10 +2551,12 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
  */
 static mlan_status wlan_sdio_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 {
+	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_buffer mbuf;
 	t_u32 sdio_ireg = 0;
 	t_u8 offset = 0;
+	t_u8 i = 0;
 	int max_mp_regs = pmadapter->pcard_sd->reg->max_mp_regs;
 	t_u8 host_int_status_reg =
 		pmadapter->pcard_sd->reg->host_int_status_reg;
@@ -2115,20 +2567,32 @@ static mlan_status wlan_sdio_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 		memset(pmadapter, &mbuf, 0, sizeof(mlan_buffer));
 		mbuf.pbuf = pmadapter->pcard_sd->mp_regs + offset;
 		mbuf.data_len = MIN(max_mp_regs, MLAN_SDIO_BLOCK_SIZE);
-
-		if (MLAN_STATUS_SUCCESS !=
-		    pcb->moal_read_data_sync(pmadapter->pmoal_handle, &mbuf,
-					     (REG_PORT + offset) |
-						     MLAN_SDIO_BYTE_MODE_MASK,
-					     0)) {
-			PRINTM(MERROR,
-			       "moal_read_data_sync: read registers failed\n");
-			pmadapter->dbg.num_int_read_failure++;
-			goto done;
-		}
+		do {
+			ret = pcb->moal_read_data_sync(
+				pmadapter->pmoal_handle, &mbuf,
+				(REG_PORT + offset) | MLAN_SDIO_BYTE_MODE_MASK,
+				0);
+			if (ret != MLAN_STATUS_SUCCESS) {
+				PRINTM(MERROR,
+				       "wlan: cmd53 read regs failed: %d port=%x retry=%d\n",
+				       ret, REG_PORT + offset, i);
+				i++;
+				pcb->moal_write_reg(pmadapter->pmoal_handle,
+						    HOST_TO_CARD_EVENT_REG,
+						    HOST_TERM_CMD53);
+				if (i > MAX_WRITE_IOMEM_RETRY) {
+					PRINTM(MERROR,
+					       "wlan: Fail to read mp_regs\n");
+					pmadapter->dbg.num_int_read_failure++;
+					goto done;
+				}
+			}
+		} while (ret == MLAN_STATUS_FAILURE);
 		offset += mbuf.data_len;
 		max_mp_regs -= mbuf.data_len;
 	}
+	if (i > 0)
+		wlan_dump_mp_registers(pmadapter);
 
 	DBG_HEXDUMP(MIF_D, "SDIO MP Registers", pmadapter->pcard_sd->mp_regs,
 		    max_mp_regs);
@@ -2142,6 +2606,7 @@ static mlan_status wlan_sdio_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 		 * Clear the interrupt status register
 		 */
 		PRINTM(MINTR, "wlan_interrupt: sdio_ireg = 0x%x\n", sdio_ireg);
+		pmadapter->pm_wakeup_timeout = 0;
 		pmadapter->pcard_sd->num_of_irq++;
 		pcb->moal_spin_lock(pmadapter->pmoal_handle,
 				    pmadapter->pint_lock);
@@ -2224,9 +2689,11 @@ done:
  *  @brief This function checks the interrupt status and handle it accordingly.
  *
  *  @param pmadapter A pointer to mlan_adapter structure
+ *  @param type      interrupt type, not used in SDIO
  *  @return          MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter)
+static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
+						t_u8 type)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
@@ -2365,6 +2832,8 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter)
 		if (pmadapter->data_sent &&
 		    (pmadapter->pcard_sd->mp_wr_bitmap &
 		     (1 << pmadapter->pcard_sd->curr_wr_port))) {
+			pmadapter->callbacks.moal_tp_accounting_rx_param(
+				pmadapter->pmoal_handle, 3, 0);
 			PRINTM(MINFO, " <--- Tx DONE Interrupt --->\n");
 			pmadapter->data_sent = MFALSE;
 		}
@@ -2395,8 +2864,13 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter)
 					 ->mp_regs[reg->rd_bitmap_1u])
 				<< 24;
 		}
+		pmadapter->pcard_sd->last_recv_rd_bitmap =
+			pmadapter->pcard_sd->mp_rd_bitmap;
+
 		PRINTM(MINTR, "UPLD: rd_bitmap=0x%08x\n",
 		       pmadapter->pcard_sd->mp_rd_bitmap);
+		pmadapter->callbacks.moal_tp_accounting_rx_param(
+			pmadapter->pmoal_handle, 0, 0);
 
 		while (MTRUE) {
 			ret = wlan_get_rd_port(pmadapter, &port);
@@ -2424,8 +2898,7 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter)
 			}
 			rx_len = (t_u16)(rx_blocks * MLAN_SDIO_BLOCK_SIZE);
 
-			if ((rx_len > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) ||
-			    (!new_mode && (port == CTRL_PORT)))
+			if (!new_mode && (port == CTRL_PORT))
 				pmbuf = wlan_alloc_mlan_buffer(
 					pmadapter, rx_len, 0,
 					MOAL_MALLOC_BUFFER);
@@ -2592,7 +3065,9 @@ exit:
 	return ret;
 }
 
-#if (defined(SD9098) || defined(SD9097) || defined(SD9177))
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
+	defined(SD8978) || defined(SDIW615)
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -2653,7 +3128,9 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
-#if (defined(SD9098) || defined(SD9097) || defined(SD9177))
+#if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
+	defined(SD9177) || defined(SD8997) || defined(SD8987) ||               \
+	defined(SD8978) || defined(SDIW615)
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
 #endif
@@ -2712,9 +3189,14 @@ void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
 			       pkt_len, block_size);
 			break;
 		}
-		mbuf_deaggr = wlan_alloc_mlan_buffer(
-			pmadapter, pkt_len - SDIO_INTF_HEADER_LEN,
-			MLAN_RX_HEADER_LEN, MOAL_ALLOC_MLAN_BUFFER);
+		if (pkt_len > SDIO_INTF_HEADER_LEN) {
+			mbuf_deaggr = wlan_alloc_mlan_buffer(
+				pmadapter, pkt_len - SDIO_INTF_HEADER_LEN,
+				MLAN_RX_HEADER_LEN, MOAL_ALLOC_MLAN_BUFFER);
+		} else {
+			PRINTM(MERROR, "Invalid packet length error\n");
+		}
+
 		if (mbuf_deaggr == MNULL) {
 			PRINTM(MERROR, "Error allocating daggr mlan_buffer\n");
 			break;
@@ -2770,6 +3252,7 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 buf_size = 0;
 	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
 
 	ENTER();
@@ -2777,9 +3260,12 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
 	    (pmadapter->pcard_sd->max_seg_size <
 	     pmadapter->pcard_sd->max_sp_tx_size)) {
+		if (!wlan_secure_add(&mpa_tx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:tx_buf_size overflow \n", __func__);
+
 		ret = pcb->moal_malloc(
-			pmadapter->pmoal_handle,
-			mpa_tx_buf_size + DMA_ALIGNMENT,
+			pmadapter->pmoal_handle, buf_size,
 			MLAN_MEM_DEF | MLAN_MEM_DMA,
 			(t_u8 **)&pmadapter->pcard_sd->mpa_tx.head_ptr);
 		if (ret != MLAN_STATUS_SUCCESS ||
@@ -2801,9 +3287,12 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
 	    (pmadapter->pcard_sd->max_seg_size <
 	     pmadapter->pcard_sd->max_sp_rx_size)) {
+		if (!wlan_secure_add(&mpa_rx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:rx_buf_size overflow \n", __func__);
+
 		ret = pcb->moal_malloc(
-			pmadapter->pmoal_handle,
-			mpa_rx_buf_size + DMA_ALIGNMENT,
+			pmadapter->pmoal_handle, buf_size,
 			MLAN_MEM_DEF | MLAN_MEM_DMA,
 			(t_u8 **)&pmadapter->pcard_sd->mpa_rx.head_ptr);
 		if (ret != MLAN_STATUS_SUCCESS ||
@@ -2873,6 +3362,7 @@ mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	t_u32 buf_size = 0;
 	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
 	t_u32 mpa_rx_buf_size = pmadapter->pcard_sd->mp_tx_aggr_buf_size;
 
@@ -2911,9 +3401,12 @@ mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter)
 	if ((pmadapter->pcard_sd->max_segs < mp_aggr_pkt_limit) ||
 	    (pmadapter->pcard_sd->max_seg_size <
 	     pmadapter->pcard_sd->max_sp_rx_size)) {
+		if (!wlan_secure_add(&mpa_rx_buf_size, DMA_ALIGNMENT, &buf_size,
+				     TYPE_UINT32))
+			PRINTM(MERROR, "%s:rx_buf_size overflow \n", __func__);
+
 		ret = pcb->moal_malloc(
-			pmadapter->pmoal_handle,
-			mpa_rx_buf_size + DMA_ALIGNMENT,
+			pmadapter->pmoal_handle, buf_size,
 			MLAN_MEM_DEF | MLAN_MEM_DMA,
 			(t_u8 **)&pmadapter->pcard_sd->mpa_rx.head_ptr);
 		if (ret != MLAN_STATUS_SUCCESS ||
@@ -2952,7 +3445,10 @@ static mlan_status wlan_pm_sdio_wakeup_card(pmlan_adapter pmadapter,
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
-	PRINTM(MEVENT, "Wakeup device...\n");
+	if (pmadapter->second_mac)
+		PRINTM(MEVENT, "#2 Wakeup device...\n");
+	else
+		PRINTM(MEVENT, "Wakeup device...\n");
 	pmadapter->callbacks.moal_get_system_time(pmadapter->pmoal_handle,
 						  &pmadapter->pm_wakeup_in_secs,
 						  &age_ts_usec);
@@ -2960,7 +3456,7 @@ static mlan_status wlan_pm_sdio_wakeup_card(pmlan_adapter pmadapter,
 	if (timeout) {
 		pmadapter->callbacks.moal_start_timer(
 			pmadapter->pmoal_handle, pmadapter->pwakeup_fw_timer,
-			MFALSE, MRVDRV_TIMER_3S);
+			MFALSE, MRVDRV_TIMER_5S);
 		pmadapter->wakeup_fw_timer_is_set = MTRUE;
 	}
 
@@ -3116,8 +3612,8 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 		goto done;
 	}
 #if defined(SD8997) || defined(SD8977) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SD8978) ||               \
-	defined(SD9177)
+	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
+	defined(SD8978) || defined(SD9177) || defined(SDIW615)
 	if (MFALSE
 #ifdef SD8997
 	    || IS_SD8997(pmadapter->card_type)
@@ -3136,6 +3632,12 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 #endif
 #ifdef SD9097
 	    || IS_SD9097(pmadapter->card_type)
+#endif
+#ifdef SDIW624
+	    || IS_SDIW624(pmadapter->card_type)
+#endif
+#ifdef SDIW615
+	    || IS_SDIW615(pmadapter->card_type)
 #endif
 #ifdef SD9177
 	    || IS_SD9177(pmadapter->card_type)
@@ -3177,13 +3679,34 @@ done:
  *  @param pmbuf     A pointer to the mlan_buffer
  *  @return          N/A
  */
-static mlan_status wlan_sdio_data_evt_complete(pmlan_adapter pmadapter,
+static mlan_status wlan_sdio_evt_complete(pmlan_adapter pmadapter,
+					  mlan_buffer *pmbuf,
+					  mlan_status status)
+{
+	ENTER();
+	pmadapter->event_cause = 0;
+	pmadapter->pmlan_buffer_event = MNULL;
+	if (pmbuf)
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handle data/cmd complete
+ *
+ *  @param pmadapter A pointer to mlan_adapter structure
+ *  @param pmbuf     A pointer to the mlan_buffer
+ *  @return          N/A
+ */
+static mlan_status wlan_sdio_data_cmd_complete(pmlan_adapter pmadapter,
 					       mlan_buffer *pmbuf,
 					       mlan_status status)
 {
 	ENTER();
-
-	wlan_free_mlan_buffer(pmadapter, pmbuf);
+	if (pmbuf)
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -3214,10 +3737,12 @@ mlan_adapter_operations mlan_sdio_ops = {
 	.host_to_card = wlan_sdio_host_to_card_ext,
 	.wakeup_card = wlan_pm_sdio_wakeup_card,
 	.reset_card = wlan_pm_sdio_reset_card,
-	.event_complete = wlan_sdio_data_evt_complete,
-	.data_complete = wlan_sdio_data_evt_complete,
-	.cmdrsp_complete = wlan_sdio_data_evt_complete,
+	.event_complete = wlan_sdio_evt_complete,
+	.data_complete = wlan_sdio_data_cmd_complete,
+	.cmdrsp_complete = wlan_sdio_data_cmd_complete,
 	.handle_rx_packet = wlan_sdio_handle_rx_packet,
+	.disable_host_int = wlan_disable_sdio_host_int,
+	.enable_host_int = wlan_enable_sdio_host_int,
 
 	.intf_header_len = SDIO_INTF_HEADER_LEN,
 };

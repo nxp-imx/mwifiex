@@ -1,0 +1,13 @@
+NXP Software Content Register
+
+--------------------------------------------
+
+Package:                   mwifiex.git
+Outgoing License:          GPL-2.0
+License File:              LICENSE
+Type of content:           source
+Description and comments:  NXP Wi-Fi linux SDK
+Release Location:          https://github.com/nxp-imx/mwifiex
+Origin:                    NXP (GPL-2.0)
+
+--------------------------------------------

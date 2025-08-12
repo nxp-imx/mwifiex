@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2021 NXP
+#  Copyright 2008-2023 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -20,8 +20,6 @@ CONFIG_COMPATDIR=n
 ifeq ($(CONFIG_COMPATDIR), y)
 COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
 CC ?=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
-else
-CC ?=		$(CROSS_COMPILE)gcc
 endif
 
 LD ?=		$(CROSS_COMPILE)ld
@@ -37,21 +35,27 @@ CONFIG_SD8897=n
 CONFIG_USB8897=n
 CONFIG_PCIE8897=n
 CONFIG_SD8977=n
-CONFIG_SD8978=n
+CONFIG_SD8978=y
 CONFIG_USB8978=n
 CONFIG_SD8997=y
 CONFIG_USB8997=n
 CONFIG_PCIE8997=y
 CONFIG_SD8987=y
 CONFIG_SD9097=n
-CONFIG_SD9177=n
-CONFIG_SD8801=n
+CONFIG_SD9177=y
+CONFIG_SD8801=y
 CONFIG_USB8801=n
 CONFIG_USB9097=n
 CONFIG_PCIE9097=n
-CONFIG_SD9098=n
+CONFIG_SD9098=y
 CONFIG_USB9098=n
 CONFIG_PCIE9098=y
+CONFIG_SDIW624=n
+CONFIG_SDAW693=n
+CONFIG_PCIEIW624=n
+CONFIG_USBIW624=n
+CONFIG_PCIEAW693=n
+
 
 
 # Debug Option
@@ -86,28 +90,22 @@ CONFIG_BIG_ENDIAN=n
 
 
 
-ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
-CONFIG_EMBEDDED_SUPP_AUTH=y
-else
-ifeq ($(CONFIG_DRV_EMBEDDED_AUTHENTICATOR), y)
-CONFIG_EMBEDDED_SUPP_AUTH=y
-endif
-endif
 
-#ifdef SDIO_MMC
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
-#endif
 
 # DFS testing support
 CONFIG_DFS_TESTING_SUPPORT=y
 
+# Multi-channel support
+CONFIG_MULTI_CHAN_SUPPORT=y
 
 
 
-# Use static link for app build
-export CONFIG_STATIC_LINK=y
-CONFIG_ANDROID_KERNEL=n
+CONFIG_DUMP_TO_PROC=y
+
+CONFIG_TASKLET_SUPPORT=y
+
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
@@ -125,13 +123,17 @@ ccflags-y += -DLINUX
 
 
 
+
 ARCH ?= arm64
 CONFIG_IMX_SUPPORT=y
 ifeq ($(CONFIG_IMX_SUPPORT),y)
 ccflags-y += -DIMX_SUPPORT
+ifneq ($(ANDROID_PRODUCT_OUT),)
+ccflags-y += -DIMX_ANDROID
+ccflags-y += -Wno-implicit-fallthrough
+CONFIG_ANDROID_KERNEL=y
 endif
-KERNELDIR ?= /usr/src/arm/linux_5_10_y_kernel/linux-nxp
-CROSS_COMPILE ?= /opt/fsl-imx-internal-xwayland/5.10-gatesgarth/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-
+endif
 
 LD += -S
 
@@ -143,6 +145,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
+	ccflags-y += -DMLAN_RELEASE_VERSION='"437.p3"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -195,12 +198,13 @@ ifeq ($(CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT),y)
 	ccflags-y += -DUSERSPACE_32BIT_OVER_KERNEL_64BIT
 endif
 
-#ifdef SDIO_MMC
 ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	ccflags-y += -DSDIO_SUSPEND_RESUME
 endif
-#endif
 
+ifeq ($(CONFIG_MULTI_CHAN_SUPPORT),y)
+	ccflags-y += -DMULTI_CHAN_SUPPORT
+endif
 
 ifeq ($(CONFIG_DFS_TESTING_SUPPORT),y)
 	ccflags-y += -DDFS_TESTING_SUPPORT
@@ -209,6 +213,15 @@ endif
 
 ifeq ($(CONFIG_ANDROID_KERNEL), y)
 	ccflags-y += -DANDROID_KERNEL
+	CONFIG_DUMP_TO_PROC=y
+endif
+
+ifeq ($(CONFIG_DUMP_TO_PROC), y)
+	ccflags-y += -DDUMP_TO_PROC
+endif
+
+ifeq ($(CONFIG_TASKLET_SUPPORT), y)
+	ccflags-y += -DTASKLET_SUPPORT
 endif
 
 ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
@@ -249,6 +262,10 @@ ifeq ($(CONFIG_SD9097),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9097
 endif
+ifeq ($(CONFIG_SDIW624),y)
+	CONFIG_SDIO=y
+	ccflags-y += -DSDIW624
+endif
 ifeq ($(CONFIG_SD9177),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9177
@@ -281,6 +298,10 @@ ifeq ($(CONFIG_USB9097),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSB9097
 endif
+ifeq ($(CONFIG_USBIW624),y)
+	CONFIG_MUSB=y
+	ccflags-y += -DUSBIW624
+endif
 ifeq ($(CONFIG_USB9098),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSB9098
@@ -300,6 +321,10 @@ endif
 ifeq ($(CONFIG_PCIE9098),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIE9098
+endif
+ifeq ($(CONFIG_PCIEIW624),y)
+	CONFIG_PCIE=y
+	ccflags-y += -DPCIEIW624
 endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
@@ -343,6 +368,7 @@ endif
 #ccflags-y += -Wmissing-field-initializers
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
+#ccflags-y += -Wunused-const-variable
 #############################################################################
 # Make Targets
 #############################################################################
@@ -570,15 +596,26 @@ endif
 
 export		CC LD ccflags-y KERNELDIR
 
-.PHONY: mapp/mlanconfig mapp/mlanutl clean distclean
+.PHONY: mapp/mlanutl clean distclean
 	@echo "Finished Making NXP Wlan Linux Driver"
 
-mapp/mlanconfig:
-	$(MAKE) -C $@
 mapp/mlanutl:
 	$(MAKE) -C $@
 
 echo:
+
+appsbuild:
+
+	@if [ ! -d $(BINDIR) ]; then \
+		mkdir $(BINDIR); \
+	fi
+
+	cp -f README $(BINDIR)
+
+ifneq ($(APPDIR),)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
+	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
+endif
 
 build:		echo default
 
@@ -592,9 +629,10 @@ build:		echo default
 	cp -rpf script/load $(BINDIR)/
 	cp -rpf script/unload $(BINDIR)/
 
-	cp -f README_MLAN $(BINDIR)
+	cp -f README $(BINDIR)
+
 ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanconfig $@ INSTALLDIR=$(BINDIR)
+	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 
@@ -610,7 +648,6 @@ clean:
 	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanconfig $@
 	$(MAKE) -C mapp/mlanutl $@
 endif
 #ifdef SDIO
@@ -640,7 +677,6 @@ distclean:
 	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanconfig $@
 	$(MAKE) -C mapp/mlanutl $@
 endif
 

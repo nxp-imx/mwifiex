@@ -44,6 +44,7 @@ static const struct _mlan_card_info mlan_card_info_usb8801 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_1X1,
+	.support_11mc = 0,
 };
 #endif
 #ifdef USB8897
@@ -52,6 +53,7 @@ static const struct _mlan_card_info mlan_card_info_usb8897 = {
 	.v16_fw_api = 0,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 0,
 };
 #endif
 
@@ -61,6 +63,7 @@ static const struct _mlan_card_info mlan_card_info_usb8997 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -70,6 +73,7 @@ static const struct _mlan_card_info mlan_card_info_usb8978 = {
 	.v16_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -80,6 +84,7 @@ static const struct _mlan_card_info mlan_card_info_usb9098 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -90,6 +95,29 @@ static const struct _mlan_card_info mlan_card_info_usb9097 = {
 	.v17_fw_api = 1,
 	.supp_ps_handshake = 1,
 	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef USBIW624
+static const struct _mlan_card_info mlan_card_info_usbIW624 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 1,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
+};
+#endif
+
+#ifdef USBIW615
+static const struct _mlan_card_info mlan_card_info_usbIW615 = {
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+	.v16_fw_api = 1,
+	.v17_fw_api = 1,
+	.supp_ps_handshake = 1,
+	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
+	.support_11mc = 1,
 };
 #endif
 
@@ -245,6 +273,11 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 	if (IS_USB9097(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif
+#if defined(USBIW624)
+	if (IS_USBIW624(pmadapter->card_type))
+		check_fw_status = MTRUE;
+#endif
+
 	do {
 		/* Send pseudo data to check winner status first */
 		if (check_winner) {
@@ -351,6 +384,16 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 				break;
 			}
 
+			if (check_fw_status &&
+			    (SyncFWHeader.status & MBIT(9))) {
+				PRINTM(MERROR,
+				       "FW received Blk with SE_BOOT error 0x%x\n",
+				       SyncFWHeader.status);
+				retries = 0;
+				ret = MLAN_STATUS_FAILURE;
+				break;
+			}
+
 			/* Check the firmware block response for CRC errors */
 			if (SyncFWHeader.cmd) {
 				/* Check firmware block response for CRC and MIC
@@ -391,6 +434,11 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 
 		FWSeqNum++;
 		PRINTM(MINFO, ".\n");
+
+		/* Add FW ending check for secure download */
+		if (((DnldCmd == FW_CMD_21) && (DataLength == 0)) ||
+		    (TotalBytes >= pmfw->fw_len))
+			break;
 
 	} while ((DnldCmd != FW_HAS_LAST_BLOCK) && retries && mic_retry);
 
@@ -455,10 +503,11 @@ static int wlan_usb_deaggr_rx_num_pkts(pmlan_adapter pmadapter, t_u8 *pdata,
 static inline t_u32 usb_tx_aggr_pad_len(t_u32 len,
 					usb_tx_aggr_params *pusb_tx_aggr)
 {
-	return (len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
-		       (len + (pusb_tx_aggr->aggr_ctrl.aggr_align -
-			       (len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
-		       len;
+	return (t_u32)((len % pusb_tx_aggr->aggr_ctrl.aggr_align) ?
+			       (len +
+				(pusb_tx_aggr->aggr_ctrl.aggr_align -
+				 (len % pusb_tx_aggr->aggr_ctrl.aggr_align))) :
+			       len);
 }
 
 /**
@@ -548,8 +597,9 @@ wlan_usb_copy_buf_to_aggr(pmlan_adapter pmadapter,
 	pmlan_buffer pmbuf_aggr = MNULL;
 	t_u8 i, use_count;
 	pmlan_buffer pmbuf_curr, pmbuf_next;
-	pmbuf_aggr = wlan_alloc_mlan_buffer(pmadapter, pusb_tx_aggr->aggr_len,
-					    0, MOAL_MALLOC_BUFFER);
+	pmbuf_aggr = wlan_alloc_mlan_buffer(
+		pmadapter, pusb_tx_aggr->aggr_len, 0,
+		MOAL_MEM_FLAG_DIRTY | MOAL_MALLOC_BUFFER);
 	if (pmbuf_aggr) {
 		pmbuf_curr = pusb_tx_aggr->pmbuf_aggr;
 		pmbuf_aggr->bss_index = pmbuf_curr->bss_index;
@@ -663,7 +713,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 	}
 
 	if (pmbuf_aggr && pmbuf_aggr->data_len) {
-		pmadapter->data_sent = MTRUE;
+		wlan_update_port_status(pmadapter, pusb_tx_aggr->port, MTRUE);
+		pmadapter->data_sent = wlan_usb_data_sent(pmadapter);
 		ret = pmadapter->callbacks.moal_write_data_async(
 			pmadapter->pmoal_handle, pmbuf_aggr,
 			pusb_tx_aggr->port);
@@ -685,6 +736,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 			wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
 			break;
 		case MLAN_STATUS_FAILURE:
+			wlan_update_port_status(pmadapter, pusb_tx_aggr->port,
+						MFALSE);
 			pmadapter->data_sent = MFALSE;
 			PRINTM(MERROR,
 			       "Error: moal_write_data_async failed: 0x%X\n",
@@ -694,6 +747,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 			wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
 			break;
 		case MLAN_STATUS_PENDING:
+			wlan_update_port_status(pmadapter, pusb_tx_aggr->port,
+						MFALSE);
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_SUCCESS:
@@ -766,6 +821,16 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 #ifdef USB9097
 	case CARD_TYPE_USB9097:
 		pmadapter->pcard_info = &mlan_card_info_usb9097;
+		break;
+#endif
+#ifdef USBIW624
+	case CARD_TYPE_USBIW624:
+		pmadapter->pcard_info = &mlan_card_info_usbIW624;
+		break;
+#endif
+#ifdef USBIW615
+	case CARD_TYPE_USBIW615:
+		pmadapter->pcard_info = &mlan_card_info_usbIW615;
 		break;
 #endif
 	default:
@@ -934,13 +999,16 @@ t_void wlan_usb_tx_aggr_timeout_func(t_void *function_context)
 {
 	usb_tx_aggr_params *pusb_tx_aggr =
 		(usb_tx_aggr_params *)function_context;
+	t_u8 port_index = 0;
 	pmlan_adapter pmadapter = (mlan_adapter *)pusb_tx_aggr->phandle;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 
 	ENTER();
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pusb_tx_aggr->paggr_lock);
 	pusb_tx_aggr->aggr_hold_timer_is_set = MFALSE;
-	if (pusb_tx_aggr->pmbuf_aggr && !pmadapter->data_sent &&
+	port_index = wlan_get_port_index(pmadapter, pusb_tx_aggr->port);
+	if (pusb_tx_aggr->pmbuf_aggr &&
+	    wlan_is_port_ready(pmadapter, port_index) &&
 	    !wlan_is_port_tx_paused(pmadapter, pusb_tx_aggr))
 		wlan_usb_tx_send_aggr(pmadapter, pusb_tx_aggr);
 	pcb->moal_spin_unlock(pmadapter->pmoal_handle,
@@ -1106,6 +1174,98 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief  This function used to check if any USB port still available
+ *
+ *  @param pmadapter	A pointer to mlan_adapter
+ *
+ *  @return		MTRUE--non of the port is available.
+ *              MFALSE -- still have port available.
+ */
+inline t_u8 wlan_usb_data_sent(pmlan_adapter pmadapter)
+{
+	int i;
+	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+		if (pmadapter->pcard_usb->usb_port_status[i] == MFALSE)
+			return MFALSE;
+	}
+	return MTRUE;
+}
+
+/**
+ *  @brief  This function resync the USB tx port
+ *
+ *  @param pmadapter	A pointer to mlan_adapter
+ *
+ *  @return		N/A
+ */
+void wlan_resync_usb_port(pmlan_adapter pmadapter)
+{
+	t_u32 active_port = pmadapter->usb_tx_ports[0];
+	int i;
+	/* MC is enabled */
+	if (pmadapter->mc_status) {
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				if (((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_UAP) &&
+				     !pmadapter->priv[i]->uap_bss_started) ||
+				    ((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_STA) &&
+				     !pmadapter->priv[i]->media_connected)) {
+					PRINTM(MINFO,
+					       "Set deactive interface to default EP\n");
+					pmadapter->priv[i]->port =
+						pmadapter->usb_tx_ports[0];
+					;
+					pmadapter->priv[i]->port_index = 0;
+				}
+			}
+		}
+		/** Enable all the ports */
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++)
+			pmadapter->pcard_usb->usb_port_status[i] = MFALSE;
+	} else {
+		/* Get active port from connected interface */
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				if (((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_UAP) &&
+				     pmadapter->priv[i]->uap_bss_started) ||
+				    ((GET_BSS_ROLE(pmadapter->priv[i]) ==
+				      MLAN_BSS_ROLE_STA) &&
+				     pmadapter->priv[i]->media_connected)) {
+					active_port = pmadapter->priv[i]->port;
+					PRINTM(MEVENT, "active port=%d\n",
+					       active_port);
+					break;
+				}
+			}
+		}
+		/** set all the interface to the same port */
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
+		     i++) {
+			if (pmadapter->priv[i]) {
+				pmadapter->priv[i]->port = active_port;
+				pmadapter->priv[i]->port_index =
+					wlan_get_port_index(pmadapter,
+							    active_port);
+			}
+		}
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+			if (active_port == pmadapter->usb_tx_ports[i])
+				pmadapter->pcard_usb->usb_port_status[i] =
+					MFALSE;
+			else
+				pmadapter->pcard_usb->usb_port_status[i] =
+					MTRUE;
+		}
+	}
+	return;
+}
+
+/**
  *  @brief This function wakes up the card.
  *
  *  @param pmadapter		A pointer to mlan_adapter structure
@@ -1167,7 +1327,8 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		return MLAN_STATUS_FAILURE;
 	}
 	if (type == MLAN_TYPE_CMD
-#if (defined(USB9098) || defined(USB9097))
+#if defined(USB9098) || defined(USB9097) || defined(USBIW624) ||               \
+	defined(USB8997) || defined(USB8978)
 	    || type == MLAN_TYPE_VDLL
 #endif
 	) {
@@ -1184,7 +1345,9 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 		ret = wlan_usb_host_to_card_aggr(pmadapter, pmbuf, tx_param,
 						 pusb_tx_aggr);
 	} else {
-		pmadapter->data_sent = MTRUE;
+		pmadapter->pcard_usb->usb_port_status[pmpriv->port_index] =
+			MTRUE;
+		pmadapter->data_sent = wlan_usb_data_sent(pmadapter);
 		ret = pmadapter->callbacks.moal_write_data_async(
 			pmadapter->pmoal_handle, pmbuf, pmpriv->port);
 		switch (ret) {
@@ -1195,9 +1358,13 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 
 			break;
 		case MLAN_STATUS_FAILURE:
+			pmadapter->pcard_usb
+				->usb_port_status[pmpriv->port_index] = MFALSE;
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_PENDING:
+			pmadapter->pcard_usb
+				->usb_port_status[pmpriv->port_index] = MFALSE;
 			pmadapter->data_sent = MFALSE;
 			break;
 		case MLAN_STATUS_SUCCESS:
@@ -1212,18 +1379,36 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 }
 
 /**
- *  @brief This function handle event/cmd complete
+ *  @brief This function handle event complete
  *
  *  @param pmadapter A pointer to mlan_adapter structure
  *  @param pmbuf     A pointer to the mlan_buffer
  *  @return          N/A
  */
-static mlan_status wlan_usb_cmdevt_complete(pmlan_adapter pmadapter,
-					    mlan_buffer *pmbuf,
-					    mlan_status status)
+static mlan_status wlan_usb_evt_complete(pmlan_adapter pmadapter,
+					 mlan_buffer *pmbuf, mlan_status status)
 {
 	ENTER();
+	pmadapter->event_cause = 0;
+	pmadapter->pmlan_buffer_event = MNULL;
+	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
+						pmadapter->rx_cmd_ep, status);
 
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handle cmd complete
+ *
+ *  @param pmadapter A pointer to mlan_adapter structure
+ *  @param pmbuf     A pointer to the mlan_buffer
+ *  @return          N/A
+ */
+static mlan_status wlan_usb_cmd_complete(pmlan_adapter pmadapter,
+					 mlan_buffer *pmbuf, mlan_status status)
+{
+	ENTER();
 	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
 						pmadapter->rx_cmd_ep, status);
 
@@ -1275,9 +1460,9 @@ mlan_adapter_operations mlan_usb_ops = {
 	.dnld_fw = wlan_usb_dnld_fw,
 	.host_to_card = wlan_usb_host_to_card,
 	.wakeup_card = wlan_pm_usb_wakeup_card,
-	.event_complete = wlan_usb_cmdevt_complete,
+	.event_complete = wlan_usb_evt_complete,
 	.data_complete = wlan_usb_data_complete,
-	.cmdrsp_complete = wlan_usb_cmdevt_complete,
+	.cmdrsp_complete = wlan_usb_cmd_complete,
 	.handle_rx_packet = wlan_usb_handle_rx_packet,
 
 	.intf_header_len = USB_INTF_HEADER_LEN,

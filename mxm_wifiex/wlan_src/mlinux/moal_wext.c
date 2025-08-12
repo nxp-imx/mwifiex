@@ -35,33 +35,209 @@ Change log:
 	 IW_EV_PARAM_LEN + 40) /* 40 for WPAIE */
 
 /********************************************************
+			Local Variables
+********************************************************/
+/**
+ * iwpriv ioctl handlers
+ */
+static const struct iw_priv_args woal_private_args[] = {
+	{WOAL_SETONEINT_GETWORDCHAR, IW_PRIV_TYPE_INT | 1,
+	 IW_PRIV_TYPE_CHAR | 128, ""},
+	{WOAL_VERSION, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128,
+	 "version"},
+	{WOAL_VEREXT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128, "verext"},
+	{WOAL_SETNONE_GETNONE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, ""},
+	{WOAL_WARMRESET, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "warmreset"},
+#ifdef CONFIG_USB_SUSPEND
+	{WOAL_USB_SUSPEND, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "usbsuspend"},
+	{WOAL_USB_RESUME, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "usbresume"},
+#endif /* CONFIG_USB_SUSPEND */
+	{WOAL_SETONEINT_GETONEINT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 ""},
+	{WOAL_SET_GET_TXRATE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "txratecfg"},
+	{WOAL_SET_GET_REGIONCODE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "regioncode"},
+	{WOAL_SET_RADIO, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "radioctrl"},
+	{WOAL_WMM_ENABLE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1, "wmmcfg"},
+	{WOAL_11D_ENABLE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1, "11dcfg"},
+	{WOAL_11D_CLR_CHAN_TABLE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE,
+	 "11dclrtbl"},
+	{WOAL_SET_GET_QOS_CFG, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "qoscfg"},
+#ifndef OPCHAN
+	{WOAL_SET_GET_WWS_CFG, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "wwscfg"},
+#endif
+#if defined(REASSOCIATION)
+	{WOAL_SET_GET_REASSOC, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "reassoctrl"},
+#endif
+	{WOAL_TXBUF_CFG, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "txbufcfg"},
+	{WOAL_SLEEP_PD, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1, "sleeppd"},
+	{WOAL_AUTH_TYPE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "authtype"},
+	{WOAL_PORT_CTRL, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "port_ctrl"},
+#ifdef WIFI_DIRECT_SUPPORT
+#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
+	{WOAL_SET_GET_BSS_ROLE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "bssrole"},
+#endif
+#endif
+	{WOAL_SET_GET_11H_LOCAL_PWR_CONSTRAINT, IW_PRIV_TYPE_INT | 1,
+	 IW_PRIV_TYPE_INT | 1, "powercons"},
+	{WOAL_HT_STREAM_CFG, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "htstreamcfg"},
+	{WOAL_MAC_CONTROL, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "macctrl"},
+	{WOAL_THERMAL, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1, "thermal"},
+	{WOAL_CFG_HOTSPOT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "hotspotcfg"},
+	{WOAL_SET_GET_SIXTEEN_INT, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 ""},
+	{WOAL_TX_POWERCFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "txpowercfg"},
+#ifdef DEBUG_LEVEL1
+	{WOAL_DRV_DBG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16, "drvdbg"},
+#endif
+	{WOAL_BEACON_INTERVAL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "bcninterval"},
+	{WOAL_SIGNAL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "getsignal"},
+	{
+		WOAL_DEEP_SLEEP,
+		IW_PRIV_TYPE_INT | 16,
+		IW_PRIV_TYPE_INT | 16,
+		"deepsleep",
+	},
+	{WOAL_11N_TX_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "httxcfg"},
+	{WOAL_11N_HTCAP_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "htcapinfo"},
+	{WOAL_PRIO_TBL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "aggrpriotbl"},
+	{WOAL_11N_AMSDU_AGGR_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "amsduaggrctrl"},
+	{WOAL_ADDBA_UPDT, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "addbapara"},
+	{WOAL_ADDBA_REJECT, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "addbareject"},
+	{WOAL_TX_BF_CAP, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "httxbfcap"},
+	{WOAL_HS_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16, "hscfg"},
+	{WOAL_HS_SETPARA, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "hssetpara"},
+	{WOAL_REG_READ_WRITE, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "regrdwr"},
+	{WOAL_BAND_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "bandcfg"},
+	{WOAL_INACTIVITY_TIMEOUT_EXT, IW_PRIV_TYPE_INT | 16,
+	 IW_PRIV_TYPE_INT | 16, "inactivityto"},
+#ifdef SDIO
+	{WOAL_SDIO_CLOCK, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "sdioclock"},
+	{WOAL_CMD_52RDWR, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "sdcmd52rw"},
+#endif
+	{WOAL_SCAN_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "scancfg"},
+	{WOAL_PS_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16, "pscfg"},
+	{WOAL_MEM_READ_WRITE, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "memrdwr"},
+#ifdef SDIO
+	{WOAL_SDIO_MPA_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "mpactrl"},
+#endif
+	{WOAL_SLEEP_PARAMS, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "sleepparams"},
+	{WOAL_NET_MONITOR, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "netmon"},
+	{WOAL_DFS_TESTING, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "dfstesting"},
+	{WOAL_MGMT_FRAME_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "mgmtframectrl"},
+	{WOAL_CFP_CODE, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "cfpcode"},
+	{WOAL_SET_GET_TX_RX_ANT, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "antcfg"},
+	{WOAL_IND_RST_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
+	 "indrstcfg"},
+	{WOALGETLOG, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_CHAR | GETLOG_BUFSIZE,
+	 "getlog"},
+	{WOAL_SETADDR_GETNONE, IW_PRIV_TYPE_ADDR | 1, IW_PRIV_TYPE_NONE, ""},
+	{WOAL_DEAUTH, IW_PRIV_TYPE_ADDR | 1, IW_PRIV_TYPE_NONE, "deauth"},
+	{WOAL_SET_GET_256_CHAR, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, ""},
+	{WOAL_PASSPHRASE, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "passphrase"},
+	{WOAL_GET_KEY, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "getkey"},
+	{WOAL_ASSOCIATE, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "associate"},
+	{WOAL_WMM_QUEUE_STATUS, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, "qstatus"},
+	{WOAL_WMM_TS_STATUS, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "ts_status"},
+	{WOAL_IP_ADDRESS, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "ipaddr"},
+	{WOAL_TX_BF_CFG, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "httxbfcfg"},
+	{WOAL_SETNONE_GETTWELVE_CHAR, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_CHAR | 12,
+	 ""},
+	{WOAL_WPS_SESSION, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_CHAR | 12,
+	 "wpssession"},
+	{WOAL_SETNONE_GET_FOUR_INT, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_INT | 4,
+	 ""},
+	{WOAL_DATA_RATE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_INT | 4,
+	 "getdatarate"},
+	{WOAL_ESUPP_MODE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_INT | 4, "esuppmode"},
+	{WOAL_SET_GET_64_INT, IW_PRIV_TYPE_INT | 64, IW_PRIV_TYPE_INT | 64, ""},
+	{WOAL_ECL_SYS_CLOCK, IW_PRIV_TYPE_INT | 64, IW_PRIV_TYPE_INT | 64,
+	 "sysclock"},
+	{WOAL_HOST_CMD, IW_PRIV_TYPE_BYTE | 2047, IW_PRIV_TYPE_BYTE | 2047,
+	 "hostcmd"},
+	{WOAL_ARP_FILTER, IW_PRIV_TYPE_BYTE | 2047, IW_PRIV_TYPE_BYTE | 2047,
+	 "arpfilter"},
+	{WOAL_SET_INTS_GET_CHARS, IW_PRIV_TYPE_INT | 16,
+	 IW_PRIV_TYPE_BYTE | 256, ""},
+	{WOAL_READ_EEPROM, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_BYTE | 256,
+	 "rdeeprom"},
+	{WOAL_SET_GET_2K_BYTES, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, ""},
+#if defined(SDIO)
+	{WOAL_CMD_53RDWR, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "sdcmd53rw"},
+#endif
+	{WOAL_SET_USER_SCAN, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "setuserscan"},
+	{WOAL_GET_SCAN_TABLE, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "getscantable"},
+	{WOAL_SET_USER_SCAN_EXT, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "setuserscanext"},
+	{WOAL_WMM_ADDTS, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "addts"},
+	{WOAL_WMM_DELTS, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "delts"},
+	{WOAL_WMM_QUEUE_CONFIG, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "qconfig"},
+	{WOAL_WMM_QUEUE_STATS, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "qstats"},
+	{WOAL_BYPASSED_PACKET, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
+	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "pb_bypass"},
+#ifdef UAP_WEXT
+	{WOAL_FROYO_START, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "START"},
+	{WOAL_FROYO_STOP, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "STOP"},
+	{WOAL_FROYO_WL_FW_RELOAD, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, "WL_FW_RELOAD"},
+#endif
+};
+
+/********************************************************
 			Local Functions
 ********************************************************/
-
-/**
- *  @brief Compare two SSIDs
- *
- *  @param ssid1    A pointer to ssid to compare
- *  @param ssid2    A pointer to ssid to compare
- *
- *  @return         0--ssid is same, otherwise is different
- */
-static t_s32 woal_ssid_cmp(mlan_802_11_ssid *ssid1, mlan_802_11_ssid *ssid2)
-{
-	ENTER();
-
-	if (!ssid1 || !ssid2) {
-		LEAVE();
-		return -1;
-	}
-	if (ssid1->ssid_len != ssid2->ssid_len) {
-		LEAVE();
-		return -1;
-	}
-
-	LEAVE();
-	return memcmp(ssid1->ssid, ssid2->ssid, ssid1->ssid_len);
-}
 
 /**
  *  @brief Sort Channels
@@ -216,7 +392,7 @@ static int woal_get_name(struct net_device *dev, struct iw_request_info *info,
 {
 	char *cwrq = wrqu->name;
 	ENTER();
-	strcpy(cwrq, "IEEE 802.11-DS");
+	strncpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
 	LEAVE();
 	return 0;
 }
@@ -265,10 +441,6 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		ret = -EFAULT;
 		goto done;
 	}
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_change_adhoc_chan(priv, bss->param.bss_chan.channel,
-				   MOAL_IOCTL_WAIT))
-		ret = -EFAULT;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -361,9 +533,6 @@ static int woal_set_bss_mode(struct net_device *dev,
 	case IW_MODE_INFRA:
 		bss->param.bss_mode = MLAN_BSS_MODE_INFRA;
 		break;
-	case IW_MODE_ADHOC:
-		bss->param.bss_mode = MLAN_BSS_MODE_IBSS;
-		break;
 	case IW_MODE_AUTO:
 		bss->param.bss_mode = MLAN_BSS_MODE_AUTO;
 		break;
@@ -407,15 +576,24 @@ static int woal_get_wap(struct net_device *dev, struct iw_request_info *info,
 
 	memset(&bss_info, 0, sizeof(bss_info));
 
-	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+		ret = -EFAULT;
+		goto done;
+	}
 
 	if (bss_info.media_connected == MTRUE)
 		moal_memcpy_ext(priv->phandle, awrq->sa_data, &bss_info.bssid,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				MLAN_MAC_ADDR_LENGTH,
+				sizeof(awrq->sa_data_min));
+#else
 				MLAN_MAC_ADDR_LENGTH, sizeof(awrq->sa_data));
+#endif
 	else
 		memset(awrq->sa_data, 0, MLAN_MAC_ADDR_LENGTH);
 	awrq->sa_family = ARPHRD_ETHER;
-
+done:
 	LEAVE();
 	return ret;
 }
@@ -589,30 +767,32 @@ static int woal_get_sens(struct net_device *dev, struct iw_request_info *info,
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param vwrq                 A pointer to iwreq_data structure
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_set_txpow(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_power_cfg_t power_cfg;
 
 	ENTER();
-	if (vwrq->disabled) {
+	memset(&power_cfg, 0, sizeof(mlan_power_cfg_t));
+	if (vwrq_->disabled) {
 		woal_set_radio(priv, 0);
 		goto done;
 	}
 	woal_set_radio(priv, 1);
 
-	if (!vwrq->fixed)
+	if (!vwrq_->fixed)
 		power_cfg.is_power_auto = 1;
 	else {
 		power_cfg.is_power_auto = 0;
-		power_cfg.power_level = vwrq->value;
+		power_cfg.power_level = vwrq_->value;
 	}
 
 	if (MLAN_STATUS_SUCCESS !=
@@ -631,15 +811,16 @@ done:
  *
  *  @param dev                  A pointer to net_device structure
  *  @param info                 A pointer to iw_request_info structure
- *  @param vwrq                 A pointer to iw_param structure
+ *  @param vwrq                 A pointer to iwreq_data structure
  *  @param extra                A pointer to extra data buf
  *
  *  @return                     0 --success, otherwise fail
  */
 static int woal_get_txpow(struct net_device *dev, struct iw_request_info *info,
-			  struct iw_param *vwrq, char *extra)
+			  union iwreq_data *vwrq, char *extra)
 {
 	int ret = 0;
+	struct iw_param *vwrq_ = (struct iw_param *)vwrq;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_power_cfg_t power_cfg;
 	mlan_bss_info bss_info;
@@ -648,7 +829,11 @@ static int woal_get_txpow(struct net_device *dev, struct iw_request_info *info,
 
 	memset(&power_cfg, 0, sizeof(mlan_power_cfg_t));
 	memset(&bss_info, 0, sizeof(bss_info));
-	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+		ret = -EFAULT;
+		goto done;
+	}
 
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_get_tx_power(priv, MLAN_ACT_GET, &power_cfg)) {
@@ -656,16 +841,16 @@ static int woal_get_txpow(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	vwrq->value = power_cfg.power_level;
+	vwrq_->value = power_cfg.power_level;
 	if (power_cfg.is_power_auto)
-		vwrq->fixed = 0;
+		vwrq_->fixed = 0;
 	else
-		vwrq->fixed = 1;
+		vwrq_->fixed = 1;
 	if (bss_info.radio_on) {
-		vwrq->disabled = 0;
-		vwrq->flags = IW_TXPOW_DBM;
+		vwrq_->disabled = 0;
+		vwrq_->flags = IW_TXPOW_DBM;
 	} else {
-		vwrq->disabled = 1;
+		vwrq_->disabled = 1;
 	}
 
 done:
@@ -1060,6 +1245,8 @@ static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
 	mlan_rate_cfg_t rate_cfg;
 
 	ENTER();
+
+	memset(&rate_cfg, 0, sizeof(mlan_rate_cfg_t));
 
 	if (vwrq->value == -1) {
 		rate_cfg.is_rate_auto = 1;
@@ -1769,6 +1956,7 @@ static int woal_get_range(struct net_device *dev, struct iw_request_info *info,
 	mlan_chan_list *pchan_list = NULL;
 	mlan_bss_info bss_info;
 	gfp_t flag;
+	int ret = 0;
 
 	ENTER();
 
@@ -1898,7 +2086,11 @@ static int woal_get_range(struct net_device *dev, struct iw_request_info *info,
 
 	memset(&bss_info, 0, sizeof(bss_info));
 
-	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+		ret = -EFAULT;
+		goto done;
+	}
 
 	range->txpower[0] = bss_info.min_power_level;
 	range->txpower[1] = bss_info.max_power_level;
@@ -1909,8 +2101,9 @@ static int woal_get_range(struct net_device *dev, struct iw_request_info *info,
 	range->enc_capa = IW_ENC_CAPA_WPA | IW_ENC_CAPA_WPA2 |
 			  IW_ENC_CAPA_CIPHER_CCMP | IW_ENC_CAPA_CIPHER_TKIP;
 #endif
+done:
 	LEAVE();
-	return 0;
+	return ret;
 }
 
 #ifdef MEF_CFG_RX_FILTER
@@ -2013,7 +2206,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2031,11 +2224,12 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "%s rssi %d\n", bss_info.ssid.ssid,
-				      signal.bcn_rssi_avg) +
+			len = snprintf(buf, MAX_BUF_LEN, "%s rssi %d\n",
+				       bss_info.ssid.ssid,
+				       signal.bcn_rssi_avg) +
 			      1;
 		} else {
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		}
 	} else if (strncmp(buf, "LINKSPEED", strlen("LINKSPEED")) == 0) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -2044,14 +2238,15 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			goto done;
 		}
 		PRINTM(MIOCTL, "tx rate=%d\n", (int)rate.rate);
-		len = sprintf(buf, "LinkSpeed %d\n",
-			      (int)(rate.rate * 500000 / 1000000)) +
+		len = snprintf(buf, MAX_BUF_LEN, "LinkSpeed %d\n",
+			       (int)(rate.rate * 500000 / 1000000)) +
 		      1;
 	} else if (strncmp(buf, "MACADDR", strlen("MACADDR")) == 0) {
-		len = sprintf(buf, "Macaddr = %02X:%02X:%02X:%02X:%02X:%02X\n",
-			      priv->current_addr[0], priv->current_addr[1],
-			      priv->current_addr[2], priv->current_addr[3],
-			      priv->current_addr[4], priv->current_addr[5]) +
+		len = snprintf(buf, MAX_BUF_LEN,
+			       "Macaddr = %02X:%02X:%02X:%02X:%02X:%02X\n",
+			       priv->current_addr[0], priv->current_addr[1],
+			       priv->current_addr[2], priv->current_addr[3],
+			       priv->current_addr[4], priv->current_addr[5]) +
 		      1;
 	} else if (strncmp(buf, "GETPOWER", strlen("GETPOWER")) == 0) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -2059,7 +2254,9 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			ret = -EFAULT;
 			goto done;
 		}
-		len = sprintf(buf, "powermode = %d\n", power_mode) + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "powermode = %d\n",
+			       power_mode) +
+		      1;
 	} else if (strncmp(buf, "SCAN-ACTIVE", strlen("SCAN-ACTIVE")) == 0) {
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_set_scan_type(priv, MLAN_SCAN_TYPE_ACTIVE)) {
@@ -2068,7 +2265,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		}
 		priv->scan_type = MLAN_SCAN_TYPE_ACTIVE;
 		PRINTM(MIOCTL, "Set Active Scan\n");
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "SCAN-PASSIVE", strlen("SCAN-PASSIVE")) == 0) {
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_set_scan_type(priv, MLAN_SCAN_TYPE_PASSIVE)) {
@@ -2077,7 +2274,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		}
 		priv->scan_type = MLAN_SCAN_TYPE_PASSIVE;
 		PRINTM(MIOCTL, "Set Passive Scan\n");
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "POWERMODE", strlen("POWERMODE")) == 0) {
 		if (dwrq->length > strlen("POWERMODE") + 1) {
 			pdata = buf + strlen("POWERMODE") + 1;
@@ -2088,7 +2285,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 					goto done;
 				}
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2108,7 +2305,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			ret = -EFAULT;
 			goto done;
 		}
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (memcmp(buf, WEXT_CSCAN_HEADER, strlen(WEXT_CSCAN_HEADER)) ==
 		   0) {
 		PRINTM(MIOCTL, "Set Combo Scan\n");
@@ -2117,38 +2314,38 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			ret = -EFAULT;
 			goto done;
 		}
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "GETBAND", strlen("GETBAND")) == 0) {
 		if (MLAN_STATUS_SUCCESS != woal_get_band(priv, &band)) {
 			ret = -EFAULT;
 			goto done;
 		}
-		len = sprintf(buf, "Band %d\n", band) + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "Band %d\n", band) + 1;
 	} else if (strncmp(buf, "SETBAND", strlen("SETBAND")) == 0) {
 		pband = buf + strlen("SETBAND") + 1;
 		if (MLAN_STATUS_SUCCESS != woal_set_band(priv, pband)) {
 			ret = -EFAULT;
 			goto done;
 		}
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "START", strlen("START")) == 0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "STOP", strlen("STOP")) == 0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "SETSUSPENDOPT", strlen("SETSUSPENDOPT")) ==
 		   0) {
 		/* it will be done by GUI */
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BTCOEXMODE", strlen("BTCOEXMODE")) == 0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BTCOEXSCAN-START",
 			   strlen("BTCOEXSCAN-START")) == 0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BTCOEXSCAN-STOP", strlen("BTCOEXSCAN-STOP")) ==
 		   0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BGSCAN-START", strlen("BGSCAN-START")) == 0) {
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BGSCAN-CONFIG", strlen("BGSCAN-CONFIG")) ==
 		   0) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -2158,7 +2355,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		}
 		priv->bg_scan_start = MTRUE;
 		priv->bg_scan_reported = MFALSE;
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "BGSCAN-STOP", strlen("BGSCAN-STOP")) == 0) {
 		if (priv->bg_scan_start && !priv->scan_cfg.rssi_threshold) {
 			if (MLAN_STATUS_SUCCESS !=
@@ -2169,7 +2366,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			priv->bg_scan_start = MFALSE;
 			priv->bg_scan_reported = MFALSE;
 		}
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "RXFILTER-START", strlen("RXFILTER-START")) ==
 		   0) {
 #ifdef MEF_CFG_RX_FILTER
@@ -2177,7 +2374,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		if (ret)
 			goto done;
 #endif
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "RXFILTER-STOP", strlen("RXFILTER-STOP")) ==
 		   0) {
 #ifdef MEF_CFG_RX_FILTER
@@ -2185,7 +2382,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		if (ret)
 			goto done;
 #endif
-		len = sprintf(buf, "OK\n") + 1;
+		len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 	} else if (strncmp(buf, "RXFILTER-ADD", strlen("RXFILTER-ADD")) == 0) {
 		if (dwrq->length > strlen("RXFILTER-ADD") + 1) {
 			pdata = buf + strlen("RXFILTER-ADD") + 1;
@@ -2194,7 +2391,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2208,7 +2405,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2221,7 +2418,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2234,7 +2431,7 @@ static int woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 				ret = -EFAULT;
 				goto done;
 			}
-			len = sprintf(buf, "OK\n") + 1;
+			len = snprintf(buf, MAX_BUF_LEN, "OK\n") + 1;
 		} else {
 			ret = -EFAULT;
 			goto done;
@@ -2266,31 +2463,44 @@ done:
 static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
 					  mlan_802_11_ssid *req_ssid)
 {
-	wlan_user_scan_cfg scan_req;
+	wlan_user_scan_cfg *scan_req;
 	mlan_scan_cfg scan_cfg;
+	mlan_status status;
 	ENTER();
 	if (!woal_is_any_interface_active(priv->phandle)) {
 		LEAVE();
 		return woal_request_scan(priv, wait_option, req_ssid);
 	}
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	memset(&scan_cfg, 0, sizeof(scan_cfg));
-	memset(&scan_req, 0, sizeof(scan_req));
+	memset(scan_req, 0, sizeof(wlan_user_scan_cfg));
 	if (req_ssid && req_ssid->ssid_len != 0) {
-		moal_memcpy_ext(priv->phandle, scan_req.ssid_list[0].ssid,
+		moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
 				req_ssid->ssid, req_ssid->ssid_len,
 				MLAN_MAX_SSID_LENGTH);
-		scan_req.ssid_list[0].max_len = 0;
+		scan_req->ssid_list[0].max_len = 0;
 	}
-	woal_get_scan_config(priv, &scan_cfg);
+	if (MLAN_STATUS_SUCCESS != woal_get_scan_config(priv, &scan_cfg)) {
+		PRINTM(MERROR, "Unable to get scan configuration\n");
+	}
 	if (scan_cfg.scan_chan_gap)
-		scan_req.scan_chan_gap = scan_cfg.scan_chan_gap;
+		scan_req->scan_chan_gap = scan_cfg.scan_chan_gap;
 	else
-		scan_req.scan_chan_gap = priv->phandle->scan_chan_gap;
+		scan_req->scan_chan_gap = priv->phandle->scan_chan_gap;
 	/** indicate FW, gap is optional */
-	if (scan_req.scan_chan_gap && priv->phandle->pref_mac)
-		scan_req.scan_chan_gap |= GAP_FLAG_OPTIONAL;
+	if (scan_req->scan_chan_gap && priv->phandle->pref_mac)
+		scan_req->scan_chan_gap |= GAP_FLAG_OPTIONAL;
+	status = woal_request_userscan(priv, wait_option, scan_req);
+	kfree(scan_req);
 	LEAVE();
-	return woal_request_userscan(priv, wait_option, &scan_req);
+	return status;
 }
 
 /**
@@ -2375,6 +2585,60 @@ done:
 }
 
 /**
+ * @brief Request scan based on connect parameter
+ *
+ * @param priv            A pointer to moal_private structure
+ * @param ssid_bssid      A pointer to mlan_ssid_bssid structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static int woal_owe_specific_scan(moal_private *priv,
+				  mlan_ssid_bssid *ssid_bssid)
+{
+	moal_handle *handle = priv->phandle;
+	int ret = 0;
+	wlan_user_scan_cfg *scan_req;
+	ENTER();
+	if (handle->scan_pending_on_block == MTRUE) {
+		PRINTM(MINFO, "scan already in processing...\n");
+		LEAVE();
+		return ret;
+	}
+	scan_req = (wlan_user_scan_cfg *)kmalloc(sizeof(wlan_user_scan_cfg),
+						 GFP_KERNEL);
+	if (!scan_req) {
+		PRINTM(MERROR, "Malloc buffer failed\n");
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	priv->report_scan_result = MTRUE;
+	memset(scan_req, 0x00, sizeof(wlan_user_scan_cfg));
+	scan_req->keep_previous_scan = MTRUE;
+	moal_memcpy_ext(priv->phandle, scan_req->ssid_list[0].ssid,
+			ssid_bssid->trans_ssid.ssid,
+			MIN(ssid_bssid->trans_ssid.ssid_len,
+			    MLAN_MAX_SSID_LENGTH),
+			sizeof(scan_req->ssid_list[0].ssid));
+	scan_req->ssid_list[0].max_len = 0;
+	scan_req->chan_list[0].chan_number = ssid_bssid->channel;
+	if (ssid_bssid->bss_band == BAND_A)
+		scan_req->chan_list[0].radio_type = BAND_5GHZ;
+	else
+		scan_req->chan_list[0].radio_type = BAND_2GHZ;
+	scan_req->chan_list[0].scan_time = 0;
+	// TODO need set to PASSIVE TO ACTIVE on DFS channel
+	scan_req->chan_list[0].scan_type = MLAN_SCAN_TYPE_ACTIVE;
+
+	moal_memcpy_ext(priv->phandle, scan_req->random_mac, priv->random_mac,
+			ETH_ALEN, sizeof(scan_req->random_mac));
+	ret = woal_request_userscan(priv, MOAL_IOCTL_WAIT, scan_req);
+	kfree(scan_req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set essid
  *
  *  @param dev          A pointer to net_device structure
@@ -2391,6 +2655,7 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 	struct iw_point *dwrq = &wrqu->data;
 	mlan_802_11_ssid req_ssid;
 	mlan_ssid_bssid ssid_bssid;
+	mlan_ssid_bssid *owe_ssid_bssid = NULL;
 #ifdef REASSOCIATION
 	moal_handle *handle = priv->phandle;
 	mlan_bss_info bss_info;
@@ -2468,6 +2733,38 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 			goto setessid_ret;
 		}
 
+		priv->auto_assoc_priv.drv_assoc.status = MFALSE;
+		priv->auto_assoc_priv.drv_reconnect.status = MFALSE;
+#ifdef REASSOCIATION
+		if (priv->reassoc_on == MTRUE) {
+			if (priv->auto_assoc_priv.auto_assoc_type_on &
+			    (0x1 << (AUTO_ASSOC_TYPE_DRV_ASSOC - 1))) {
+				if (priv->scan_type == MLAN_SCAN_TYPE_PASSIVE)
+					woal_set_scan_type(
+						priv, MLAN_SCAN_TYPE_PASSIVE);
+				MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
+				moal_memcpy_ext(
+					priv->phandle,
+					&priv->prev_ssid_bssid.ssid, &req_ssid,
+					sizeof(mlan_802_11_ssid),
+					sizeof(priv->prev_ssid_bssid.ssid));
+				priv->auto_assoc_priv.auto_assoc_trigger_flag =
+					AUTO_ASSOC_TYPE_DRV_ASSOC;
+				priv->auto_assoc_priv.drv_assoc.status = MTRUE;
+				priv->reassoc_required = MTRUE;
+				priv->phandle->is_reassoc_timer_set = MTRUE;
+				PRINTM(MINFO,
+				       " auto assoc: trigger driver auto assoc\n");
+				woal_mod_timer(&priv->phandle->reassoc_timer,
+					       0);
+				ret = MLAN_STATUS_SUCCESS;
+
+				LEAVE();
+				return ret;
+			}
+		}
+#endif
+
 		if (dwrq->flags != 0xFFFF) {
 			if (MLAN_STATUS_SUCCESS !=
 			    woal_find_essid(priv, &ssid_bssid,
@@ -2486,8 +2783,12 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 	mode = woal_get_mode(priv, MOAL_IOCTL_WAIT);
 	if (mode == IW_MODE_ADHOC)
 		/* disconnect before try to associate */
-		woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
-				DEF_DEAUTH_REASON_CODE);
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL,
+				    DEF_DEAUTH_REASON_CODE)) {
+			PRINTM(MERROR,
+			       "Disconnect before association failed\n");
+		}
 
 	if (mode != IW_MODE_ADHOC) {
 		if (MLAN_STATUS_SUCCESS !=
@@ -2495,6 +2796,34 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 					   &ssid_bssid)) {
 			ret = -EFAULT;
 			goto setessid_ret;
+		}
+		if (ssid_bssid.trans_ssid.ssid_len &&
+		    (ssid_bssid.owe_transition_mode == OWE_TRANS_MODE_OPEN)) {
+			// We need scan for OWE AP
+			owe_ssid_bssid = (mlan_ssid_bssid *)kmalloc(
+				sizeof(mlan_ssid_bssid), GFP_KERNEL);
+			if (!owe_ssid_bssid) {
+				PRINTM(MERROR, "Malloc buffer failed\n");
+				ret = -ENOMEM;
+				goto setessid_ret;
+			}
+			woal_owe_specific_scan(priv, &ssid_bssid);
+			memset(owe_ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+			moal_memcpy_ext(priv->phandle, &owe_ssid_bssid->ssid,
+					&ssid_bssid.trans_ssid,
+					sizeof(mlan_802_11_ssid),
+					sizeof(owe_ssid_bssid->ssid));
+			moal_memcpy_ext(priv->phandle, &owe_ssid_bssid->bssid,
+					&ssid_bssid.trans_bssid,
+					sizeof(mlan_802_11_mac_addr),
+					sizeof(owe_ssid_bssid->bssid));
+			if (MLAN_STATUS_SUCCESS ==
+			    woal_find_essid(priv, owe_ssid_bssid,
+					    MOAL_IOCTL_WAIT))
+				moal_memcpy_ext(priv->phandle, &ssid_bssid,
+						owe_ssid_bssid,
+						sizeof(mlan_ssid_bssid),
+						sizeof(ssid_bssid));
 		}
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_11d_check_ap_channel(priv, MOAL_IOCTL_WAIT,
@@ -2549,6 +2878,8 @@ setessid_ret:
 #ifdef REASSOCIATION
 	MOAL_REL_SEMAPHORE(&handle->reassoc_sem);
 #endif
+	if (owe_ssid_bssid)
+		kfree(owe_ssid_bssid);
 	LEAVE();
 	return ret;
 }
@@ -2621,7 +2952,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 	mlan_scan_resp scan_resp;
 	mlan_bss_info bss_info;
 	BSSDescriptor_t *scan_table;
-	mlan_ds_get_signal rssi;
 	t_u16 buf_size = 16 + 256 * 2;
 	char *buf = NULL;
 	char *ptr;
@@ -2702,7 +3032,11 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		iwe.u.ap_addr.sa_family = ARPHRD_ETHER;
 		moal_memcpy_ext(priv->phandle, iwe.u.ap_addr.sa_data,
 				&scan_table[i].mac_address, ETH_ALEN,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				sizeof(iwe.u.ap_addr.sa_data_min));
+#else
 				sizeof(iwe.u.ap_addr.sa_data));
+#endif
 
 		iwe.len = IW_EV_ADDR_LEN;
 		current_ev = IWE_STREAM_ADD_EVENT(info, current_ev, end_buf,
@@ -2723,9 +3057,7 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 
 		/* Add mode */
 		iwe.cmd = SIOCGIWMODE;
-		if (scan_table[i].bss_mode == MLAN_BSS_MODE_IBSS)
-			iwe.u.mode = IW_MODE_ADHOC;
-		else if (scan_table[i].bss_mode == MLAN_BSS_MODE_INFRA)
+		if (scan_table[i].bss_mode == MLAN_BSS_MODE_INFRA)
 			iwe.u.mode = IW_MODE_MASTER;
 		else
 			iwe.u.mode = IW_MODE_AUTO;
@@ -2752,18 +3084,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		else
 			iwe.u.qual.noise = bss_info.bcn_nf_last;
 
-		if ((bss_info.bss_mode == MLAN_BSS_MODE_IBSS) &&
-		    !woal_ssid_cmp(&bss_info.ssid, &scan_table[i].ssid) &&
-		    bss_info.adhoc_state == ADHOC_STARTED) {
-			memset(&rssi, 0, sizeof(mlan_ds_get_signal));
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_get_signal_info(priv, MOAL_IOCTL_WAIT,
-						 &rssi)) {
-				ret = -EFAULT;
-				break;
-			}
-			iwe.u.qual.level = rssi.data_rssi_avg;
-		}
 		iwe.u.qual.qual =
 			woal_rssi_to_quality((t_s16)(iwe.u.qual.level - 0x100));
 		iwe.len = IW_EV_QUAL_LEN;
@@ -2803,15 +3123,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 							   current_val, end_buf,
 							   &iwe, iwe.len);
 		}
-		if ((bss_info.bss_mode == MLAN_BSS_MODE_IBSS) &&
-		    !woal_ssid_cmp(&bss_info.ssid, &scan_table[i].ssid) &&
-		    bss_info.adhoc_state == ADHOC_STARTED) {
-			iwe.u.bitrate.value = 22 * 500000;
-			iwe.len = IW_EV_PARAM_LEN;
-			current_val = IWE_STREAM_ADD_VALUE(info, current_ev,
-							   current_val, end_buf,
-							   &iwe, iwe.len);
-		}
 
 		/* Check if an event is added */
 		if ((unsigned int)(current_val - current_ev) >= IW_EV_PARAM_LEN)
@@ -2820,8 +3131,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		/* Beacon Interval */
 		memset(&iwe, 0, sizeof(iwe));
 		ptr = buf;
-		ptr += sprintf(ptr, "Beacon interval=%d",
-			       scan_table[i].beacon_period);
+		ptr += snprintf(ptr, MAX_BUF_LEN, "Beacon interval=%d",
+				scan_table[i].beacon_period);
 
 		iwe.u.data.length = strlen(buf);
 		iwe.cmd = IWEVCUSTOM;
@@ -2845,8 +3156,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 
 			while ((unsigned int)beacon_size >=
 			       sizeof(IEEEtypes_Header_t)) {
-				element_id = (IEEEtypes_ElementId_e)(
-					*(t_u8 *)pbeacon);
+				element_id = (IEEEtypes_ElementId_e)(*(
+					t_u8 *)pbeacon);
 				element_len = *((t_u8 *)pbeacon + 1);
 				if ((unsigned int)beacon_size <
 				    (unsigned int)element_len +
@@ -2880,9 +3191,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 					current_ev = IWE_STREAM_ADD_POINT(
 						info, current_ev, end_buf, &iwe,
 						buf);
-					current_val = current_ev +
-						      IW_EV_LCP_LEN +
-						      strlen(buf);
 					break;
 #endif
 				default:
@@ -2899,12 +3207,12 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		memset(&iwe, 0, sizeof(iwe));
 		memset(buf, 0, buf_size);
 		ptr = buf;
-		ptr += sprintf(ptr, "band=");
+		ptr += snprintf(ptr, MAX_BUF_LEN, "band=");
 		memset(&iwe, 0, sizeof(iwe));
 		if (scan_table[i].bss_band == BAND_A)
-			ptr += sprintf(ptr, "a");
+			snprintf(ptr, MAX_BUF_LEN, "a");
 		else
-			ptr += sprintf(ptr, "bg");
+			snprintf(ptr, MAX_BUF_LEN, "bg");
 		iwe.u.data.length = strlen(buf);
 		PRINTM(MINFO, "iwe.u.data.length %d\n", iwe.u.data.length);
 		PRINTM(MINFO, "BUF: %s\n", buf);
@@ -2912,7 +3220,6 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 		iwe.len = IW_EV_POINT_LEN + iwe.u.data.length;
 		current_ev = IWE_STREAM_ADD_POINT(info, current_ev, end_buf,
 						  &iwe, buf);
-		current_val = current_ev + IW_EV_LCP_LEN + strlen(buf);
 #endif
 		current_val = current_ev + IW_EV_LCP_LEN;
 
@@ -3045,9 +3352,14 @@ static const iw_handler woal_private_handler[] = {
 void woal_send_iwevcustom_event(moal_private *priv, char *str)
 {
 	union iwreq_data iwrq;
-	char buf[IW_CUSTOM_MAX];
+	char buf[256];
 
 	ENTER();
+	/* Check register_netdevice is completed before sending*/
+	if (priv->netdev->reg_state != NETREG_REGISTERED) {
+		LEAVE();
+		return;
+	}
 
 	memset(&iwrq, 0, sizeof(union iwreq_data));
 	memset(buf, 0, sizeof(buf));

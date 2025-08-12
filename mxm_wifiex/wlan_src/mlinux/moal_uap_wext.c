@@ -57,7 +57,55 @@ static const chan_to_freq_t chan_to_freq[] = {
 	{116, 5580, 1}, {120, 5600, 1}, {124, 5620, 1}, {128, 5640, 1},
 	{132, 5660, 1}, {136, 5680, 1}, {140, 5700, 1}, {144, 5720, 1},
 	{149, 5745, 1}, {153, 5765, 1}, {157, 5785, 1}, {161, 5805, 1},
-	{165, 5825, 1},
+	{165, 5825, 1}, {169, 5845, 1}, {173, 5865, 1}, {177, 5885, 1},
+};
+
+/**
+ * iwpriv ioctl handlers
+ */
+static const struct iw_priv_args woal_uap_priv_args[] = {
+	{WOAL_UAP_SETNONE_GETNONE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, ""},
+	{WOAL_UAP_START, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "start"},
+	{WOAL_UAP_STOP, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "stop"},
+	{WOAL_AP_BSS_START, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "bssstart"},
+	{WOAL_AP_BSS_STOP, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "bssstop"},
+	{WOAL_UAP_SETONEINT_GETWORDCHAR, IW_PRIV_TYPE_INT | 1,
+	 IW_PRIV_TYPE_CHAR | 128, ""},
+	{WOAL_UAP_VERSION, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128,
+	 "version"},
+	{WOAL_UAP_VEREXT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128,
+	 "verext"},
+	{WOAL_UAP_SETONEINT_GETONEINT, IW_PRIV_TYPE_INT | 1,
+	 IW_PRIV_TYPE_INT | 1, ""},
+#ifdef WIFI_DIRECT_SUPPORT
+#if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
+	{WOAL_UAP_SET_GET_BSS_ROLE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "bssrole"},
+#endif
+#endif
+
+#if defined(UAP_CFG80211)
+	{WOAL_UAP_SET_MODE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
+	 "setmode"},
+#endif
+	{WOAL_UAP_SET_GET_256_CHAR, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, ""},
+	{WOAL_WL_FW_RELOAD, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "fwreload"},
+	{WOAL_AP_SET_CFG, IW_PRIV_TYPE_CHAR | 256, IW_PRIV_TYPE_CHAR | 256,
+	 "apcfg"},
+	{WOAL_UAP_HOST_CMD, IW_PRIV_TYPE_BYTE | 2047, IW_PRIV_TYPE_BYTE | 2047,
+	 "hostcmd"},
+	{WOAL_UAP_FROYO_START, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "START"},
+	{WOAL_UAP_FROYO_STOP, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "STOP"},
+	{WOAL_UAP_FROYO_AP_BSS_START, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE,
+	 "AP_BSS_START"},
+	{WOAL_UAP_FROYO_AP_BSS_STOP, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE,
+	 "AP_BSS_STOP"},
+	{WOAL_UAP_FROYO_WL_FW_RELOAD, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, "WL_FW_RELOAD"},
+	{WOAL_UAP_FROYO_AP_SET_CFG, IW_PRIV_TYPE_CHAR | 256,
+	 IW_PRIV_TYPE_CHAR | 256, "AP_SET_CFG"},
 };
 
 /** Convertion from frequency to channel */
@@ -153,7 +201,7 @@ static int woal_get_name(struct net_device *dev, struct iw_request_info *info,
 {
 	char *cwrq = wrqu->name;
 	ENTER();
-	strcpy(cwrq, "IEEE 802.11-DS");
+	strncpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
 	LEAVE();
 	return 0;
 }
@@ -180,7 +228,11 @@ static int woal_get_wap(struct net_device *dev, struct iw_request_info *info,
 	if (priv->bss_started)
 		moal_memcpy_ext(priv->phandle, awrq->sa_data,
 				priv->current_addr, MLAN_MAC_ADDR_LENGTH,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				sizeof(awrq->sa_data_min));
+#else
 				sizeof(awrq->sa_data));
+#endif
 	else
 		memset(awrq->sa_data, 0, MLAN_MAC_ADDR_LENGTH);
 	awrq->sa_family = ARPHRD_ETHER;
@@ -357,7 +409,7 @@ static int woal_get_freq(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	band = (ap_cfg->bandcfg.chanBand == BAND_5GHZ);
+	band = (((ap_cfg->bandcfg.chanBand == BAND_5GHZ) ? 1 : 0));
 	fwrq->m = (long)channel_to_frequency(ap_cfg->channel, band);
 	fwrq->i = (long)ap_cfg->channel;
 	fwrq->e = 6;
@@ -692,7 +744,10 @@ static int woal_get_encode(struct net_device *dev, struct iw_request_info *info,
 		moal_memcpy_ext(priv->phandle, extra,
 				ap_cfg->wpa_cfg.passphrase,
 				ap_cfg->wpa_cfg.length, ap_cfg->wpa_cfg.length);
-		dwrq->length = ap_cfg->wpa_cfg.length;
+		if (ap_cfg->wpa_cfg.length)
+			dwrq->length = ap_cfg->wpa_cfg.length;
+		else
+			dwrq->length = 16;
 		dwrq->flags |= 1;
 		dwrq->flags &= ~IW_ENCODE_DISABLED;
 		break;
@@ -1079,7 +1134,8 @@ static int woal_set_mlme(struct net_device *dev, struct iw_request_info *info,
 		if (!memcmp(bc_addr, sta_addr, ETH_ALEN)) {
 			PRINTM(MIOCTL, "Deauth all stations\n");
 			req = woal_alloc_mlan_ioctl_req(
-				sizeof(mlan_ds_get_info));
+				sizeof(mlan_ds_get_info) +
+				(MAX_STA_LIST_IE_SIZE * MAX_NUM_CLIENTS));
 			if (req == NULL) {
 				LEAVE();
 				return -ENOMEM;

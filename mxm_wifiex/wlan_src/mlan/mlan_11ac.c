@@ -29,8 +29,6 @@
 #include "mlan_11n.h"
 #include "mlan_11ac.h"
 
-#define NO_NSS_SUPPORT 0x3
-
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -55,97 +53,84 @@ t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
  *
  *  @return             channel center frequency center, if found; O, otherwise
  */
-
 t_u8 wlan_get_center_freq_idx(mlan_private *pmpriv, t_u16 band, t_u32 pri_chan,
 			      t_u8 chan_bw)
 {
-	t_u8 center_freq_idx = 0;
+	struct center_freq_desc {
+		t_u8 pri_chan;
+		t_u8 ch_40;
+		t_u8 ch_80;
+		t_u8 ch_160;
+	};
 
-	if (band & BAND_AAC) {
-		switch (pri_chan) {
-		case 36:
-		case 40:
-		case 44:
-		case 48:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 42;
-				break;
-			}
-			/* fall through */
-		case 52:
-		case 56:
-		case 60:
-		case 64:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 58;
-				break;
-			} else if (chan_bw == CHANNEL_BW_160MHZ) {
-				center_freq_idx = 50;
-				break;
-			}
-			/* fall through */
-		case 100:
-		case 104:
-		case 108:
-		case 112:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 106;
-				break;
-			}
-			/* fall through */
-		case 116:
-		case 120:
-		case 124:
-		case 128:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 122;
-				break;
-			} else if (chan_bw == CHANNEL_BW_160MHZ) {
-				center_freq_idx = 114;
-				break;
-			}
-			/* fall through */
-		case 132:
-		case 136:
-		case 140:
-		case 144:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 138;
-				break;
-			}
-			/* fall through */
-		case 149:
-		case 153:
-		case 157:
-		case 161:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 155;
-				break;
-			}
-			/* fall through */
-		case 165:
-		case 169:
-		case 173:
-		case 177:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 171;
-				break;
-			}
-			/* fall through */
-		case 184:
-		case 188:
-		case 192:
-		case 196:
-			if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 190;
-				break;
-			}
-			/* fall through */
-		default: /* error. go to the default */
-			center_freq_idx = 42;
+	static const struct center_freq_desc center_freq_idx_map_5g[] = {
+		{.pri_chan = 36, .ch_40 = 38, .ch_80 = 42, .ch_160 = 50},
+		{.pri_chan = 40, .ch_40 = 38, .ch_80 = 42, .ch_160 = 50},
+		{.pri_chan = 44, .ch_40 = 46, .ch_80 = 42, .ch_160 = 50},
+		{.pri_chan = 48, .ch_40 = 46, .ch_80 = 42, .ch_160 = 50},
+		{.pri_chan = 52, .ch_40 = 54, .ch_80 = 58, .ch_160 = 50},
+		{.pri_chan = 56, .ch_40 = 54, .ch_80 = 58, .ch_160 = 50},
+		{.pri_chan = 60, .ch_40 = 62, .ch_80 = 58, .ch_160 = 50},
+		{.pri_chan = 64, .ch_40 = 62, .ch_80 = 58, .ch_160 = 50},
+		{.pri_chan = 68, .ch_40 = 70, .ch_80 = 74, .ch_160 = 0},
+		{.pri_chan = 72, .ch_40 = 70, .ch_80 = 74, .ch_160 = 0},
+		{.pri_chan = 76, .ch_40 = 78, .ch_80 = 74, .ch_160 = 0},
+		{.pri_chan = 80, .ch_40 = 78, .ch_80 = 74, .ch_160 = 0},
+		{.pri_chan = 84, .ch_40 = 86, .ch_80 = 90, .ch_160 = 0},
+		{.pri_chan = 88, .ch_40 = 86, .ch_80 = 90, .ch_160 = 0},
+		{.pri_chan = 92, .ch_40 = 94, .ch_80 = 90, .ch_160 = 0},
+		{.pri_chan = 96, .ch_40 = 94, .ch_80 = 90, .ch_160 = 0},
+		{.pri_chan = 100, .ch_40 = 102, .ch_80 = 106, .ch_160 = 114},
+		{.pri_chan = 104, .ch_40 = 102, .ch_80 = 106, .ch_160 = 114},
+		{.pri_chan = 108, .ch_40 = 110, .ch_80 = 106, .ch_160 = 114},
+		{.pri_chan = 112, .ch_40 = 110, .ch_80 = 106, .ch_160 = 114},
+		{.pri_chan = 116, .ch_40 = 118, .ch_80 = 122, .ch_160 = 114},
+		{.pri_chan = 120, .ch_40 = 118, .ch_80 = 122, .ch_160 = 114},
+		{.pri_chan = 124, .ch_40 = 126, .ch_80 = 122, .ch_160 = 114},
+		{.pri_chan = 128, .ch_40 = 126, .ch_80 = 122, .ch_160 = 114},
+		{.pri_chan = 132, .ch_40 = 134, .ch_80 = 138, .ch_160 = 0},
+		{.pri_chan = 136, .ch_40 = 134, .ch_80 = 138, .ch_160 = 0},
+		{.pri_chan = 140, .ch_40 = 142, .ch_80 = 138, .ch_160 = 0},
+		{.pri_chan = 144, .ch_40 = 142, .ch_80 = 138, .ch_160 = 0},
+		{.pri_chan = 149, .ch_40 = 151, .ch_80 = 155, .ch_160 = 163},
+		{.pri_chan = 153, .ch_40 = 151, .ch_80 = 155, .ch_160 = 163},
+		{.pri_chan = 157, .ch_40 = 159, .ch_80 = 155, .ch_160 = 163},
+		{.pri_chan = 161, .ch_40 = 159, .ch_80 = 155, .ch_160 = 163},
+		{.pri_chan = 165, .ch_40 = 167, .ch_80 = 171, .ch_160 = 163},
+		{.pri_chan = 169, .ch_40 = 167, .ch_80 = 171, .ch_160 = 163},
+		{.pri_chan = 173, .ch_40 = 175, .ch_80 = 171, .ch_160 = 163},
+		{.pri_chan = 177, .ch_40 = 175, .ch_80 = 171, .ch_160 = 163},
+		{.pri_chan = 184, .ch_40 = 186, .ch_80 = 190, .ch_160 = 0},
+		{.pri_chan = 188, .ch_40 = 186, .ch_80 = 190, .ch_160 = 0},
+		{.pri_chan = 192, .ch_40 = 194, .ch_80 = 190, .ch_160 = 0},
+		{.pri_chan = 196, .ch_40 = 194, .ch_80 = 190, .ch_160 = 0},
+		{.pri_chan = 0,
+		 .ch_40 = 42 /* terminator with default cfreq */}};
+
+	const struct center_freq_desc *map = MNULL;
+
+	if (band == BAND_5GHZ)
+		map = center_freq_idx_map_5g;
+
+	for (; map != MNULL; map++) {
+		/* reached end of map, return default value for that map */
+		if (map->pri_chan == 0)
+			return map->ch_40;
+
+		if (map->pri_chan == pri_chan) {
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW)
+				return map->ch_40;
+
+			if (chan_bw == CHANNEL_BW_80MHZ)
+				return map->ch_80;
+
+			if (chan_bw == CHANNEL_BW_160MHZ)
+				return map->ch_160;
 		}
 	}
-	return center_freq_idx;
+
+	return 0;
 }
 
 /**
@@ -194,10 +179,9 @@ static t_u8 wlan_get_nss_num_vht_mcs(t_u16 mcs_map_set)
  *  @return             N/A
  */
 static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
-			       t_u8 bands)
+			       t_u16 bands)
 {
 	t_u32 usr_dot_11ac_dev_cap;
-
 	ENTER();
 
 	if (bands & BAND_A)
@@ -207,6 +191,7 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 
 	vht_cap->vht_cap_info = usr_dot_11ac_dev_cap;
 
+	RESET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info);
 	LEAVE();
 }
 
@@ -230,7 +215,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 	t_u32 hw_value = 0;
 	t_u8 nss = 0;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0;
 	t_u16 tx_nss = 0;
 #endif
@@ -313,9 +299,12 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 		/** update the RX MCS map */
 		if (cfg->param.vht_cfg.txrx & MLAN_RADIO_RX) {
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 			if (IS_CARD9098(pmadapter->card_type) ||
-			    IS_CARD9097(pmadapter->card_type)) {
+			    IS_CARDIW624(pmadapter->card_type) ||
+			    IS_CARD9097(pmadapter->card_type) ||
+			    IS_CARDAW693(pmadapter->card_type)) {
 				if (cfg->param.vht_cfg.band == BAND_SELECT_A) {
 					rx_nss = GET_RXMCSSUPP(
 						pmadapter->user_htstream >> 8);
@@ -345,7 +334,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 					pmadapter->hw_dot_11ac_mcs_support,
 					nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 				if ((rx_nss != 0) && (nss > rx_nss))
 					cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -372,7 +362,8 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 					pmadapter->hw_dot_11ac_mcs_support,
 					nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 				if ((tx_nss != 0) && (nss > tx_nss))
 					cfg_value = NO_NSS_SUPPORT;
 #endif
@@ -797,7 +788,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 	t_u16 mcs_resp = 0;
 	t_u16 nss;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0, tx_nss = 0;
 #endif
 	ENTER();
@@ -818,9 +810,12 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_map_resp =
 			wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	if (IS_CARD9098(priv->adapter->card_type) ||
-	    IS_CARD9097(priv->adapter->card_type)) {
+	    IS_CARDIW624(priv->adapter->card_type) ||
+	    IS_CARD9097(priv->adapter->card_type) ||
+	    IS_CARDAW693(priv->adapter->card_type)) {
 		if (bands & BAND_A) {
 			rx_nss = GET_RXMCSSUPP(priv->adapter->user_htstream >>
 					       8);
@@ -842,7 +837,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
 		mcs_resp = GET_VHTNSSMCS(mcs_map_resp, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 		if ((rx_nss != 0) && (nss > rx_nss))
 			mcs_user = NO_NSS_SUPPORT;
 #endif
@@ -874,7 +870,8 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
 		mcs_resp = GET_VHTNSSMCS(mcs_map_resp, nss);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 		if ((tx_nss != 0) && (nss > tx_nss))
 			mcs_user = NO_NSS_SUPPORT;
 #endif
@@ -1072,7 +1069,7 @@ void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
 		break;
 	}
 	vht_oprat->chan_center_freq_1 = wlan_get_center_freq_idx(
-		priv, BAND_AAC, pbss_desc->channel, chan_bw);
+		priv, BAND_5GHZ, pbss_desc->channel, chan_bw);
 
 	LEAVE();
 	return;
@@ -1090,7 +1087,8 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 {
 	t_u8 ret = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0, tx_nss = 0;
 	IEEEtypes_VHTCap_t *pvht_cap = pbss_desc->pvht_cap;
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
@@ -1100,9 +1098,12 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 	ENTER();
 
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	if (!IS_CARD9098(pmpriv->adapter->card_type) &&
-	    !IS_CARD9097(pmpriv->adapter->card_type))
+	    !IS_CARDIW624(pmpriv->adapter->card_type) &&
+	    !IS_CARD9097(pmpriv->adapter->card_type) &&
+	    !IS_CARDAW693(pmpriv->adapter->card_type))
 		return ret;
 	/** check band A */
 	if (!(pbss_desc->bss_band & BAND_A))
@@ -1153,7 +1154,8 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	int ret_len = 0;
 	t_u8 bw_80p80 = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 	t_u16 rx_nss = 0;
 #endif
 
@@ -1184,7 +1186,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			   pvht_cap->header.len, sizeof(VHT_capa_t));
 		bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
 		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band,
-				      MTRUE, bw_80p80);
+				      MFALSE, bw_80p80);
 
 		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));
@@ -1224,9 +1226,12 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		/** set default bandwidth:80M*/
 		SET_OPER_MODE_80M(pmrvl_oper_mode->oper_mode);
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 		if (IS_CARD9098(pmadapter->card_type) ||
-		    IS_CARD9097(pmadapter->card_type)) {
+		    IS_CARDIW624(pmadapter->card_type) ||
+		    IS_CARD9097(pmadapter->card_type) ||
+		    IS_CARDAW693(pmadapter->card_type)) {
 			if (pbss_desc->bss_band & BAND_A)
 				rx_nss = GET_RXMCSSUPP(
 					pmadapter->user_htstream >> 8);
@@ -1240,9 +1245,12 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		nss = wlan_get_nss_num_vht_mcs(mcs_map_user);
 
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(SD9097) || defined(USB9097)
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
 		if (IS_CARD9098(pmadapter->card_type) ||
-		    IS_CARD9097(pmadapter->card_type)) {
+		    IS_CARDIW624(pmadapter->card_type) ||
+		    IS_CARD9097(pmadapter->card_type) ||
+		    IS_CARDAW693(pmadapter->card_type)) {
 			PRINTM(MCMND, "rx_nss=%d nss=%d\n", rx_nss, nss);
 			nss = MIN(rx_nss, nss);
 		}
@@ -1435,12 +1443,7 @@ void wlan_update_11ac_cap(mlan_private *pmpriv)
  */
 t_u8 wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GAC);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AAC);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAC);
 		else if (bss_band & BAND_A)

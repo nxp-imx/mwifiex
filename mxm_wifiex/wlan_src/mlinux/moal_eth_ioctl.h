@@ -4,7 +4,7 @@
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2023 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -82,6 +82,9 @@ Change log:
 #define PRIV_CMD_GET_STA_LIST "getstalist"
 #define PRIV_CMD_BSS_CONFIG "bssconfig"
 #endif
+#if defined(UAP_SUPPORT)
+#define PRIV_CMD_SETMODE "setmode"
+#endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #define PRIV_CMD_BSSROLE "bssrole"
@@ -100,6 +103,8 @@ typedef struct _chan_stats {
 #define PRIV_CMD_EXTCAPCFG "extcapcfg"
 #define PRIV_CMD_CANCELSCAN "cancelscan"
 #endif
+#define PRIV_CMD_REORDER_FLUSH_TIME "flush_time"
+
 #define PRIV_CMD_DEEPSLEEP "deepsleep"
 #define PRIV_CMD_IPADDR "ipaddr"
 #define PRIV_CMD_WPSSESSION "wpssession"
@@ -110,6 +115,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_ASSOCESSID "assocessid"
 #define PRIV_CMD_ASSOCBSSID "assocessid_bssid"
 #endif
+#define PRIV_CMD_AUTOASSOC "assocctrl"
 #define PRIV_CMD_WAKEUPREASON "wakeupreason"
 #ifdef STA_SUPPORT
 #define PRIV_CMD_LISTENINTERVAL "listeninterval"
@@ -145,9 +151,11 @@ typedef struct _chan_stats {
 #define PRIV_CMD_REGRDWR "regrdwr"
 #define PRIV_CMD_RDEEPROM "rdeeprom"
 #define PRIV_CMD_MEMRDWR "memrdwr"
+#define PRIV_CMD_GPIOCFG "gpiocfg"
 #ifdef SDIO
 #define PRIV_CMD_SDCMD52RW "sdcmd52rw"
 #endif
+#define PRIV_CMD_ARPFILTER "arpfilter"
 #define PRIV_CMD_HOTSPOTCFG "hotspotcfg"
 #define PRIV_CMD_MGMT_FRAME_CTRL "mgmtframectrl"
 #define PRIV_CMD_QCONFIG "qconfig"
@@ -207,15 +215,22 @@ typedef struct _chan_stats {
 #define PRIV_CMD_TX_BF_CAP "httxbfcap"
 #ifdef SDIO
 #define PRIV_CMD_SDIO_CLOCK "sdioclock"
+#define PRIV_CMD_SDIO_BUSWIDTH "sdiobuswidth"
 #endif
 #ifdef SDIO
 #define PRIV_CMD_MPA_CTRL "mpactrl"
 #endif
 #define PRIV_CMD_SLEEP_PARAMS "sleepparams"
+#define PRIV_CMD_NET_MON "netmon"
 #define PRIV_CMD_DFS_TESTING "dfstesting"
+#define PRIV_CMD_CLEAR_NOP "clear_nop"
+#define PRIV_CMD_NOP_LIST "nop_list"
+#define PRIV_CMD_FAKE_RADAR "fake_radar"
 #define PRIV_CMD_DFS53_CFG "dfs53cfg"
+#define PRIV_CMD_DFS_MODE "dfs_mode"
+#define PRIV_CMD_DFS_CAC "dfs_cac"
+#define PRIV_CMD_AUTODFS "autodfs"
 #define PRIV_CMD_CFP_CODE "cfpcode"
-#define PRIV_CMD_CWMODE "cwmode"
 #define PRIV_CMD_ANT_CFG "antcfg"
 #define PRIV_CMD_SYSCLOCK "sysclock"
 #define PRIV_CMD_GET_KEY "getkey"
@@ -226,15 +241,20 @@ typedef struct _chan_stats {
 #ifdef SDIO
 #define PRIV_CMD_SD_CMD53_RW "sdcmd53rw"
 #endif
-#ifdef RX_PACKET_COALESCE
-#define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
-#endif
+#define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
+#define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
+#define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(UAP_CFG80211)
 #define PRIV_CMD_CFG_NOA "cfg_noa"
 #define PRIV_CMD_CFG_OPP_PS "cfg_opp_ps"
 #endif
 #endif
+#define PRIV_CMD_CFG_CLOCK_SYNC "clocksync"
+#define PRIV_CMD_CFG_GET_TSF_INFO "gettsfinfo"
+#define PRIV_CMD_TARGET_CHANNEL "targetchan"
+#define PRIV_CMD_BACKUP_CHANNEL "backupchan"
+
 #define PRIV_CMD_DFS_REPEATER_CFG "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -257,6 +277,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_GET_CFG_CHAN_LIST "getcfgchanlist"
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH "channel_switch"
+#define PRIV_CMD_SET_CHAN_SWITCH_PARAM "chanswitch_param"
 #endif
 
 #define PRIV_CMD_TDLS_IDLE_TIME "tdls_idle_time"
@@ -278,12 +299,24 @@ typedef struct _chan_stats {
 /**Private command ID to set/get independent reset*/
 #define PRIV_CMD_IND_RST_CFG "indrstcfg"
 
+#define PRIV_CMD_MCAST_AGGR_GROUP "mcast_aggr_group"
+#define PRIV_CMD_MC_AGGR_CFG "mc_aggr_cfg"
+#define PRIV_CMD_STATS "stats"
+#define PRIV_CMD_CH_LOAD "getchload"
+#define PRIV_CMD_CH_LOAD_RESULTS "getloadresults"
+#define PRIV_CMD_CROSS_CHIP_SYNCH "crosssynch"
+
 #define PRIV_CMD_ARB_CFG "arb"
 
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
+/**Private command to configure static OFDM DESENSE config */
+#define PRIV_CMD_OFDM_DESENSE_CFG "ofdm_desense_cfg"
 /**Private command to configure dynamic rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG_EXT "rx_abort_cfg_ext"
+/** configure NAV mitigation parameters. */
+#define PRIV_CMD_NAV_MITIGATION "nav_mitigation"
+#define PRIV_CMD_LED "led"
 #define TX_AMPDU_RTS_CTS 0
 #define TX_AMPDU_CTS_2_SELF 1
 #define TX_AMPDU_DISABLE_PROTECTION 2
@@ -299,6 +332,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_CCK_DESENSE_CFG "cck_desense_cfg"
 #define PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG "dot11mc_unassoc_ftm_cfg"
 #define PRIV_CMD_HAL_PHY_CFG "hal_phy_cfg"
+#define PRIV_CMD_IPS_CFG "ips_cfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD (SIOCDEVPRIVATE + 1)
@@ -349,7 +383,15 @@ typedef struct _ssu_params_cfg {
 } __attribute__((packed)) ssu_params_cfg;
 #endif
 
+#define PRIV_CMD_CSI "csi"
+
 #define PRIV_CMD_BOOTSLEEP "bootsleep"
+
+/** Private command ID to config txwatchdog enable/disable */
+#define PRIV_CMD_TXWATCHDOG "txwatchdog"
+
+/** Private command to get secure boot uuid */
+#define PRIV_CMD_GET_SB_UUID "getuuid"
 
 /** Private command: 11AX Cfg */
 #define PRIV_CMD_11AXCFG "11axcfg"
@@ -361,10 +403,20 @@ typedef struct _ssu_params_cfg {
 #define PRIV_CMD_TWT_SETUP "twt_setup"
 /** Private command: TWT Teardown Cfg */
 #define PRIV_CMD_TWT_TEARDOWN "twt_teardown"
+/** Private command: TWT report Cfg */
+#define PRIV_CMD_TWT_REPORT "twt_report"
 
 #define PRIV_CMD_LPM "lpm"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+int woal_do_ioctl(struct net_device *dev, struct ifreq *req, void __user *data,
+		  int cmd);
+#else
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
+#endif
+
+mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
+			    int *user_data_len);
 
 /*
  * For android private commands, fixed value of ioctl is used.
@@ -499,6 +551,29 @@ typedef struct woal_priv_addba {
 	t_u32 rx_amsdu;
 } woal_addba;
 
+/** Action field value : get */
+#define ACTION_GET 0
+/** Action field value : set */
+#define ACTION_SET 1
+/** Action field value:  add */
+#define ACTION_ADD 2
+/** Action field value:  remove */
+#define ACTION_REMOVE 3
+
+#define MC_AGGR_CTRL MBIT(0)
+#define UC_NONAGGR_CTRL MBIT(6)
+/* mcast_aggr_group */
+typedef struct _mcast_aggr_group {
+	/** action */
+	t_u32 action;
+	/** mcast addr */
+	t_u8 mcast_addr[ETH_ALEN];
+	/** Number of multicast addresses in the list */
+	t_u32 num_mcast_addr;
+	/** Multicast address list */
+	mlan_802_11_mac_addr mac_list[MLAN_MAX_MULTICAST_LIST_SIZE];
+} mcast_aggr_group, *pmcast_aggr_group;
+
 typedef struct _txrate_setting {
 	t_u16 preamble : 2; /*BIT1-BIT0:
 			     *  For legacy 11b: preamble type
@@ -629,6 +704,26 @@ typedef struct _cloud_keep_alive {
 	/** packet content */
 	t_u8 pkt[255];
 } __ATTRIB_PACK__ cloud_keep_alive;
+/** cloud keep alive parameters */
+#define PRIV_CMD_CLOUD_KEEP_ALIVE_RX "cloud_keep_alive_rx"
+typedef struct _cloud_keep_alive_rx {
+	/** id */
+	t_u8 mkeep_alive_id;
+	/** enable/disable of this id */
+	t_u8 enable;
+	/** enable/disable reset*/
+	t_u8 reset;
+	/** Reserved */
+	t_u8 reserved;
+	/** Destination MAC address */
+	t_u8 dst_mac[ETH_ALEN];
+	/** Source MAC address */
+	t_u8 src_mac[ETH_ALEN];
+	/** packet length */
+	t_u8 pkt_len;
+	/** packet content */
+	t_u8 pkt[100];
+} __ATTRIB_PACK__ cloud_keep_alive_rx;
 
 #define TLV_TYPE_PER_PKT_CFG 0x0001
 #define TX_PKT_CTRL MBIT(0)
@@ -647,13 +742,6 @@ typedef struct _tx_rx_histogram {
 	/** Choose to get TX, RX or both histogram statistic */
 	t_u8 action;
 } __ATTRIB_PACK__ tx_rx_histogram;
-
-/* Enum for different CW mode type */
-typedef enum _cw_modes_e {
-	CWMODE_DISABLE,
-	CWMODE_TXCONTPKT,
-	CWMODE_TXCONTWAVE,
-} cw_modes_e;
 
 /** wlan_ieee80211_chan */
 typedef struct {

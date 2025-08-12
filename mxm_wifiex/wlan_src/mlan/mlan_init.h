@@ -4,7 +4,7 @@
  *  structures.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -46,6 +46,8 @@ Change log:
 #define FW_CMD_7 0x00000007
 /** CMD id for CMD10 */
 #define FW_CMD_10 0x0000000a
+/** CMD id for CMD21 */
+#define FW_CMD_21 0x00000015
 
 /** Firmware data transmit size */
 #define FW_DATA_XMIT_SIZE (sizeof(FWHeader) + DataLength + sizeof(t_u32))

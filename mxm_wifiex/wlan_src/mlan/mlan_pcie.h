@@ -169,8 +169,12 @@ Change log:
 #define ADMA_BD_FLAG_DST_HOST MBIT(4)
 /** ADMA MIN PKT SIZE */
 #define ADMA_MIN_PKT_SIZE 128
+/** ADMA MIN PKT SIZE 32 */
+#define ADMA_MIN_PKT_SIZE_32 32
 /** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
 #define ADMA_ALIGN_SIZE 8
+/** ADMA dual descriptor mode requir 8 bytes alignment in buf size */
+#define ADMA_ALIGN_SIZE_1 1
 /** ADMA RW_PTR wrap mask */
 #define ADMA_RW_PTR_WRAP_MASK 0x00001FFF
 /** ADMA MSIX DOORBEEL DATA */
@@ -182,7 +186,7 @@ Change log:
 /** PF start bit */
 #define ADMA_MSIX_PF_BIT 24
 
-#if defined(PCIE9098) || defined(PCIE9097)
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEIW624)
 /** PCIE9098 dev_id/vendor id reg */
 #define PCIE9098_DEV_ID_REG 0x0000
 /** PCIE revision ID register */
@@ -409,10 +413,13 @@ Change log:
 #define HOST_INTR_CMD_DONE MBIT(2)
 /** Event ready interrupt for host */
 #define HOST_INTR_EVENT_RDY MBIT(3)
+/** Command download interrupt for host */
+#define HOST_INTR_CMD_DNLD MBIT(7)
+
 /** Interrupt mask for host */
 #define HOST_INTR_MASK                                                         \
 	(HOST_INTR_DNLD_DONE | HOST_INTR_UPLD_RDY | HOST_INTR_CMD_DONE |       \
-	 HOST_INTR_EVENT_RDY)
+	 HOST_INTR_EVENT_RDY | HOST_INTR_CMD_DNLD)
 
 /** Lower 32bits command address holding register */
 #define REG_CMD_ADDR_LO PCIE_SCRATCH_0_REG
@@ -458,160 +465,6 @@ Change log:
 /** Max interrupt status register read limit */
 #define MAX_READ_REG_RETRY 10000
 
-#ifdef PCIE8897
-static const struct _mlan_pcie_card_reg mlan_reg_pcie8897 = {
-	.reg_txbd_rdptr = PCIE8897_RD_DATA_PTR_Q0_Q1,
-	.reg_txbd_wrptr = PCIE8897_WR_DATA_PTR_Q0_Q1,
-	.reg_rxbd_rdptr = PCIE8897_RD_DATA_PTR_Q0_Q1,
-	.reg_rxbd_wrptr = PCIE8897_WR_DATA_PTR_Q0_Q1,
-	.reg_evtbd_rdptr = REG_EVTBD_RDPTR,
-	.reg_evtbd_wrptr = REG_EVTBD_WRPTR,
-	.reg_host_int_mask = PCIE_HOST_INT_MASK,
-	.reg_host_int_status_mask = PCIE_HOST_INT_STATUS_MASK,
-	.reg_host_int_status = PCIE_HOST_INT_STATUS,
-	.reg_cpu_int_event = PCIE_CPU_INT_EVENT,
-	.reg_ip_rev = PCIE_IP_REV_REG,
-	.reg_drv_ready = REG_DRV_READY,
-	.reg_cpu_int_status = PCIE_CPU_INT_STATUS,
-	.reg_scratch_0 = PCIE_SCRATCH_0_REG,
-	.reg_scratch_1 = PCIE_SCRATCH_1_REG,
-	.reg_scratch_2 = PCIE_SCRATCH_2_REG,
-	.reg_scratch_3 = PCIE_SCRATCH_3_REG,
-	.host_intr_mask = HOST_INTR_MASK,
-	.host_intr_dnld_done = HOST_INTR_DNLD_DONE,
-	.host_intr_upld_rdy = HOST_INTR_UPLD_RDY,
-	.host_intr_cmd_done = HOST_INTR_CMD_DONE,
-	.host_intr_event_rdy = HOST_INTR_EVENT_RDY,
-	.txrx_rw_ptr_mask = 0x000003FF,
-	.txrx_rw_ptr_wrap_mask = 0x000007FF,
-	.txrx_rw_ptr_rollover_ind = MBIT(10),
-	.use_adma = MFALSE,
-	.msi_int_wr_clr = MTRUE,
-};
-
-static const struct _mlan_card_info mlan_card_info_pcie8897 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 0,
-	.supp_ps_handshake = 0,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-};
-#endif
-
-#ifdef PCIE8997
-static const struct _mlan_pcie_card_reg mlan_reg_pcie8997 = {
-	.reg_txbd_rdptr = PCIE8997_RD_DATA_PTR_Q0_Q1,
-	.reg_txbd_wrptr = PCIE8997_WR_DATA_PTR_Q0_Q1,
-	.reg_rxbd_rdptr = PCIE8997_RD_DATA_PTR_Q0_Q1,
-	.reg_rxbd_wrptr = PCIE8997_WR_DATA_PTR_Q0_Q1,
-	.reg_evtbd_rdptr = REG_EVTBD_RDPTR,
-	.reg_evtbd_wrptr = REG_EVTBD_WRPTR,
-	.reg_host_int_mask = PCIE_HOST_INT_MASK,
-	.reg_host_int_status_mask = PCIE_HOST_INT_STATUS_MASK,
-	.reg_host_int_status = PCIE_HOST_INT_STATUS,
-	.reg_cpu_int_event = PCIE_CPU_INT_EVENT,
-	.reg_ip_rev = PCIE_IP_REV_REG,
-	.reg_drv_ready = REG_DRV_READY,
-	.reg_cpu_int_status = PCIE_CPU_INT_STATUS,
-	.reg_scratch_0 = PCIE_SCRATCH_0_REG,
-	.reg_scratch_1 = PCIE_SCRATCH_1_REG,
-	.reg_scratch_2 = PCIE_SCRATCH_2_REG,
-	.reg_scratch_3 = PCIE_SCRATCH_3_REG,
-	.host_intr_mask = HOST_INTR_MASK,
-	.host_intr_dnld_done = HOST_INTR_DNLD_DONE,
-	.host_intr_upld_rdy = HOST_INTR_UPLD_RDY,
-	.host_intr_cmd_done = HOST_INTR_CMD_DONE,
-	.host_intr_event_rdy = HOST_INTR_EVENT_RDY,
-	.txrx_rw_ptr_mask = 0x00000FFF,
-	.txrx_rw_ptr_wrap_mask = 0x00001FFF,
-	.txrx_rw_ptr_rollover_ind = MBIT(12),
-	.use_adma = MFALSE,
-	.msi_int_wr_clr = MTRUE,
-};
-
-static const struct _mlan_card_info mlan_card_info_pcie8997 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 1,
-	.supp_ps_handshake = 0,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-};
-#endif
-
-#if defined(PCIE9098) || defined(PCIE9097)
-static const struct _mlan_pcie_card_reg mlan_reg_pcie9098 = {
-	.reg_txbd_rdptr = PCIE9098_TXBD_RDPTR,
-	.reg_txbd_wrptr = PCIE9098_TXBD_WRPTR,
-	.reg_rxbd_rdptr = PCIE9098_RXBD_RDPTR,
-	.reg_rxbd_wrptr = PCIE9098_RXBD_WRPTR,
-	.reg_evtbd_rdptr = PCIE9098_EVTBD_RDPTR,
-	.reg_evtbd_wrptr = PCIE9098_EVTBD_WRPTR,
-	.reg_host_int_mask = PCIE9098_HOST_INT_MASK,
-	.reg_host_int_status_mask = PCIE9098_HOST_INT_STATUS_MASK,
-	.reg_host_int_status = PCIE9098_HOST_INT_STATUS,
-	.reg_host_int_clr_sel = PCIE9098_HOST_INT_CLR_SEL,
-	.reg_cpu_int_event = PCIE9098_CPU_INT_EVENT,
-	.reg_ip_rev = PCIE9098_DEV_ID_REG,
-	.reg_drv_ready = PCIE9098_DRV_READY,
-	.reg_cpu_int_status = PCIE9098_CPU_INT_STATUS,
-	.reg_rev_id = PCIE9098_REV_ID_REG,
-	.reg_scratch_0 = PCIE9098_SCRATCH_0_REG,
-	.reg_scratch_1 = PCIE9098_SCRATCH_1_REG,
-	.reg_scratch_2 = PCIE9098_SCRATCH_2_REG,
-	.reg_scratch_3 = PCIE9098_SCRATCH_3_REG,
-	.reg_scratch_6 = PCIE9098_SCRATCH_6_REG,
-	.reg_scratch_7 = PCIE9098_SCRATCH_7_REG,
-	.host_intr_mask = PCIE9098_HOST_INTR_MASK,
-	.host_intr_dnld_done = PCIE9098_HOST_INTR_DNLD_DONE,
-	.host_intr_upld_rdy = PCIE9098_HOST_INTR_UPLD_RDY,
-	.host_intr_cmd_done = PCIE9098_HOST_INTR_CMD_DONE,
-	.host_intr_event_rdy = PCIE9098_HOST_INTR_EVENT_RDY,
-	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
-	.use_adma = MTRUE,
-	.msi_int_wr_clr = MTRUE,
-};
-
-static const struct _mlan_card_info mlan_card_info_pcie9098 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 1,
-	.v17_fw_api = 1,
-	.supp_ps_handshake = 0,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-};
-#endif
-
-#ifdef PCIE9097
-static const struct _mlan_pcie_card_reg mlan_reg_pcie9097_b0 = {
-	.reg_txbd_rdptr = PCIE9098_TXBD_RDPTR,
-	.reg_txbd_wrptr = PCIE9098_TXBD_WRPTR,
-	.reg_rxbd_rdptr = PCIE9098_RXBD_RDPTR,
-	.reg_rxbd_wrptr = PCIE9098_RXBD_WRPTR,
-	.reg_evtbd_rdptr = PCIE9098_EVTBD_RDPTR,
-	.reg_evtbd_wrptr = PCIE9098_EVTBD_WRPTR,
-	.reg_host_int_mask = PCIE9097_B0_HOST_INT_MASK,
-	.reg_host_int_status_mask = PCIE9097_B0_HOST_INT_STATUS_MASK,
-	.reg_host_int_status = PCIE9097_B0_HOST_INT_STATUS,
-	.reg_host_int_clr_sel = PCIE9097_B0_HOST_INT_CLR_SEL,
-	.reg_cpu_int_event = PCIE9098_CPU_INT_EVENT,
-	.reg_ip_rev = PCIE9098_DEV_ID_REG,
-	.reg_drv_ready = PCIE9098_DRV_READY,
-	.reg_cpu_int_status = PCIE9098_CPU_INT_STATUS,
-	.reg_rev_id = PCIE9098_REV_ID_REG,
-	.reg_scratch_0 = PCIE9098_SCRATCH_0_REG,
-	.reg_scratch_1 = PCIE9098_SCRATCH_1_REG,
-	.reg_scratch_2 = PCIE9098_SCRATCH_2_REG,
-	.reg_scratch_3 = PCIE9098_SCRATCH_3_REG,
-	.reg_scratch_6 = PCIE9098_SCRATCH_6_REG,
-	.reg_scratch_7 = PCIE9098_SCRATCH_7_REG,
-	.host_intr_mask = PCIE9098_HOST_INTR_MASK,
-	.host_intr_dnld_done = PCIE9098_HOST_INTR_DNLD_DONE,
-	.host_intr_upld_rdy = PCIE9098_HOST_INTR_UPLD_RDY,
-	.host_intr_cmd_done = PCIE9098_HOST_INTR_CMD_DONE,
-	.host_intr_event_rdy = PCIE9098_HOST_INTR_EVENT_RDY,
-	.host_intr_cmd_dnld = PCIE9098_HOST_INTR_CMD_DNLD,
-	.use_adma = MTRUE,
-	.msi_int_wr_clr = MTRUE,
-};
-#endif
-
 extern mlan_adapter_operations mlan_pcie_ops;
 
 /* Get pcie device from card type */
@@ -619,9 +472,6 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
 
 /** Set PCIE host buffer configurations */
 mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv);
-
-/** Init write pointer */
-mlan_status wlan_pcie_init_fw(pmlan_adapter pmadapter);
 
 #if defined(PCIE8997) || defined(PCIE8897)
 /** Prepare command PCIE host buffer config */

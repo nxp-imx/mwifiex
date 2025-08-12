@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -44,6 +44,11 @@ Change log:
 /** Byte Mode */
 #define BYTE_MODE 0
 #endif
+
+/** SDIO bus width 1 bit mode */
+#define SDIO_BUS_WIDTH_1 1
+/** SDIO bus width 4 bit mode */
+#define SDIO_BUS_WIDTH_4 4
 
 #ifndef FIXED_ADDRESS
 /** Fixed address mode */
@@ -108,10 +113,10 @@ Change log:
 #endif /* SD8897 */
 
 #ifdef SD8978
-#define SD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsd8978_combo.bin"
-#define SDUART8978_DEFAULT_COMBO_FW_NAME "nxp/sduart8978_combo.bin"
-#define SDSD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsd8978_combo.bin"
-#define SD8978_DEFAULT_WLAN_FW_NAME "nxp/sd8978_wlan.bin"
+#define SD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw416_combo.bin"
+#define SDUART8978_DEFAULT_COMBO_FW_NAME "nxp/sduartiw416_combo.bin"
+#define SDSD8978_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw416_combo.bin"
+#define SD8978_DEFAULT_WLAN_FW_NAME "nxp/sdiw416_wlan.bin"
 #endif /* SD8978 */
 
 #ifdef SD9098
@@ -131,23 +136,47 @@ Change log:
 #ifdef SD9097
 #define SD9097_B0 0x01
 #define SD9097_B1 0x02
-#define SD9097_DEFAULT_COMBO_FW_NAME "nxp/sdsd9097_combo_v1.bin"
+#define SD9097_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw620_combo_v1.bin"
 
-#define SD9097_DEFAULT_WLAN_FW_NAME "nxp/sd9097_wlan_v1.bin"
-#define SDUART9097_COMBO_V1_FW_NAME "nxp/sduart9097_combo_v1.bin"
-#define SDSD9097_COMBO_V1_FW_NAME "nxp/sdsd9097_combo_v1.bin"
-#define SD9097_WLAN_V1_FW_NAME "nxp/sd9097_wlan_v1.bin"
+#define SD9097_DEFAULT_WLAN_FW_NAME "nxp/sdiw620_wlan_v1.bin"
+#define SDUART9097_COMBO_V1_FW_NAME "nxp/sduartiw620_combo_v1.bin"
+#define SDSD9097_COMBO_V1_FW_NAME "nxp/sdsdiw620_combo_v1.bin"
+#define SD9097_WLAN_V1_FW_NAME "nxp/sdiw620_wlan_v1.bin"
 #endif /* SD9097 */
 
+#ifdef SDIW624
+#define SDIW624_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw624_combo.bin"
+#define SDUARTIW624_COMBO_FW_NAME "nxp/sduartiw624_combo.bin"
+#define SDUARTSPIIW624_COMBO_FW_NAME "nxp/sduartspiiw624_combo.bin"
+#define SDUARTUARTIW624_COMBO_FW_NAME "nxp/sduartuartiw624_combo.bin"
+#define SDSDIW624_COMBO_FW_NAME "sdsdiw624_combo.bin"
+#define SDIW624_DEFAULT_WLAN_FW_NAME "nxp/sdiw624_wlan.bin"
+#endif /* SDIW624 */
+
 #ifdef SD9177
-#define SD9177_A0 0x01
-#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
-#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart9177_combo.bin"
-#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd9177_combo.bin"
-#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd9177_wlan.bin"
-/** Device ID for SD9177 */
-#define SD_DEVICE_ID_9177 (0x0205)
+#define SD9177_A0 0x00
+#define SD9177_A1 0x01
+#define SD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin.se"
+#define SD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin.se"
+#define SDUART9177_DEFAULT_COMBO_FW_NAME "nxp/sduart_nw61x.bin.se"
+#define SDSD9177_DEFAULT_COMBO_FW_NAME "nxp/sdsd_nw61x.bin.se"
+#define SD9177_DEFAULT_WLAN_FW_NAME "nxp/sd_w61x.bin.se"
+#define SDUART9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sduart_nw61x_v1.bin.se"
+#define SDSD9177_DEFAULT_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_v1.bin.se"
+#define SD9177_DEFAULT_WLAN_V1_FW_NAME "nxp/sd_w61x_v1.bin.se"
+#define SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME                               \
+	"nxp/sduart_nw61x_rftm_v1.bin.se"
+#define SDSD9177_DEFAULT_RFTM_COMBO_V1_FW_NAME "nxp/sdsd_nw61x_rftm_v1.bin.se"
+#define SD9177_DEFAULT_RFTM_WLAN_V1_FW_NAME "nxp/sd_w61x_rftm_v1.bin.se"
 #endif /* SD9177 */
+
+#ifdef SDIW615
+#define SDIW615_DEFAULT_COMBO_FW_NAME "nxp/sdsdiw615_combo.bin"
+#define SDUARTIW615_COMBO_FW_NAME "nxp/sduartiw615_combo.bin"
+#define SDSDIW615_COMBO_FW_NAME "sdsdiw615_combo.bin"
+#define SDIW615_DEFAULT_WLAN_FW_NAME "nxp/sdiw615_wlan.bin"
+#endif /* SDIW615 */
+
 /********************************************************
 		Global Functions
 ********************************************************/
@@ -158,6 +187,7 @@ mlan_status woal_sdiommc_bus_register(void);
 void woal_sdiommc_bus_unregister(void);
 
 int woal_sdio_set_bus_clock(moal_handle *handle, t_u8 option);
+int woal_sdio_set_buswidth(moal_handle *handle, t_u8 bus_width);
 
 #ifdef SDIO_SUSPEND_RESUME
 #ifdef MMC_PM_FUNC_SUSPENDED
@@ -172,14 +202,19 @@ int woal_sdio_resume(struct device *dev);
 
 #ifdef SDIO_MMC
 /** Structure: SDIO MMC card */
-struct sdio_mmc_card {
+typedef struct _sdio_mmc_card {
 	/** sdio_func structure pointer */
 	struct sdio_func *func;
 	/** moal_handle structure pointer */
 	moal_handle *handle;
+	/** reset work*/
+	struct work_struct reset_work;
+	/** work flag */
+	t_u8 work_flags;
 	/** saved host clock value */
 	unsigned int host_clock;
-};
+} sdio_mmc_card;
+void woal_sdio_reset_hw(moal_handle *handle);
 #endif /* SDIO_MMC */
 
 /** cmd52 read write */

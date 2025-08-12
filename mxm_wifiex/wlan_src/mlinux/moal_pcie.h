@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- * Copyright 2014-2020 NXP
+ * Copyright 2014-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -29,27 +29,41 @@ Change log:
 #ifndef _MOAL_PCIE_H_
 #define _MOAL_PCIE_H_
 
-#define PCIE_VENDOR_ID_NXP (0x11ab)
-#define PCIE_VENDOR_ID_V2_NXP (0x1b4b)
+#define PCIE_VENDOR_ID_MRVL (0x11ab)
+#define PCIE_VENDOR_ID_V2_MRVL (0x1b4b)
+#define PCIE_VENDOR_ID_NXP (0x1131)
+
 #ifdef PCIE8997
 /** PCIE device ID for 8997 card */
-#define PCIE_DEVICE_ID_NXP_88W8997P (0x2b42)
+#define PCIE_DEVICE_ID_88W8997P (0x2b42)
 #endif
 #ifdef PCIE8897
 /** PCIE device ID for 8897 card */
-#define PCIE_DEVICE_ID_NXP_88W8897P (0x2b38)
+#define PCIE_DEVICE_ID_88W8897P (0x2b38)
 #endif
 
 #ifdef PCIE9097
 /** PCIE device ID for 9097 card */
-#define PCIE_DEVICE_ID_NXP_88W9097 (0x2b56)
+#define PCIE_DEVICE_ID_88W9097 (0x2b56)
 #endif
 
-#ifdef PCIE9098
+#if defined(PCIE9098)
 /** PCIE device ID for 9098 card FN0 */
-#define PCIE_DEVICE_ID_NXP_88W9098P_FN0 (0x2b43)
+#define PCIE_DEVICE_ID_88W9098P_FN0 (0x2b43)
 /** PCIE device ID for 9098 card FN1 */
-#define PCIE_DEVICE_ID_NXP_88W9098P_FN1 (0x2b44)
+#define PCIE_DEVICE_ID_88W9098P_FN1 (0x2b44)
+#endif
+
+#ifdef PCIEIW624
+/** PCIE device ID for IW624 card FN0 */
+#define PCIE_DEVICE_ID_88WIW624 (0x3000)
+#endif
+
+#if defined(PCIE9098)
+/** PCIE device ID for AW693 card FN0 */
+#define PCIE_DEVICE_ID_88WAW693_FN0 (0x3003)
+/** PCIE device ID for AW693 card FN1 */
+#define PCIE_DEVICE_ID_88WAW693_FN1 (0x3004)
 #endif
 
 #include <linux/version.h>
@@ -97,16 +111,27 @@ Change log:
 #define PCIE9097_A0 0x00
 #define PCIE9097_B0 0x01
 #define PCIE9097_B1 0x02
-#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9097_combo.bin"
-#define PCIEUART9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuart9097_combo.bin"
-#define PCIEUSB9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusb9097_combo.bin"
-#define PCIEUART9097_COMBO_V1_FW_NAME "nxp/pcieuart9097_combo_v1.bin"
-#define PCIEUSB9097_COMBO_V1_FW_NAME "nxp/pcieusb9097_combo_v1.bin"
-#define PCIE9097_DEFAULT_WLAN_FW_NAME "nxp/pcie9097_wlan.bin"
-#define PCIE9097_WLAN_V1_FW_NAME "nxp/pcie9097_wlan_v1.bin"
+#define PCIE9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
+#define PCIEUART9097_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw620_combo.bin"
+#define PCIEUSB9097_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw620_combo.bin"
+#define PCIEUART9097_COMBO_V1_FW_NAME "nxp/pcieuartiw620_combo_v1.bin"
+#define PCIEUSB9097_COMBO_V1_FW_NAME "nxp/pcieusbiw620_combo_v1.bin"
+#define PCIE9097_DEFAULT_WLAN_FW_NAME "nxp/pcieiw620_wlan.bin"
+#define PCIE9097_WLAN_V1_FW_NAME "nxp/pcieiw620_wlan_v1.bin"
 #endif /* PCIE9097 */
 
-#if defined(PCIE9098) || defined(PCIE9097)
+#ifdef PCIEIW624
+#define PCIEIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartiw624_combo.bin"
+#define PCIEUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbiw624_combo.bin"
+#define PCIEUARTUARTIW624_DEFAULT_COMBO_FW_NAME                                \
+	"nxp/pcieuartuartiw624_combo.bin"
+#define PCIEUARTSPIIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieuartspiiw624_combo.bin"
+#define PCIEUSBUSBIW624_DEFAULT_COMBO_FW_NAME "nxp/pcieusbusbiw624_combo.bin"
+#define PCIEIW624_DEFAULT_WLAN_FW_NAME "nxp/pcieiw624_wlan.bin"
+#endif /* PCIEIW624 */
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEIW624)
 #define PCIE_NUM_MSIX_VECTORS 32
 #else
 #define PCIE_NUM_MSIX_VECTORS 4
@@ -125,6 +150,10 @@ typedef struct _pcie_service_card {
 	struct pci_dev *dev;
 	/** moal_handle structure pointer */
 	moal_handle *handle;
+	/** reset work*/
+	struct work_struct reset_work;
+	/** work flag */
+	t_u8 work_flags;
 	/** I/O memory regions pointer to the bus */
 	void __iomem *pci_mmap;
 	/** I/O memory regions pointer to the bus */

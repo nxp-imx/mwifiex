@@ -3,7 +3,7 @@
  * @brief This file contains functions for debug proc file.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -113,10 +113,12 @@ static struct debug_data items[] = {
 	{"tx_lock_flag", item_size(tx_lock_flag), item_addr(tx_lock_flag),
 	 INFO_ADDR},
 	{"port_open", item_size(port_open), item_addr(port_open), INFO_ADDR},
+	{"tx_pause", item_size(tx_pause), item_addr(tx_pause), INFO_ADDR},
 	{"bypass_pkt_count", item_size(bypass_pkt_count),
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"scan_processing", item_size(scan_processing),
 	 item_addr(scan_processing), INFO_ADDR},
+	{"scan_state", item_size(scan_state), item_addr(scan_state), INFO_ADDR},
 	{"num_cmd_timeout", item_size(num_cmd_timeout),
 	 item_addr(num_cmd_timeout), INFO_ADDR},
 	{"timeout_cmd_id", item_size(timeout_cmd_id), item_addr(timeout_cmd_id),
@@ -259,6 +261,10 @@ static struct debug_data items[] = {
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
 	 item_handle_addr(hs_force_count), HANDLE_ADDR},
+#ifdef STA_CFG80211
+	{"scan_timeout", item_handle_size(scan_timeout),
+	 item_handle_addr(scan_timeout), HANDLE_ADDR},
+#endif
 };
 
 #endif
@@ -306,6 +312,7 @@ static struct debug_data uap_items[] = {
 	 INFO_ADDR},
 	{"tx_pkts_queued", item_size(tx_pkts_queued), item_addr(tx_pkts_queued),
 	 INFO_ADDR},
+	{"tx_pause", item_size(tx_pause), item_addr(tx_pause), INFO_ADDR},
 	{"bypass_pkt_count", item_size(bypass_pkt_count),
 	 item_addr(bypass_pkt_count), INFO_ADDR},
 	{"num_bridge_pkts", item_size(num_bridge_pkts),
@@ -743,7 +750,9 @@ static int woal_histogram_read(struct seq_file *sfp, void *data)
 
 static int woal_histogram_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_histogram_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_histogram_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_histogram_read, PDE(inode)->data);
@@ -942,7 +951,9 @@ static int woal_log_read(struct seq_file *sfp, void *data)
  */
 static int woal_log_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_log_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_log_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_log_read, PDE(inode)->data);
@@ -1032,6 +1043,9 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 		mp_aggr_pkt_limit = info->mp_aggr_pkt_limit;
 		seq_printf(sfp, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
 			   info->last_recv_wr_bitmap, info->last_mp_index);
+		seq_printf(sfp,
+			   "last_recv_rd_bitmap=0x%x mp_data_port_mask=0x%x\n",
+			   info->last_recv_rd_bitmap, info->mp_data_port_mask);
 		for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
 			seq_printf(
 				sfp,
@@ -1076,6 +1090,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 #endif
 	seq_printf(sfp, "tcp_ack_drop_cnt=%d\n", priv->tcp_ack_drop_cnt);
 	seq_printf(sfp, "tcp_ack_cnt=%d\n", priv->tcp_ack_cnt);
+	seq_printf(sfp, "tcp_ack_payload=%d\n", priv->tcp_ack_payload);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	for (i = 0; i < 4; i++)
 		seq_printf(sfp, "wmm_tx_pending[%d]:%d\n", i,
@@ -1100,7 +1115,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			seq_printf(
 				sfp,
 				"tid = %d, ta =  %02x:%02x:%02x:%02x:%02x:%02x, start_win = %d, "
-				"win_size = %d, amsdu=%d\n",
+				"win_size = %d, amsdu=%d",
 				(int)info->rx_tbl[i].tid, info->rx_tbl[i].ta[0],
 				info->rx_tbl[i].ta[1], info->rx_tbl[i].ta[2],
 				info->rx_tbl[i].ta[3], info->rx_tbl[i].ta[4],
@@ -1108,6 +1123,8 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 				(int)info->rx_tbl[i].start_win,
 				(int)info->rx_tbl[i].win_size,
 				(int)info->rx_tbl[i].amsdu);
+			seq_printf(sfp, "\n");
+
 			seq_printf(sfp, "buffer: ");
 			for (j = 0; j < info->rx_tbl[i].win_size; j++) {
 				if (info->rx_tbl[i].buffer[j] == MTRUE)
@@ -1191,6 +1208,7 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 	t_u32 last_drvdbg = drvdbg;
 #endif
 	gfp_t flag;
+	t_u32 temp_count = 0;
 
 	ENTER();
 
@@ -1199,7 +1217,11 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 		return MLAN_STATUS_FAILURE;
 	}
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
-	pdata = kzalloc(count + 1, flag);
+
+	if (!woal_secure_add(&count, 1, &temp_count, TYPE_UINT32))
+		PRINTM(MERROR, "%s:count param overflow \n", __func__);
+
+	pdata = kzalloc(temp_count, flag);
 	if (pdata == NULL) {
 		MODULE_PUT;
 		LEAVE();
@@ -1260,7 +1282,9 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 
 static int woal_debug_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_debug_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_debug_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_debug_read, PDE(inode)->data);

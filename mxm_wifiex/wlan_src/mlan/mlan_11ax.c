@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for 11ax related features.
  *
  *
- *  Copyright 2018-2021 NXP
+ *  Copyright 2018-2022 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -76,7 +76,7 @@ static t_u8 wlan_check_ap_11ax_twt_supported(BSSDescriptor_t *pbss_desc)
 {
 	if (!pbss_desc->phe_cap)
 		return MFALSE;
-	if (!(pbss_desc->phe_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_REQ_SUPPORT))
+	if (!(pbss_desc->phe_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_RESP_SUPPORT))
 		return MFALSE;
 	if (!pbss_desc->pext_cap)
 		return MFALSE;
@@ -99,12 +99,14 @@ t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
 		(MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
 	MrvlIEtypes_He_cap_t *hw_he_cap =
 		(MrvlIEtypes_He_cap_t *)&pmpriv->adapter->hw_he_cap;
+	t_u16 band_selected = BAND_A;
+
 	if (pbss_desc && !wlan_check_ap_11ax_twt_supported(pbss_desc)) {
 		PRINTM(MINFO, "AP don't support twt feature\n");
 		return MFALSE;
 	}
 	if (pbss_desc) {
-		if (pbss_desc->bss_band & BAND_A) {
+		if (pbss_desc->bss_band & band_selected) {
 			hw_he_cap = (MrvlIEtypes_He_cap_t *)&pmpriv->adapter
 					    ->hw_he_cap;
 			phecap = (MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
@@ -142,6 +144,141 @@ static void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
 	return;
 }
 #endif
+
+/**
+ *  @brief This function fills the HE CAP IE w/ output format LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param hecap_ie     A pointer to IEEEtypes_HECap_t structure
+ *  @param band         BAND_A (5G), otherwise, 2.4G
+ *
+ *  @return bytes added to the phe_cap
+ */
+t_u8 wlan_fill_he_cap_ie(mlan_private *pmpriv, IEEEtypes_HECap_t *hecap_ie,
+			 t_u16 band)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	MrvlIEtypes_He_cap_t *user_hecap_tlv = MNULL;
+	MrvlIEtypes_He_cap_t *hw_hecap_tlv = MNULL;
+	IEEEtypes_HeMcsNss_t *he_mcsnss = MNULL;
+	t_u8 nss = 0;
+	t_u16 cfg_value = 0;
+	t_u16 hw_value = 0;
+
+	if (band & BAND_A) {
+		user_hecap_tlv = (MrvlIEtypes_He_cap_t *)(pmpriv->user_he_cap);
+		hw_hecap_tlv = (MrvlIEtypes_He_cap_t *)pmadapter->hw_he_cap;
+	} else {
+		user_hecap_tlv =
+			(MrvlIEtypes_He_cap_t *)(pmpriv->user_2g_he_cap);
+		hw_hecap_tlv = (MrvlIEtypes_He_cap_t *)pmadapter->hw_2g_he_cap;
+	}
+
+	// include PPE threshold
+	memcpy_ext(pmadapter, (t_u8 *)hecap_ie + sizeof(IEEEtypes_Header_t),
+		   (t_u8 *)user_hecap_tlv + sizeof(MrvlIEtypesHeader_t),
+		   user_hecap_tlv->len,
+		   sizeof(IEEEtypes_HECap_t) - sizeof(IEEEtypes_Header_t));
+
+	hecap_ie->ieee_hdr.element_id = EXTENSION;
+	hecap_ie->ieee_hdr.len =
+		MIN(user_hecap_tlv->len,
+		    sizeof(IEEEtypes_HECap_t) - sizeof(IEEEtypes_Header_t));
+	hecap_ie->ext_id = HE_CAPABILITY;
+
+	he_mcsnss = (IEEEtypes_HeMcsNss_t *)hecap_ie->he_txrx_mcs_support;
+
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(user_hecap_tlv->rx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(hw_hecap_tlv->rx_mcs_80, nss);
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT)) {
+			SET_HE_NSSMCS(he_mcsnss->rx_mcs, nss, NO_NSS_SUPPORT);
+		} else {
+			SET_HE_NSSMCS(he_mcsnss->rx_mcs, nss,
+				      MIN(cfg_value, hw_value));
+		}
+	}
+
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(user_hecap_tlv->tx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(hw_hecap_tlv->tx_mcs_80, nss);
+
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT)) {
+			SET_HE_NSSMCS(he_mcsnss->tx_mcs, nss, NO_NSS_SUPPORT);
+		} else {
+			SET_HE_NSSMCS(he_mcsnss->tx_mcs, nss,
+				      MIN(cfg_value, hw_value));
+		}
+	}
+	PRINTM(MCMND,
+	       "fill_11ax_ie: HE rx mcs_80 = 0x%08x tx mcs 80 = 0x%08x\n",
+	       he_mcsnss->rx_mcs, he_mcsnss->tx_mcs);
+
+	DBG_HEXDUMP(MCMD_D, "fill_11ax_ie", (t_u8 *)hecap_ie,
+		    hecap_ie->ieee_hdr.len + sizeof(IEEEtypes_Header_t));
+	return hecap_ie->ieee_hdr.len;
+}
+
+/**
+ *  @brief This function fills the HE cap tlv out put format is LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param phe_cap      A pointer to IEEEtypes_HECap_t structure
+ *  @param band         BAND_A (5G), otherwise, 2.4G
+ *
+ *  @return bytes added to the phe_cap
+ */
+t_u8 wlan_fill_he_op_ie(mlan_private *pmpriv, IEEEtypes_HeOp_t *heop_ie)
+{
+	pmlan_adapter pmadapter = pmpriv->adapter;
+	BSSDescriptor_t *pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
+	IEEEtypes_HeOp_t *bss_heop_ie = MNULL;
+
+	memset(pmadapter, (void *)heop_ie, 0, sizeof(IEEEtypes_HeOp_t));
+
+	heop_ie->ieee_hdr.element_id = EXTENSION;
+	heop_ie->ieee_hdr.len = sizeof(IEEEtypes_HeOp_t) -
+				sizeof(IEEEtypes_Header_t) -
+				sizeof(heop_ie->option);
+	heop_ie->ext_id = HE_OPERATION;
+
+	// HE Operation Parameters
+	heop_ie->he_op_param.default_pe_dur = 7;
+	heop_ie->he_op_param.twt_req = 0;
+	heop_ie->he_op_param.txop_dur_rts_threshold = 12;
+	heop_ie->he_op_param.vht_op_info_present = 0;
+	heop_ie->he_op_param.co_located_bss = 0;
+	heop_ie->he_op_param.er_su_disable = 0;
+	// HE BSS Color Information (following the AP)
+	if (pbss_desc->phe_oprat) {
+		bss_heop_ie = (IEEEtypes_HeOp_t *)(pbss_desc->phe_oprat);
+		heop_ie->bss_color_info.bss_color =
+			bss_heop_ie->bss_color_info.bss_color;
+	} else {
+		// default color
+		heop_ie->bss_color_info.bss_color = 1;
+	}
+	heop_ie->bss_color_info.partial_bss_color = 0;
+	heop_ie->bss_color_info.bss_color_disabled = 0;
+	// Rx HE MCS MAP
+	heop_ie->basic_he_mcs_nss.max_mcs_1ss = 0;
+#if defined(SD9177)
+	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 3;
+#else
+	heop_ie->basic_he_mcs_nss.max_mcs_2ss = 0;
+#endif
+	heop_ie->basic_he_mcs_nss.max_mcs_3ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_4ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_5ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_6ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_7ss = 3;
+	heop_ie->basic_he_mcs_nss.max_mcs_8ss = 3;
+
+	return heop_ie->ieee_hdr.len;
+}
+
 /**
  *  @brief This function fills the HE cap tlv out put format is LE, not CPU
  *
@@ -153,30 +290,97 @@ static void wlan_show_dot11axphycap(pmlan_adapter pmadapter, t_u32 support)
  *
  *  @return bytes added to the phe_cap
  */
-t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u8 band,
+t_u16 wlan_fill_he_cap_tlv(mlan_private *pmpriv, t_u16 band,
 			   MrvlIEtypes_Extension_t *phe_cap, t_u8 flag)
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	t_u16 len = 0;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+	t_u16 rx_nss = 0, tx_nss = 0;
+#endif
+	MrvlIEtypes_He_cap_t *phecap = MNULL;
+	t_u8 nss = 0;
+	t_u16 cfg_value = 0;
+	t_u16 hw_value = 0;
+	MrvlIEtypes_He_cap_t *phw_hecap = MNULL;
 
 	if (!phe_cap) {
 		LEAVE();
 		return 0;
 	}
-	if (band & BAND_A) {
+	if (band & BAND_AAX) {
 		memcpy_ext(pmadapter, (t_u8 *)phe_cap, pmpriv->user_he_cap,
 			   pmpriv->user_hecap_len,
 			   sizeof(MrvlIEtypes_He_cap_t));
 		len = pmpriv->user_hecap_len;
+		phw_hecap = (MrvlIEtypes_He_cap_t *)pmadapter->hw_he_cap;
 	} else {
 		memcpy_ext(pmadapter, (t_u8 *)phe_cap, pmpriv->user_2g_he_cap,
 			   pmpriv->user_2g_hecap_len,
 			   sizeof(MrvlIEtypes_He_cap_t));
 		len = pmpriv->user_2g_hecap_len;
+		phw_hecap = (MrvlIEtypes_He_cap_t *)pmadapter->hw_2g_he_cap;
 	}
 	phe_cap->type = wlan_cpu_to_le16(phe_cap->type);
 	phe_cap->len = wlan_cpu_to_le16(phe_cap->len);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type) ||
+	    IS_CARDAW693(pmpriv->adapter->card_type)) {
+		if (band & BAND_AAX) {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8) &
+				 0x0f;
+		} else {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream) &
+				 0x0f;
+		}
+	}
+#endif
+	phecap = (MrvlIEtypes_He_cap_t *)phe_cap;
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		if ((rx_nss != 0) && (nss > rx_nss))
+			cfg_value = NO_NSS_SUPPORT;
+#endif
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT))
+			SET_HE_NSSMCS(phecap->rx_mcs_80, nss, NO_NSS_SUPPORT);
+		else
+			SET_HE_NSSMCS(phecap->rx_mcs_80, nss,
+				      MIN(cfg_value, hw_value));
+	}
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		if ((tx_nss != 0) && (nss > tx_nss))
+			cfg_value = NO_NSS_SUPPORT;
+#endif
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT))
+			SET_HE_NSSMCS(phecap->tx_mcs_80, nss, NO_NSS_SUPPORT);
+		else
+			SET_HE_NSSMCS(phecap->tx_mcs_80, nss,
+				      MIN(cfg_value, hw_value));
+	}
+	PRINTM(MCMND, "Set: HE rx mcs set 0x%08x tx mcs set 0x%08x\n",
+	       phecap->rx_mcs_80, phecap->tx_mcs_80);
 
+	DBG_HEXDUMP(MCMD_D, "fill_11ax_tlv", (t_u8 *)phecap, len);
 	LEAVE();
 	return len;
 }
@@ -197,6 +401,16 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	int len = 0;
 	t_u8 bw_80p80 = MFALSE;
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+	t_u16 rx_nss = 0, tx_nss = 0;
+#endif
+	t_u8 nss = 0;
+	t_u16 cfg_value = 0;
+	t_u16 hw_value = 0;
+	MrvlIEtypes_He_cap_t *phw_hecap = MNULL;
+	t_u16 band_selected = BAND_A;
 
 	ENTER();
 
@@ -216,40 +430,85 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	}
 	bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
 	phecap = (MrvlIEtypes_He_cap_t *)*ppbuffer;
-	if (pbss_desc->bss_band & BAND_A) {
+	if (pbss_desc->bss_band & band_selected) {
 		memcpy_ext(pmadapter, *ppbuffer, pmpriv->user_he_cap,
 			   pmpriv->user_hecap_len, pmpriv->user_hecap_len);
 		*ppbuffer += pmpriv->user_hecap_len;
 		len = pmpriv->user_hecap_len;
+		phw_hecap = (MrvlIEtypes_He_cap_t *)pmadapter->hw_he_cap;
 	} else {
 		memcpy_ext(pmadapter, *ppbuffer, pmpriv->user_2g_he_cap,
 			   pmpriv->user_2g_hecap_len,
 			   pmpriv->user_2g_hecap_len);
 		*ppbuffer += pmpriv->user_2g_hecap_len;
 		len = pmpriv->user_2g_hecap_len;
+		phw_hecap = (MrvlIEtypes_He_cap_t *)pmadapter->hw_2g_he_cap;
 	}
 	phecap->type = wlan_cpu_to_le16(phecap->type);
 	phecap->len = wlan_cpu_to_le16(phecap->len);
-
-	if (bw_80p80) {
-		/** configure 2*2 to 1*1 to support 80+80Mhz*/
-		/** set 1*1 mcs rate for 80Mhz rx*/
-		phecap->he_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80Mhz tx*/
-		phecap->he_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 160Mhz rx*/
-		phecap->he160_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 160Mhz tx*/
-		phecap->he160_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80+80Mhz rx*/
-		phecap->he8080_txrx_mcs_support[0] &= ~(MBIT(0) | MBIT(1));
-		/** set 1*1 mcs rate for 80+80Mhz tx*/
-		phecap->he8080_txrx_mcs_support[3] &= ~(MBIT(0) | MBIT(1));
-	} else {
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+	if (IS_CARD9098(pmpriv->adapter->card_type) ||
+	    IS_CARDIW624(pmpriv->adapter->card_type) ||
+	    IS_CARD9097(pmpriv->adapter->card_type) ||
+	    IS_CARDAW693(pmpriv->adapter->card_type)) {
+		if (pbss_desc->bss_band & band_selected) {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream >>
+					       8) &
+				 0x0f;
+		} else {
+			rx_nss = GET_RXMCSSUPP(pmpriv->adapter->user_htstream);
+			tx_nss = GET_TXMCSSUPP(pmpriv->adapter->user_htstream) &
+				 0x0f;
+		}
+		/** force 1x1 when enable 80P80 */
+		if (bw_80p80)
+			rx_nss = tx_nss = 1;
+	}
+#endif
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(phecap->rx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(phw_hecap->rx_mcs_80, nss);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		if ((rx_nss != 0) && (nss > rx_nss))
+			cfg_value = NO_NSS_SUPPORT;
+#endif
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT))
+			SET_HE_NSSMCS(phecap->rx_mcs_80, nss, NO_NSS_SUPPORT);
+		else
+			SET_HE_NSSMCS(phecap->rx_mcs_80, nss,
+				      MIN(cfg_value, hw_value));
+	}
+	for (nss = 1; nss <= 8; nss++) {
+		cfg_value = GET_HE_NSSMCS(phecap->tx_mcs_80, nss);
+		hw_value = GET_HE_NSSMCS(phw_hecap->tx_mcs_80, nss);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
+	defined(PCIEIW624) || defined(USBIW624) || defined(SD9097)
+		if ((tx_nss != 0) && (nss > tx_nss))
+			cfg_value = NO_NSS_SUPPORT;
+#endif
+		if ((hw_value == NO_NSS_SUPPORT) ||
+		    (cfg_value == NO_NSS_SUPPORT))
+			SET_HE_NSSMCS(phecap->tx_mcs_80, nss, NO_NSS_SUPPORT);
+		else
+			SET_HE_NSSMCS(phecap->tx_mcs_80, nss,
+				      MIN(cfg_value, hw_value));
+	}
+	PRINTM(MCMND, "Set: HE rx mcs set 0x%08x tx mcs set 0x%08x\n",
+	       phecap->rx_mcs_80, phecap->tx_mcs_80);
+	if (!bw_80p80) {
 		/** reset BIT3 and BIT4 channel width ,not support 80 + 80*/
 		/** not support 160Mhz now, if support,not reset bit3 */
 		phecap->he_phy_cap[0] &= ~(MBIT(3) | MBIT(4));
 	}
+	DBG_HEXDUMP(MCMD_D, "append_11ax_tlv", (t_u8 *)phecap, len);
 
 	LEAVE();
 	return len;
@@ -269,6 +528,7 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 	MrvlIEtypes_He_cap_t *phe_cap = MNULL;
 	t_u8 i = 0;
 	t_u8 he_cap_2g = 0;
+	MrvlIEtypes_He_cap_t *user_he_cap_tlv = MNULL;
 
 	ENTER();
 	if ((hw_he_cap->len + sizeof(MrvlIEtypesHeader_t)) >
@@ -327,6 +587,28 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 					pmadapter->hw_hecap_len,
 					sizeof(pmadapter->priv[i]->user_he_cap));
 			}
+			/**
+			 *  Clear TWT bits in he_mac_cap by bss role
+			 *  STA mode should clear TWT responder bit
+			 *  UAP mode should clear TWT request bit
+			 */
+			if (he_cap_2g)
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_2g_he_cap;
+			else
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_he_cap;
+
+			if (pmadapter->priv[i]->bss_role == MLAN_BSS_ROLE_STA)
+				user_he_cap_tlv->he_mac_cap[0] &=
+					~HE_MAC_CAP_TWT_RESP_SUPPORT;
+			else
+				user_he_cap_tlv->he_mac_cap[0] &=
+					~HE_MAC_CAP_TWT_REQ_SUPPORT;
 		}
 	}
 	LEAVE();
@@ -337,20 +619,17 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
  *  @brief This function check if 11AX is allowed in bandcfg
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param bss_band     bss band
+ *  @param pbss_desc    A pointer to BSSDescriptor_t
  *
  *  @return 0--not allowed, other value allowed
  */
-t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
+t_u16 wlan_11ax_bandconfig_allowed(mlan_private *pmpriv,
+				   BSSDescriptor_t *pbss_desc)
 {
-	if (!IS_FW_SUPPORT_11AX(pmpriv->adapter))
+	t_u16 bss_band = pbss_desc->bss_band;
+	if (pbss_desc->disable_11n)
 		return MFALSE;
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-		if (bss_band & BAND_G)
-			return (pmpriv->adapter->adhoc_start_band & BAND_GAX);
-		else if (bss_band & BAND_A)
-			return (pmpriv->adapter->adhoc_start_band & BAND_AAX);
-	} else {
+	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAX);
 		else if (bss_band & BAND_A)
@@ -376,15 +655,6 @@ static mlan_status wlan_11ax_ioctl_hecfg(pmlan_adapter pmadapter,
 	t_u16 cmd_action = 0;
 
 	ENTER();
-
-	if (pioctl_req->buf_len < sizeof(mlan_ds_11ax_cfg)) {
-		PRINTM(MINFO, "MLAN bss IOCTL length is too short.\n");
-		pioctl_req->data_read_written = 0;
-		pioctl_req->buf_len_needed = sizeof(mlan_ds_11ax_cfg);
-		pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-		LEAVE();
-		return MLAN_STATUS_RESOURCE;
-	}
 
 	cfg = (mlan_ds_11ax_cfg *)pioctl_req->pbuf;
 
@@ -487,7 +757,6 @@ mlan_status wlan_cmd_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		cmd->size += hecfg->he_cap.len + sizeof(MrvlIEtypesHeader_t);
 		pos += hecfg->he_cap.len + sizeof(MrvlIEtypesHeader_t);
 	}
-
 	cmd->size = wlan_cpu_to_le16(cmd->size);
 
 	LEAVE();
@@ -652,6 +921,10 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		(mlan_ds_11ax_txomi_cmd *)&ds_11ax_cmd->param;
 	mlan_ds_11ax_toltime_cmd *toltime_cmd =
 		(mlan_ds_11ax_toltime_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_set_bsrp_cmd *set_bsrp_cmd =
+		(mlan_ds_11ax_set_bsrp_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_llde_cmd *llde_cmd =
+		(mlan_ds_11ax_llde_cmd *)&ds_11ax_cmd->param;
 	MrvlIEtypes_Data_t *tlv = MNULL;
 
 	ENTER();
@@ -685,13 +958,24 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &txomi_cmd->omi,
-			   sizeof(t_u16), sizeof(t_u16));
-		cmd->size += sizeof(t_u16);
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_txomi_cmd);
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, axcmd->val, &toltime_cmd->tol_time,
 			   sizeof(t_u32), sizeof(t_u32));
 		cmd->size += sizeof(t_u32);
+		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		axcmd->val[0] = set_bsrp_cmd->value;
+		cmd->size += sizeof(t_u8);
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, axcmd->val, &llde_cmd->llde,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_llde_cmd);
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", ds_11ax_cmd->sub_id);
@@ -762,11 +1046,20 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		break;
 	case MLAN_11AXCMD_TXOMI_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.txomi_cfg.omi, axcmd->val,
-			   sizeof(t_u16), sizeof(t_u16));
+			   sizeof(mlan_ds_11ax_txomi_cmd),
+			   sizeof(mlan_ds_11ax_txomi_cmd));
 		break;
 	case MLAN_11AXCMD_OBSS_TOLTIME_SUBID:
 		memcpy_ext(pmadapter, &cfg->param.toltime_cfg.tol_time,
 			   axcmd->val, sizeof(t_u32), sizeof(t_u32));
+		break;
+	case MLAN_11AXCMD_SET_BSRP_SUBID:
+		cfg->param.setbsrp_cfg.value = *axcmd->val;
+		break;
+	case MLAN_11AXCMD_LLDE_SUBID:
+		memcpy_ext(pmadapter, &cfg->param.llde_cfg.llde, axcmd->val,
+			   sizeof(mlan_ds_11ax_llde_cmd),
+			   sizeof(mlan_ds_11ax_llde_cmd));
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", axcmd->sub_id);
@@ -797,6 +1090,7 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	mlan_ds_twtcfg *ds_twtcfg = (mlan_ds_twtcfg *)pdata_buf;
 	hostcmd_twt_setup *twt_setup_params = MNULL;
 	hostcmd_twt_teardown *twt_teardown_params = MNULL;
+	hostcmd_twt_report *twt_report_params = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -848,6 +1142,13 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		twt_teardown_params->teardown_all_twt =
 			ds_twtcfg->param.twt_teardown.teardown_all_twt;
 		cmd->size += sizeof(hostcmd_twtcfg->param.twt_teardown);
+		break;
+	case MLAN_11AX_TWT_REPORT_SUBID:
+		twt_report_params = &hostcmd_twtcfg->param.twt_report;
+		memset(pmpriv->adapter, twt_report_params, 0x00,
+		       sizeof(hostcmd_twtcfg->param.twt_report));
+		twt_report_params->type = ds_twtcfg->param.twt_report.type;
+		cmd->size += sizeof(hostcmd_twtcfg->param.twt_report);
 		break;
 	default:
 		PRINTM(MERROR, "Unknown subcmd %x\n", ds_twtcfg->sub_id);

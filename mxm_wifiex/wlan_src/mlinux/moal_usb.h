@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -89,6 +89,24 @@ Change Log:
 #define USB9097_PID_2 0x2061
 #endif /* USB9097 */
 
+#ifdef USBIW624
+/** USB VID 1 */
+#define USBIW624_VID_1 0x0471
+/** USB PID 1 */
+#define USBIW624_PID_1 0x020E
+/** USB PID 2 */
+#define USBIW624_PID_2 0x020F
+#endif /* USBIW624 */
+
+#ifdef USBIW615
+/** USB VID 1 */
+#define USBIW615_VID_1 0x0471
+/** USB PID 1 */
+#define USBIW615_PID_1 0x021E
+/** USB PID 2 */
+#define USBIW615_PID_2 0x021F
+#endif /* USBIW615 */
+
 /** Boot state: FW download */
 #define USB_FW_DNLD 1
 /** Boot state: FW ready */
@@ -101,7 +119,8 @@ Change Log:
 #define MVUSB_RX_DATA_URB 6
 
 #if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USB8801)
+	defined(USB8978) || defined(USB8801) || defined(USBIW624) ||           \
+	defined(USBIW615)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -111,6 +130,7 @@ Change Log:
 #define EXTEND_HDR (0xAB950000)
 #define EXTEND_V1 (0x00000001)
 #define EXTEND_V2 (0x00000002)
+#define EXTEND_V3 (0x00000003)
 #ifdef USB8801
 #define USB8801_DEFAULT_WLAN_FW_NAME "nxp/usb8801_uapsta.bin"
 #endif /* USB8801 */
@@ -127,10 +147,10 @@ Change Log:
 #endif /* USB8997 */
 
 #ifdef USB8978
-#define USB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusb8978_combo.bin"
-#define USB8978_DEFAULT_WLAN_FW_NAME "nxp/usb8978_wlan.bin"
-#define USBUART8978_DEFAULT_COMBO_FW_NAME "nxp/usbuart8978_combo.bin"
-#define USBUSB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusb8978_combo.bin"
+#define USB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw416_combo.bin"
+#define USB8978_DEFAULT_WLAN_FW_NAME "nxp/usbiw416_wlan.bin"
+#define USBUART8978_DEFAULT_COMBO_FW_NAME "nxp/usbuartiw416_combo.bin"
+#define USBUSB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw416_combo.bin"
 #endif /* USB8978 */
 
 #ifdef USB8897
@@ -155,12 +175,26 @@ Change Log:
 #ifdef USB9097
 #define USB9097_B0 0x01
 #define USB9097_B1 0x02
-#define USB9097_DEFAULT_COMBO_FW_NAME "nxp/usbusb9097_combo_v1.bin"
-#define USB9097_DEFAULT_WLAN_FW_NAME "nxp/usb9097_wlan_v1.bin"
-#define USB9097_WLAN_V1_FW_NAME "nxp/usb9097_wlan_v1.bin"
-#define USBUART9097_COMBO_V1_FW_NAME "nxp/usbuart9097_combo_v1.bin"
-#define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusb9097_combo_v1.bin"
+#define USB9097_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
+#define USB9097_DEFAULT_WLAN_FW_NAME "nxp/usbiw620_wlan_v1.bin"
+#define USB9097_WLAN_V1_FW_NAME "nxp/usbiw620_wlan_v1.bin"
+#define USBUART9097_COMBO_V1_FW_NAME "nxp/usbuartiw620_combo_v1.bin"
+#define USBUSB9097_COMBO_V1_FW_NAME "nxp/usbusbiw620_combo_v1.bin"
 #endif /* USB9097 */
+
+#ifdef USBIW624
+#define USBIW624_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBUARTIW624_COMBO_FW_NAME "nxp/usbuartiw624_combo.bin"
+#define USBUSBIW624_COMBO_FW_NAME "nxp/usbusbiw624_combo.bin"
+#define USBIW624_DEFAULT_WLAN_FW_NAME "nxp/usbiw624_wlan.bin"
+#endif /* USBIW624 */
+
+#ifdef USBIW615
+#define USBIW615_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw615_combo.bin"
+#define USBUARTIW615_COMBO_FW_NAME "nxp/usbuartiw615_combo.bin"
+#define USBUSBIW615_COMBO_FW_NAME "nxp/usbusbiw615_combo.bin"
+#define USBIW615_DEFAULT_WLAN_FW_NAME "nxp/usbiw615_wlan.bin"
+#endif /* USBIW615 */
 
 /** urb context */
 typedef struct _urb_context {
@@ -227,6 +261,16 @@ struct usb_card_rec {
 	t_u8 resubmit_urbs;
 	/** USB card type */
 	t_u16 card_type;
+	/** Tx data endpoint address */
+	t_u8 tx_data2_ep;
+	/** Tx data endpoint max pkt size */
+	int tx_data2_maxpktsize;
+	/** Tx data2 URB pending count */
+	atomic_t tx_data2_urb_pending;
+	/** Index to point to next data urb to use */
+	int tx_data2_ix;
+	/** Pre-allocated urb for data */
+	urb_context tx_data2_list[MVUSB_TX_HIGH_WMARK];
 	t_u8 second_mac;
 };
 

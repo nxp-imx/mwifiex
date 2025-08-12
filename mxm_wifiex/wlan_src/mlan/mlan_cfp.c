@@ -5,7 +5,7 @@
  *  related code
  *
  *
- *  Copyright 2009-2021 NXP
+ *  Copyright 2009-2023 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -32,6 +32,7 @@
 #include "mlan_fw.h"
 #include "mlan_join.h"
 #include "mlan_main.h"
+#include "mlan_11h.h"
 
 /********************************************************
  *			Local Variables
@@ -87,15 +88,21 @@ static country_code_mapping_t country_code_mapping[] = {
 	{"IN", 0x10, 0x06}, /* India       */
 	{"MY", 0x30, 0x06}, /* Malaysia    */
 	{"NZ", 0x30, 0x30}, /* New Zeland  */
-	{"MX", 0x10, 0x07}, /* Mexico */
+	{"MX", 0x30, 0x07}, /* Mexico */
 };
 
 /** Country code for ETSI */
 static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
-	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK",
-	"EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "KR", "LV",
-	"LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "RU",
-	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NZ"};
+	"AL", "AD", "AT", "AU", "BE", "BA", "BG", "HR", "CY", "CZ", "DK", "EE",
+	"FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "LV", "LI", "LT",
+	"LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "SM", "RS", "SI",
+	"SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NZ", "DZ", "AO", "AM",
+	"AW", "BH", "BD", "BT", "BO", "BQ", "BW", "VG", "BF", "BI", "KH", "CL",
+	"KM", "CG", "CD", "CW", "EG", "FO", "GF", "PF", "GE", "GI", "GP", "HK",
+	"IN", "ID", "IM", "IL", "JE", "KE", "XK", "KW", "LA", "LR", "MW", "MV",
+	"MQ", "MR", "YT", "MA", "MZ", "MM", "NA", "NC", "NE", "NG", "OM", "PS",
+	"PT", "QA", "RW", "RE", "BL", "MF", "VC", "SA", "SC", "ZA", "SZ", "SY",
+	"TZ", "TG", "TN", "AE", "VA", "EH", "YE", "ZM", "ZW"};
 
 /**
  * The structure for Channel-Frequency-Power table
@@ -153,8 +160,8 @@ static chan_freq_power_t channel_freq_power_EU_BG[] = {
 	{9, 2452, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /** Band: 'B/G', Region: Japan */
 static chan_freq_power_t channel_freq_power_JPN41_BG[] = {
@@ -169,8 +176,8 @@ static chan_freq_power_t channel_freq_power_JPN41_BG[] = {
 	{9, 2452, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /** Band: 'B/G', Region: Japan */
 static chan_freq_power_t channel_freq_power_JPN40_BG[] = {
@@ -205,8 +212,8 @@ static chan_freq_power_t channel_freq_power_BR_BG[] = {
 	{9, 2452, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_1000MW, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_1000MW, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_1000MW, MFALSE, {0x1c, 0, 0}}};
 
 /** Band : 'B/G', Region: Special */
 static chan_freq_power_t channel_freq_power_SPECIAL_BG[] = {
@@ -221,9 +228,9 @@ static chan_freq_power_t channel_freq_power_SPECIAL_BG[] = {
 	{9, 2452, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{10, 2457, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
 	{11, 2462, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
-	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}},
-	{14, 2484, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1d, 0, 0}}};
+	{12, 2467, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{13, 2472, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}},
+	{14, 2484, WLAN_TX_PWR_JP_BG_DEFAULT, MFALSE, {0x1c, 0, 0}}};
 
 /**
  * The 2.4GHz CFP tables
@@ -340,7 +347,10 @@ static chan_freq_power_t channel_freq_power_A[] = {
 	{153, 5765, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{161, 5805, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
+	{165, 5825, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{169, 5845, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{173, 5865, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{177, 5885, WLAN_TX_PWR_US_DEFAULT, MFALSE, {0x10, 0, 0}}};
 
 /** Band: 'A', Region: Canada IC */
 static chan_freq_power_t channel_freq_power_CAN_A[] = {
@@ -388,6 +398,7 @@ static chan_freq_power_t channel_freq_power_EU_A[] = {
 	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
+	{144, 5720, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE, {0x13, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE, {0x10, 0, 0}},
@@ -569,10 +580,10 @@ static chan_freq_power_t channel_freq_power_low_middle_high_band[] = {
 	{40, 5200, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{44, 5220, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{48, 5240, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{52, 5260, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{56, 5280, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{60, 5300, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{64, 5320, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
+	{52, 5260, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{56, 5280, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{60, 5300, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
+	{64, 5320, WLAN_TX_PWR_DEFAULT, MTRUE, {0x10, 0, 0}},
 	{149, 5745, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{153, 5765, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, WLAN_TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
@@ -680,20 +691,21 @@ static cfp_table_t cfp_table_A[] = {
 /** Number of the CFP tables for 5GHz */
 #define MLAN_CFP_TABLE_SIZE_A (NELEMENTS(cfp_table_A))
 
-enum { RATEID_DBPSK1Mbps, //(0)
-       RATEID_DQPSK2Mbps, //(1)
-       RATEID_CCK5_5Mbps, //(2)
-       RATEID_CCK11Mbps, //(3)
-       RATEID_CCK22Mbps, //(4)
-       RATEID_OFDM6Mbps, //(5)
-       RATEID_OFDM9Mbps, //(6)
-       RATEID_OFDM12Mbps, //(7)
-       RATEID_OFDM18Mbps, //(8)
-       RATEID_OFDM24Mbps, //(9)
-       RATEID_OFDM36Mbps, //(10)
-       RATEID_OFDM48Mbps, //(11)
-       RATEID_OFDM54Mbps, //(12)
-       RATEID_OFDM72Mbps, //(13)
+enum {
+	RATEID_DBPSK1Mbps, //(0)
+	RATEID_DQPSK2Mbps, //(1)
+	RATEID_CCK5_5Mbps, //(2)
+	RATEID_CCK11Mbps, //(3)
+	RATEID_CCK22Mbps, //(4)
+	RATEID_OFDM6Mbps, //(5)
+	RATEID_OFDM9Mbps, //(6)
+	RATEID_OFDM12Mbps, //(7)
+	RATEID_OFDM18Mbps, //(8)
+	RATEID_OFDM24Mbps, //(9)
+	RATEID_OFDM36Mbps, //(10)
+	RATEID_OFDM48Mbps, //(11)
+	RATEID_OFDM54Mbps, //(12)
+	RATEID_OFDM72Mbps, //(13)
 };
 
 static const t_u8 rateUnit_500Kbps[] = {
@@ -964,34 +976,8 @@ static const rate_map rate_map_table_1x1[] = {
 t_u16 region_code_index[MRVDRV_MAX_REGION_CODE] = {0x00, 0x10, 0x20, 0x30, 0x40,
 						   0x41, 0x50, 0xfe, 0xff};
 
-/** The table to keep CFP code for BG */
-t_u16 cfp_code_index_bg[MRVDRV_MAX_CFP_CODE_BG] = {};
 /** The table to keep CFP code for A */
 t_u16 cfp_code_index_a[MRVDRV_MAX_CFP_CODE_A] = {0x1, 0x2, 0x3, 0x4, 0x5};
-
-/**
- * The rates supported for ad-hoc B mode
- */
-t_u8 AdhocRates_B[B_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0};
-
-/**
- * The rates supported for ad-hoc G mode
- */
-t_u8 AdhocRates_G[G_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
-
-/**
- * The rates supported for ad-hoc BG mode
- */
-t_u8 AdhocRates_BG[BG_SUPPORTED_RATES] = {0x82, 0x84, 0x8b, 0x96, 0x0c,
-					  0x12, 0x18, 0x24, 0x30, 0x48,
-					  0x60, 0x6c, 0x00};
-
-/**
- * The rates supported in A mode for ad-hoc
- */
-t_u8 AdhocRates_A[A_SUPPORTED_RATES] = {0x8c, 0x12, 0x98, 0x24, 0xb0,
-					0x48, 0x60, 0x6c, 0x00};
 
 /**
  * The rates supported in A mode (used for BAND_A)
@@ -1179,7 +1165,7 @@ static void *wlan_memchr(pmlan_adapter pmadapter, void *s, int c, int n)
  *  @return           A pointer to CFP
  */
 static chan_freq_power_t *wlan_get_region_cfp_table(pmlan_adapter pmadapter,
-						    t_u8 region, t_u8 band,
+						    t_u8 region, t_u16 band,
 						    int *cfp_no)
 {
 	t_u32 i;
@@ -1244,7 +1230,6 @@ static chan_freq_power_t *wlan_get_region_cfp_table(pmlan_adapter pmadapter,
 			}
 		}
 	}
-
 	if (!region)
 		PRINTM(MERROR, "Error Band[0x%x] or code[BG:%#x, A:%#x]\n",
 		       band, cfp_bg, cfp_a);
@@ -1281,9 +1266,10 @@ static t_void wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
 	}
 
 	/* first clear dest dynamic blacklisted entries */
+	/* do not clear the flags */
 	for (i = 0; i < num_cfp; i++) {
 		cfp[i].dynamic.blacklist = MFALSE;
-		cfp[i].dynamic.flags = 0;
+		cfp[i].dynamic.dfs_state = DFS_USABLE;
 	}
 
 	/* copy dynamic blacklisted entries from source where channels match */
@@ -1293,8 +1279,8 @@ static t_void wlan_cfp_copy_dynamic(pmlan_adapter pmadapter,
 				if (cfp[i].channel == cfp_src[j].channel) {
 					cfp[i].dynamic.blacklist =
 						cfp_src[j].dynamic.blacklist;
-					cfp[i].dynamic.flags =
-						cfp_src[j].dynamic.flags;
+					cfp[i].dynamic.dfs_state =
+						cfp_src[j].dynamic.dfs_state;
 					break;
 				}
 	}
@@ -1323,6 +1309,17 @@ mlan_status wlan_misc_country_2_cfp_table_code(pmlan_adapter pmadapter,
 
 	ENTER();
 
+	if (pmadapter->otp_region) {
+		if (!memcmp(pmadapter, pmadapter->otp_region->country_code,
+			    country_code, COUNTRY_CODE_LEN - 1)) {
+			if (pmadapter->cfp_otp_bg)
+				*cfp_bg = pmadapter->otp_region->region_code;
+			if (pmadapter->cfp_otp_a)
+				*cfp_a = pmadapter->otp_region->region_code;
+			LEAVE();
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
 	/* Look for code in mapping table */
 	for (i = 0; i < NELEMENTS(country_code_mapping); i++) {
 		if (!memcmp(pmadapter, country_code_mapping[i].country_code,
@@ -1863,11 +1860,13 @@ t_u32 wlan_get_active_data_rates(mlan_private *pmpriv, t_u32 bss_mode,
  *            present in all the regions.
  *
  *  @param pmpriv       A pointer to mlan_private structure
+ *  @param band      	band.
  *  @param channel      Channel number.
  *
  *  @return             The Tx power
  */
-t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u8 channel)
+t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u16 band,
+				     t_u8 channel)
 {
 	t_u8 i = 0;
 	t_u8 j = 0;
@@ -1879,38 +1878,46 @@ t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u8 channel)
 
 	ENTER();
 
-	for (i = 0; i < MLAN_CFP_TABLE_SIZE_BG; i++) {
-		/* Get CFP */
-		cfp = cfp_table_BG[i].cfp;
-		cfp_no = cfp_table_BG[i].cfp_no;
-		/* Find matching channel and get Tx power */
-		for (j = 0; j < cfp_no; j++) {
-			if ((cfp + j)->channel == channel) {
-				if (tx_power != 0)
-					tx_power = MIN(tx_power,
-						       (cfp + j)->max_tx_power);
-				else
-					tx_power =
-						(t_u8)(cfp + j)->max_tx_power;
-				break;
+	if (band & (BAND_B | BAND_G)) {
+		for (i = 0; i < MLAN_CFP_TABLE_SIZE_BG; i++) {
+			/* Get CFP */
+			cfp = cfp_table_BG[i].cfp;
+			cfp_no = cfp_table_BG[i].cfp_no;
+			/* Find matching channel and get Tx power */
+			for (j = 0; j < cfp_no; j++) {
+				if ((cfp + j)->channel == channel) {
+					if (tx_power != 0)
+						tx_power = MIN(
+							tx_power,
+							(cfp + j)->max_tx_power);
+					else
+						tx_power =
+							(t_u8)(cfp + j)
+								->max_tx_power;
+					break;
+				}
 			}
 		}
 	}
 
-	for (i = 0; i < MLAN_CFP_TABLE_SIZE_A; i++) {
-		/* Get CFP */
-		cfp_a = cfp_table_A[i].cfp;
-		cfp_no_a = cfp_table_A[i].cfp_no;
-		for (j = 0; j < cfp_no_a; j++) {
-			if ((cfp_a + j)->channel == channel) {
-				if (tx_power != 0)
-					tx_power =
-						MIN(tx_power,
-						    (cfp_a + j)->max_tx_power);
-				else
-					tx_power = (t_u8)(
-						(cfp_a + j)->max_tx_power);
-				break;
+	if (band & BAND_A) {
+		for (i = 0; i < MLAN_CFP_TABLE_SIZE_A; i++) {
+			/* Get CFP */
+			cfp_a = cfp_table_A[i].cfp;
+			cfp_no_a = cfp_table_A[i].cfp_no;
+			for (j = 0; j < cfp_no_a; j++) {
+				if ((cfp_a + j)->channel == channel) {
+					if (tx_power != 0)
+						tx_power = MIN(
+							tx_power,
+							(cfp_a + j)
+								->max_tx_power);
+					else
+						tx_power =
+							(t_u8)((cfp_a + j)
+								       ->max_tx_power);
+					break;
+				}
 			}
 		}
 	}
@@ -1932,7 +1939,7 @@ t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u8 channel)
  */
 
 chan_freq_power_t *
-wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u8 band,
+wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u16 band,
 				 t_u16 channel, region_chan_t *region_channel)
 {
 	region_chan_t *rc;
@@ -2015,7 +2022,7 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u8 band,
  * found.
  */
 chan_freq_power_t *wlan_find_cfp_by_band_and_channel(mlan_adapter *pmadapter,
-						     t_u8 band, t_u16 channel)
+						     t_u16 band, t_u16 channel)
 {
 	chan_freq_power_t *cfp = MNULL;
 
@@ -2044,7 +2051,7 @@ chan_freq_power_t *wlan_find_cfp_by_band_and_channel(mlan_adapter *pmadapter,
  *  @return         Pointer to chan_freq_power_t structure; MNULL if not found
  */
 chan_freq_power_t *wlan_find_cfp_by_band_and_freq(mlan_adapter *pmadapter,
-						  t_u8 band, t_u32 freq)
+						  t_u16 band, t_u32 freq)
 {
 	chan_freq_power_t *cfp = MNULL;
 	region_chan_t *rc;
@@ -2168,6 +2175,27 @@ int wlan_get_rate_index(pmlan_adapter pmadapter, t_u16 *rate_bitmap, int size)
 }
 
 /**
+ *  @brief Convert config_bands to B/G/A band
+ *
+ *  @param config_bands     The specified band configuration
+ *
+ *  @return                 BAND_B|BAND_G|BAND_A
+ */
+static t_u16 wlan_convert_config_bands(t_u16 config_bands)
+{
+	t_u16 bands = 0;
+	if (config_bands & BAND_B)
+		bands |= BAND_B;
+	if (config_bands & BAND_G || config_bands & BAND_GN ||
+	    config_bands & BAND_GAC || config_bands & BAND_GAX)
+		bands |= BAND_G;
+	if (config_bands & BAND_A || config_bands & BAND_AN ||
+	    config_bands & BAND_AAC || config_bands & BAND_AAX)
+		bands |= BAND_A;
+	return bands;
+}
+
+/**
  *  @brief Get supported data rates
  *
  *  @param pmpriv           A pointer to mlan_private structure
@@ -2181,109 +2209,40 @@ t_u32 wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 			       t_u16 config_bands, WLAN_802_11_RATES rates)
 {
 	t_u32 k = 0;
+	t_u16 bands = 0;
 
 	ENTER();
+	bands = wlan_convert_config_bands(config_bands);
 
 	if (bss_mode == MLAN_BSS_MODE_INFRA) {
 		/* Infra. mode */
-		switch (config_bands) {
-		case (t_u8)BAND_B:
-			PRINTM(MINFO, "Infra Band=%d SupportedRates_B\n",
-			       config_bands);
+		if (bands == BAND_B) {
+			/* B only */
+			PRINTM(MINFO, "Band: Infra B\n");
 			k = wlan_copy_rates(rates, k, SupportedRates_B,
 					    sizeof(SupportedRates_B));
-			break;
-		case (t_u8)BAND_G:
-		case BAND_G | BAND_GN:
-		case BAND_G | BAND_GN | BAND_GAC:
-		case BAND_G | BAND_GN | BAND_GAC | BAND_GAX:
-			PRINTM(MINFO, "Infra band=%d SupportedRates_G\n",
-			       config_bands);
+		} else if (bands == BAND_G) {
+			/* G only */
+			PRINTM(MINFO, "Band: Infra G\n");
 			k = wlan_copy_rates(rates, k, SupportedRates_G,
 					    sizeof(SupportedRates_G));
-			break;
-		case BAND_B | BAND_G:
-		case BAND_A | BAND_B | BAND_G:
-		case BAND_A | BAND_B:
-		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN:
-		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC:
-		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC |
-			BAND_GAC:
-		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC |
-			BAND_AAX:
-		case BAND_A | BAND_B | BAND_G | BAND_GN | BAND_AN | BAND_AAC |
-			BAND_GAC | BAND_AAX | BAND_GAX:
-		case BAND_B | BAND_G | BAND_GN:
-		case BAND_B | BAND_G | BAND_GN | BAND_GAC:
-		case BAND_B | BAND_G | BAND_GN | BAND_GAC | BAND_GAX:
-			PRINTM(MINFO, "Infra band=%d SupportedRates_BG\n",
-			       config_bands);
+
+		} else if (bands & (BAND_B | BAND_G)) {
+			/* BG only */
+			PRINTM(MINFO, "Band: Infra BG\n");
 #ifdef WIFI_DIRECT_SUPPORT
 			if (pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
 				k = wlan_copy_rates(rates, k, SupportedRates_G,
 						    sizeof(SupportedRates_G));
 			else
+#endif
 				k = wlan_copy_rates(rates, k, SupportedRates_BG,
 						    sizeof(SupportedRates_BG));
-#else
-			k = wlan_copy_rates(rates, k, SupportedRates_BG,
-					    sizeof(SupportedRates_BG));
-#endif
-			break;
-		case BAND_A:
-		case BAND_A | BAND_G:
-			PRINTM(MINFO, "Infra band=%d SupportedRates_A\n",
-			       config_bands);
+		} else if (bands & BAND_A) {
+			/* support A */
+			PRINTM(MINFO, "Band: Infra A\n");
 			k = wlan_copy_rates(rates, k, SupportedRates_A,
 					    sizeof(SupportedRates_A));
-			break;
-		case BAND_AN:
-		case BAND_A | BAND_AN:
-		case BAND_A | BAND_G | BAND_AN | BAND_GN:
-		case BAND_A | BAND_AN | BAND_AAC:
-		case BAND_A | BAND_G | BAND_AN | BAND_GN | BAND_AAC:
-		case BAND_A | BAND_AN | BAND_AAC | BAND_AAX:
-		case BAND_A | BAND_G | BAND_AN | BAND_GN | BAND_AAC | BAND_AAX:
-			PRINTM(MINFO, "Infra band=%d SupportedRates_A\n",
-			       config_bands);
-			k = wlan_copy_rates(rates, k, SupportedRates_A,
-					    sizeof(SupportedRates_A));
-			break;
-		case BAND_GN:
-		case BAND_GN | BAND_GAC:
-		case BAND_GN | BAND_GAC | BAND_GAX:
-			PRINTM(MINFO, "Infra band=%d SupportedRates_N\n",
-			       config_bands);
-			k = wlan_copy_rates(rates, k, SupportedRates_N,
-					    sizeof(SupportedRates_N));
-			break;
-		}
-	} else {
-		/* Ad-hoc mode */
-		switch (config_bands) {
-		case (t_u8)BAND_B:
-			PRINTM(MINFO, "Band: Adhoc B\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_B,
-					    sizeof(AdhocRates_B));
-			break;
-		case (t_u8)BAND_G:
-			PRINTM(MINFO, "Band: Adhoc G only\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_G,
-					    sizeof(AdhocRates_G));
-			break;
-		case BAND_B | BAND_G:
-			PRINTM(MINFO, "Band: Adhoc BG\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_BG,
-					    sizeof(AdhocRates_BG));
-			break;
-		case BAND_A:
-		case BAND_A | BAND_AN | BAND_AAC:
-		case BAND_A | BAND_AN | BAND_AAC | BAND_AAX:
-
-			PRINTM(MINFO, "Band: Adhoc A\n");
-			k = wlan_copy_rates(rates, k, AdhocRates_A,
-					    sizeof(AdhocRates_A));
-			break;
 		}
 	}
 
@@ -2442,9 +2401,6 @@ static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
 		poper_bw_chan = oper_bw_chan_eu;
 		*arraysize = sizeof(oper_bw_chan_eu);
 		break;
-	default:
-		PRINTM(MERROR, "Country not support!\n");
-		break;
 	}
 
 	LEAVE();
@@ -2457,11 +2413,12 @@ static oper_bw_chan *wlan_get_nonglobal_operclass_table(mlan_private *pmpriv,
  *  @param pmpriv             A pointer to mlan_private structure
  *  @param channel            Channel number
  *  @param oper_class         operating class
+ *  @param bandwidth          band width
  *
  *  @return                   MLAN_STATUS_PENDING --success, otherwise fail
  */
 mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
-					    t_u8 oper_class)
+					    t_u8 oper_class, t_u8 bandwidth)
 {
 	int arraysize = 0, i = 0, channum = 0;
 	oper_bw_chan *poper_bw_chan = MNULL;
@@ -2484,7 +2441,7 @@ mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 	}
 	if (oper_class >= 128) {
 		center_freq_idx = wlan_get_center_freq_idx(
-			pmpriv, BAND_AAC, channel, CHANNEL_BW_80MHZ);
+			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
 		channel = center_freq_idx;
 	}
 	poper_bw_chan = wlan_get_nonglobal_operclass_table(pmpriv, &arraysize);
@@ -2554,7 +2511,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 	}
 	if (bw == BW_80MHZ) {
 		center_freq_idx = wlan_get_center_freq_idx(
-			pmpriv, BAND_AAC, channel, CHANNEL_BW_80MHZ);
+			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
 		channel = center_freq_idx;
 	}
 
@@ -2575,7 +2532,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 		}
 	}
 
-	PRINTM(MCMND, "Operating class not find!\n");
+	PRINTM(MCMND, "Operating class not found!\n");
 	LEAVE();
 	return MLAN_STATUS_FAILURE;
 }
@@ -2592,14 +2549,16 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 int wlan_add_supported_oper_class_ie(mlan_private *pmpriv, t_u8 **pptlv_out,
 				     t_u8 curr_oper_class)
 {
-	t_u8 oper_class_us[] = {1,  2,	3,  4,	5,  12, 22, 23,	 24,  25, 26,
-				27, 28, 29, 30, 31, 32, 33, 128, 129, 130};
-	t_u8 oper_class_eu[] = {1, 2,  3,  4,  5,  6,	7,   8,
-				9, 10, 11, 12, 17, 128, 129, 130};
-	t_u8 oper_class_jp[] = {1,  30, 31, 32, 33,  34,  35, 36,
-				37, 38, 39, 40, 41,  42,  43, 44,
-				45, 56, 57, 58, 128, 129, 130};
-	t_u8 oper_class_cn[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 128, 129, 130};
+	t_u8 oper_class_us[] = {115, 118, 124, 121, 125, 81,  116,
+				119, 122, 126, 126, 117, 120, 123,
+				127, 127, 83,  84,  128, 129, 130};
+	t_u8 oper_class_eu[] = {115, 118, 121, 81, 116, 119, 122, 117,
+				120, 123, 83,  84, 125, 128, 129, 130};
+	t_u8 oper_class_jp[] = {115, 81,  82,  118, 118, 121, 121, 116,
+				119, 119, 122, 122, 117, 120, 120, 123,
+				123, 83,  84,  121, 128, 129, 130};
+	t_u8 oper_class_cn[] = {115, 118, 125, 116, 119, 126,
+				81,  83,  84,  128, 129, 130};
 	t_u8 country_code[][COUNTRY_CODE_LEN] = {"US", "JP", "CN"};
 	int country_id = 0, ret = 0;
 	MrvlIETypes_SuppOperClass_t *poper_class = MNULL;
@@ -2661,7 +2620,7 @@ int wlan_add_supported_oper_class_ie(mlan_private *pmpriv, t_u8 **pptlv_out,
  *
  *  @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
+mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u16 band)
 {
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	int i = 0, j;
@@ -2709,16 +2668,17 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
 
 		if ((j < MAX_REGION_CHANNEL_NUM) &&
 		    (region_chan_old[j].valid == MTRUE)) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
-		} else if (region) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
+		} else if (cfp) {
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
+					      MNULL, 0);
 		}
 		i++;
 	}
 	if (band & (BAND_A | BAND_AN | BAND_AAC)) {
-		if (pmadapter->cfp_code_bg)
+		if (pmadapter->cfp_code_a)
 			cfp_code_a = pmadapter->cfp_code_a;
 		PRINTM(MCMND, "%s: 5G 0x%x\n", __func__, cfp_code_a);
 		cfp = wlan_get_region_cfp_table(pmadapter, cfp_code_a, BAND_A,
@@ -2741,12 +2701,14 @@ mlan_status wlan_set_regiontable(mlan_private *pmpriv, t_u8 region, t_u8 band)
 				break;
 		}
 		if ((j < MAX_REGION_CHANNEL_NUM) && region_chan_old[j].valid) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no,
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
 					      region_chan_old[j].pcfp,
 					      region_chan_old[j].num_cfp);
-		} else if (region) {
-			wlan_cfp_copy_dynamic(pmadapter, cfp, cfp_no, MNULL, 0);
+		} else if (cfp) {
+			wlan_cfp_copy_dynamic(pmadapter, cfp, (t_u8)cfp_no,
+					      MNULL, 0);
 		}
+		i++;
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -2808,7 +2770,6 @@ done:
  *    - MTRUE if scan type is passive
  *    - MFALSE otherwise
  */
-
 t_bool wlan_bg_scan_type_is_passive(mlan_private *priv, t_u8 chnl)
 {
 	int i, j;
@@ -2857,7 +2818,7 @@ done:
  *    - MFALSE otherwise
  */
 
-t_bool wlan_is_chan_passive(mlan_private *priv, t_u8 band, t_u8 chan)
+t_bool wlan_is_chan_passive(mlan_private *priv, t_u16 band, t_u8 chan)
 {
 	int i, j;
 	t_bool passive = MFALSE;
@@ -2900,7 +2861,7 @@ t_bool wlan_is_chan_passive(mlan_private *priv, t_u8 band, t_u8 chan)
  *    - MFALSE otherwise
  */
 
-t_bool wlan_is_chan_disabled(mlan_private *priv, t_u8 band, t_u8 chan)
+t_bool wlan_is_chan_disabled(mlan_private *priv, t_u16 band, t_u8 chan)
 {
 	int i, j;
 	t_bool disabled = MFALSE;
@@ -2944,7 +2905,7 @@ t_bool wlan_is_chan_disabled(mlan_private *priv, t_u8 band, t_u8 chan)
  *    - MFALSE otherwise
  */
 
-t_bool wlan_is_chan_blacklisted(mlan_private *priv, t_u8 band, t_u8 chan)
+t_bool wlan_is_chan_blacklisted(mlan_private *priv, t_u16 band, t_u8 chan)
 {
 	int i, j;
 	t_bool blacklist = MFALSE;
@@ -2987,7 +2948,7 @@ t_bool wlan_is_chan_blacklisted(mlan_private *priv, t_u8 band, t_u8 chan)
  *    - MFALSE otherwise
  */
 
-t_bool wlan_set_chan_blacklist(mlan_private *priv, t_u8 band, t_u8 chan,
+t_bool wlan_set_chan_blacklist(mlan_private *priv, t_u16 band, t_u8 chan,
 			       t_bool bl)
 {
 	int i, j;
@@ -3017,6 +2978,119 @@ t_bool wlan_set_chan_blacklist(mlan_private *priv, t_u8 band, t_u8 chan,
 
 	LEAVE();
 	return set_bl;
+}
+
+/**
+ *  @brief Set channel's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param band         Band to check
+ *  @param chan         Channel to check
+ *  @param dfs_state    dfs state
+ *
+ *  @return  N/A
+ */
+t_void wlan_set_chan_dfs_state(mlan_private *priv, t_u16 band, t_u8 chan,
+			       dfs_state_t dfs_state)
+{
+	int i, j;
+	chan_freq_power_t *pcfp = MNULL;
+
+	ENTER();
+
+	/*get the cfp table first*/
+	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {
+		if (priv->adapter->region_channel[i].band & band) {
+			pcfp = priv->adapter->region_channel[i].pcfp;
+			break;
+		}
+	}
+
+	if (pcfp) {
+		/*check table according to chan num*/
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+			if (pcfp[j].channel == chan) {
+				pcfp[j].dynamic.dfs_state = dfs_state;
+				break;
+			}
+		}
+	}
+
+	LEAVE();
+}
+
+/**
+ *  @brief get channel's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param band         Band to check
+ *  @param chan         Channel to check
+ *
+ *  @return  channel's dfs state
+ */
+dfs_state_t wlan_get_chan_dfs_state(mlan_private *priv, t_u16 band, t_u8 chan)
+{
+	int i, j;
+	chan_freq_power_t *pcfp = MNULL;
+	dfs_state_t dfs_state = DFS_USABLE;
+
+	ENTER();
+
+	/*get the cfp table first*/
+	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {
+		if (priv->adapter->region_channel[i].band & band) {
+			pcfp = priv->adapter->region_channel[i].pcfp;
+			break;
+		}
+	}
+
+	if (pcfp) {
+		/*check table according to chan num*/
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+			if (pcfp[j].channel == chan) {
+				dfs_state = pcfp[j].dynamic.dfs_state;
+				break;
+			}
+		}
+	}
+
+	LEAVE();
+	return dfs_state;
+}
+
+/**
+ *  @brief reset all channel's dfs state
+ *
+ *  @param priv         Private driver information structure
+ *  @param band         Band to check
+ *  @param dfs_state    dfs state
+ *
+ *  @return  N/A
+ */
+t_void wlan_reset_all_chan_dfs_state(mlan_private *priv, t_u16 band,
+				     dfs_state_t dfs_state)
+{
+	int i, j;
+	chan_freq_power_t *pcfp = MNULL;
+
+	ENTER();
+
+	/*get the cfp table first*/
+	for (i = 0; i < MAX_REGION_CHANNEL_NUM; i++) {
+		if (priv->adapter->region_channel[i].band & band) {
+			pcfp = priv->adapter->region_channel[i].pcfp;
+			break;
+		}
+	}
+
+	if (pcfp) {
+		/*check table according to chan num*/
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+			pcfp[j].dynamic.dfs_state = dfs_state;
+		}
+	}
+
+	LEAVE();
 }
 
 /**
@@ -3111,6 +3185,43 @@ t_u8 wlan_mrvl_rateid_to_ieee_rateid(t_u8 rate)
 }
 
 /**
+ *  @brief	 sort cfp otp table
+ *
+ *  @param pmapdater	a pointer to mlan_adapter structure
+ *
+ *  @return
+ *    None
+ */
+static void wlan_sort_cfp_otp_table(mlan_adapter *pmadapter)
+{
+	t_u8 c, d;
+	chan_freq_power_t *ch1;
+	chan_freq_power_t *ch2;
+	chan_freq_power_t swap;
+
+	if (pmadapter->tx_power_table_a_rows <= 1)
+		return;
+	for (c = 0; c < pmadapter->tx_power_table_a_rows - 1; c++) {
+		for (d = 0; d < pmadapter->tx_power_table_a_rows - c - 1; d++) {
+			ch1 = (chan_freq_power_t *)(pmadapter->cfp_otp_a + d);
+			ch2 = (chan_freq_power_t *)(pmadapter->cfp_otp_a + d +
+						    1);
+			if (ch1->channel > ch2->channel) {
+				memcpy_ext(pmadapter, &swap, ch1,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+				memcpy_ext(pmadapter, ch1, ch2,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+				memcpy_ext(pmadapter, ch2, &swap,
+					   sizeof(chan_freq_power_t),
+					   sizeof(chan_freq_power_t));
+			}
+		}
+	}
+}
+
+/**
  *  @brief	Update CFP tables and power tables from FW
  *
  *  @param priv		Private driver information structure
@@ -3144,8 +3255,11 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 		PRINTM(MERROR, "CFP table update failed!\n");
 		goto out;
 	}
-	if (pmadapter->otp_region)
+	if (pmadapter->otp_region) {
+		memset(pmadapter, pmadapter->region_channel, 0,
+		       sizeof(pmadapter->region_channel));
 		wlan_free_fw_cfp_tables(pmadapter);
+	}
 	pmadapter->tx_power_table_bg_rows = FW_CFP_TABLE_MAX_ROWS_BG;
 	pmadapter->tx_power_table_bg_cols = FW_CFP_TABLE_MAX_COLS_BG;
 	pmadapter->tx_power_table_a_rows = FW_CFP_TABLE_MAX_ROWS_A;
@@ -3208,15 +3322,43 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					break;
 				}
 			}
+			PRINTM(MCMND,
+			       "OTP region: region_code=%d %c%c dfs_region=%d\n",
+			       pmadapter->otp_region->region_code,
+			       pmadapter->otp_region->country_code[0],
+			       pmadapter->otp_region->country_code[1],
+			       pmadapter->otp_region->dfs_region);
+
 			/* Update the region code and the country code in
 			 * pmadapter
 			 */
 			pmadapter->region_code =
 				pmadapter->otp_region->region_code;
-			pmadapter->country_code[0] =
-				pmadapter->otp_region->country_code[0];
-			pmadapter->country_code[1] =
-				pmadapter->otp_region->country_code[1];
+			if (pmadapter->otp_region->force_reg) {
+				/* Region is enforced. Use FW country code only
+				 */
+				pmadapter->country_code[0] =
+					pmadapter->otp_region->country_code[0];
+				pmadapter->country_code[1] =
+					pmadapter->otp_region->country_code[1];
+			} else if (memcmp(pmadapter,
+					  pmadapter->otp_region->country_code,
+					  pmadapter->country_code,
+					  COUNTRY_CODE_LEN - 1)) {
+				PRINTM(MERROR,
+				       "FW country code %c%c does not match with %c%c\n",
+				       pmadapter->otp_region->country_code[0],
+				       pmadapter->otp_region->country_code[1],
+				       pmadapter->country_code[0],
+				       pmadapter->country_code[1]);
+
+				/* FW code mismatch, replace with the driver
+				 * code */
+				pmadapter->otp_region->country_code[0] =
+					pmadapter->country_code[0];
+				pmadapter->otp_region->country_code[1] =
+					pmadapter->country_code[1];
+			}
 			pmadapter->country_code[2] = '\0';
 			pmadapter->domain_reg.country_code[0] =
 				pmadapter->otp_region->country_code[0];
@@ -3271,6 +3413,11 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 					(pmadapter->cfp_otp_bg + i)
 						->passive_scan_or_radar_detect =
 						MTRUE;
+				PRINTM(MCMD_D,
+				       "OTP Region (BG): chan=%d flags=0x%x\n",
+				       (pmadapter->cfp_otp_bg + i)->channel,
+				       (pmadapter->cfp_otp_bg + i)
+					       ->dynamic.flags);
 				data++;
 			}
 			ret = pcb->moal_malloc(
@@ -3302,10 +3449,18 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				data++;
 				(pmadapter->cfp_otp_a + i)->dynamic.flags =
 					*data;
+				(pmadapter->cfp_otp_a + i)->dynamic.dfs_state =
+					DFS_USABLE;
 				if (*data & NXP_CHANNEL_DFS)
 					(pmadapter->cfp_otp_a + i)
 						->passive_scan_or_radar_detect =
 						MTRUE;
+				PRINTM(MCMD_D,
+				       "OTP Region (A): chan=%d flags=0x%x\n",
+				       (pmadapter->cfp_otp_a + i)->channel,
+				       (pmadapter->cfp_otp_a + i)
+					       ->dynamic.flags);
+
 				data++;
 			}
 			break;
@@ -3328,7 +3483,7 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 			while ((i <
 				pmadapter->tx_power_table_bg_rows *
 					pmadapter->tx_power_table_bg_cols) &&
-			       (i < tlv_buf_len) && (*tmp != 36)) {
+			       (i < tlv_buf_len)) {
 				i++;
 				tmp++;
 			}
@@ -3380,6 +3535,12 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				((power_table_attr_t *)data)->rows_5g;
 			pmadapter->tx_power_table_a_cols =
 				((power_table_attr_t *)data)->cols_5g;
+			PRINTM(MCMD_D,
+			       "OTP region: bg_row=%d,bg_cols=%d a_row=%d, a_cols=%d\n",
+			       pmadapter->tx_power_table_bg_rows,
+			       pmadapter->tx_power_table_bg_cols,
+			       pmadapter->tx_power_table_a_rows,
+			       pmadapter->tx_power_table_a_cols);
 			break;
 		default:
 			break;
@@ -3410,7 +3571,8 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				NXP_CHANNEL_NO_OFDM;
 		}
 	}
-
+	if (pmadapter->cfp_otp_a)
+		wlan_sort_cfp_otp_table(pmadapter);
 out:
 	LEAVE();
 }
@@ -3516,6 +3678,13 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 
 	if (!pioctl_req || !pioctl_req->pbuf) {
 		PRINTM(MERROR, "MLAN IOCTL information is not present!\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto out;
+	}
+	ret = wlan_11h_ioctl_nop_channel_list(pmadapter, pioctl_req);
+	if (ret) {
+		PRINTM(MERROR,
+		       "cfpinfo wlan_11h_ioctl_nop_channel_list failed!\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto out;
 	}

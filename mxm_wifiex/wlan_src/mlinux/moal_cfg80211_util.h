@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2015-2020 NXP
+ * Copyright 2015-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -24,6 +24,26 @@
 #define _MOAL_CFGVENDOR_H_
 
 #include "moal_main.h"
+
+#define TLV_TYPE_APINFO (PROPRIETARY_TLV_BASE_ID + 249)
+#define TLV_TYPE_KEYINFO (PROPRIETARY_TLV_BASE_ID + 250)
+#define TLV_TYPE_ASSOC_REQ_IE (PROPRIETARY_TLV_BASE_ID + 292)
+
+/** Key Info structure */
+typedef struct _key_info_tlv {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** kck, kek, key_replay*/
+	mlan_ds_misc_gtk_rekey_data key;
+} key_info;
+
+/** APinfo TLV structure */
+typedef struct _apinfo_tlv {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Assoc response buffer */
+	t_u8 rsp_ie[1];
+} apinfo;
 
 #if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
 #define RING_NAME_MAX 32
@@ -143,9 +163,10 @@ enum logger_attributes {
 
 /* Below events refer to the wifi_connectivity_event ring and shall be supported
  */
-enum { WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
-       WIFI_EVENT_AUTH_COMPLETE,
-       WIFI_EVENT_ASSOC_COMPLETE,
+enum {
+	WIFI_EVENT_ASSOCIATION_REQUESTED = 0,
+	WIFI_EVENT_AUTH_COMPLETE,
+	WIFI_EVENT_ASSOC_COMPLETE,
 };
 
 enum {
@@ -155,11 +176,13 @@ enum {
 	RING_BUFFER_ENTRY_FLAGS_HAS_TIMESTAMP = (1 << (1))
 };
 
-enum { ENTRY_TYPE_CONNECT_EVENT = 1,
-       ENTRY_TYPE_PKT,
-       ENTRY_TYPE_WAKE_LOCK,
-       ENTRY_TYPE_POWER_EVENT,
-       ENTRY_TYPE_DATA };
+enum {
+	ENTRY_TYPE_CONNECT_EVENT = 1,
+	ENTRY_TYPE_PKT,
+	ENTRY_TYPE_WAKE_LOCK,
+	ENTRY_TYPE_POWER_EVENT,
+	ENTRY_TYPE_DATA
+};
 
 /** WiFi ring buffer entry structure */
 typedef struct {
@@ -486,9 +509,10 @@ int woal_packet_fate_monitor(moal_private *priv,
 #define APF_FRAME_HEADER_SIZE 14
 #define PACKET_FILTER_MAX_LEN 1024
 
-enum { PACKET_FILTER_STATE_INIT = 0,
-       PACKET_FILTER_STATE_STOP,
-       PACKET_FILTER_STATE_START,
+enum {
+	PACKET_FILTER_STATE_INIT = 0,
+	PACKET_FILTER_STATE_STOP,
+	PACKET_FILTER_STATE_START,
 };
 
 enum wifi_attr_packet_filter {
@@ -592,18 +616,49 @@ typedef enum wifi_attr {
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX = 8,
 	ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE = 9,
 	ATTR_GET_CONCURRENCY_MATRIX_SET = 10,
+	ATTR_SCAN_BAND_SET = 11,
 	ATTR_WIFI_AFTER_LAST,
 	ATTR_WIFI_MAX = ATTR_WIFI_AFTER_LAST - 1
 } wifi_attr_t;
+enum mrvl_wlan_vendor_attr_secure_ranging_ctx {
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_ACTION = 1,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SRC_ADDR = 2,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_PEER_MAC_ADDR = 3,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_SHA_TYPE = 4,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_TK = 5,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_CIPHER = 6,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_LTF_KEYSEED = 7,
 
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_MAX =
+		MRVL_WLAN_VENDOR_ATTR_SECURE_RANGING_CTX_AFTER_LAST - 1,
+};
 enum mrvl_wlan_vendor_attr_wifi_logger {
 	MRVL_WLAN_VENDOR_ATTR_NAME = 10,
 };
 
+enum ATTR_FW_RELOAD {
+	ATTR_FW_RELOAD_INVALID = 0,
+	ATTR_FW_RELOAD_MODE = 1,
+	ATTR_FW_RELOAD_AFTER_LAST,
+	ATTR_FW_RELOAD_MAX = ATTR_FW_RELOAD_AFTER_LAST - 1,
+};
+
+void woal_cfg80211_driver_hang_event(moal_private *priv, t_u8 reload_mode);
+
 /**vendor event*/
 enum vendor_event {
 	event_hang = 0,
+	event_fw_dump_done = 1,
+	event_fw_reset_success = 2,
+	event_fw_reset_failure = 3,
+	event_fw_reset_start = 4,
 	event_rssi_monitor = 0x1501,
+	event_rtt_result = 0x07,
+	event_set_key_mgmt_offload = 0x10001,
+	event_fw_roam_success = 0x10002,
 	event_cloud_keep_alive = 0x10003,
 	event_dfs_radar_detected = 0x10004,
 	event_dfs_cac_started = 0x10005,
@@ -666,13 +721,24 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi);
 /**vendor sub command*/
 enum vendor_sub_command {
 	sub_cmd_set_drvdbg = 0,
+	sub_cmd_set_roaming_offload_key = 0x0002,
 	sub_cmd_start_keep_alive = 0x0003,
 	sub_cmd_stop_keep_alive = 0x0004,
 	sub_cmd_dfs_capability = 0x0005,
 	sub_cmd_set_scan_mac_oui = 0x0007,
+	sub_cmd_set_scan_band = 0x0008,
+	sub_cmd_secure_ranging_ctx = 0x0009,
 	sub_cmd_set_packet_filter = 0x0011,
 	sub_cmd_get_packet_filter_capability,
 	sub_cmd_nd_offload = 0x0100,
+	SUBCMD_RTT_GET_CAPA = 0x1100,
+	SUBCMD_RTT_RANGE_REQUEST,
+	SUBCMD_RTT_RANGE_CANCEL,
+	SUBCMD_RTT_GET_RESPONDER_INFO,
+	SUBCMD_RTT_ENABLE_RESPONDER,
+	SUBCMD_RTT_DISABLE_RESPONDER,
+	SUBCMD_RTT_SET_LCI,
+	SUBCMD_RTT_SET_LCR,
 	sub_cmd_link_statistic_set = 0x1200,
 	sub_cmd_link_statistic_get = 0x1201,
 	sub_cmd_link_statistic_clr = 0x1202,
@@ -693,6 +759,11 @@ enum vendor_sub_command {
 	sub_cmd_get_roaming_capability = 0x1700,
 	sub_cmd_fw_roaming_enable = 0x1701,
 	sub_cmd_fw_roaming_config = 0x1702,
+	subcmd_cfr_request = 0x1900,
+	subcmd_cfr_cancel,
+	subcmd_get_csi_dump_path,
+	subcmd_get_csi_config,
+	subcmd_get_csi_capa,
 	sub_cmd_max,
 };
 
@@ -730,6 +801,25 @@ enum mkeep_alive_attributes {
 	MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT,
 	MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST,
 	MKEEP_ALIVE_ATTRIBUTE_MAX = MKEEP_ALIVE_ATTRIBUTE_AFTER_LAST - 1
+};
+
+int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len);
+
+/*Attribute for wpa_supplicant*/
+enum mrvl_wlan_vendor_attr_roam_auth {
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_INVALID = 0,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_BSSID,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_REQ_IE,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_RESP_IE,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AUTHORIZED,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_KEY_REPLAY_CTR,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KCK,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_PTK_KEK,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_SUBNET_STATUS,
+	/* keep last */
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AFTER_LAST,
+	MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_MAX =
+		MRVL_WLAN_VENDOR_ATTR_ROAM_AUTH_AFTER_LAST - 1
 };
 
 /** WiFi roaming capabilities structure */
@@ -777,5 +867,51 @@ enum mrvl_wlan_vendor_attr_fw_roaming {
 		MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_AFTER_LAST - 1
 };
 
+enum attr_rtt {
+	ATTR_RTT_INVALID = 0,
+	ATTR_RTT_CAPA,
+	ATTR_RTT_TARGET_NUM,
+	ATTR_RTT_TARGET_CONFIG,
+	ATTR_RTT_TARGET_ADDR,
+	ATTR_RTT_RESULT_COMPLETE,
+	ATTR_RTT_RESULT_NUM,
+	ATTR_RTT_RESULT_FULL,
+	ATTR_RTT_CHANNEL_INFO,
+	ATTR_RTT_MAX_DUR_SEC,
+	ATTR_RTT_PREAMBLE,
+	ATTR_RTT_LCI_INFO,
+	ATTR_RTT_LCR_INFO,
+
+	/* keep last */
+	ATTR_RTT_AFTER_LAST,
+	ATTR_RTT_MAX = ATTR_RTT_AFTER_LAST - 1
+};
+
+mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
+					   int len);
+
+enum attr_csi {
+	ATTR_CSI_INVALID = 0,
+	ATTR_CSI_CONFIG,
+	ATTR_PEER_MAC_ADDR,
+	ATTR_CSI_DUMP_PATH,
+	ATTR_CSI_CAPA,
+	ATTR_CSI_DUMP_FORMAT,
+	ATTR_CSI_AFTER_LAST,
+	ATTR_CSI_MAX = ATTR_CSI_AFTER_LAST - 1,
+};
+
+/** CSI capability structure */
+typedef struct {
+	/**Bit mask indicates what BW is supported */
+	t_u8 bw_support;
+	/** Bit mask indicates what capturing method is supported */
+	t_u8 method_support;
+	/** Max number of capture peers supported */
+	t_u8 max_peer;
+} wifi_csi_capabilities;
+
+mlan_status woal_cfg80211_event_csi_dump(moal_private *priv, t_u8 *data,
+					 int len);
 #endif
 #endif /* _MOAL_CFGVENDOR_H_ */

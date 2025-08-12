@@ -3,7 +3,7 @@
  * @brief This file contains uap driver specific defines etc.
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -27,9 +27,6 @@ Change log:
 
 #ifndef _MOAL_UAP_H
 #define _MOAL_UAP_H
-
-/** Maximum buffer length for WOAL_UAP_SET_GET_256_CHAR */
-#define MAX_BUF_LEN 256
 
 /** Private command ID to send ioctl */
 #define UAP_IOCTL_CMD (SIOCDEVPRIVATE + 2)
@@ -201,10 +198,14 @@ typedef struct _cac_timer_status {
 typedef struct _skip_cac_para {
 	/** subcmd */
 	t_u32 subcmd;
-	/** Set/Get */
+	/** Set */
 	t_u32 action;
-	/** enable/disable deepsleep*/
+	/** enable/disable skip cac*/
 	t_u16 skip_cac;
+	/** channel */
+	t_u8 channel;
+	/** bandwidth */
+	t_u8 bw;
 } skip_cac_para;
 
 /** radio control command */
@@ -481,6 +482,8 @@ typedef struct _snmp_mib_para {
 /** Oid for 802.11H enable/disable */
 #define OID_80211H_ENABLE 0x000a
 
+int woal_uap_11h_ctrl(moal_private *priv, t_u32 enable);
+
 /** dfs_testing parameters */
 typedef struct _dfs_testing_param {
 	/** subcmd */
@@ -528,17 +531,38 @@ typedef struct _domain_info_param {
 #define MAX_DOMAIN_TLV_LEN                                                     \
 	(TLV_HEADER_LEN + COUNTRY_CODE_LEN + (SUB_BAND_LEN * MAX_SUB_BANDS))
 
-int woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
-				mlan_ds_ps_mgmt *ps_mgmt);
-void woal_uap_set_multicast_list(struct net_device *dev);
-int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
-int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
+/** DOMAIN_INFO param size of dfs_region */
+#define DFS_REGION_LEN 1
+/** MAX reg domain TLV length*/
+#define MAX_REG_DOMAIN_TLV_LEN (TLV_HEADER_LEN + DFS_REGION_LEN)
+
+/** Get/Set channel DFS state */
+int woal_11h_chan_dfs_state(moal_private *priv, t_u8 action,
+			    mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #ifdef UAP_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
+				    t_u8 bandwidth, t_u8 dfs_state);
+void woal_update_uap_channel_dfs_state(moal_private *priv);
+#endif
+#endif
+
+mlan_status woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
+					mlan_ds_ps_mgmt *ps_mgmt);
+void woal_uap_set_multicast_list(struct net_device *dev);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req,
+		      void __user *data, int cmd);
+#else
+int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
+#endif
+
+int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
+
 int woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
 				  pmlan_ds_11h_chan_nop_info ch_info);
-#endif
-#endif
+
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
 				    chan_band_info *uap_channel);
@@ -563,9 +587,17 @@ mlan_status woal_set_get_sys_config(moal_private *priv, t_u16 action,
 mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
 				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
+
+#if defined(UAP_CFG80211)
+#if defined(STA_WEXT) || defined(UAP_WEXT)
+int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq);
+#endif
+#endif
+
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 			     IEEEtypes_VHTCap_t *vhtcap_ie);
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
+int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
+		  t_u8 wait_option);
 int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 			     IEEEtypes_HECap_t *hecap_ie);
 int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,

@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2021 NXP
+ * Copyright 2008-2022 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -26,8 +26,13 @@ Change log:
 ********************************************************/
 
 #include "moal_main.h"
+#include "moal_eth_ioctl.h"
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
+#endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#include "moal_cfg80211.h"
+#include "moal_cfg80211_util.h"
 #endif
 #ifdef SDIO
 #include "moal_sdio.h"
@@ -81,6 +86,7 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	struct net_device *netdev = (struct net_device *)sfp->private;
 	char fmt[MLAN_MAX_VER_STR_LEN];
 	moal_private *priv = (moal_private *)netdev_priv(netdev);
+	mlan_fw_info fw_info;
 #ifdef STA_SUPPORT
 	int i = 0;
 	moal_handle *handle = NULL;
@@ -104,6 +110,8 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 		t_u32 l;
 		t_u8 c[4];
 	} ver;
+
+	fw_info.uuid_lo = fw_info.uuid_hi = 0x0ULL;
 
 	ENTER();
 
@@ -154,6 +162,11 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 	ver.l = handle->fw_release_number;
 	seq_printf(sfp, "firmware_major_version=%u.%u.%u\n", ver.c[2], ver.c[1],
 		   ver.c[0]);
+
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.uuid_lo || fw_info.uuid_hi)
+		seq_printf(sfp, "uuid = %llx%llx\n", fw_info.uuid_lo,
+			   fw_info.uuid_hi);
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
@@ -358,7 +371,9 @@ exit:
 
 static int woal_info_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_info_proc_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_info_proc_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_info_proc_read, PDE(inode)->data);
@@ -399,6 +414,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	char *string = NULL;
+	char *tmp;
 	char *pos = NULL;
 	gfp_t flag;
 
@@ -410,6 +426,7 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 
 	moal_memcpy_ext(NULL, string, buffer + strlen("sdcmd52rw="),
 			len - strlen("sdcmd52rw="), CMD52_STR_LEN - 1);
+	tmp = string;
 	string = strstrip(string);
 
 	*func = -1;
@@ -430,11 +447,146 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 	pos = strsep(&string, " \t");
 	if (pos)
 		*val = woal_string_to_number(pos);
-	kfree(string);
+	kfree(tmp);
 	LEAVE();
 	return ret;
 }
 #endif
+
+static void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
+{
+	int ret = 0;
+	int data[4] = {0};
+	mlan_ds_radio_cfg *radio = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (sfp == NULL) {
+		PRINTM(MERROR, "Sequence file pointer null\n");
+		LEAVE();
+		return;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
+	if (req == NULL) {
+		PRINTM(MERROR, "Memory allocation failure \n");
+		LEAVE();
+		return;
+	}
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
+	radio->sub_command = MLAN_OID_ANT_CFG;
+	req->req_id = MLAN_IOCTL_RADIO_CFG;
+	req->action = MLAN_ACT_GET;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status == MLAN_STATUS_FAILURE) {
+		PRINTM(MERROR, "Failed to send IOCTL request to firmware\n");
+		kfree(req);
+		LEAVE();
+		return;
+	}
+	if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		data[0] = radio->param.ant_cfg.tx_antenna;
+		data[1] = radio->param.ant_cfg.rx_antenna;
+		if (data[0] && data[1])
+			ret = sizeof(int) * 2;
+		else
+			ret = sizeof(int) * 1;
+		if (ret == sizeof(int) * 1)
+			seq_printf(sfp, "antcfg=0x%x\n", data[0]);
+		else if (ret == sizeof(int) * 2)
+			seq_printf(sfp, "antcfg=0x%x 0x%x\n", data[0], data[1]);
+
+	} else {
+		if (radio->param.ant_cfg_1x1.antenna == 0xffff) {
+			seq_printf(
+				sfp, "antcfg=0x%x %d %d\n",
+				(int)radio->param.ant_cfg_1x1.antenna,
+				(int)radio->param.ant_cfg_1x1.evaluate_time,
+				(int)radio->param.ant_cfg_1x1.current_antenna);
+		} else {
+			seq_printf(sfp, "antcfg=0x%x\n",
+				   (int)radio->param.ant_cfg_1x1.antenna);
+		}
+	}
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return;
+}
+
+static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
+{
+	moal_private *priv = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_radio_cfg *radio = NULL;
+	mlan_status status;
+	int data[5] = {0};
+	int user_data_len = 0;
+
+	ENTER();
+	memset((char *)data, 0, sizeof(data));
+	parse_arguments(line, data, ARRAY_SIZE(data), &user_data_len);
+
+	if (user_data_len > 2) {
+		PRINTM(MERROR, "Invalid number of args!\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Allocate an IOCTL request buffer */
+	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(
+		sizeof(mlan_ds_radio_cfg));
+	if (req == NULL) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill request buffer */
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
+	radio->sub_command = MLAN_OID_ANT_CFG;
+	req->req_id = MLAN_IOCTL_RADIO_CFG;
+	req->action = MLAN_ACT_SET;
+
+	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		radio->param.ant_cfg.tx_antenna = data[0];
+		radio->param.ant_cfg.rx_antenna = data[0];
+		if (user_data_len == 2)
+			radio->param.ant_cfg.rx_antenna = data[1];
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		if (IS_CARD9098(priv->phandle->card_type) ||
+		    IS_CARD9097(priv->phandle->card_type) ||
+		    IS_CARDIW624(priv->phandle->card_type) ||
+		    IS_CARDAW693(priv->phandle->card_type)) {
+			woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy,
+						    radio);
+		}
+#endif
+	} else
+		radio->param.ant_cfg_1x1.antenna = data[0];
+	if (user_data_len == 2) {
+		if (data[1] > 0xffff) {
+			kfree(req);
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+		radio->param.ant_cfg_1x1.evaluate_time = data[1];
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return status;
+}
 
 /**
  *  @brief config proc write function
@@ -449,8 +601,9 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 static ssize_t woal_config_write(struct file *f, const char __user *buf,
 				 size_t count, loff_t *off)
 {
-	char databuf[101];
+	char databuf[200];
 	char *line = NULL;
+	int ret = 0;
 	t_u32 config_data = 0;
 	struct seq_file *sfp = f->private_data;
 	moal_handle *handle = (moal_handle *)sfp->private;
@@ -512,23 +665,24 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 #endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
+		PRINTM(MERROR, "Recevie debug_dump command\n");
+#ifdef USB
+		if (!IS_USB(handle->card_type))
+#endif
+			handle->driver_status = MTRUE;
 		ref_handle = (moal_handle *)handle->pref_mac;
 		if (ref_handle) {
+			ref_handle->driver_status = MTRUE;
 			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
 			if (priv) {
-#ifdef DEBUG_LEVEL1
-				drvdbg &= ~MFW_D;
-#endif
+				ref_handle->fw_dump_status = MTRUE;
 				woal_mlan_debug_info(priv);
 				woal_moal_debug_info(priv, NULL, MFALSE);
 			}
 		}
 		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 		if (priv) {
-			PRINTM(MERROR, "Recevie debug_dump command\n");
-#ifdef DEBUG_LEVEL1
-			drvdbg &= ~MFW_D;
-#endif
+			handle->fw_dump_status = MTRUE;
 			woal_mlan_debug_info(priv);
 			woal_moal_debug_info(priv, NULL, MFALSE);
 			handle->ops.dump_fw_info(handle);
@@ -560,7 +714,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 			config_data = FW_RELOAD_SDIO_INBAND_RESET;
 #endif
 		PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
-		woal_request_fw_reload(handle, config_data);
+		ret = woal_request_fw_reload(handle, config_data);
 	}
 	if (!strncmp(databuf, "drop_point=", strlen("drop_point="))) {
 		line += strlen("drop_point") + 1;
@@ -588,6 +742,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 			woal_set_tp_state(priv);
 		PRINTM(MMSG, "on=%d drop_point=%d\n", handle->tp_acnt.on,
 		       handle->tp_acnt.drop_point);
+	}
+	if (!strncmp(databuf, "hssetpara=", strlen("hssetpara="))) {
+		line += strlen("hssetpara") + 1;
+		PRINTM(MCMND, "hssetpara=%s\n", line);
+		woal_process_proc_hssetpara(handle, line);
 	}
 	if (!strncmp(databuf, "rf_test_mode", strlen("rf_test_mode"))) {
 		line += strlen("rf_test_mode") + 1;
@@ -642,7 +801,14 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	if (!strncmp(databuf, "he_tb_tx=", strlen("he_tb_tx=")) &&
 	    count > strlen("he_tb_tx="))
 		cmd = MFG_CMD_CONFIG_MAC_HE_TB_TX;
-
+	if (!strncmp(databuf, "trigger_frame=", strlen("trigger_frame=")) &&
+	    count > strlen("trigger_frame="))
+		cmd = MFG_CMD_CONFIG_TRIGGER_FRAME;
+	if (!strncmp(databuf,
+		     "otp_mac_addr_rd_wr=", strlen("otp_mac_add_rd_wr=")) &&
+	    count > strlen("otp_mac_addr_rd_wr=")) {
+		cmd = MFG_CMD_OTP_MAC_ADD;
+	}
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
 		     handle, cmd, (const char *)databuf, (size_t)count,
@@ -651,8 +817,18 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 	if (cmd && !handle->rf_test_mode)
 		PRINTM(MERROR, "RF test mode is disabled\n");
+
+	if (!strncmp(databuf, "antcfg", strlen("antcfg"))) {
+		line += strlen("antcfg") + 1;
+		if (woal_priv_set_tx_rx_ant(handle, line) !=
+		    MLAN_STATUS_SUCCESS)
+			PRINTM(MERROR, "Could not set Antenna Diversity!!\n");
+	}
+
 	MODULE_PUT;
 	LEAVE();
+	if (ret < 0)
+		return ret;
 	return (int)count;
 }
 
@@ -668,6 +844,8 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 {
 	moal_handle *handle = (moal_handle *)sfp->private;
 	int i;
+	moal_private *priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	mlan_ds_hs_cfg hscfg;
 
 	ENTER();
 
@@ -679,6 +857,13 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 	seq_printf(sfp, "hardware_status=%d\n", (int)handle->hardware_status);
 	seq_printf(sfp, "netlink_num=%d\n", (int)handle->netlink_num);
 	seq_printf(sfp, "drv_mode=%d\n", (int)handle->params.drv_mode);
+	if (priv) {
+		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
+		(void)woal_set_get_hs_params(priv, MLAN_ACT_GET,
+					     MOAL_IOCTL_WAIT, &hscfg);
+		seq_printf(sfp, "hssetpara=%d,0x%x,%d,%d\n", hscfg.conditions,
+			   hscfg.gpio, hscfg.gap, hscfg.hs_wake_interval);
+	}
 #ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		seq_printf(sfp, "sdcmd52rw=%d 0x%0x 0x%02X\n",
@@ -745,7 +930,7 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 				seq_printf(sfp, " %u",
 					   handle->rf_data->tx_frame_data[i]);
 			for (i = 13; i < 20; i++)
-				seq_printf(sfp, " %u",
+				seq_printf(sfp, " %d",
 					   handle->rf_data->tx_frame_data[i]);
 			seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x",
 				   handle->rf_data->bssid[0],
@@ -761,10 +946,125 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[1]);
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[2]);
 			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[3]);
-			seq_printf(sfp, " %u", handle->rf_data->he_tb_tx[4]);
+			seq_printf(sfp, " %d",
+				   handle->rf_data->he_tb_tx_power[0]);
 		}
 		seq_printf(sfp, "\n");
+		seq_printf(sfp, "trigger_frame=%u",
+			   handle->rf_data->mfg_tx_trigger_config.enable_tx);
+		if (handle->rf_data->mfg_tx_trigger_config.enable_tx == MTRUE) {
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .standalone_hetb);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config.frmCtl
+					   .sub_type);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config.duration);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.trigger_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_len);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.more_tf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.cs_required);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_bw);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_mode);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ltf_symbol);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ul_stbc);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ldpc_ess);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.ap_tx_pwr);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pre_fec_pad_fct);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.pe_disambig);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.spatial_reuse);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.doppler);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_common_field.he_sig2);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.aid12);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc_reg);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ru_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_coding_type);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_mcs);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ul_dcm);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .trig_user_info_field.ss_alloc);
+			seq_printf(
+				sfp, " %u",
+				handle->rf_data->mfg_tx_trigger_config
+					.trig_user_info_field.ul_target_rssi);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.mpdu_mu_sf);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.tid_al);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.ac_pl);
+			seq_printf(sfp, " %u",
+				   handle->rf_data->mfg_tx_trigger_config
+					   .basic_trig_user_info.pref_ac);
+		}
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "otp_mac_add_rd_wr=");
+		seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x \n",
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[0],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[1],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[2],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[3],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[4],
+			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[5]);
 	}
+	// Read current antcfg configuration
+	woal_priv_get_tx_rx_ant(sfp, priv);
+
 	MODULE_PUT;
 	LEAVE();
 	return 0;
@@ -772,7 +1072,9 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 
 static int woal_config_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_config_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_config_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_config_read, PDE(inode)->data);
@@ -796,6 +1098,162 @@ static const struct file_operations config_proc_fops = {
 	.release = single_release,
 	.write = woal_config_write,
 };
+#endif
+
+#ifdef DUMP_TO_PROC
+static int woal_drv_dump_read(struct seq_file *sfp, void *data)
+{
+	moal_handle *handle = (moal_handle *)sfp->private;
+	int ret = 0;
+
+	ENTER();
+
+	if (MODULE_GET == 0) {
+		LEAVE();
+		return 0;
+	}
+
+	if (!handle) {
+		PRINTM(MERROR, "handle is NULL!\n");
+		LEAVE();
+		return 0;
+	}
+	if (!handle->drv_dump_buf || !handle->drv_dump_len)
+		handle->drv_dump_buf =
+			woal_dump_drv_info(handle, &handle->drv_dump_len);
+	if (!handle->drv_dump_buf || !handle->drv_dump_len) {
+		PRINTM(MERROR,
+		       "driver dump buffer is NULL or total length is zero\n");
+		goto done;
+	}
+	if (sfp->size < handle->drv_dump_len) {
+		PRINTM(MERROR,
+		       "drv dump size too big, size=%d, drv_dump_len=%d\n",
+		       (int)sfp->size, handle->drv_dump_len);
+		sfp->count = sfp->size;
+		ret = 0;
+		MODULE_PUT;
+		return ret;
+	}
+	memset(sfp->buf, 0x00, sfp->size);
+	sfp->count = handle->drv_dump_len;
+	moal_memcpy_ext(handle, sfp->buf, handle->drv_dump_buf,
+			handle->drv_dump_len, sfp->size);
+done:
+	moal_vfree(handle, handle->drv_dump_buf);
+	handle->drv_dump_len = 0;
+	handle->drv_dump_buf = NULL;
+	MODULE_PUT;
+	LEAVE();
+	return 0;
+}
+
+static int woal_drv_dump_proc_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_drv_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+	return single_open(file, woal_drv_dump_read, PDE_DATA(inode));
+#else
+	return single_open(file, woal_drv_dump_read, PDE(inode)->data);
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops drv_dump_fops = {
+	.proc_open = woal_drv_dump_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+static const struct file_operations drv_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = woal_drv_dump_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
+static int woal_fw_dump_read(struct seq_file *sfp, void *data)
+{
+	moal_handle *handle = (moal_handle *)sfp->private;
+	int ret = 0;
+
+	ENTER();
+
+	if (MODULE_GET == 0) {
+		LEAVE();
+		return 0;
+	}
+
+	if (!handle) {
+		PRINTM(MERROR, "handle is null!\n");
+		goto done;
+	}
+
+	if (handle->fw_dump == MTRUE) {
+		PRINTM(MERROR, "fw dump is in progress\n");
+		goto done;
+	}
+
+	if (!handle->fw_dump_buf || !handle->fw_dump_len) {
+		PRINTM(MERROR,
+		       "fw dump buffer is NULL or total length is zero\n");
+		goto done;
+	}
+
+	if (sfp->size < handle->fw_dump_len) {
+		PRINTM(MERROR,
+		       "fw dump size too big, size=%d, fw_dump_len=%ld\n",
+		       (int)sfp->size, (long int)handle->fw_dump_len);
+		sfp->count = sfp->size;
+		ret = 0;
+		MODULE_PUT;
+		return ret;
+	}
+
+	sfp->count = handle->fw_dump_len;
+	moal_memcpy_ext(handle, sfp->buf, handle->fw_dump_buf,
+			handle->fw_dump_len, sfp->size);
+	moal_vfree(handle, handle->fw_dump_buf);
+	handle->fw_dump_buf = NULL;
+	handle->fw_dump_len = 0;
+
+done:
+	MODULE_PUT;
+	LEAVE();
+	return 0;
+}
+
+static int woal_fw_dump_proc_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_fw_dump_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+	return single_open(file, woal_fw_dump_read, PDE_DATA(inode));
+#else
+	return single_open(file, woal_fw_dump_read, PDE(inode)->data);
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops fw_dump_fops = {
+	.proc_open = woal_fw_dump_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+static const struct file_operations fw_dump_fops = {
+	.owner = THIS_MODULE,
+	.open = woal_fw_dump_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 #endif
 
 /**
@@ -824,7 +1282,9 @@ static int woal_wifi_status_read(struct seq_file *sfp, void *data)
 
 static int woal_wifi_status_proc_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+	return single_open(file, woal_wifi_status_read, pde_data(inode));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	return single_open(file, woal_wifi_status_read, PDE_DATA(inode));
 #else
 	return single_open(file, woal_wifi_status_read, PDE(inode)->data);
@@ -866,15 +1326,15 @@ int woal_string_to_number(char *s)
 
 	if (!strncmp(s, "-", 1)) {
 		pn = -1;
-		s++;
+		s = (char *)(s + 1);
 	}
 	if (!strncmp(s, "0x", 2) || !strncmp(s, "0X", 2)) {
 		base = 16;
-		s += 2;
+		s = (char *)(s + 2);
 	} else
 		base = 10;
 
-	for (s = s; *s; s++) {
+	for (; *s; s++) {
 		if ((*s >= '0') && (*s <= '9'))
 			r = (r * base) + (*s - '0');
 		else if ((*s >= 'A') && (*s <= 'F'))
@@ -909,7 +1369,7 @@ mlan_status woal_root_proc_init(void)
 	}
 
 	/* create /proc/mwlan/wifi_status */
-	proc_create_data(STATUS_PROC, 0644, proc_mwlan, &wifi_status_proc_fops,
+	proc_create_data(STATUS_PROC, 0666, proc_mwlan, &wifi_status_proc_fops,
 			 NULL);
 
 	LEAVE();
@@ -948,6 +1408,10 @@ void woal_proc_init(moal_handle *handle)
 	struct proc_dir_entry *pde = proc_mwlan;
 #endif
 	char config_proc_dir[20];
+#ifdef DUMP_TO_PROC
+	char drv_dump_dir[20];
+	char fw_dump_dir[20];
+#endif
 
 	ENTER();
 
@@ -989,9 +1453,9 @@ void woal_proc_init(moal_handle *handle)
 		goto done;
 	}
 
-	strcpy(config_proc_dir, "config");
+	strncpy(config_proc_dir, "config", sizeof(config_proc_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	r = proc_create_data(config_proc_dir, 0644, handle->proc_wlan,
+	r = proc_create_data(config_proc_dir, 0666, handle->proc_wlan,
 			     &config_proc_fops, handle);
 #else
 	r = create_proc_entry(config_proc_dir, 0644, handle->proc_wlan);
@@ -1002,6 +1466,36 @@ void woal_proc_init(moal_handle *handle)
 #endif
 	if (!r)
 		PRINTM(MERROR, "Fail to create proc config\n");
+
+#ifdef DUMP_TO_PROC
+	strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	r = proc_create_data(drv_dump_dir, 0644, handle->proc_wlan,
+			     &drv_dump_fops, handle);
+#else
+	r = create_proc_entry(drv_dump_dir, 0644, handle->proc_wlan);
+	if (r) {
+		r->data = handle;
+		r->proc_fops = &drv_dump_fops;
+	}
+#endif
+	if (!r)
+		PRINTM(MERROR, "Failed to create proc drv dump\n");
+
+	strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	r = proc_create_data(fw_dump_dir, 0644, handle->proc_wlan,
+			     &fw_dump_fops, handle);
+#else
+	r = create_proc_entry(fw_dump_dir, 0644, handle->proc_wlan);
+	if (r) {
+		r->data = handle;
+		r->proc_fops = &fw_dump_fops;
+	}
+#endif
+	if (!r)
+		PRINTM(MERROR, "Failed to create proc fw dump\n");
+#endif
 
 done:
 	LEAVE();
@@ -1017,13 +1511,23 @@ done:
 void woal_proc_exit(moal_handle *handle)
 {
 	char config_proc_dir[20];
+#ifdef DUMP_TO_PROC
+	char drv_dump_dir[20];
+	char fw_dump_dir[20];
+#endif
 
 	ENTER();
 
 	PRINTM(MINFO, "Remove Proc Interface %s\n", handle->proc_wlan_name);
 	if (handle->proc_wlan) {
-		strcpy(config_proc_dir, "config");
+		strncpy(config_proc_dir, "config", sizeof(config_proc_dir));
 		remove_proc_entry(config_proc_dir, handle->proc_wlan);
+#ifdef DUMP_TO_PROC
+		strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
+		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
+		strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
+		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 		/* Remove only if we are the only instance using this */
@@ -1041,6 +1545,18 @@ void woal_proc_exit(moal_handle *handle)
 		}
 #endif
 	}
+#ifdef DUMP_TO_PROC
+	if (handle->fw_dump_buf) {
+		moal_vfree(handle, handle->fw_dump_buf);
+		handle->fw_dump_buf = NULL;
+		handle->fw_dump_len = 0;
+	}
+	if (handle->drv_dump_buf) {
+		moal_vfree(handle, handle->drv_dump_buf);
+		handle->drv_dump_len = 0;
+		handle->drv_dump_buf = NULL;
+	}
+#endif
 	LEAVE();
 }
 
@@ -1075,7 +1591,7 @@ void woal_create_proc_entry(moal_private *priv)
 			LEAVE();
 			return;
 		}
-		strcat(proc_dir_name, dev->name);
+		strncat(proc_dir_name, dev->name, sizeof(proc_dir_name) - 1);
 		/* Try to create adapterX/dev_name directory first under
 		 * /proc/mwlan/ */
 		priv->proc_entry = proc_mkdir(proc_dir_name, proc_mwlan);
@@ -1114,7 +1630,7 @@ void woal_create_proc_entry(moal_private *priv)
 		atomic_inc(&(priv->phandle->proc_wlan->count));
 #endif /* < 3.10.0 */
 #endif /* < 2.6.26 */
-		strcpy(priv->proc_entry_name, dev->name);
+		strncpy(priv->proc_entry_name, dev->name, IFNAMSIZ);
 		if (priv->proc_entry) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 			r = proc_create_data("info", 0, priv->proc_entry,

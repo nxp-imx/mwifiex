@@ -6,7 +6,7 @@
  *    implemented in mlan_11n.c.
  *
  *
- *  Copyright 2008-2020 NXP
+ *  Copyright 2008-2021 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -65,7 +65,7 @@ mlan_status wlan_cmd_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			       mlan_ioctl_req *pioctl_buf);
 #ifdef STA_SUPPORT
-t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band);
+t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band);
 /** Append the 802_11N tlv */
 int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			    t_u8 **ppbuffer);
@@ -87,6 +87,10 @@ void wlan_11n_deleteall_txbastream_tbl(mlan_private *priv);
 /** Get Tx BA stream table */
 TxBAStreamTbl *wlan_11n_get_txbastream_tbl(mlan_private *priv, int tid,
 					   t_u8 *ra, int lock);
+/** Set Tx BA stream table  BA status */
+void wlan_11n_set_txbastream_status(mlan_private *priv, int tid, t_u8 *ra,
+				    baStatus_e ba_status, int lock);
+
 /** Create Tx BA stream table */
 void wlan_11n_create_txbastream_tbl(mlan_private *priv, t_u8 *ra, int tid,
 				    baStatus_e ba_status);
@@ -123,7 +127,7 @@ mlan_status wlan_cmd_amsdu_aggr_ctrl(mlan_private *priv,
 t_u8 wlan_validate_chan_offset(mlan_private *pmpriv, t_u16 band, t_u32 chan,
 			       t_u8 chan_bw);
 /** get channel offset */
-t_u8 wlan_get_second_channel_offset(int chan);
+t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan);
 
 void wlan_update_11n_cap(mlan_private *pmpriv);
 
@@ -271,12 +275,6 @@ static INLINE void wlan_update_station_del_ba_count(mlan_private *priv,
 static INLINE void wlan_update_del_ba_count(mlan_private *priv, raListTbl *ptr)
 {
 	t_s8 rssi;
-#ifdef UAP_802_11N
-#ifdef UAP_SUPPORT
-	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
-		return wlan_update_station_del_ba_count(priv, ptr);
-#endif /* UAP_SUPPORT */
-#endif /* UAP_802_11N */
 	if (ptr->is_tdls_link)
 		return wlan_update_station_del_ba_count(priv, ptr);
 	rssi = priv->snr - priv->nf;
@@ -382,14 +380,14 @@ static INLINE t_u8 wlan_find_stream_to_delete(mlan_private *priv,
 	tid = priv->aggr_prio_tbl[ptr_tid].ampdu_user;
 
 	while (ptx_tbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
-		if (tid > priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user) {
+		if ((ptx_tbl->ba_status == BA_STREAM_SETUP_COMPLETE) &&
+		    (tid > priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user)) {
 			tid = priv->aggr_prio_tbl[ptx_tbl->tid].ampdu_user;
 			*ptid = ptx_tbl->tid;
 			memcpy_ext(priv->adapter, ra, ptx_tbl->ra,
 				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			ret = MTRUE;
 		}
-
 		ptx_tbl = ptx_tbl->pnext;
 	}
 	LEAVE();

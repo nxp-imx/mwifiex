@@ -120,8 +120,6 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	 * Original priority has been overwritten
 	 */
 	ptx_pd->priority = (t_u8)mbuf->priority;
-	ptx_pd->pkt_delay_2ms =
-		wlan_wmm_compute_driver_packet_delay(priv, mbuf);
 	ptx_pd->bss_num = GET_BSS_NUM(priv);
 	ptx_pd->bss_type = priv->bss_type;
 	/* Always zero as the data is followed by TxPD */
@@ -156,6 +154,9 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 	ptx_pd = (TxPD *)mbuf->pbuf;
 	ptx_pd->tx_pkt_length =
 		(t_u16)wlan_cpu_to_le16(mbuf->data_len - sizeof(TxPD));
+	ptx_pd->pkt_delay_2ms =
+		wlan_wmm_compute_driver_packet_delay(priv, mbuf);
+
 #ifdef STA_SUPPORT
 	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) &&
 	    (priv->adapter->pps_uapsd_mode)) {
@@ -169,20 +170,47 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 }
 
 /**
+ *  @brief check if UAP AMSDU packet need forward out to connected peers
+ *
+ *  @param priv       A pointer to mlan_private
+ *
+ *  @return			  MTRUE--packet need forward
+ *
+ */
+static t_u8 wlan_uap_check_forward(mlan_private *priv, Eth803Hdr_t *hdr)
+{
+	/** include multicast packet */
+	if (hdr->dest_addr[0] & 0x01)
+		return MTRUE;
+	/** include unicast packet to another station */
+	if (wlan_get_station_entry(priv, hdr->dest_addr))
+		return MTRUE;
+	return MFALSE;
+}
+
+/**
  *  @brief Get number of aggregated packets
  *
+ *  @param priv		A pointer to mlan_private structure
  *  @param data			A pointer to packet data
  *  @param total_pkt_len	Total packet length
+ *  @param forward      A pointer forward flag
  *
  *  @return			Number of packets
  */
-static int wlan_11n_get_num_aggrpkts(t_u8 *data, int total_pkt_len)
+static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
+				     int total_pkt_len, t_u8 *forward)
 {
 	int pkt_count = 0, pkt_len, pad;
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
 
+	t_u8 forward_flag = MFALSE;
+
 	ENTER();
 	while (total_pkt_len >= hdr_len) {
+		if (priv->bss_role == MLAN_BSS_ROLE_UAP &&
+		    wlan_uap_check_forward(priv, (Eth803Hdr_t *)data))
+			forward_flag = MTRUE;
 		/* Length will be in network format, change it to host */
 		pkt_len = mlan_ntohs(
 			(*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH))));
@@ -198,6 +226,7 @@ static int wlan_11n_get_num_aggrpkts(t_u8 *data, int total_pkt_len)
 		total_pkt_len -= pkt_len + pad + sizeof(Eth803Hdr_t);
 		++pkt_count;
 	}
+	*forward = forward_flag;
 	LEAVE();
 	return pkt_count;
 }
@@ -228,8 +257,16 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	t_u8 rfc1042_eth_hdr[MLAN_MAC_ADDR_LENGTH] = {0xaa, 0xaa, 0x03,
 						      0x00, 0x00, 0x00};
 	t_u8 hdr_len = sizeof(Eth803Hdr_t);
+	t_u8 forward = MFALSE;
 	t_u8 eapol_type[2] = {0x88, 0x8e};
 	t_u8 tdls_action_type[2] = {0x89, 0x0d};
+	t_u32 in_ts_sec, in_ts_usec;
+	t_u32 out_ts_sec, out_ts_usec;
+	t_u32 in_copy_ts_sec, in_copy_ts_usec;
+	t_u32 out_copy_ts_sec, out_copy_ts_usec;
+	t_u32 copy_delay = 0;
+	t_u32 delay = 0;
+	t_u8 num_subframes = 0;
 
 	ENTER();
 
@@ -260,8 +297,11 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		       total_pkt_len);
 		goto done;
 	}
-
-	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &in_ts_sec, &in_ts_usec);
+	num_subframes = pmbuf->use_count =
+		wlan_11n_get_num_aggrpkts(priv, data, total_pkt_len, &forward);
 
 	// rx_trace 7
 	if (pmadapter->tp_state_on) {
@@ -272,7 +312,26 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	}
 	if (pmadapter->tp_state_drop_point == 7 /*RX_DROP_P3*/)
 		goto done;
-
+	prx_pkt = (RxPacketHdr_t *)data;
+	/**  check if packet need send to host only */
+	if (pmbuf->pdesc && !forward) {
+		if (pmadapter->callbacks.moal_recv_amsdu_packet) {
+			ret = pmadapter->callbacks.moal_recv_amsdu_packet(
+				pmadapter->pmoal_handle, pmbuf);
+			if (ret == MLAN_STATUS_PENDING) {
+#ifdef USB
+				if (IS_USB(pmadapter->card_type))
+					pmadapter->callbacks.moal_recv_complete(
+						pmadapter->pmoal_handle, MNULL,
+						pmadapter->rx_data_ep, ret);
+#endif
+				priv->msdu_in_rx_amsdu_cnt += num_subframes;
+				priv->amsdu_rx_cnt++;
+				return ret;
+			}
+			goto done;
+		}
+	}
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;
 		/* Length will be in network format, change it to host */
@@ -321,10 +380,23 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 		daggr_mbuf->extra_ts_usec = pmbuf->extra_ts_usec;
 		daggr_mbuf->pparent = pmbuf;
 		daggr_mbuf->priority = pmbuf->priority;
+		if (pmadapter->tp_state_on)
+			pmadapter->callbacks.moal_get_system_time(
+				pmadapter->pmoal_handle, &in_copy_ts_sec,
+				&in_copy_ts_usec);
 		memcpy_ext(pmadapter,
 			   daggr_mbuf->pbuf + daggr_mbuf->data_offset, data,
 			   pkt_len, daggr_mbuf->data_len);
-
+		if (pmadapter->tp_state_on) {
+			pmadapter->callbacks.moal_get_system_time(
+				pmadapter->pmoal_handle, &out_copy_ts_sec,
+				&out_copy_ts_usec);
+			copy_delay +=
+				(t_s32)(out_copy_ts_sec - in_copy_ts_sec) *
+				1000000;
+			copy_delay +=
+				(t_s32)(out_copy_ts_usec - in_copy_ts_usec);
+		}
 #ifdef UAP_SUPPORT
 		if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
 			ret = wlan_uap_recv_packet(priv, daggr_mbuf);
@@ -385,6 +457,14 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 
 		data += pkt_len + pad;
 	}
+	if (pmadapter->tp_state_on) {
+		pmadapter->callbacks.moal_get_system_time(
+			pmadapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
+		delay += (t_s32)(out_ts_sec - in_ts_sec) * 1000000;
+		delay += (t_s32)(out_ts_usec - in_ts_usec);
+		pmadapter->callbacks.moal_amsdu_tp_accounting(
+			pmadapter->pmoal_handle, delay, copy_delay);
+	}
 
 done:
 	priv->msdu_in_rx_amsdu_cnt += pmbuf->use_count;
@@ -432,9 +512,10 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	pmbuf_src = (pmlan_buffer)util_peek_list(
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
 	if (pmbuf_src) {
-		pmbuf_aggr = wlan_alloc_mlan_buffer(pmadapter,
-						    pmadapter->tx_buf_size, 0,
-						    MOAL_MALLOC_BUFFER);
+		pmbuf_aggr = wlan_alloc_mlan_buffer(
+			pmadapter, pmadapter->tx_buf_size, headroom,
+			MOAL_MEM_FLAG_DIRTY | MOAL_MALLOC_BUFFER |
+				MOAL_MEM_FLAG_ATOMIC);
 		if (!pmbuf_aggr) {
 			PRINTM(MERROR, "Error allocating mlan_buffer\n");
 			pmadapter->callbacks.moal_spin_unlock(
@@ -452,6 +533,8 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		pmbuf_aggr->data_offset = 0;
 		pmbuf_aggr->in_ts_sec = pmbuf_src->in_ts_sec;
 		pmbuf_aggr->in_ts_usec = pmbuf_src->in_ts_usec;
+		pmbuf_aggr->extra_ts_sec = pmbuf_src->extra_ts_sec;
+		pmbuf_aggr->extra_ts_usec = pmbuf_src->extra_ts_usec;
 		if (pmbuf_src->flags & MLAN_BUF_FLAG_TDLS)
 			pmbuf_aggr->flags |= MLAN_BUF_FLAG_TDLS;
 		if (pmbuf_src->flags & MLAN_BUF_FLAG_TCP_ACK)
@@ -480,7 +563,7 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		/* Collects TP statistics */
 		if (pmadapter->tp_state_on && (pkt_size > sizeof(TxPD)))
 			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf_src->pdesc, 3);
+				pmadapter->pmoal_handle, pmbuf_src, 3);
 		pra_list->total_pkts--;
 
 		/* decrement for every PDU taken from the list */
@@ -628,5 +711,5 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 
 exit:
 	LEAVE();
-	return pkt_size + headroom;
+	return MIN((pkt_size + headroom), INT_MAX);
 }

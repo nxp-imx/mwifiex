@@ -34,7 +34,8 @@ extern struct semaphore AddRemoveCardSem;
 		Local Variables
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBIW624) || defined(USBIW615)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -94,6 +95,18 @@ static struct usb_device_id woal_usb_table[] = {
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
 #endif
+#ifdef USBIW624
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_1,
+			"NXP WLAN USB Adapter")},
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_2,
+			"NXP WLAN USB Adapter")},
+#endif
+#ifdef USBIW615
+	{NXP_USB_DEVICE(USBIW615_VID_1, USBIW615_PID_1,
+			"NXP WLAN USB Adapter")},
+	{NXP_USB_DEVICE(USBIW615_VID_1, USBIW615_PID_2,
+			"NXP WLAN USB Adapter")},
+#endif
 	/* Terminating entry */
 	{},
 };
@@ -120,6 +133,14 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 #endif
 #ifdef USB9097
 	{NXP_USB_DEVICE(USB9097_VID_1, USB9097_PID_2, "NXP WLAN USB Adapter")},
+#endif
+#ifdef USBIW624
+	{NXP_USB_DEVICE(USBIW624_VID_1, USBIW624_PID_2,
+			"NXP WLAN USB Adapter")},
+#endif
+#ifdef USBIW615
+	{NXP_USB_DEVICE(USBIW615_VID_1, USBIW615_PID_2,
+			"NXP WLAN USB Adapter")},
 #endif
 	/* Terminating entry */
 	{},
@@ -266,13 +287,13 @@ static void woal_usb_receive(struct urb *urb)
 		if (status == MLAN_STATUS_PENDING) {
 			queue_work(handle->workqueue, &handle->main_work);
 			/* urb for data_ep is re-submitted now, unless we reach
-			 * HIGH_RX_PENDING */
+			 * USB_HIGH_RX_PENDING */
 			/* urb for cmd_ep will be re-submitted in callback
 			 * moal_recv_complete */
 			if (cardp->rx_cmd_ep == context->ep)
 				goto rx_exit;
 			else if (atomic_read(&handle->rx_pending) >=
-				 HIGH_RX_PENDING) {
+				 USB_HIGH_RX_PENDING) {
 				context->pmbuf = NULL;
 				goto rx_exit;
 			}
@@ -395,6 +416,8 @@ static void woal_usb_tx_complete(struct urb *urb)
 		atomic_dec(&cardp->tx_cmd_urb_pending);
 	else if (context->ep == cardp->tx_data_ep)
 		atomic_dec(&cardp->tx_data_urb_pending);
+	else if (context->ep == cardp->tx_data2_ep)
+		atomic_dec(&cardp->tx_data2_urb_pending);
 
 	queue_work(handle->workqueue, &handle->main_work);
 
@@ -483,19 +506,21 @@ rx_ret:
 		Global Functions
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBIW624) || defined(USBIW615)
 /**
  *  @brief  Check chip revision
  *
  *  @param handle        A pointer to moal_handle structure
  *  @param usb_chip_rev  A pointer to usb_chip_rev variable
  *  @param usb_strap     A pointer to usb_strap
+ *  @param boot_mode     A pointer to boot_mode
  *
  *  @return 	   	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_check_chip_revision(moal_handle *handle,
 					    t_u32 *usb_chip_rev,
-					    t_u32 *usb_strap)
+					    t_u32 *usb_strap, t_u32 *boot_mode)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_buffer mbuf;
@@ -568,7 +593,7 @@ static mlan_status woal_check_chip_revision(moal_handle *handle,
 	ack_pkt.strap = woal_le32_to_cpu(ack_pkt.strap);
 
 	if ((ack_pkt.extend & 0xffff0000) == EXTEND_HDR) {
-		extend_ver = ack_pkt.extend & 0x0000ffff;
+		extend_ver = ack_pkt.extend & 0x000000ff;
 		*usb_chip_rev = ack_pkt.chip_rev & 0x000000ff;
 		if (extend_ver >= EXTEND_V2) {
 			PRINTM(MINFO, "chip_rev=0x%x, strap=0x%x\n",
@@ -576,6 +601,8 @@ static mlan_status woal_check_chip_revision(moal_handle *handle,
 			*usb_strap = ack_pkt.strap & 0x7;
 		} else
 			PRINTM(MINFO, "chip_rev=0x%x\n", *usb_chip_rev);
+		if (extend_ver >= EXTEND_V3)
+			*boot_mode = (ack_pkt.extend & 0x0000ff00) >> 8;
 	}
 cleanup:
 	kfree(recv_buff);
@@ -623,6 +650,10 @@ static void woal_usb_unlink_urb(void *card_desc)
 					usb_kill_urb(
 						cardp->tx_data_list[i].urb);
 				}
+				if (cardp->tx_data2_list[i].urb) {
+					usb_kill_urb(
+						cardp->tx_data2_list[i].urb);
+				}
 			}
 		}
 	}
@@ -662,6 +693,10 @@ void woal_usb_free(struct usb_card_rec *cardp)
 			usb_free_urb(cardp->tx_data_list[i].urb);
 			cardp->tx_data_list[i].urb = NULL;
 		}
+		if (cardp->tx_data2_list[i].urb) {
+			usb_free_urb(cardp->tx_data2_list[i].urb);
+			cardp->tx_data2_list[i].urb = NULL;
+		}
 	}
 	/* Free Tx cmd URB */
 	if (cardp->tx_cmd.urb) {
@@ -681,9 +716,9 @@ static t_u16 woal_update_card_type(t_void *card)
 	/* Update card type */
 #ifdef USB8801
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8801_PID_1 ||
+		    (__force __le16)USB8801_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8801_PID_2) {
+		    (__force __le16)USB8801_PID_2) {
 		card_type = CARD_TYPE_USB8801;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8801,
 				strlen(CARD_USB8801), strlen(driver_version));
@@ -697,9 +732,9 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8897
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8897_PID_1 ||
+		    (__force __le16)USB8897_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8897_PID_2) {
+		    (__force __le16)USB8897_PID_2) {
 		card_type = CARD_TYPE_USB8897;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8897,
 				strlen(CARD_USB8897), strlen(driver_version));
@@ -713,19 +748,19 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8997
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_1 ||
+		    (__force __le16)USB8997_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_2 ||
+		    (__force __le16)USB8997_PID_2 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_3 ||
+		    (__force __le16)USB8997_PID_3 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_4 ||
+		    (__force __le16)USB8997_PID_4 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_5 ||
+		    (__force __le16)USB8997_PID_5 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997_PID_6 ||
+		    (__force __le16)USB8997_PID_6 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8997V2_PID_1) {
+		    (__force __le16)USB8997V2_PID_1) {
 		card_type = CARD_TYPE_USB8997;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB8997,
 				strlen(CARD_USB8997), strlen(driver_version));
@@ -739,12 +774,12 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB8978
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8978_PID_1 ||
+		    (__force __le16)USB8978_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB8978_PID_2) {
+		    (__force __le16)USB8978_PID_2) {
 		card_type = CARD_TYPE_USB8978;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB8978,
-				strlen(CARD_USB8978), strlen(driver_version));
+		moal_memcpy_ext(NULL, driver_version, "USBIW416",
+				strlen("USBIW416"), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -755,9 +790,9 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB9098
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9098_PID_1 ||
+		    (__force __le16)USB9098_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9098_PID_2) {
+		    (__force __le16)USB9098_PID_2) {
 		card_type = CARD_TYPE_USB9098;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB9098,
 				strlen(CARD_USB9098), strlen(driver_version));
@@ -771,12 +806,44 @@ static t_u16 woal_update_card_type(t_void *card)
 #endif
 #ifdef USB9097
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9097_PID_1 ||
+		    (__force __le16)USB9097_PID_1 ||
 	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    USB9097_PID_2) {
+		    (__force __le16)USB9097_PID_2) {
 		card_type = CARD_TYPE_USB9097;
 		moal_memcpy_ext(NULL, driver_version, CARD_USB9097,
 				strlen(CARD_USB9097), strlen(driver_version));
+		moal_memcpy_ext(NULL,
+				driver_version + strlen(INTF_CARDTYPE) +
+					strlen(KERN_VERSION),
+				V17, strlen(V17),
+				strlen(driver_version) - strlen(INTF_CARDTYPE) -
+					strlen(KERN_VERSION));
+	}
+#endif
+#ifdef USBIW624
+	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBIW624_PID_1 ||
+	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBIW624_PID_2) {
+		card_type = CARD_TYPE_USBIW624;
+		moal_memcpy_ext(NULL, driver_version, CARD_USBIW624,
+				strlen(CARD_USBIW624), strlen(driver_version));
+		moal_memcpy_ext(NULL,
+				driver_version + strlen(INTF_CARDTYPE) +
+					strlen(KERN_VERSION),
+				V18, strlen(V18),
+				strlen(driver_version) - strlen(INTF_CARDTYPE) -
+					strlen(KERN_VERSION));
+	}
+#endif
+#ifdef USBIW615
+	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBIW615_PID_1 ||
+	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
+		    (__force __le16)USBIW615_PID_2) {
+		card_type = CARD_TYPE_USBIW615;
+		moal_memcpy_ext(NULL, driver_version, CARD_USBIW615,
+				strlen(CARD_USBIW615), strlen(driver_version));
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
@@ -824,34 +891,41 @@ static int woal_usb_probe(struct usb_interface *intf,
 	/* Check probe is for our device */
 	for (i = 0; woal_usb_table[i].idVendor; i++) {
 		if (woal_cpu_to_le16(udev->descriptor.idVendor) ==
-			    woal_usb_table[i].idVendor &&
+			    (__force __le16)woal_usb_table[i].idVendor &&
 		    woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			    woal_usb_table[i].idProduct) {
+			    (__force __le16)woal_usb_table[i].idProduct) {
 			PRINTM(MMSG, "VID/PID = %X/%X, Boot2 version = %X\n",
 			       woal_cpu_to_le16(udev->descriptor.idVendor),
 			       woal_cpu_to_le16(udev->descriptor.idProduct),
 			       woal_cpu_to_le16(udev->descriptor.bcdDevice));
 			switch (woal_cpu_to_le16(udev->descriptor.idProduct)) {
 #ifdef USB8801
-			case USB8801_PID_1:
+			case (__force __le16)USB8801_PID_1:
 #endif /* USB8801 */
 #ifdef USB8897
-			case USB8897_PID_1:
+			case (__force __le16)USB8897_PID_1:
 #endif /* USB8897 */
 #ifdef USB8997
-			case USB8997_PID_1:
-			case USB8997V2_PID_1:
+			case (__force __le16)USB8997_PID_1:
+			case (__force __le16)USB8997V2_PID_1:
 #endif /* USB8997 */
 #ifdef USB8978
-			case USB8978_PID_1:
-			case USB8978_PID_1_BT:
+			case (__force __le16)USB8978_PID_1:
+			case (__force __le16)USB8978_PID_1_BT:
 #endif /* USB8978 */
 #ifdef USB9098
-			case USB9098_PID_1:
+			case (__force __le16)USB9098_PID_1:
 #endif /* USB9098 */
 #ifdef USB9097
-			case USB9097_PID_1:
+			case (__force __le16)USB9097_PID_1:
 #endif /* USB9097 */
+#ifdef USBIW624
+			case (__force __le16)USBIW624_PID_1:
+#endif /* USBIW624 */
+#ifdef USBIW615
+			case (__force __le16)USBIW615_PID_1:
+#endif /* USBIW615 */
+
 				/* If skip FW is set, we must return error so
 				 * the next driver can download the FW */
 				if (skip_fwdnld)
@@ -860,24 +934,31 @@ static int woal_usb_probe(struct usb_interface *intf,
 					usb_cardp->boot_state = USB_FW_DNLD;
 				break;
 #ifdef USB8801
-			case USB8801_PID_2:
+			case (__force __le16)USB8801_PID_2:
 #endif /* USB8801 */
 #ifdef USB8897
-			case USB8897_PID_2:
+			case (__force __le16)USB8897_PID_2:
 #endif /* USB8897 */
 #ifdef USB8997
-			case USB8997_PID_2:
+			case (__force __le16)USB8997_PID_2:
 #endif /* USB8997 */
 #ifdef USB8978
-			case USB8978_PID_2:
-			case USB8978_PID_2_BT:
+			case (__force __le16)USB8978_PID_2:
+			case (__force __le16)USB8978_PID_2_BT:
 #endif /* USB8978 */
 #ifdef USB9098
-			case USB9098_PID_2:
+			case (__force __le16)USB9098_PID_2:
 #endif /* USB9098 */
 #ifdef USB9097
-			case USB9097_PID_2:
+			case (__force __le16)USB9097_PID_2:
 #endif /* USB9097 */
+#ifdef USBIW624
+			case (__force __le16)USBIW624_PID_2:
+#endif /* USBIW624 */
+#ifdef USBIW615
+			case (__force __le16)USBIW615_PID_2:
+#endif /* USBIW615 */
+
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
 			}
@@ -964,7 +1045,25 @@ static int woal_usb_probe(struct usb_interface *intf,
 					endpoint->bEndpointAddress;
 				atomic_set(&usb_cardp->tx_data_urb_pending, 0);
 				usb_cardp->tx_data_maxpktsize =
-					woal_le16_to_cpu(
+					(__force int)woal_le16_to_cpu(
+						endpoint->wMaxPacketSize);
+			}
+			if (usb_endpoint_is_bulk_out(endpoint) &&
+			    (usb_endpoint_num(endpoint) ==
+				     MLAN_USB_EP_DATA_CH2 ||
+			     usb_endpoint_num(endpoint) ==
+				     MLAN_USB_EP_DATA_CH2_IF2)) {
+				/* We found a bulk out data endpoint */
+				PRINTM(MCMND,
+				       "Bulk OUT2: max packet size = %d, address = %d\n",
+				       woal_le16_to_cpu(
+					       endpoint->wMaxPacketSize),
+				       endpoint->bEndpointAddress);
+				usb_cardp->tx_data2_ep =
+					endpoint->bEndpointAddress;
+				atomic_set(&usb_cardp->tx_data2_urb_pending, 0);
+				usb_cardp->tx_data2_maxpktsize =
+					(__force int)woal_le16_to_cpu(
 						endpoint->wMaxPacketSize);
 			}
 
@@ -988,8 +1087,9 @@ static int woal_usb_probe(struct usb_interface *intf,
 				usb_cardp->tx_cmd_ep =
 					endpoint->bEndpointAddress;
 				atomic_set(&usb_cardp->tx_cmd_urb_pending, 0);
-				usb_cardp->tx_cmd_maxpktsize = woal_le16_to_cpu(
-					endpoint->wMaxPacketSize);
+				usb_cardp->tx_cmd_maxpktsize =
+					(__force int)woal_le16_to_cpu(
+						endpoint->wMaxPacketSize);
 			}
 		}
 
@@ -1003,6 +1103,14 @@ static int woal_usb_probe(struct usb_interface *intf,
 				       "%s: invalid endpoint assignment\n",
 				       __FUNCTION__);
 				goto error;
+			}
+			if (!usb_cardp->tx_data2_ep) {
+				PRINTM(MERROR,
+				       "%s: invalid endpoint assignment\n",
+				       __FUNCTION__);
+				PRINTM(MERROR,
+				       "%s: DATA2 endpoint is not enumarated\n",
+				       __FUNCTION__);
 			}
 		}
 
@@ -1161,6 +1269,7 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_card_rec *cardp = usb_get_intfdata(intf);
 	moal_handle *handle = NULL;
+	mlan_ds_ps_info pm_info;
 	int i;
 	int ret = 0;
 
@@ -1185,6 +1294,27 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 			woal_cancel_scan(handle->priv[i], MOAL_IOCTL_WAIT);
 	}
 #endif
+
+	memset(&pm_info, 0, sizeof(pm_info));
+#define MAX_RETRY_USB 8
+	for (i = 0; i < MAX_RETRY_USB; i++) {
+		if (MLAN_STATUS_SUCCESS ==
+		    woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
+				     &pm_info)) {
+			if (pm_info.is_suspend_allowed == MTRUE)
+				break;
+			else
+				PRINTM(MMSG,
+				       "Suspend not allowed and retry again\n");
+		}
+		woal_sched_timeout(100);
+	}
+	if (pm_info.is_suspend_allowed == MFALSE) {
+		PRINTM(MMSG, "Suspend not allowed\n");
+		ret = -EBUSY;
+		goto done;
+	}
+
 	/* Enable Host Sleep */
 	woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
 
@@ -1207,7 +1337,6 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
 			if (cardp->rx_data_list[i].urb) {
 				usb_kill_urb(cardp->rx_data_list[i].urb);
-				usb_init_urb(cardp->rx_data_list[i].urb);
 			}
 		}
 	}
@@ -1216,6 +1345,9 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	for (i = 0; i < MVUSB_TX_HIGH_WMARK; i++) {
 		if (cardp->tx_data_list[i].urb) {
 			usb_kill_urb(cardp->tx_data_list[i].urb);
+		}
+		if (cardp->tx_data2_list[i].urb) {
+			usb_kill_urb(cardp->tx_data2_list[i].urb);
 		}
 	}
 	/* Unlink Tx cmd URB */
@@ -1348,6 +1480,15 @@ mlan_status woal_usb_tx_init(moal_handle *handle)
 			ret = MLAN_STATUS_FAILURE;
 			goto init_exit;
 		}
+		cardp->tx_data2_list[i].handle = handle;
+		cardp->tx_data2_list[i].ep = cardp->tx_data2_ep;
+		/* Allocate URB for data */
+		cardp->tx_data2_list[i].urb = usb_alloc_urb(0, GFP_KERNEL);
+		if (!cardp->tx_data2_list[i].urb) {
+			PRINTM(MERROR, "Tx data URB allocation failed\n");
+			ret = MLAN_STATUS_FAILURE;
+			goto init_exit;
+		}
 	}
 
 init_exit:
@@ -1476,6 +1617,8 @@ static mlan_status woal_usb_write_data_sync(moal_handle *handle,
 		bulk_out_maxpktsize = cardp->tx_cmd_maxpktsize;
 	else if (ep == cardp->tx_data_ep)
 		bulk_out_maxpktsize = cardp->tx_data_maxpktsize;
+	else if (ep == cardp->tx_data2_ep)
+		bulk_out_maxpktsize = cardp->tx_data2_maxpktsize;
 
 	if (length % bulk_out_maxpktsize == 0)
 		length++;
@@ -1562,6 +1705,11 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 	    (atomic_read(&cardp->tx_data_urb_pending) >= MVUSB_TX_HIGH_WMARK)) {
 		ret = MLAN_STATUS_RESOURCE;
 		goto tx_ret;
+	} else if ((ep == cardp->tx_data2_ep) &&
+		   (atomic_read(&cardp->tx_data2_urb_pending) >=
+		    MVUSB_TX_HIGH_WMARK)) {
+		ret = MLAN_STATUS_RESOURCE;
+		goto tx_ret;
 	}
 	PRINTM(MINFO, "woal_write_data_async: ep=%d\n", ep);
 
@@ -1574,6 +1722,11 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 			if (cardp->tx_data_ix >= MVUSB_TX_HIGH_WMARK)
 				cardp->tx_data_ix = 0;
 			context = &cardp->tx_data_list[cardp->tx_data_ix++];
+		} else if (ep == cardp->tx_data2_ep) {
+			bulk_out_maxpktsize = cardp->tx_data2_maxpktsize;
+			if (cardp->tx_data2_ix >= MVUSB_TX_HIGH_WMARK)
+				cardp->tx_data2_ix = 0;
+			context = &cardp->tx_data2_list[cardp->tx_data2_ix++];
 		}
 	}
 
@@ -1615,6 +1768,8 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 		atomic_inc(&cardp->tx_cmd_urb_pending);
 	else if (ep == cardp->tx_data_ep)
 		atomic_inc(&cardp->tx_data_urb_pending);
+	else if (ep == cardp->tx_data2_ep)
+		atomic_inc(&cardp->tx_data2_urb_pending);
 	if (usb_submit_urb(tx_urb, GFP_ATOMIC)) {
 		/* Submit URB failure */
 		PRINTM(MERROR, "Submit EP %d Tx URB failed: %d\n", ep, ret);
@@ -1627,6 +1782,13 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 					cardp->tx_data_ix--;
 				else
 					cardp->tx_data_ix = MVUSB_TX_HIGH_WMARK;
+			} else if (ep == cardp->tx_data2_ep) {
+				atomic_dec(&cardp->tx_data2_urb_pending);
+				if (cardp->tx_data2_ix)
+					cardp->tx_data2_ix--;
+				else
+					cardp->tx_data2_ix =
+						MVUSB_TX_HIGH_WMARK;
 			}
 		}
 		ret = MLAN_STATUS_FAILURE;
@@ -1634,6 +1796,10 @@ mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
 		if (ep == cardp->tx_data_ep &&
 		    (atomic_read(&cardp->tx_data_urb_pending) ==
 		     MVUSB_TX_HIGH_WMARK))
+			ret = MLAN_STATUS_PRESOURCE;
+		else if (ep == cardp->tx_data2_ep &&
+			 (atomic_read(&cardp->tx_data2_urb_pending) ==
+			  MVUSB_TX_HIGH_WMARK))
 			ret = MLAN_STATUS_PRESOURCE;
 		else
 			ret = MLAN_STATUS_SUCCESS;
@@ -1918,6 +2084,8 @@ static void woal_usb_dump_fw_info(moal_handle *phandle)
 
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
+	phandle->is_fw_dump_timer_set = MTRUE;
+	woal_mod_timer(&phandle->fw_dump_timer, MOAL_TIMER_5S);
 
 done:
 	LEAVE();
@@ -1927,9 +2095,11 @@ done:
 static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBIW624) || defined(USBIW615)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
+	t_u32 boot_mode = 0;
 #endif
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
 #if defined(USB9098)
@@ -1946,8 +2116,10 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 #endif
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) || defined(USB8978)
-	ret = woal_check_chip_revision(handle, &revision_id, &strap);
+#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
+	defined(USB8978) || defined(USBIW624) || defined(USBIW615)
+	ret = woal_check_chip_revision(handle, &revision_id, &strap,
+				       &boot_mode);
 	if (ret != MLAN_STATUS_SUCCESS) {
 		PRINTM(MFATAL, "Chip revision check failure!\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -1959,22 +2131,26 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #ifdef USB8997
 	if (IS_USB8997(handle->card_type)) {
 		if (strap == CARD_TYPE_USB_UART)
-			strcpy(handle->card_info->fw_name,
-			       USBUART8997_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUART8997_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 		else if (strap != 0)
-			strcpy(handle->card_info->fw_name,
-			       USBUSB8997_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUSB8997_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 	}
 #endif
 
 #ifdef USB8978
 	if (IS_USB8978(handle->card_type)) {
 		if (strap == CARD_TYPE_USB_UART)
-			strcpy(handle->card_info->fw_name,
-			       USBUART8978_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUART8978_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 		else if (strap != 0)
-			strcpy(handle->card_info->fw_name,
-			       USBUSB8978_DEFAULT_COMBO_FW_NAME);
+			strncpy(handle->card_info->fw_name,
+				USBUSB8978_DEFAULT_COMBO_FW_NAME,
+				FW_NAMW_MAX_LEN);
 	}
 #endif
 
@@ -1983,10 +2159,12 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		if (cardp->second_mac) {
 			ref_handle = (moal_handle *)handle->pref_mac;
 			if (ref_handle) {
-				strcpy(handle->card_info->fw_name,
-				       ref_handle->card_info->fw_name);
-				strcpy(handle->card_info->fw_name_wlan,
-				       ref_handle->card_info->fw_name_wlan);
+				strncpy(handle->card_info->fw_name,
+					ref_handle->card_info->fw_name,
+					FW_NAMW_MAX_LEN);
+				strncpy(handle->card_info->fw_name_wlan,
+					ref_handle->card_info->fw_name_wlan,
+					FW_NAMW_MAX_LEN);
 			}
 			goto done;
 		}
@@ -1994,28 +2172,32 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9098_Z1Z2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9098_DEFAULT_COMBO_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9098_DEFAULT_COMBO_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9098_DEFAULT_COMBO_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9098_DEFAULT_COMBO_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9098_DEFAULT_WLAN_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9098_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case USB9098_A0:
 		case USB9098_A1:
 		case USB9098_A2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9098_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9098_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9098_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9098_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9098_WLAN_V1_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9098_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
 	}
@@ -2027,18 +2209,43 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9097_B1:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strcpy(handle->card_info->fw_name,
-					       USBUART9097_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUART9097_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 				else
-					strcpy(handle->card_info->fw_name,
-					       USBUSB9097_COMBO_V1_FW_NAME);
+					strncpy(handle->card_info->fw_name,
+						USBUSB9097_COMBO_V1_FW_NAME,
+						FW_NAMW_MAX_LEN);
 			}
-			strcpy(handle->card_info->fw_name_wlan,
-			       USB9097_WLAN_V1_FW_NAME);
+			strncpy(handle->card_info->fw_name_wlan,
+				USB9097_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
 	}
 #endif
+#ifdef USBIW624
+	if (IS_USBIW624(handle->card_type)) {
+		if (boot_mode == 0x03)
+			PRINTM(MMSG, "wlan: USB-IW624 in secure-boot mode\n");
+		if (strap == CARD_TYPE_USB_UART)
+			strncpy(handle->card_info->fw_name,
+				USBUARTIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
+		else
+			strncpy(handle->card_info->fw_name,
+				USBUSBIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
+	}
+#endif
+#ifdef USBIW615
+	if (IS_USBIW615(handle->card_type)) {
+		if (strap == CARD_TYPE_USB_UART)
+			strcpy(handle->card_info->fw_name,
+			       USBUARTIW615_COMBO_FW_NAME);
+		else
+			strcpy(handle->card_info->fw_name,
+			       USBUSBIW615_COMBO_FW_NAME);
+	}
+#endif
+
 done:
 	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);

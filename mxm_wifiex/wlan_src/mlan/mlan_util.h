@@ -47,6 +47,11 @@ typedef struct _mlan_list_head {
 	t_void *plock;
 } mlan_list_head, *pmlan_list_head;
 
+struct reflective_enum_element {
+	int id;
+	const char *name;
+};
+
 /** MLAN MNULL pointer */
 #define MNULL ((void *)0)
 
@@ -403,8 +408,10 @@ static INLINE t_void util_scalar_decrement(
  *  @param moal_spin_lock	A pointer to spin lock handler
  *  @param moal_spin_unlock	A pointer to spin unlock handler
  *
- *  @return					Value after offset
+ *  @return			Value after offset or 0 if (scalar_value + offset)
+ * overflows
  */
+#define INT_MAX 2147483647
 static INLINE t_s32 util_scalar_offset(
 	t_void *pmoal_handle, pmlan_scalar pscalar, t_s32 offset,
 	mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
@@ -414,7 +421,10 @@ static INLINE t_s32 util_scalar_offset(
 
 	if (moal_spin_lock)
 		moal_spin_lock(pmoal_handle, pscalar->plock);
-	newval = (pscalar->value += offset);
+	if (pscalar->value < (INT_MAX - offset))
+		newval = (pscalar->value += offset);
+	else
+		newval = 0;
 	if (moal_spin_unlock)
 		moal_spin_unlock(pmoal_handle, pscalar->plock);
 
@@ -490,6 +500,19 @@ static INLINE t_u32 bitcount(t_u32 num)
 	for (; num != 0; num >>= 4)
 		count += nibblebits[num & 0x0f];
 	return count;
+}
+
+static INLINE const char *
+reflective_enum_lookup_name(const struct reflective_enum_element *elements,
+			    int id)
+{
+	const struct reflective_enum_element *elem = elements;
+
+	while (elem->name && elem->id != id) {
+		elem++;
+	}
+
+	return elem->name;
 }
 
 #endif /* !_MLAN_UTIL_H_ */

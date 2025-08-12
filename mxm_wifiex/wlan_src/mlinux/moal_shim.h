@@ -4,7 +4,7 @@
  * functions defined in moal module
  *
  *
- * Copyright 2008-2020 NXP
+ * Copyright 2008-2021 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -59,6 +59,7 @@ mlan_status moal_write_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 				 t_u32 timeout);
 mlan_status moal_read_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 				t_u32 timeout);
+mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent);
 mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf);
@@ -94,10 +95,6 @@ mlan_status moal_init_lock(t_void *pmoal, t_void **pplock);
 mlan_status moal_free_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_lock(t_void *pmoal, t_void *plock);
 mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock);
-#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
-mlan_status moal_wait_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-mlan_status moal_notify_hostcmd_complete(t_void *pmoal, t_u32 bss_index);
-#endif
 t_void moal_print(t_void *pmoal, t_u32 level, char *pformat, IN...);
 t_void moal_print_netintf(t_void *pmoal, t_u32 bss_index, t_u32 level);
 t_void moal_assert(t_void *pmoal, t_u32 cond);
@@ -118,12 +115,15 @@ mlan_status moal_stop_timer(t_void *pmoal, t_void *ptimer);
 void moal_tp_accounting(t_void *pmoal, void *buf, t_u32 drop_point);
 void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
 				 unsigned int rsvd1);
+void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
+			      t_s32 amsdu_copy_delay);
 
+void moal_connection_status_check_pmqos(t_void *pmoal);
 #if defined(PCIE) || defined(SDIO)
 /* pmqos busfreq add request handler*/
-void woal_request_busfreq_pmqos_add(t_u16 card_type);
+void woal_request_busfreq_pmqos_add(t_void *pmhandle);
 /* pmqos busfreq remove handler*/
-void woal_release_busfreq_pmqos_remove(t_u16 card_type);
+void woal_release_busfreq_pmqos_remove(t_void *pmhandle);
 #endif
 
 #endif /*_MOAL_H */
