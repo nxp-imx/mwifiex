@@ -3,7 +3,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2018-2022 NXP
+ *  Copyright 2018-2022, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -69,6 +69,7 @@ int wlan_cmd_append_116e_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
 t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
 			       Band_Config_t *bandcfg);
+t_bool is_6ghz_op_class(t_u8 op_class);
 
 int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);

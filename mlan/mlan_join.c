@@ -565,7 +565,7 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
  *  @param len          Length of ie rsn_ie data after IE header
  *  @param return       rsn_cap
  */
-static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
+static t_u16 wlan_get_rsn_cap(mlan_private *pmpriv, t_u8 *data, t_u8 len)
 {
 	t_u16 rsn_cap = 0;
 	t_u16 *ptr;
@@ -588,7 +588,8 @@ static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
 	 */
 	end_ptr = (t_u16 *)(data + len);
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8));
-	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
+	pairwise_cipher_count =
+		wlan_le16_to_cpu(read_u16_unaligned(pmpriv->adapter, ptr));
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
@@ -596,7 +597,8 @@ static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
 		PRINTM(MERROR, "RSNE: PAIRWISE_CIPHER not correct\n");
 		goto done;
 	}
-	akm_suite_count = wlan_le16_to_cpu(*ptr);
+	akm_suite_count =
+		wlan_le16_to_cpu(read_u16_unaligned(pmpriv->adapter, ptr));
 	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
@@ -605,7 +607,7 @@ static t_u16 wlan_get_rsn_cap(t_u8 *data, t_u8 len)
 		PRINTM(MERROR, "RSNE: AKM Suite or RSNCAP not correct\n");
 		goto done;
 	}
-	rsn_cap = wlan_le16_to_cpu(*ptr);
+	rsn_cap = wlan_le16_to_cpu(read_u16_unaligned(pmpriv->adapter, ptr));
 
 done:
 	PRINTM(MCMND, "rsn_cap=0x%x\n", rsn_cap);
@@ -629,11 +631,11 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 
 	if (pmpriv->wpa_ie[0] != RSN_IE)
 		return 0;
-	sta_rsn_cap =
-		wlan_get_rsn_cap(pmpriv->wpa_ie + 2, *(pmpriv->wpa_ie + 1));
+	sta_rsn_cap = wlan_get_rsn_cap(pmpriv, pmpriv->wpa_ie + 2,
+				       *(pmpriv->wpa_ie + 1));
 	if (!pbss_desc->prsn_ie)
 		return 0;
-	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data,
+	ap_rsn_cap = wlan_get_rsn_cap(pmpriv, pbss_desc->prsn_ie->data,
 				      pbss_desc->prsn_ie->ieee_hdr.len);
 	ap_mfpc = ((ap_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
 	ap_mfpr = ((ap_rsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
@@ -730,7 +732,8 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	ptr = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8);
 
 	pairwise_cipher_count_ptr = ptr;
-	pairwise_cipher_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+	pairwise_cipher_count =
+		wlan_le16_to_cpu(read_u16_unaligned(pmpriv->adapter, ptr));
 	ptr += sizeof(t_u16);
 
 	if ((pairwise_cipher_count == 0) ||
@@ -776,7 +779,8 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	 */
 	ptr = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8) +
 	      sizeof(t_u16) + pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN;
-	akm_suite_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+	akm_suite_count =
+		wlan_le16_to_cpu(read_u16_unaligned(pmpriv->adapter, ptr));
 	ptr += sizeof(t_u16); // move pointer to AKM suite
 
 	if ((akm_suite_count == 0) || (ptr + AKM_SUITE_LEN * akm_suite_count +
@@ -873,7 +877,8 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	// PMKID
 	ptr += sizeof(t_u16);
 	if (end_ptr >= (ptr + sizeof(t_u16))) {
-		pmkid_count = wlan_le16_to_cpu(*(t_u16 *)ptr);
+		pmkid_count = wlan_le16_to_cpu(
+			read_u16_unaligned(pmpriv->adapter, ptr));
 		ptr += sizeof(t_u16);
 
 		if (pmkid_count &&
@@ -890,24 +895,25 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	/* Compose new RSNE */
 	// pairwiase
 	ptr = pairwise_cipher_count_ptr;
-	*(t_u16 *)ptr = wlan_cpu_to_le16(1);
+	write_u16_unaligned(pmadapter, ptr, wlan_cpu_to_le16(1));
 	ptr += sizeof(t_u16);
 	oui[3] = cipher_selected_id;
-	*(t_u32 *)ptr = *(t_u32 *)oui;
+	write_u32_unaligned(pmadapter, ptr, *(t_u32 *)oui);
 	ptr += PAIRWISE_CIPHER_SUITE_LEN;
 	// akm
-	*(t_u16 *)ptr = wlan_cpu_to_le16(1);
+	write_u16_unaligned(pmadapter, ptr, wlan_cpu_to_le16(1));
 	ptr += sizeof(t_u16);
 	oui[3] = akm_type_id;
-	*(t_u32 *)ptr = *(t_u32 *)oui;
+	write_u32_unaligned(pmadapter, ptr, *(t_u32 *)oui);
 	ptr += AKM_SUITE_LEN;
 	// RSNCAP
-	*(t_u16 *)ptr = wlan_cpu_to_le16(*prsn_cap);
+	write_u16_unaligned(pmadapter, ptr, wlan_cpu_to_le16(*prsn_cap));
 	ptr += sizeof(t_u16);
 	// PMKID list
 	if (pmkid_list_ptr || group_mgmt_cipher_suite_ptr) {
 		// Add PMKID
-		*(t_u16 *)ptr = wlan_cpu_to_le16(pmkid_count);
+		write_u16_unaligned(pmadapter, ptr,
+				    wlan_cpu_to_le16(pmkid_count));
 		ptr += sizeof(t_u16);
 		if (pmkid_count) {
 			memcpy_ext(pmadapter, ptr, (t_u8 *)pmkid_list_ptr,
@@ -960,10 +966,12 @@ t_u8 wlan_ft_akm_is_used(mlan_private *pmpriv, t_u8 *rsn_ie)
 	 * PAIRWISE_CIPHER_SUITE_LEN (4) + 2 bytes akm_suite_count +
 	 * akm_suite_count * AKM_SUITE_LEN (4)
 	 */
-	count = *(t_u16 *)(rsn_ie + 2 + 2 + 4 * sizeof(t_u8));
+	count = read_u16_unaligned(pmadapter,
+				   rsn_ie + 2 + 2 + 4 * sizeof(t_u8));
 	pairwise_cipher_count = wlan_le16_to_cpu(count);
-	count = *(t_u16 *)(rsn_ie + 2 + 2 + 4 * sizeof(t_u8) + sizeof(t_u16) +
-			   pairwise_cipher_count * 4);
+	count = read_u16_unaligned(
+		pmadapter, rsn_ie + 2 + 2 + 4 * sizeof(t_u8) + sizeof(t_u16) +
+				   pairwise_cipher_count * 4);
 	akm_suite_count = wlan_le16_to_cpu(count);
 	temp = (t_u8 *)(rsn_ie + 2 + sizeof(t_u16) + 4 * sizeof(t_u8) +
 			sizeof(t_u16) + pairwise_cipher_count * 4 +
@@ -1063,6 +1071,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	IEEEtypes_CapInfo_t *pcap_info;
 	t_u8 ft_akm = 0;
 	t_u8 oper_class;
+	t_u8 global_oper_class;
 	t_u8 oper_class_flag = MFALSE;
 	t_u8 akm_type = 0;
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
@@ -1473,7 +1482,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				    pmpriv,
 				    pbss_desc->phy_param_set.ds_param_set
 					    .current_chan,
-				    pbss_desc->curr_bandwidth, &oper_class))
+				    pbss_desc->curr_bandwidth, &oper_class,
+				    &global_oper_class))
 				wlan_add_supported_oper_class_ie(pmpriv, &pos,
 								 oper_class);
 		}
@@ -1857,7 +1867,8 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 		       "ASSOC_RESP: Association Failed, "
 		       "status code = %d, error = 0x%x, a_id = 0x%x\n",
 		       passoc_rsp->status_code,
-		       wlan_le16_to_cpu(*(t_u16 *)&passoc_rsp->capability),
+		       wlan_le16_to_cpu(read_u16_unaligned(
+			       pmpriv->adapter, &passoc_rsp->capability)),
 		       wlan_le16_to_cpu(passoc_rsp->a_id));
 		memset(pmadapter, event_buf, 0, sizeof(event_buf));
 		pevent->bss_index = pmpriv->bss_index;
@@ -2064,8 +2075,9 @@ done:
 		if (ret != MLAN_STATUS_SUCCESS) {
 			if (passoc_rsp->status_code)
 				pioctl_req->status_code =
-					(wlan_le16_to_cpu(*(t_u16 *)&passoc_rsp
-								   ->capability)
+					(wlan_le16_to_cpu(read_u16_unaligned(
+						 pmpriv->adapter,
+						 &passoc_rsp->capability))
 					 << 16) +
 					passoc_rsp->status_code;
 			else

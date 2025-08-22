@@ -1868,13 +1868,14 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
-			else
+			else if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
 				sys_config->ht_cap_info =
 					(ht_cap &
 					 (wiphy->bands[IEEE80211_BAND_5GHZ]
 						  ->ht_cap.cap &
 					  0x13ff)) |
 					0x0c;
+			}
 		}
 		PRINTM(MCMND,
 		       "11n=%d, ht_cap=0x%x, channel=%d, bandcfg:chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x\n",
@@ -3224,14 +3225,19 @@ void woal_remove_virtual_interface(moal_handle *handle)
 		ref_handle->priv_num -= ref_vir_intf;
 	}
 #endif
-	if (handle->mon_if) {
+	if (handle->mon_if && handle->mon_if->mon_ndev) {
 		netif_device_detach(handle->mon_if->mon_ndev);
-		if (handle->mon_if->mon_ndev->reg_state == NETREG_REGISTERED)
+		if (handle->mon_if->mon_ndev->reg_state == NETREG_REGISTERED) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-			cfg80211_unregister_netdevice(handle->mon_if->mon_ndev);
+			if (handle->mon_if->mon_ndev->ieee80211_ptr)
+				cfg80211_unregister_netdevice(
+					handle->mon_if->mon_ndev);
+			else
+				unregister_netdevice(handle->mon_if->mon_ndev);
 #else
 			unregister_netdevice(handle->mon_if->mon_ndev);
 #endif
+		}
 		handle->mon_if = NULL;
 	}
 	rtnl_unlock();

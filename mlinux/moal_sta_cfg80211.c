@@ -683,6 +683,9 @@ static const struct wiphy_coalesce_support coalesce_support = {
 /********************************************************
 				Global Variables
 ********************************************************/
+#define delta64(later, earlier)                                                \
+	((later >= earlier) ? later - earlier :                                \
+			      (t_u64)(-1) - earlier + later + 1)
 
 /********************************************************
 				Local Functions
@@ -6810,9 +6813,13 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 	enum ieee80211_band band;
 	ChanStatistics_t *pchan_stats = NULL;
 	mlan_scan_resp scan_resp;
+	mlan_ds_get_stats stats;
+	t_u64 active_time = 0;
 
 	ENTER();
 	PRINTM(MIOCTL, "dump_survey idx=%d\n", idx);
+
+	moal_get_host_time_ns(&active_time);
 
 	memset(&scan_resp, 0, sizeof(scan_resp));
 	if (MLAN_STATUS_SUCCESS !=
@@ -6852,6 +6859,68 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 	survey->channel_time_busy = pchan_stats[idx].cca_busy_duration;
 #endif
 #endif
+
+	if (((priv->media_connected &&
+	      (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)) ||
+	     (priv->bss_started && (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP))) &&
+	    pchan_stats[idx].chan_num == priv->channel) {
+		memset(&stats, 0, sizeof(mlan_ds_get_stats));
+		if (MLAN_STATUS_SUCCESS ==
+		    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+			if (stats.cca_cnt_us != 0) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+				survey->filled |= SURVEY_INFO_TIME |
+						  SURVEY_INFO_TIME_BUSY |
+						  SURVEY_INFO_TIME_RX |
+						  SURVEY_INFO_TIME_TX;
+				survey->time = moal_do_div(
+					delta64(active_time,
+						priv->bss_active_time),
+					1000000);
+				survey->time_rx = moal_do_div(
+					delta64(stats.rxAirtime_us,
+						priv->rx_airtime_base),
+					1000);
+				survey->time_tx = moal_do_div(
+					delta64(stats.txAirtime_us,
+						priv->tx_airtime_base),
+					1000);
+				survey->time_busy =
+					moal_do_div(delta64(stats.cca_cnt_us,
+							    priv->cca_cnt_base),
+						    1000) +
+					survey->time_rx + survey->time_tx;
+#else
+				survey->filled |=
+					SURVEY_INFO_CHANNEL_TIME |
+					SURVEY_INFO_CHANNEL_TIME_BUSY |
+					SURVEY_INFO_CHANNEL_TIME_RX |
+					SURVEY_INFO_CHANNEL_TIME_TX;
+				survey->channel_time = moal_do_div(
+					delta64(active_time,
+						priv->bss_active_time),
+					1000000);
+				survey->channel_time_rx = moal_do_div(
+					delta64(stats.rxAirtime_us,
+						priv->rx_airtime_base),
+					1000);
+				survey->channel_time_tx = moal_do_div(
+					delta64(stats.txAirtime_us,
+						priv->tx_airtime_base),
+					1000);
+				survey->channel_time_busy =
+					moal_do_div(delta64(stats.cca_cnt_us,
+							    priv->cca_cnt_base),
+						    1000) +
+					survey->channel_time_rx +
+					survey->channel_time_tx;
+#endif
+#endif
+			}
+		}
+	}
+
 done:
 	LEAVE();
 	return ret;
@@ -10946,6 +11015,13 @@ void woal_host_mlme_disconnect(moal_private *priv, u16 reason_code, u8 *sa)
 		);
 #else
 		cfg80211_rx_mgmt(priv->netdev, freq, frame_buf, 26, GFP_ATOMIC);
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		// Send Deauth frame to packet fate monitor framework
+		woal_packet_fate_monitor(priv, PACKET_TYPE_RX,
+					 RX_PKT_FATE_SUCCESS,
+					 FRAME_TYPE_80211_MGMT, 0, 0, frame_buf,
+					 26);
 #endif
 	}
 

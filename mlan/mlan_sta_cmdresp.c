@@ -37,6 +37,7 @@
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
 #include "mlan_meas.h"
+#include "mlan_shc.h"
 
 /********************************************************
  *			Local Variables
@@ -580,34 +581,39 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 				mib->param.dtim_period = ul_temp;
 			break;
 		case FragThresh_i:
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MINFO, "SNMP_RESP: FragThsd =%u\n", ul_temp);
 			if (mib)
 				mib->param.frag_threshold = ul_temp;
 			break;
 
 		case RtsThresh_i:
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MINFO, "SNMP_RESP: RTSThsd =%u\n", ul_temp);
 			if (mib)
 				mib->param.rts_threshold = ul_temp;
 			break;
 
 		case ShortRetryLim_i:
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MINFO, "SNMP_RESP: TxRetryCount=%u\n", ul_temp);
 			if (mib)
 				mib->param.retry_count = ul_temp;
 			break;
 		case WwsMode_i:
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MINFO, "SNMP_RESP: WWSCfg =%u\n", ul_temp);
 			if (pioctl_buf)
 				((mlan_ds_misc_cfg *)pioctl_buf->pbuf)
 					->param.wws_cfg = ul_temp;
 			break;
 		case Thermal_i:
-			ul_temp = wlan_le32_to_cpu(*((t_u32 *)(psmib->value)));
+			ul_temp = wlan_le32_to_cpu(read_u32_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MINFO, "SNMP_RESP: Thermal =%u\n", ul_temp);
 			if (pioctl_buf)
 				((mlan_ds_misc_cfg *)pioctl_buf->pbuf)
@@ -631,7 +637,8 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 	} else { /* (query_type == HostCmd_ACT_GEN_SET) */
 		/* Update state for 11d */
 		if (oid == Dot11D_i) {
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			/* Set 11d state to private */
 			pmpriv->state_11d.enable_11d = ul_temp;
 			/* Set user enable flag if called from ioctl */
@@ -640,7 +647,8 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 		}
 		/* Update state for 11h */
 		if (oid == Dot11H_i) {
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MCMND, "wlan: Dot11H_i=%d\n", ul_temp);
 			/* Set 11h state to priv */
 			pmpriv->intf_state_11h.is_11h_active =
@@ -656,21 +664,24 @@ static mlan_status wlan_ret_802_11_snmp_mib(pmlan_private pmpriv,
 		/* Update state for 11h tpc disable */
 		if (oid == Dot11h_disable_tpc_i) {
 			/* Set 11h tpc to private */
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MCMND, "SNMP_RESP: Dot11h_disable_tpc_i =%u\n",
 			       ul_temp);
 		}
 		/* Update state for Tpe Ie Ignore */
 		if (oid == Ignore_tpe_i) {
 			/* Set tpe ie ignore to private */
-			ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+			ul_temp = wlan_le16_to_cpu(read_u16_unaligned(
+				pmpriv->adapter, psmib->value));
 			PRINTM(MCMND, "SNMP_RESP: Ignore_tpe_i = %u\n",
 			       ul_temp);
 		}
 	}
 
 	if (oid == User_band_config_i) {
-		ul_temp = wlan_le16_to_cpu(*((t_u16 *)(psmib->value)));
+		ul_temp = wlan_le16_to_cpu(
+			read_u16_unaligned(pmpriv->adapter, psmib->value));
 		PRINTM(MCMND, "SNMP_RESP: user defined bandcfg =0x%x\n",
 		       ul_temp);
 	}
@@ -821,6 +832,13 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
 			wlan_le32_to_cpu(pget_log->TXpwrMethod);
 		pget_info->param.stats.isDPDdone =
 			wlan_le32_to_cpu(pget_log->isDPDdone);
+
+		pget_info->param.stats.cca_cnt_us =
+			wlan_le64_to_cpu(pget_log->cca_cnt_us);
+		pget_info->param.stats.rxAirtime_us =
+			wlan_le64_to_cpu(pget_log->rxAirtime_us);
+		pget_info->param.stats.txAirtime_us =
+			wlan_le64_to_cpu(pget_log->txAirtime_us);
 
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
@@ -3457,6 +3475,8 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_FUNC_INIT:
 	case HostCmd_CMD_FUNC_SHUTDOWN:
 		break;
+	case HostCmd_CMD_SECURE_HOST:
+		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		ret = wlan_ret_802_11_key_material(pmpriv, resp, pioctl_buf);
 		break;
@@ -3770,6 +3790,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_TX_AMPDU_PROT_MODE:
 		ret = wlan_ret_tx_ampdu_prot_mode(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_PREAMBLE_PWR_BOOST:
+		ret = wlan_ret_preamble_pwr_boost(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG:
 		ret = wlan_ret_dot11mc_unassoc_ftm_cfg(pmpriv, resp,
 						       pioctl_buf);
@@ -3787,7 +3810,7 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_cck_desense_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_CHANNEL_TRPC_CONFIG:
-		ret = wlan_ret_get_chan_trpc_config(pmpriv, resp, pioctl_buf);
+		ret = wlan_ret_chan_trpc_config(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_LOW_POWER_MODE_CFG:
 		ret = wlan_ret_set_get_low_power_mode_cfg(pmpriv, resp,

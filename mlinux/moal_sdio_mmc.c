@@ -2278,8 +2278,13 @@ static rdwr_status woal_cmd52_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 	}
 	if (trigger) {
 		PRINTM(MMSG, "Trigger FW dump...\n");
-		ret = woal_sdio_writeb(phandle, HOST_TO_CARD_EVENT_REG,
-				       HOST_TO_CARD_EVENT);
+		if (IS_SDIW610(phandle->card_type)) {
+			ret = woal_sdio_writeb(phandle, HOST_TO_CARD_EVENT_REG,
+					       HOST_RST_EVENT);
+		} else {
+			ret = woal_sdio_writeb(phandle, HOST_TO_CARD_EVENT_REG,
+					       HOST_TO_CARD_EVENT);
+		}
 		if (ret) {
 			PRINTM(MERROR, "Fail to set HOST_TO_CARD_EVENT_REG\n");
 			return RDWR_STATUS_FAILURE;

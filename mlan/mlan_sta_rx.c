@@ -150,7 +150,8 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 			return;
 		pos = pbuf + sizeof(EthII_Hdr_t) + 4;
 		/*payload 1+ category 1 + action 1 +dialog 1*/
-		sta_ptr->capability = mlan_ntohs(*(t_u16 *)pos);
+		sta_ptr->capability =
+			mlan_ntohs(read_u16_unaligned(priv->adapter, pos));
 		ie_len = len - sizeof(EthII_Hdr_t) - TDLS_REQ_FIX_LEN;
 		pos += 2;
 	} else if (action == 1) { /*setup respons*/
@@ -160,7 +161,8 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 			return;
 		pos = pbuf + sizeof(EthII_Hdr_t) + 6;
 		/*payload 1+ category 1 + action 1 +dialog 1 +status 2*/
-		sta_ptr->capability = mlan_ntohs(*(t_u16 *)pos);
+		sta_ptr->capability =
+			mlan_ntohs(read_u16_unaligned(priv->adapter, pos));
 		ie_len = len - sizeof(EthII_Hdr_t) - TDLS_RESP_FIX_LEN;
 		pos += 2;
 	} else { /*setup confirm*/

@@ -593,14 +593,15 @@ wlan_usb_tx_copy_buf_to_aggr_v2(pmlan_adapter pmadapter,
 		  pmbuf_aggr->data_len;
 	if (last) {
 		offset = pmbuf->data_len;
-		*(t_u16 *)&payload[2] =
-			wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2 | 0x80);
+		write_u16_unaligned(pmadapter, &payload[2],
+				    wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2 |
+						     0x80));
 	} else {
 		offset = usb_tx_aggr_pad_len(pmbuf->data_len, pusb_tx_aggr);
-		*(t_u16 *)&payload[2] =
-			wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2);
+		write_u16_unaligned(pmadapter, &payload[2],
+				    wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2));
 	}
-	*(t_u16 *)&payload[0] = wlan_cpu_to_le16(offset);
+	write_u16_unaligned(pmadapter, &payload[0], wlan_cpu_to_le16(offset));
 	pmbuf_aggr->data_len += pmbuf->data_len;
 	PRINTM(MIF_D, "offset=%d len=%d\n", offset, pmbuf->data_len);
 	LEAVE();
@@ -726,9 +727,11 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 	} else if (pusb_tx_aggr->aggr_ctrl.aggr_mode ==
 		   MLAN_USB_AGGR_MODE_LEN_V2) {
 		t_u8 *payload = pmbuf_aggr->pbuf + pmbuf_aggr->data_offset;
-		*(t_u16 *)&payload[0] = wlan_cpu_to_le16(pmbuf_aggr->data_len);
-		*(t_u16 *)&payload[2] =
-			wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2 | 0x80);
+		write_u16_unaligned(pmadapter, &payload[0],
+				    wlan_cpu_to_le16(pmbuf_aggr->data_len));
+		write_u16_unaligned(pmadapter, &payload[2],
+				    wlan_cpu_to_le16(MLAN_TYPE_AGGR_DATA_V2 |
+						     0x80));
 		PRINTM(MIF_D, "USB Send single packet len=%d\n",
 		       pmbuf_aggr->data_len);
 		DBG_HEXDUMP(MIF_D, "USB Tx",
@@ -904,15 +907,25 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	t_u8 *pdata;
 	t_s32 aggr_len;
 	pmlan_buffer pdeaggr_buf;
+	t_u16 max_loop_cnt = 0;
+	/* (8 * (MLAN_USB_BLOCK_SIZE * 4)) */
+#define MAX_USB_RX_DATA_SIZE (MLAN_USB_RX_MAX_AGGR_NUM * MLAN_USB_MAX_PKT_SIZE)
 
 	ENTER();
 
 	pdata = pmbuf->pbuf + pmbuf->data_offset;
-	prx_pd = (RxPD *)pdata;
+
+	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	curr_pkt_len = wlan_le16_to_cpu(prx_pd->rx_pkt_length) +
 		       wlan_le16_to_cpu(prx_pd->rx_pkt_offset);
 	/* if non-aggregate, just send through, don’t process here */
 	aggr_len = pmbuf->data_len;
+	if (aggr_len < 0 || aggr_len > MAX_USB_RX_DATA_SIZE) {
+		PRINTM(MERROR, "ERR: Invalid aggr length: %d\n", aggr_len);
+		ret = MLAN_STATUS_FAILURE;
+		LEAVE();
+		return ret;
+	}
 	if ((aggr_len == (t_s32)curr_pkt_len) ||
 	    (wlan_usb_deaggr_rx_num_pkts(pmadapter, pdata, aggr_len) == 1) ||
 	    (pmadapter->pcard_usb->usb_rx_deaggr.aggr_ctrl.enable != MTRUE)) {
@@ -921,7 +934,8 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		return ret;
 	}
 
-	while (aggr_len >= (t_s32)sizeof(RxPD)) {
+	while ((aggr_len >= (t_s32)sizeof(RxPD)) &&
+	       (max_loop_cnt++ < MLAN_USB_RX_MAX_AGGR_NUM)) {
 		/* check for (all-zeroes) termination RxPD */
 		if (!memcmp(pmadapter, pdata, zero_rx_pd, sizeof(RxPD))) {
 			break;
@@ -967,14 +981,20 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 					 (curr_pkt_len %
 					  pmadapter->pcard_usb->usb_rx_deaggr
 						  .aggr_ctrl.aggr_align));
+		/* curr_pkt_len should not be greate than the aggreated length*/
+		if (curr_pkt_len > aggr_len)
+			break;
 		/* point to next packet */
-		aggr_len -= curr_pkt_len;
+		aggr_len -= (t_s32)curr_pkt_len;
 		pdata += curr_pkt_len;
 		prx_pd = (RxPD *)pdata;
 		curr_pkt_len = wlan_le16_to_cpu(prx_pd->rx_pkt_length) +
 			       wlan_le16_to_cpu(prx_pd->rx_pkt_offset);
 	}
-
+	if (max_loop_cnt >= MLAN_USB_RX_MAX_AGGR_NUM) {
+		PRINTM(MERROR, "ERR: max loop limit is exceeded\n");
+		ret = MLAN_STATUS_FAILURE;
+	}
 	/* free original pmbuf (since not sent for processing) */
 	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
 						pmadapter->rx_data_ep, ret);

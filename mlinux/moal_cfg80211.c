@@ -6476,3 +6476,82 @@ done:
 	return status;
 }
 #endif
+
+/**
+ *  @brief Process the WiFi channel list avoidance event
+ *
+ *  @param priv A pointer to the moal_private structure
+ *  @param pwifi_chan_info Pointer to the WiFi channel list
+ *                         avoidance structure
+ *
+ *  @return void
+ */
+void process_wifi_channel_avoid_list_event(
+	moal_private *priv, wifi_chan_avoid_list_t *pwifi_chan_info)
+{
+	struct ieee80211_supported_band *sband = NULL;
+	struct ieee80211_channel *channel = NULL;
+	int index = 0, i = 0, j = 0;
+
+	if (!pwifi_chan_info)
+		return;
+
+	/* Process the event */
+	if (pwifi_chan_info->bandcfg.chanBand == BAND_2GHZ) {
+		PRINTM(MEVENT, "WiFi Channel Avoidance List band=%d len=%d\n",
+		       pwifi_chan_info->bandcfg.chanBand,
+		       pwifi_chan_info->length);
+
+		for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
+			/* Reinitialize the sband for every adapter */
+			sband = NULL;
+
+			if (m_handle[index] && m_handle[index]->wiphy) {
+				sband = m_handle[index]
+						->wiphy
+						->bands[IEEE80211_BAND_2GHZ];
+
+				/* Move to next adapter with supporting band */
+				if (!sband)
+					continue;
+
+				PRINTM(MINFO,
+				       "====== Iteration=%d ======", index);
+				/* Clearing NO-IR flags for all channels */
+				for (i = 0; i < sband->n_channels; i++) {
+					channel = &sband->channels[i];
+					channel->flags &= ~IEEE80211_CHAN_NO_IR;
+				}
+
+				/* Setting NO-IR flags as per the channel list
+				 */
+				for (j = 0; j < pwifi_chan_info->length; j++) {
+					for (i = 0; i < sband->n_channels;
+					     i++) {
+						channel = &sband->channels[i];
+						if (channel->hw_value ==
+						    pwifi_chan_info
+							    ->chanList[j]) {
+							PRINTM(MMSG,
+							       "Marking channel = %d as NO-IR\n",
+							       pwifi_chan_info->chanList
+								       [j]);
+							channel->flags |=
+								IEEE80211_CHAN_NO_IR;
+							break;
+						}
+					}
+				}
+				/* Disabling beacon hints to avoid re-enabling
+				 * of channels marked as NO-IR */
+				m_handle[index]->wiphy->regulatory_flags =
+					m_handle[index]
+						->wiphy->regulatory_flags |
+					REGULATORY_DISABLE_BEACON_HINTS;
+			}
+		}
+	} else
+		PRINTM(MEVENT,
+		       "Ignoring the WiFi Channel Avoidance List Event\n");
+	return;
+}

@@ -78,11 +78,12 @@ static int wlan_11n_form_amsdu_pkt(pmlan_adapter pmadapter, t_u8 *amsdu_buf,
 		   (MLAN_MAC_ADDR_LENGTH)*2);
 	dt_offset = amsdu_buf_offset = (MLAN_MAC_ADDR_LENGTH)*2;
 
-	snap.snap_type = *(t_u16 *)(data + dt_offset);
+	snap.snap_type = read_u16_unaligned(pmadapter, data + dt_offset);
 	dt_offset += sizeof(t_u16);
-	*(t_u16 *)(amsdu_buf + amsdu_buf_offset) =
+	write_u16_unaligned(
+		pmadapter, amsdu_buf + amsdu_buf_offset,
 		mlan_htons(pkt_len + LLC_SNAP_LEN -
-			   ((2 * MLAN_MAC_ADDR_LENGTH) + sizeof(t_u16)));
+			   ((2 * MLAN_MAC_ADDR_LENGTH) + sizeof(t_u16))));
 	amsdu_buf_offset += sizeof(t_u16);
 	memcpy_ext(pmadapter, amsdu_buf + amsdu_buf_offset, &snap, LLC_SNAP_LEN,
 		   LLC_SNAP_LEN);
@@ -277,12 +278,13 @@ static int wlan_form_amsdu_subframe(pmlan_adapter pmadapter, mlan_buffer *pmbuf,
 		   (MLAN_MAC_ADDR_LENGTH)*2);
 	dt_offset = amsdu_buf_offset = (MLAN_MAC_ADDR_LENGTH)*2;
 
-	snap.snap_type = *(t_u16 *)(data + dt_offset);
+	snap.snap_type = read_u16_unaligned(pmadapter, data + dt_offset);
 	dt_offset += sizeof(t_u16);
 	total_len = (t_u16)(pkt_len + LLC_SNAP_LEN -
 			    ((2 * MLAN_MAC_ADDR_LENGTH) + sizeof(t_u16)));
 
-	*(t_u16 *)(amsdu_buf + amsdu_buf_offset) = mlan_htons(total_len);
+	write_u16_unaligned(pmadapter, amsdu_buf + amsdu_buf_offset,
+			    mlan_htons(total_len));
 
 	amsdu_buf_offset += sizeof(t_u16);
 	memcpy_ext(pmadapter, amsdu_buf + amsdu_buf_offset, &snap, LLC_SNAP_LEN,
@@ -386,8 +388,8 @@ static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
 		    wlan_uap_check_forward(priv, data))
 			forward_flag = MTRUE;
 		/* Length will be in network format, change it to host */
-		pkt_len = mlan_ntohs(
-			(*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH))));
+		pkt_len = mlan_ntohs(read_u16_unaligned(
+			priv->adapter, data + (2 * MLAN_MAC_ADDR_LENGTH)));
 		if (pkt_len > total_pkt_len) {
 			PRINTM(MERROR, "Error in packet length.\n");
 			break;
@@ -515,8 +517,8 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;
 		/* Length will be in network format, change it to host */
-		pkt_len = mlan_ntohs(
-			(*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH))));
+		pkt_len = mlan_ntohs(read_u16_unaligned(
+			priv->adapter, data + (2 * MLAN_MAC_ADDR_LENGTH)));
 		if (pkt_len > total_pkt_len) {
 			PRINTM(MERROR,
 			       "Error in packet length: total_pkt_len = %d, pkt_len = %d\n",
@@ -543,8 +545,9 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			}
 			pkt_len += sizeof(Eth803Hdr_t) - LLC_SNAP_LEN;
 		} else {
-			*(t_u16 *)(data + (2 * MLAN_MAC_ADDR_LENGTH)) =
-				(t_u16)0;
+			write_u16_unaligned(priv->adapter,
+					    data + (2 * MLAN_MAC_ADDR_LENGTH),
+					    0);
 			pkt_len += sizeof(Eth803Hdr_t);
 		}
 		daggr_mbuf = wlan_alloc_mlan_buffer(pmadapter,

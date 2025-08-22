@@ -2604,6 +2604,8 @@ static int woal_drv_dbg(moal_private *priv, struct iwreq *wrq)
 #endif
 	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
 	       (drvdbg & MMPA_D) ? "X" : "");
+	printk(KERN_ALERT "MSHC_D (%08x) %s\n", MSHC_D,
+	       (drvdbg & MSHC_D) ? "X" : "");
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,

@@ -340,6 +340,19 @@ typedef t_u8 BOOLEAN;
 #define MAX_TIME_LEN 128
 #endif
 
+/** FW cap info bit 12: 2G Support */
+#ifndef ISSUPP_11AC2GENABLED
+#define ISSUPP_11AC2GENABLED(FwCapInfo) (FwCapInfo & MBIT(12))
+#endif
+/** FW cap info bit 13: 5G Support */
+#ifndef ISSUPP_11AC5GENABLED
+#define ISSUPP_11AC5GENABLED(FwCapInfo) (FwCapInfo & MBIT(13))
+#endif
+/** FW cap info Ext bit 14: 6G Support */
+#ifndef FW_CAPINFO_EXT_6G
+#define FW_CAPINFO_EXT_6G MBIT(14)
+#endif
+
 /** Driver version */
 extern char driver_version[MLAN_MAX_VER_STR_LEN];
 
@@ -1291,6 +1304,10 @@ enum woal_event_type {
 	WOAL_EVENT_RGPWR_KEY_MISMATCH,
 	WOAL_EVENT_RESET_WIFI,
 	WOAL_EVENT_PRINT_LINKSTATS,
+#ifdef UAP_SUPPORT
+	WOAL_EVENT_AGCS,
+#endif /* UAP_SUPPORT */
+	WOAL_EVENT_SURVEY_DUMP_RESET,
 };
 
 /** chan_rpt_info */
@@ -1324,6 +1341,10 @@ struct woal_event {
 		mlan_deauth_param deauth_info;
 		chan_radar_info radar_info;
 		t_u8 deauth_evt_cnt;
+#ifdef UAP_SUPPORT
+		/** AGCS event data for WOAL_EVENT_AGCS */
+		agcs_event agcs_evt;
+#endif /* UAP_SUPPORT */
 	};
 };
 
@@ -2186,6 +2207,15 @@ struct _moal_private {
 
 	moal_priv_linkstats_cfg plinkstats_cfg;
 	moal_priv_linkstats plinkstats;
+
+	/*BSS active time*/
+	t_u64 bss_active_time;
+	/*CCA count*/
+	t_u64 cca_cnt_base;
+	/*RX airtime count*/
+	t_u64 rx_airtime_base;
+	/*TX airtime count*/
+	t_u64 tx_airtime_base;
 };
 
 #ifdef SDIO
@@ -2868,6 +2898,7 @@ typedef struct _moal_mod_para {
 	int tpe_ie_ignore;
 	/* make_before_break during roam */
 	int make_before_break;
+	int secure_host;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -2940,6 +2971,41 @@ typedef struct _moal_tp_acnt_t {
 	/* periodic timer */
 	moal_drv_timer timer;
 } moal_tp_acnt_t;
+
+#ifdef UAP_SUPPORT
+typedef MLAN_PACK_START struct {
+	t_u16 action;
+	/* BIT0 - Enable Agile channel switching in CarPlay
+	 * BIT1 - no specific interference type check, but only check Tx or Rx
+	 * throughput drop
+	 */
+	t_u32 mode;
+	/* Adjust the weight of TX/RX average packet count */
+	t_u8 avg_threshold_percentage;
+	/* The conservative amount of rx packet per second */
+	t_u16 rx_min_pkt_count;
+	/* The conservative amount of tx packet per second */
+	t_u16 tx_min_pkt_count;
+	/* Unit is ms */
+	t_u32 sample_time;
+	/* The latest sampled windows size */
+	t_u8 sample_count_window;
+	/* Continuous drop rapidly times */
+	t_u8 continuous_hit_count;
+	/* Make sure a reasonable rate can be sustained. */
+	t_s8 nf_margin;
+	/* The channel load threshold that the new channel needs to reach. */
+	t_u8 chload_threshold_percentage;
+	/* channel switch announcement count, default is 5 */
+	t_u8 csa_cnt;
+	/** Variable number (fixed maximum) of channels to scan up */
+	wlan_user_scan_chan chan_list[WLAN_USER_SCAN_CHAN_MAX];
+	/* Long duration packets threshold */
+	t_u16 nav_mitigation_th;
+	/* ch threshold to trigger channel switch for nighthawk */
+	t_u16 ch_th;
+} MLAN_PACK_END wlan_agcs_info;
+#endif /* UAP_SUPPORT */
 
 /** Handle data structure for MOAL */
 struct _moal_handle {
@@ -3428,6 +3494,28 @@ struct _moal_handle {
 	t_u32 ips_ctrl;
 	BOOLEAN is_edmac_enabled;
 	bool driver_init;
+
+#ifdef UAP_SUPPORT
+	/** agiled channel switch state */
+	t_u32 agcs_state;
+	/** The number of channels in the scan list */
+	t_u32 agcs_num_in_chan_stats;
+	/** Agiled channel switch info from cmd */
+	wlan_agcs_info agcs_info;
+	/* fw cap and cap_ext */
+	mlan_hw_info hw_info;
+#endif /* UAP_SUPPORT */
+
+	void *secure;
+
+#ifdef DUMP_TO_PROC
+#if defined(PCIE)
+	/** ssu dump buffer total len */
+	t_u64 ssu_dump_len;
+	/** Pointer of ssu dump buffer */
+	t_u8 *ssu_dump_buf;
+#endif
+#endif
 };
 
 /**
@@ -4258,10 +4346,10 @@ t_void woal_print_firmware_dump(moal_handle *phandle, char *fwdp_fname);
 void woal_store_firmware_dump(moal_handle *phandle, pmlan_event pmevent);
 void woal_send_fw_dump_complete_event(moal_private *priv);
 
-#ifndef DUMP_TO_PROC
 #if defined(PCIE)
 void woal_store_ssu_dump(moal_handle *phandle, pmlan_event pmevent);
 #endif /* SSU_SUPPORT */
+#ifndef DUMP_TO_PROC
 /** save hostcmd response to file */
 t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent);
 #endif
@@ -4794,5 +4882,14 @@ mlan_status woal_ioctl_hostcmd_htc_cap(moal_private *priv, t_u16 action,
 				       t_u8 *enable);
 int woal_getset_regrdwr(moal_private *priv, t_u32 action, t_u32 type,
 			t_u32 offset, t_u32 *value);
+#ifdef UAP_SUPPORT
+extern void woal_process_agcs_event(moal_private *priv,
+				    pagcs_stats pstart_event);
+extern void woal_process_ch_sel_and_switch(moal_private *priv,
+					   pagcs_event pevent);
+extern mlan_status moal_agcs_trans_state(moal_private *priv,
+					 agcs_state next_state);
+extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
+#endif /* UAP_SUPPORT */
 
 #endif /* _MOAL_MAIN_H */

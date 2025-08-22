@@ -4,7 +4,7 @@
  * driver.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -182,7 +182,8 @@ Change log:
 			mbuf->pbuf + mbuf->data_offset, mbuf->data_len);       \
 		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
 		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
-			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
+			read_u16_unaligned(pmadapter,                          \
+					   mbuf->pbuf + mbuf->data_offset);    \
 		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \
 			a->pcard_sd->mpa_tx.start_port = port;                 \
 		}                                                              \
@@ -194,7 +195,8 @@ Change log:
 	do {                                                                   \
 		a->pcard_sd->mpa_tx.buf_len += mbuf->data_len;                 \
 		a->pcard_sd->mpa_tx.mp_wr_info[a->pcard_sd->mpa_tx.pkt_cnt] =  \
-			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);            \
+			read_u16_unaligned(pmadapter,                          \
+					   mbuf->pbuf + mbuf->data_offset);    \
 		a->pcard_sd->mpa_tx.mbuf_arr[a->pcard_sd->mpa_tx.pkt_cnt] =    \
 			mbuf;                                                  \
 		if (!a->pcard_sd->mpa_tx.pkt_cnt) {                            \

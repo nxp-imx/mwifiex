@@ -936,7 +936,7 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 	moal_handle *handle = (moal_handle *)pmoal;
 	int i;
 	t_u32 drv_mode = handle->params.drv_mode;
-#ifdef PCIE9098
+#if defined(PCIE9098) || defined(PCIEAW693) || defined(SDAW693)
 	size_t drv_ver_len = strlen(driver_version);
 #endif
 	ENTER();
@@ -984,6 +984,47 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 			handle->driver_version[drv_ver_len] = '\0';
 		}
 #endif
+#ifdef PCIEAW693
+		/**
+		 *  Special/Temporary handling to manage the driver version
+		 * string to identify AW693/IW623 based on fw_cap value set by
+		 * Fw
+		 */
+		if ((phw->fw_cap_ext & MBIT(23)) &&
+		    IS_PCIEAW693(handle->card_type)) {
+			moal_memcpy_ext(handle, driver_version, CARD_PCIEIW623,
+					strlen(CARD_PCIEIW623),
+					strlen(driver_version));
+			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
+				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
+			}
+			moal_memcpy_ext(handle, handle->driver_version,
+					driver_version, drv_ver_len,
+					MLAN_MAX_VER_STR_LEN - 1);
+			handle->driver_version[drv_ver_len] = '\0';
+		}
+#endif
+#ifdef SDAW693
+		/**
+		 *  Special/Temporary handling to manage the driver version
+		 * string to identify AW693/IW623 based on fw_cap value set by
+		 * Fw
+		 */
+		if ((phw->fw_cap_ext & MBIT(23)) &&
+		    IS_SDAW693(handle->card_type)) {
+			moal_memcpy_ext(handle, driver_version, CARD_SDIW623,
+					strlen(CARD_SDIW623),
+					strlen(driver_version));
+			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
+				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
+			}
+			moal_memcpy_ext(handle, handle->driver_version,
+					driver_version, drv_ver_len,
+					MLAN_MAX_VER_STR_LEN - 1);
+			handle->driver_version[drv_ver_len] = '\0';
+		}
+#endif
+
 		if (phw->fw_cap & FW_CAPINFO_DISABLE_NAN)
 			handle->params.drv_mode &= ~DRV_MODE_NAN;
 		/** FW should only enable DFS on one mac */
@@ -1018,6 +1059,9 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 		}
 		PRINTM(MCMND, "org_drv_mode=0x%x drv_mode=0x%x\n", drv_mode,
 		       handle->params.drv_mode);
+
+		moal_memcpy_ext(handle, &(handle->hw_info), phw,
+				sizeof(mlan_hw_info), sizeof(mlan_hw_info));
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -3114,6 +3158,33 @@ static t_void woal_process_event_tx_status(moal_private *priv,
 #endif
 
 /**
+ * @brief   This function handles survey dump reset event
+ *
+ * @param priv       A pointer moal_private structure
+ *
+ * @return          N/A
+ */
+static void woal_survey_dump_reset_event(moal_private *priv)
+{
+	struct woal_event *evt;
+	unsigned long flags;
+	moal_handle *handle = priv->phandle;
+
+	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
+	if (evt) {
+		evt->priv = priv;
+		evt->type = WOAL_EVENT_SURVEY_DUMP_RESET;
+		INIT_LIST_HEAD(&evt->link);
+		spin_lock_irqsave(&handle->evt_lock, flags);
+		list_add_tail(&evt->link, &handle->evt_queue);
+		spin_unlock_irqrestore(&handle->evt_lock, flags);
+		queue_work(handle->evt_workqueue, &handle->evt_work);
+	}
+	// coverity[misra_c_2012_rule_22_1_violation:SUPPRESS]
+	// coverity[leaked_storage]: SUPPRESS
+}
+
+/**
  *  @brief This function handles event receive
  *
  *  @param pmoal Pointer to the MOAL context
@@ -3198,6 +3269,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if defined(STA_SUPPORT)
 	chan_band_reginfo_t *psta_reg_info = NULL;
 #endif
+	wifi_chan_avoid_list_t *pwifi_chan_info = NULL;
 	char iwevent_str[256];
 	addba_timeout_event *evtbuf = NULL;
 
@@ -3234,9 +3306,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 #if defined(PCIE)
 	if (pmevent->event_id == MLAN_EVENT_ID_SSU_DUMP_FILE) {
-#ifndef DUMP_TO_PROC
 		woal_store_ssu_dump(pmoal, pmevent);
-#endif
 		goto done;
 	}
 #endif /* SSU_SUPPORT */
@@ -3305,6 +3375,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			netif_carrier_on(priv->netdev);
 		woal_wake_queue(priv->netdev);
 		moal_connection_status_check_pmqos(pmoal);
+		woal_survey_dump_reset_event(priv);
+
 		break;
 	case MLAN_EVENT_ID_DRV_ASSOC_FAILURE:
 		PRINTM(MERROR, "wlan:MLAN_EVENT_ASSOC_FAILURE\n");
@@ -3403,6 +3475,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			priv->phandle->scan_time_start.time_usec = 0;
 		}
 
+		moal_agcs_trans_state(priv, AGCS_STATE_SCAN_REPORT);
 		break;
 
 	case MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM:
@@ -3457,8 +3530,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		/* 6E Indoor/Outdoor, download the default power table
 		 * after disconnect/link-loss */
-		PRINTM(MEVENT, "Downloading default 6E table!!\n");
-		if (priv->phandle->fw_bands & BAND_6G) {
+		if ((priv->phandle->fw_bands & BAND_6G) &&
+		    (priv->sme_current.channel->band == NL80211_BAND_6GHZ)) {
+			PRINTM(MEVENT, "Downloading default 6E table!!\n");
 			if (MLAN_STATUS_SUCCESS !=
 			    woal_dnld_default_6e_psd_table(priv))
 				PRINTM(MERROR,
@@ -4255,6 +4329,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #endif
 		}
 #endif
+#ifdef UAP_SUPPORT
+		moal_agcs_trans_state(priv, AGCS_STATE_COMPLETE);
+#endif /* UAP_SUPPORT */
 		break;
 	case MLAN_EVENT_ID_FW_STOP_TX:
 		woal_stop_queue(priv->netdev);
@@ -4399,6 +4476,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			priv->chan_under_nop = MFALSE;
 		}
 #endif
+		woal_survey_dump_reset_event(priv);
 #endif
 		break;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
@@ -5361,6 +5439,18 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				   msecs_to_jiffies(fw_reset_time * 1000));
 
 		break;
+#ifdef UAP_SUPPORT
+	case MLAN_EVENT_ID_FW_AGCS_TRIGGER: {
+		woal_agcs_event(priv, (pagcs_event)pmevent->event_buf);
+	} break;
+#endif /* UAP_SUPPORT */
+	case MLAN_EVENT_ID_FW_WIFI_CHANNEL_AVOID_LIST:
+		pwifi_chan_info =
+			(wifi_chan_avoid_list_t *)(pmevent->event_buf +
+						   sizeof(MrvlIEtypesHeader_t) +
+						   4);
+		process_wifi_channel_avoid_list_event(priv, pwifi_chan_info);
+		break;
 	default:
 		break;
 	}
@@ -5595,4 +5685,44 @@ mlan_status moal_calc_short_ssid(t_u8 *pssid, t_u32 ssid_len,
 	}
 	*pshort_ssid = ~crc32_le(~0, pssid, ssid_len);
 	return MLAN_STATUS_SUCCESS;
+}
+
+inline t_u16 moal_read_unaligned_u16(const void *src)
+{
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	return *((const t_u16 *)src);
+#else
+	t_u16 val = 0;
+	memcpy(&val, src, sizeof(t_u16));
+	return val;
+#endif
+}
+
+inline t_u32 moal_read_unaligned_u32(const void *src)
+{
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	return *((const t_u32 *)src);
+#else
+	t_u32 val = 0;
+	memcpy(&val, src, sizeof(t_u32));
+	return val;
+#endif
+}
+
+inline void moal_write_unaligned_u16(void *dest, t_u16 val)
+{
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	*((t_u16 *)dest) = val;
+#else
+	memcpy(dest, &val, sizeof(t_u16));
+#endif
+}
+
+inline void moal_write_unaligned_u32(void *dest, t_u32 val)
+{
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	*((t_u32 *)dest) = val;
+#else
+	memcpy(dest, &val, sizeof(t_u32));
+#endif
 }

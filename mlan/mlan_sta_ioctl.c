@@ -1570,12 +1570,12 @@ static mlan_status wlan_power_ioctl_set_power(pmlan_adapter pmadapter,
 	power = (mlan_ds_power_cfg *)pioctl_req->pbuf;
 	if (!power->param.power_cfg.is_power_auto) {
 		dbm = (t_s8)power->param.power_cfg.power_level;
-		if ((dbm < pmpriv->min_tx_power_level) ||
-		    (dbm > pmpriv->max_tx_power_level)) {
+		/*min_power value does not change in fw, it keeps default
+		 * value(24 dBm), check  max_power limit only*/
+		if (dbm > pmpriv->max_tx_power_level) {
 			PRINTM(MERROR,
-			       "The set txpower value %d dBm is out of range (%d dBm-%d dBm)!\n",
-			       dbm, pmpriv->min_tx_power_level,
-			       pmpriv->max_tx_power_level);
+			       "The set txpower value %d dBm is greater than current possible max %d dBm\n",
+			       dbm, pmpriv->max_tx_power_level);
 			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
 			ret = MLAN_STATUS_FAILURE;
 			goto exit;
@@ -5317,6 +5317,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 							    pioctl_req);
 		break;
+	case MLAN_OID_MISC_PREAMBLE_PWR_BOOST:
+		status = wlan_misc_ioctl_preamble_pwr_boost(pmadapter,
+							    pioctl_req);
+		break;
 	case MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG:
 		status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(pmadapter,
 								 pioctl_req);
@@ -5370,6 +5374,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_AUTH_ASSOC_TIMEOUT_CONFIG:
 		status =
 			wlan_misc_auth_assoc_timeout_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_PER_BAND_TXPWR_CAP:
+		status = wlan_misc_ioctl_per_band_txpwr_cap(pmadapter,
+							    pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

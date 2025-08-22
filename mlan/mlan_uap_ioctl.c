@@ -2027,6 +2027,43 @@ static mlan_status wlan_uap_snmp_mib_chan_track(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief get/set Agiled channel switch cfg
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
+			      pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+	mlan_ds_misc_cfg *misc = MNULL;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET) {
+		cmd_action = HostCmd_ACT_GEN_SET;
+	} else {
+		cmd_action = HostCmd_ACT_GEN_GET;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_AGCS_CFG, cmd_action,
+			       0, (t_void *)pioctl_req,
+			       (t_void *)&misc->param.agcs_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief MLAN uap ioctl handler
  *
  *  @param adapter	A pointer to mlan_adapter structure
@@ -2365,6 +2402,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (misc->sub_command == MLAN_OID_MISC_TX_AMPDU_PROT_MODE)
 			status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 								    pioctl_req);
+		else if (misc->sub_command == MLAN_OID_MISC_PREAMBLE_PWR_BOOST)
+			status = wlan_misc_ioctl_preamble_pwr_boost(pmadapter,
+								    pioctl_req);
 		else if (misc->sub_command ==
 			 MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG)
 			status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(
@@ -2435,6 +2475,11 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_misc_csi(pmadapter, pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_MULTI_AP_CFG)
 			status = wlan_misc_multi_ap_cfg(pmadapter, pioctl_req);
+		else if (misc->sub_command == MLAN_OID_MISC_PER_BAND_TXPWR_CAP)
+			status = wlan_misc_ioctl_per_band_txpwr_cap(pmadapter,
+								    pioctl_req);
+		else if (misc->sub_command == MLAN_OID_MISC_AGCS_CONFIG)
+			status = wlan_uap_agcs_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

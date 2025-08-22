@@ -329,6 +329,8 @@ typedef struct _chan_stats {
 #define TX_AMPDU_DYNAMIC_RTS_CTS 3
 /**Private command to set tx ampdu protection mode */
 #define PRIV_CMD_TX_AMPDU_PROT_MODE "tx_ampdu_prot_mode"
+/**Private command to enable preamble pwr boost feature */
+#define PRIV_CMD_PREAMBLE_PWR_BOOST "preamble_pwr_boost"
 /**Private command to configure tx rate adapt config */
 #define PRIV_CMD_RATE_ADAPT_CFG "rate_adapt_cfg"
 #define CCK_DESENSE_MODE_DISABLED 0
@@ -362,6 +364,9 @@ typedef struct _chan_stats {
 #define PRIV_CMD_ROBUSTCOEX "robustcoex"
 
 #define PRIV_CMD_DMCS "dmcs"
+
+/**Private command to configure per_band_txpwr_cap */
+#define PRIV_CMD_PER_BAND_TXPWR_CAP "per_band_txpwr_cap"
 
 #if defined(PCIE)
 #define PRIV_CMD_SSU "ssu"
@@ -795,4 +800,9 @@ typedef struct {
 } __ATTRIB_PACK__ wlan_ieee80211_chan_list;
 
 #define PRIV_CMD_TP_STATE "tp_state"
+
+#ifdef UAP_SUPPORT
+#define PRIV_CMD_AGCS "agcs"
+#endif
+
 #endif /* _WOAL_ETH_PRIV_H_ */

@@ -176,7 +176,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"540"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p7"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -591,7 +591,32 @@ endif
 
 
 
+$(info $(PWD))
+$(info $(src))
+ccflags-y += -I$(PWD)/nanotls/include
+ccflags-y += -I$(PWD)/nanotls/lib/include
+ccflags-y += -I$(PWD)/nanotls/lib/aes/include
 
+ccflags-y += -I$(src)/include
+ccflags-y += -I$(src)/lib/include
+ccflags-y += -I$(src)/lib/aes/include
+ccflags-y += -I$(KERNELDIR)/include/linux
+ccflags-y += -std=gnu99
+ccflags-y += -Wno-format-security -Wno-unused-but-set-variable -Wno-declaration-after-statement
+MLANOBJS += mlan/mlan_shc.o
+MOALOBJS += nanotls/lib/src/blockwise.o \
+            nanotls/lib/src/chash.o \
+            nanotls/lib/src/hmac.o \
+            nanotls/lib/src/p256-m.o \
+            nanotls/lib/src/sha256.o \
+            nanotls/lib/aes/src/aes.o \
+            nanotls/lib/aes/src/gcm.o \
+            nanotls/src/nanotls-common.o \
+            nanotls/src/nanotls-hooks.o \
+            nanotls/src/nanotls-host.o \
+            nanotls/src/nanotls-device.o \
+            nanotls/src/nanotls-data.o \
+            mlinux/moal_shc.o
 
 
 obj-m := mlan.o

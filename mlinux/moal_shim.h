@@ -4,7 +4,7 @@
  * functions defined in moal module
  *
  *
- * Copyright 2008-2021, 2024 NXP
+ * Copyright 2008-2021, 2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -128,5 +128,10 @@ void woal_release_busfreq_pmqos_remove(t_void *pmhandle);
 #endif
 mlan_status moal_calc_short_ssid(t_u8 *pssid, t_u32 ssid_len,
 				 t_u32 *pshort_ssid);
+
+inline t_u16 moal_read_unaligned_u16(const void *src);
+inline t_u32 moal_read_unaligned_u32(const void *src);
+inline void moal_write_unaligned_u16(void *dest, t_u16 val);
+inline void moal_write_unaligned_u32(void *dest, t_u32 val);
 
 #endif /*_MOAL_H */

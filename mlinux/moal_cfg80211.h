@@ -628,4 +628,7 @@ mlan_status woal_dnld_default_6e_psd_table(moal_private *priv);
 
 mlan_status woal_request_set_host_mlme(moal_private *priv, t_u8 *bssid);
 
+void process_wifi_channel_avoid_list_event(
+	moal_private *priv, wifi_chan_avoid_list_t *pwifi_chan_info);
+
 #endif /* _MOAL_CFG80211_H_ */

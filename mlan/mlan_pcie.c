@@ -951,17 +951,16 @@ static mlan_status wlan_pcie_send_vdll(mlan_adapter *pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_PENDING;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
-	t_u16 *tmp;
 	t_u8 *payload;
 
 	ENTER();
 	pmadapter->cmd_sent = MTRUE;
 	payload = pmbuf->pbuf + pmbuf->data_offset;
 
-	tmp = (t_u16 *)&payload[0];
-	*tmp = wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-	tmp = (t_u16 *)&payload[2];
-	*tmp = wlan_cpu_to_le16(MLAN_TYPE_VDLL);
+	write_u16_unaligned(pmadapter, &payload[0],
+			    wlan_cpu_to_le16((t_u16)pmbuf->data_len));
+	write_u16_unaligned(pmadapter, &payload[2],
+			    wlan_cpu_to_le16(MLAN_TYPE_VDLL));
 
 	if (MLAN_STATUS_FAILURE ==
 	    pcb->moal_map_memory(
@@ -2528,7 +2527,6 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 rxbd_val = 0;
 	t_u32 wrindx;
-	t_u16 *tmp;
 	t_u8 *payload;
 	t_u32 wr_ptr_start = 0;
 
@@ -2565,10 +2563,10 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 		pmadapter->data_sent = MTRUE;
 
 		payload = pmbuf->pbuf + pmbuf->data_offset;
-		tmp = (t_u16 *)&payload[0];
-		*tmp = wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-		tmp = (t_u16 *)&payload[2];
-		*tmp = wlan_cpu_to_le16(type);
+		write_u16_unaligned(pmadapter, &payload[0],
+				    wlan_cpu_to_le16((t_u16)pmbuf->data_len));
+		write_u16_unaligned(pmadapter, &payload[2],
+				    wlan_cpu_to_le16(type));
 
 		/* Map pmbuf, and attach to tx ring */
 		if (MLAN_STATUS_FAILURE ==
@@ -3180,9 +3178,11 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 
 		/* Get data length from interface header -
 		   first 2 bytes are len, second 2 bytes are type */
-		rx_len = *((t_u16 *)(pmbuf->pbuf + pmbuf->data_offset));
+		rx_len = read_u16_unaligned(pmadapter,
+					    pmbuf->pbuf + pmbuf->data_offset);
 		rx_len = wlan_le16_to_cpu(rx_len);
-		rx_type = *((t_u16 *)(pmbuf->pbuf + pmbuf->data_offset + 2));
+		rx_type = read_u16_unaligned(
+			pmadapter, pmbuf->pbuf + pmbuf->data_offset + 2);
 		rx_type = wlan_le16_to_cpu(rx_type);
 
 		PRINTM(MINFO,
@@ -3319,8 +3319,10 @@ static mlan_status wlan_pcie_send_cmd(mlan_adapter *pmadapter,
 
 	pmadapter->cmd_sent = MTRUE;
 	payload = pmbuf->pbuf + pmbuf->data_offset;
-	*(t_u16 *)&payload[0] = wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-	*(t_u16 *)&payload[2] = wlan_cpu_to_le16(MLAN_TYPE_CMD);
+	write_u16_unaligned(pmadapter, &payload[0],
+			    wlan_cpu_to_le16((t_u16)pmbuf->data_len));
+	write_u16_unaligned(pmadapter, &payload[2],
+			    wlan_cpu_to_le16(MLAN_TYPE_CMD));
 
 	pcb = &pmadapter->callbacks;
 	if (MLAN_STATUS_FAILURE ==
@@ -3430,7 +3432,7 @@ static void mlan_delay_for_sleep_cookie(mlan_adapter *pmadapter,
 
 	for (count = 0; count < max_delay_loop_cnt; count++) {
 		buffer = pmbuf->pbuf;
-		sleep_cookie = *(t_u32 *)buffer;
+		sleep_cookie = read_u32_unaligned(pmadapter, buffer);
 
 		if (sleep_cookie == MLAN_SLEEP_COOKIE_DEF) {
 			PRINTM(MINFO, "sleep cookie FOUND at count = %d!!\n",
@@ -3473,10 +3475,12 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 
 	/* Get data length from interface header -
 	   first 2 bytes are len, second 2 bytes are type */
-	resp_len = *((t_u16 *)(pmbuf->pbuf + pmbuf->data_offset));
+	resp_len =
+		read_u16_unaligned(pmadapter, pmbuf->pbuf + pmbuf->data_offset);
 
 	pmadapter->upld_len = wlan_le16_to_cpu(resp_len);
-	pmadapter->upld_len -= PCIE_INTF_HEADER_LEN;
+	wlan_secure_sub(&pmadapter->upld_len, PCIE_INTF_HEADER_LEN,
+			&pmadapter->upld_len, TYPE_UINT32);
 	cmd_buf = pmadapter->pcard_pcie->cmd_buf;
 	if (cmd_buf) {
 		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
@@ -3739,11 +3743,13 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 			return MLAN_STATUS_FAILURE;
 		}
 
-		event = *((t_u32 *)&pmbuf_evt->pbuf[pmbuf_evt->data_offset +
+		event = read_u32_unaligned(
+			pmadapter, &pmbuf_evt->pbuf[pmbuf_evt->data_offset +
 						    PCIE_INTF_HEADER_LEN]);
 		/* The first 4bytes will be the event transfer header
 		   len is 2 bytes followed by type which is 2 bytes */
-		evt_len = *((t_u16 *)&pmbuf_evt->pbuf[pmbuf_evt->data_offset]);
+		evt_len = read_u16_unaligned(
+			pmadapter, &pmbuf_evt->pbuf[pmbuf_evt->data_offset]);
 		evt_len = wlan_le16_to_cpu(evt_len);
 
 		if ((evt_len > 0) && (evt_len > MLAN_EVENT_HEADER_LEN) &&
@@ -5491,7 +5497,6 @@ static mlan_status wlan_pcie_send_data_list(mlan_adapter *pmadapter, t_u8 type,
 {
 	pmlan_buffer pmbuf;
 
-	t_u16 *tmp;
 	t_u8 *payload;
 	t_u8 i;
 	ENTER();
@@ -5524,10 +5529,10 @@ static mlan_status wlan_pcie_send_data_list(mlan_adapter *pmadapter, t_u8 type,
 		/* first pkt */
 		if (i == 0) {
 			payload = pmbuf->pbuf + pmbuf->data_offset;
-			tmp = (t_u16 *)&payload[0];
-			*tmp = wlan_cpu_to_le16((t_u16)pkt_size);
-			tmp = (t_u16 *)&payload[2];
-			*tmp = wlan_cpu_to_le16(type);
+			write_u16_unaligned(pmadapter, &payload[0],
+					    wlan_cpu_to_le16((t_u16)pkt_size));
+			write_u16_unaligned(pmadapter, &payload[2],
+					    wlan_cpu_to_le16(type));
 			wlan_pcie_send_adma_data(pmadapter, pmbuf,
 						 ADMA_BD_FLAG_SOP, pkt_size);
 		} else if (i == (num_pkt - 1)) { /* last pkt */

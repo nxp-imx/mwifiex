@@ -1895,7 +1895,7 @@ mlan_status wlan_cmd_recfg_tx_buf(mlan_private *priv, HostCmd_DS_COMMAND *cmd,
 {
 	HostCmd_DS_TXBUF_CFG *ptx_buf = &cmd->params.tx_buf;
 	t_u16 action = (t_u16)cmd_action;
-	t_u16 buf_size = *((t_u16 *)pdata_buf);
+	t_u16 buf_size = read_u16_unaligned(priv->adapter, pdata_buf);
 
 	ENTER();
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_RECONFIGURE_TX_BUFF);

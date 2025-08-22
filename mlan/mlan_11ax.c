@@ -845,6 +845,18 @@ int wlan_cmd_append_116e_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 }
 
 /**
+ *  @brief This function checks whether the operation class is a 6G
+ *
+ *  @param op_class       global operation class
+ *
+ *  @return 0--not allowed, other value allowed
+ */
+t_bool is_6ghz_op_class(t_u8 op_class)
+{
+	return op_class >= 131 && op_class <= 137;
+}
+
+/**
  *  @brief This function check if 11AX is allowed in bandcfg
  *
  *  @param pmpriv       A pointer to mlan_private structure

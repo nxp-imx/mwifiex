@@ -885,7 +885,8 @@ static mlan_status wlan_sdio_card_to_host(mlan_adapter *pmadapter, t_u32 *type,
 			}
 		}
 	} while (ret == MLAN_STATUS_FAILURE);
-	*nb = wlan_le16_to_cpu(*(t_u16 *)(pmbuf->pbuf + pmbuf->data_offset));
+	*nb = wlan_le16_to_cpu(read_u16_unaligned(
+		pmadapter, pmbuf->pbuf + pmbuf->data_offset));
 	if (*nb > npayload) {
 		PRINTM(MERROR, "invalid packet, *nb=%d, npayload=%d\n", *nb,
 		       npayload);
@@ -897,8 +898,8 @@ static mlan_status wlan_sdio_card_to_host(mlan_adapter *pmadapter, t_u32 *type,
 	DBG_HEXDUMP(MIF_D, "SDIO Blk Rd", pmbuf->pbuf + pmbuf->data_offset,
 		    MIN(*nb, MAX_DATA_DUMP_LEN));
 
-	*type = wlan_le16_to_cpu(
-		*(t_u16 *)(pmbuf->pbuf + pmbuf->data_offset + 2));
+	*type = wlan_le16_to_cpu(read_u16_unaligned(
+		pmadapter, pmbuf->pbuf + pmbuf->data_offset + 2));
 
 exit:
 	LEAVE();
@@ -1327,7 +1328,7 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 				     &offset, TYPE_UINT32)) {
 			PRINTM(MERROR, "offset is invalid\n");
 		}
-		event = *(t_u32 *)&pmbuf->pbuf[offset];
+		event = read_u32_unaligned(pmadapter, &pmbuf->pbuf[offset]);
 		pmadapter->event_cause = wlan_le32_to_cpu(event);
 		if ((pmadapter->upld_len > MLAN_EVENT_HEADER_LEN) &&
 		    ((pmadapter->upld_len - MLAN_EVENT_HEADER_LEN) <
@@ -1484,12 +1485,13 @@ static mlan_status wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 		     pind++) {
 			mbuf_deaggr =
 				pmadapter->pcard_sd->mpa_rx.mbuf_arr[pind];
-			pkt_len = wlan_le16_to_cpu(
-				*(t_u16 *)(mbuf_deaggr->pbuf +
-					   mbuf_deaggr->data_offset));
-			pkt_type = wlan_le16_to_cpu(
-				*(t_u16 *)(mbuf_deaggr->pbuf +
-					   mbuf_deaggr->data_offset + 2));
+			pkt_len = wlan_le16_to_cpu(read_u16_unaligned(
+				pmadapter,
+				mbuf_deaggr->pbuf + mbuf_deaggr->data_offset));
+			pkt_type = wlan_le16_to_cpu(read_u16_unaligned(
+				pmadapter, mbuf_deaggr->pbuf +
+						   mbuf_deaggr->data_offset +
+						   2));
 			pmadapter->upld_len = pkt_len;
 			wlan_decode_rx_packet(pmadapter, mbuf_deaggr, pkt_type,
 					      MFALSE);
@@ -1505,8 +1507,10 @@ static mlan_status wlan_receive_mp_aggr_buf(mlan_adapter *pmadapter)
 		for (pind = 0; pind < pmadapter->pcard_sd->mpa_rx.pkt_cnt;
 		     pind++) {
 			/* get curr PKT len & type */
-			pkt_len = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[0]);
-			pkt_type = wlan_le16_to_cpu(*(t_u16 *)&curr_ptr[2]);
+			pkt_len = wlan_le16_to_cpu(
+				read_u16_unaligned(pmadapter, &curr_ptr[0]));
+			pkt_type = wlan_le16_to_cpu(
+				read_u16_unaligned(pmadapter, &curr_ptr[2]));
 
 			PRINTM(MINFO, "RX: [%d] pktlen: %d pkt_type: 0x%x\n",
 			       pind, pkt_len, pkt_type);
@@ -1959,7 +1963,8 @@ tx_curr_single:
 		pmadapter->pcard_sd
 			->last_mp_wr_info[pmadapter->pcard_sd->last_mp_index *
 					  mp_aggr_pkt_limit] =
-			*(t_u16 *)(mbuf->pbuf + mbuf->data_offset);
+			read_u16_unaligned(pmadapter,
+					   mbuf->pbuf + mbuf->data_offset);
 		pmadapter->pcard_sd
 			->last_curr_wr_port[pmadapter->pcard_sd->last_mp_index] =
 			pmadapter->pcard_sd->curr_wr_port;
@@ -2874,8 +2879,9 @@ mlan_status wlan_sdio_host_to_card(mlan_adapter *pmadapter, t_u8 type,
 	/* Allocate buffer and copy payload */
 	blksz = pmadapter->pcard_sd->sdio_blk_size;
 	buf_block_len = (pmbuf->data_len + blksz - 1) / blksz;
-	*(t_u16 *)&payload[0] = wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-	*(t_u16 *)&payload[2] = wlan_cpu_to_le16(type);
+	write_u16_unaligned(pmadapter, &payload[0],
+			    wlan_cpu_to_le16((t_u16)pmbuf->data_len));
+	write_u16_unaligned(pmadapter, &payload[2], wlan_cpu_to_le16(type));
 
 	/*
 	 * This is SDIO specific header
@@ -2963,8 +2969,10 @@ static mlan_status wlan_sdio_send_vdll(mlan_adapter *pmadapter,
 	blksz = pmadapter->pcard_sd->sdio_blk_size;
 	buf_block_len = (pmbuf->data_len + blksz - 1) / blksz;
 
-	*(t_u16 *)&payload[0] = wlan_cpu_to_le16((t_u16)pmbuf->data_len);
-	*(t_u16 *)&payload[2] = wlan_cpu_to_le16(MLAN_TYPE_VDLL);
+	write_u16_unaligned(pmadapter, &payload[0],
+			    wlan_cpu_to_le16((t_u16)pmbuf->data_len));
+	write_u16_unaligned(pmadapter, &payload[2],
+			    wlan_cpu_to_le16(MLAN_TYPE_VDLL));
 
 	pmbuf->data_len = buf_block_len * blksz;
 
@@ -3056,8 +3064,8 @@ void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
 			       block_num, total_pkt_len);
 			break;
 		}
-		pkt_len = wlan_le16_to_cpu(
-			*(t_u16 *)(data + OFFSET_OF_SDIO_HEADER));
+		pkt_len = wlan_le16_to_cpu(read_u16_unaligned(
+			pmadapter, data + OFFSET_OF_SDIO_HEADER));
 		if ((pkt_len + OFFSET_OF_SDIO_HEADER) > block_size) {
 			PRINTM(MERROR,
 			       "Error in pkt, pkt_len=%d, block_size=%d\n",
@@ -3191,6 +3199,9 @@ mlan_status wlan_alloc_sdio_mpa_buffers(mlan_adapter *pmadapter,
 		pmadapter->pcard_sd->mpa_rx.buf = MNULL;
 	}
 	pmadapter->pcard_sd->mpa_rx.buf_size = mpa_rx_buf_size;
+	PRINTM(MMSG, "wlan: mpa_rx.buf_size=%d\n",
+	       pmadapter->pcard_sd->mpa_rx.buf_size);
+
 error:
 	if (ret != MLAN_STATUS_SUCCESS)
 		wlan_free_sdio_mpa_buffers(pmadapter);
@@ -3244,8 +3255,10 @@ mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_u32 buf_size = 0;
+	t_u32 mpa_rx_buf_size = pmadapter->pcard_sd->mp_rx_aggr_buf_size;
 	t_u8 mp_aggr_pkt_limit = pmadapter->pcard_sd->mp_aggr_pkt_limit;
-	t_u32 mpa_rx_buf_size = pmadapter->pcard_sd->mp_tx_aggr_buf_size;
+	mpa_rx_buf_size =
+		MIN(pmadapter->pcard_sd->max_seg_size, mpa_rx_buf_size);
 
 	if (pmadapter->pcard_sd->mpa_rx.buf) {
 		pcb->moal_mfree(pmadapter->pmoal_handle,
@@ -3305,7 +3318,7 @@ mlan_status wlan_re_alloc_sdio_rx_mpa_buffer(mlan_adapter *pmadapter)
 		pmadapter->pcard_sd->mpa_rx.buf = MNULL;
 	}
 	pmadapter->pcard_sd->mpa_rx.buf_size = mpa_rx_buf_size;
-	PRINTM(MMSG, "mpa_rx_buf_size=%d\n", mpa_rx_buf_size);
+	PRINTM(MMSG, "realloc: mpa_rx_buf_size=%d\n", mpa_rx_buf_size);
 error:
 	return ret;
 }

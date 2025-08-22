@@ -319,6 +319,11 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_do_div);
 
 	MASSERT(pcb->moal_get_host_time_ns);
+	MASSERT(pcb->moal_unaligned_access.moal_read_u16);
+	MASSERT(pcb->moal_unaligned_access.moal_read_u32);
+	MASSERT(pcb->moal_unaligned_access.moal_write_u16);
+	MASSERT(pcb->moal_unaligned_access.moal_write_u32);
+
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
@@ -540,6 +545,16 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->priv[0]->bss_index = 0;
 		pmadapter->priv[0]->bss_num =
 			(t_u8)pmdevice->bss_attr[0].bss_num;
+	}
+
+	pmadapter->shc_secure_host = pmdevice->secure_host;
+	if (pmadapter->second_mac && pmadapter->shc_secure_host) {
+		if (pcb->moal_secure_host_derive_traffic_keys(
+			    pmadapter->pmoal_handle) ||
+		    pcb->moal_secure_host_data_ctx_init(
+			    pmadapter->pmoal_handle)) {
+			goto error;
+		}
 	}
 
 	/* init function table */
@@ -1658,9 +1673,9 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 
 	if (pmbuf->data_offset > UINT32_MAX - MLAN_ETHER_PKT_TYPE_OFFSET)
 		return MLAN_STATUS_FAILURE;
-	eth_type =
-		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type = mlan_ntohs(read_u16_unaligned(
+		pmadapter,
+		&pmbuf->pbuf[pmbuf->data_offset + MLAN_ETHER_PKT_TYPE_OFFSET]));
 
 #ifdef UAP_SUPPORT
 	/** Identify ICMP packet from ETH_IP packet. ICMP packet in IP header
@@ -1863,7 +1878,8 @@ mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
 	len = pmbuf->data_len;
 
 	MASSERT(len >= MLAN_TYPE_LEN);
-	recv_type = *(t_u32 *)pbuf;
+	recv_type = read_u32_unaligned(pmadapter, pbuf);
+	;
 	recv_type = wlan_le32_to_cpu(recv_type);
 	pbuf += MLAN_TYPE_LEN;
 	len -= MLAN_TYPE_LEN;
@@ -2044,9 +2060,9 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 
 	*drop = MFALSE;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
-	eth_type =
-		mlan_ntohs(*(t_u16 *)&pmbuf->pbuf[pmbuf->data_offset +
-						  MLAN_ETHER_PKT_TYPE_OFFSET]);
+	eth_type = mlan_ntohs(read_u16_unaligned(
+		pmadapter,
+		&pmbuf->pbuf[pmbuf->data_offset + MLAN_ETHER_PKT_TYPE_OFFSET]));
 	switch (eth_type) {
 	case MLAN_ETHER_PKT_TYPE_EAPOL:
 		PRINTM(MEVENT, "Recevie AMSDU EAPOL frame\n");

@@ -397,7 +397,11 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_PREV_ASSOC_INFO = 0x0020009A,
 
 	MLAN_OID_MISC_NAV_MITIGATION_HW = 0x0020009C,
-
+	MLAN_OID_MISC_PREAMBLE_PWR_BOOST = 0x0020009D,
+	MLAN_OID_MISC_PER_BAND_TXPWR_CAP = 0x0020009E,
+#ifdef UAP_SUPPORT
+	MLAN_OID_MISC_AGCS_CONFIG = 0x0020009F,
+#endif /* UAP_SUPPORT */
 };
 
 /** Sub command size */
@@ -1863,6 +1867,12 @@ typedef struct _mlan_ds_get_stats {
 	t_u32 TXpwrMethod;
 	/** DPD training status*/
 	t_u32 isDPDdone;
+	/*CCA count*/
+	t_u64 cca_cnt_us;
+	/*RX airtime count*/
+	t_u64 rxAirtime_us;
+	/*TX airtime count*/
+	t_u64 txAirtime_us;
 } mlan_ds_get_stats, *pmlan_ds_get_stats;
 
 /** Type definition of mlan_ds_uap_stats for MLAN_OID_GET_STATS */
@@ -4953,6 +4963,16 @@ typedef struct _mlan_ds_misc_tx_ampdu_prot_mode {
 	t_u16 mode;
 } mlan_ds_misc_tx_ampdu_prot_mode;
 
+/** Type definition of mlan_ds_misc_preamble_pwr_boost
+ * for MLAN_OID_MISC_PREAMBLE_PWR_BOOST
+ */
+typedef struct _mlan_ds_misc_preamble_pwr_boost {
+	/** To force-enable/force-disable the preamble pwr boost feature*/
+	t_u8 enable_mode;
+	/** rssi threshold */
+	t_s8 rssi_threshold;
+} mlan_ds_misc_preamble_pwr_boost;
+
 /** Type definition of mlan_ds_misc_dot11mc_unassoc_ftm_cfg
  * for MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG
  */
@@ -6556,6 +6576,14 @@ typedef struct _mlan_ds_ed_mac_cfg {
 	t_u32 ed_bitmap_txq_lock;
 } mlan_ds_ed_mac_cfg;
 
+/** per_band_txpwr_cap params */
+typedef struct _mlan_ds_misc_per_band_txpwr_cap {
+	/** power value */
+	t_u8 power;
+	/** band */
+	t_u8 band;
+} mlan_ds_misc_per_band_txpwr_cap;
+
 /** valid range for mlan_ds_auth_assoc_timeout_cfg */
 #define AUTH_TIMEOUT_MIN 500
 #define AUTH_TIMEOUT_MAX 2400
@@ -6585,6 +6613,37 @@ typedef struct _mlan_ds_auth_assoc_timeout_cfg {
 	/** assoc/reassoc frame retry timeout if ack received */
 	t_u16 retry_timeout;
 } mlan_ds_auth_assoc_timeout_cfg;
+
+#ifdef UAP_SUPPORT
+/** Agiled channel switch configuration parameters */
+typedef struct _mlan_ds_agcs_cfg {
+	/**agcs cfg action 0-GET, 1-SET */
+	t_u16 action;
+	/* BIT0 - Enable Agile channel switching in CarPlay
+	 * BIT1 - no specific interference type check, but only check Tx or Rx
+	 * throughput drop
+	 */
+	t_u32 features;
+	/* Adjust the weight of TX/RX average packet count */
+	t_u8 avg_threshold_percentage;
+	/* The requires at least average rx packets per second */
+	t_u16 rx_min_pkt_count;
+	/* The requires at least average tx packets per second */
+	t_u16 tx_min_pkt_count;
+	/* Unit is ms */
+	t_u32 sample_time;
+	/* The latest sampled windows size */
+	t_u8 sample_count_window;
+	/* Continuous drop rapidly times */
+	t_u8 continuous_hit_count;
+	/* Make sure a reasonable rate can be sustained. */
+	t_s8 nf_margin;
+	/* Long duration packets threshold */
+	t_u16 nav_mitigation_th;
+	/* ch threshold to trigger channel switch for nighthawk */
+	t_u16 ch_th;
+} mlan_ds_agcs_cfg;
+#endif /* UAP_SUPPORT */
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
@@ -6732,6 +6791,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_nav_mitigation_hw nav_mitigation_hw;
 		mlan_ds_misc_led_cfg led_config;
 		mlan_ds_misc_tx_ampdu_prot_mode tx_ampdu_prot_mode;
+		mlan_ds_misc_preamble_pwr_boost preamble_pwr_boost;
 		mlan_ds_misc_rate_adapt_cfg rate_adapt_cfg;
 		mlan_ds_misc_cck_desense_cfg cck_desense_cfg;
 		mlan_ds_misc_chan_trpc_cfg trpc_cfg;
@@ -6767,6 +6827,11 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_ed_mac_cfg edmac_cfg;
 		mlan_ds_gpio_cfg_ops gpio_cfg_ops;
 		mlan_ds_auth_assoc_timeout_cfg auth_assoc_cfg;
+		mlan_ds_misc_per_band_txpwr_cap per_band_txpwr_cap;
+#ifdef UAP_SUPPORT
+		/** config AGCS for MLAN_OID_MISC_AGCS_CONFIG */
+		mlan_ds_agcs_cfg agcs_cfg;
+#endif /* UAP_SUPPORT */
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 
@@ -6805,4 +6870,34 @@ typedef struct _mlan_cfpinfo {
 #define MLAN_REASON_CLASS3_FRAME_FROM_NOASSOC_STA 7
 #define MLAN_REASON_DISASSOC_STA_HAS_LEFT 8
 #define MLAN_REASON_STA_REQ_ASSOC_WITHOUT_AUTH 9
+
+#ifdef UAP_SUPPORT
+/* Processing AGCS report */
+#define AGCS_EVENT_TYPE_PROCESS_EVENT 1
+/* After AGCS scan, select and switch to new channel */
+#define AGCS_EVENT_TYPE_SEL_CHANNEL 2
+
+/** Type definition of agcs_stats for agcs_event */
+typedef struct _agcs_stats {
+	/** All STAs support ECS */
+	t_u8 all_sta_ecs;
+	/** All STAs support 6g */
+	t_u8 all_sta_6g;
+	/** ch_load of current channel */
+	t_u16 ch_load;
+	/** noise of current channel */
+	t_s16 noise;
+	/** The noise floor threshold currently used by fw */
+	t_s16 nf_threshold;
+} agcs_stats, *pagcs_stats;
+
+/** Type definition of agcs_event for WOAL_EVENT_AGCS */
+typedef struct _agcs_event {
+	/** AGCS_EVENT_TYPE_PROCESS_EVENT or AGCS_EVENT_TYPE_SEL_CHANNEL */
+	t_u32 type;
+	/** AGCS stats info */
+	agcs_stats stats;
+} agcs_event, *pagcs_event;
+#endif /* UAP_SUPPORT */
+
 #endif /* !_MLAN_IOCTL_H_ */

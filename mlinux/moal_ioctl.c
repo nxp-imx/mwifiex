@@ -3988,11 +3988,9 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
-	if (priv->phandle->hs_auto_arp) {
-		PRINTM(MIOCTL, "Cancel Host Sleep... remove ipv6 offload\n");
-		/** Set ipv6 router advertisement message offload */
-		woal_set_ipv6_ra_offload(priv->phandle, MFALSE);
-	}
+	PRINTM(MIOCTL, "Cancel Host Sleep... remove ipv6 offload\n");
+	/** Set ipv6 router advertisement message offload */
+	woal_set_ipv6_ra_offload(priv->phandle, MFALSE);
 	/** Set Neighbor Solitation message offload */
 	woal_set_ipv6_ns_offload(priv->phandle, MFALSE);
 #endif
@@ -4337,10 +4335,12 @@ int woal_enable_hs(moal_private *priv)
 	media_connected = woal_check_media_connected(handle);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #if IS_ENABLED(CONFIG_IPV6)
-	if (handle->hs_auto_arp && media_connected) {
+	if (media_connected) {
 		PRINTM(MIOCTL, "Host Sleep enabled... set ipv6 offload\n");
 		/** Set ipv6 router advertisement message offload */
 		woal_set_ipv6_ra_offload(handle, MTRUE);
+	}
+	if (handle->hs_auto_arp && media_connected) {
 		/** Set Neighbor Solitation message offload */
 		woal_set_ipv6_ns_offload(handle, MTRUE);
 	}

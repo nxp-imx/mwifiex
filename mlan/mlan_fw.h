@@ -933,6 +933,8 @@ enum host_cmd_id {
 #define FW_CAPINFO_EASY_MESH MBIT(21)
 /** FW cap info bit 22: ADDBA support with scan */
 #define FW_CAPINFO_ALLOW_ADDBA_RESP_ON_SCAN MBIT(22)
+/** FW cap info bit 23: MAC2 is not available */
+#define FW_CAPINFO_EXT_NO_MAC2 MBIT(23)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -1199,6 +1201,9 @@ typedef enum _ENH_PS_MODES {
 	DIS_AUTO_PS = 0xfe,
 	EN_AUTO_PS = 0xff,
 } ENH_PS_MODES;
+
+/** Secure Host command, payload is encrypted*/
+#define HostCmd_Encrypted_BIT 0x4000
 
 /** Command RET code, MSB is set to 1 */
 #define HostCmd_RET_BIT 0x8000
@@ -2386,6 +2391,20 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GTK_REKEY_PARAMS {
 	t_u32 replay_ctr_high;
 } MLAN_PACK_END HostCmd_DS_GTK_REKEY_PARAMS;
 
+typedef MLAN_PACK_START struct _SECURE_HOST_MSG_HEADER {
+	t_u32 magic;
+	t_u16 len;
+	t_u8 id;
+	t_u8 version;
+} MLAN_PACK_END SECURE_HOST_MSG_HEADER;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_SECURE_HOST {
+	/** Action */
+	t_u16 action;
+	/** TLS handshake message data */
+	t_u8 tls_data[1024];
+} MLAN_PACK_END HostCmd_DS_SECURE_HOST;
+
 /** Data structure of WMM QoS information */
 typedef MLAN_PACK_START struct _WmmQosInfo_t {
 #ifdef BIG_ENDIAN_SUPPORT
@@ -2520,8 +2539,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CHANNEL_TRPC_CONFIG {
 	t_u16 action;
 	/** 0/1/2/3 */
 	t_u16 sub_band;
-	/** chan TRPC config */
-	// MrvlIETypes_ChanTRPCConfig_t tlv[];
 } MLAN_PACK_END HostCmd_DS_CHANNEL_TRPC_CONFIG;
 
 /** Address type: broadcast */
@@ -3312,6 +3329,12 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 TXpwrMethod;
 	/** DPD training status*/
 	t_u32 isDPDdone;
+	/*CCA count*/
+	t_u64 cca_cnt_us;
+	/*RX airtime count*/
+	t_u64 rxAirtime_us;
+	/*TX airtime count*/
+	t_u64 txAirtime_us;
 } MLAN_PACK_END HostCmd_DS_802_11_GET_LOG;
 
 /* maln wifi rate */
@@ -7456,6 +7479,16 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_TX_AMPDU_PROT_MODE {
 	t_u16 mode;
 } MLAN_PACK_END HostCmd_DS_CMD_TX_AMPDU_PROT_MODE;
 
+/** HostCmd_CMD_PREAMBLE_PWR_BOOST */
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_PREAMBLE_PWR_BOOST {
+	/** Action */
+	t_u16 action;
+	/** To force-enable/force-disable the preamble pwr boost feature*/
+	t_u8 enable_mode;
+	/** rssi pkt threshold */
+	t_s8 rssi_threshold;
+} MLAN_PACK_END HostCmd_DS_CMD_PREAMBLE_PWR_BOOST;
+
 /** HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG */
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG {
 	/** Action */
@@ -7560,7 +7593,7 @@ typedef MLAN_PACK_START struct _HostCmd_CMD_802_11_STA_TX_RATE {
 
 	/** actual number of entries in array */
 	t_u16 num_entries;
-} HostCmd_CMD_802_11_STA_TX_RATE;
+} MLAN_PACK_END HostCmd_CMD_802_11_STA_TX_RATE;
 
 /** HostCmd_MCLIENT_SCHEDULE_CFG */
 typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
@@ -7572,7 +7605,48 @@ typedef MLAN_PACK_START struct _HostCmd_MCLIENT_SCHEDULE_CFG {
 
 	/** enable PS mode change reporting */
 	t_u8 ps_mode_change_report;
-} HostCmd_MCLIENT_SCHEDULE_CFG;
+} MLAN_PACK_END HostCmd_MCLIENT_SCHEDULE_CFG;
+
+#ifdef UAP_SUPPORT
+/** HostCmd_DS_AGCS_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_AGCS_CFG {
+	/** action - get/set */
+	t_u16 action;
+
+	/* BIT0 - Enable Agile channel switching in CarPlay
+	 * BIT1 - no specific interference type check, but only check Tx or Rx
+	 * throughput drop
+	 */
+	t_u32 features;
+
+	/* Adjust the weight of TX/RX average packet count */
+	t_u8 avg_threshold_percentage;
+
+	/* The conservative amount of rx packet per second */
+	t_u16 rx_min_pkt_count;
+
+	/* The conservative amount of tx packet per second */
+	t_u16 tx_min_pkt_count;
+
+	/* Unit is ms */
+	t_u32 sample_time;
+
+	/* The latest sampled windows size */
+	t_u8 sample_count_window;
+
+	/* Continuous drop rapidly times */
+	t_u8 continuous_hit_count;
+
+	/* Make sure a reasonable rate can be sustained. */
+	t_s8 nf_margin;
+
+	/* Long duration packets threshold */
+	t_u16 nav_mitigation_th;
+
+	/* ch threshold to trigger channel switch for nighthawk */
+	t_u16 ch_th;
+} MLAN_PACK_END HostCmd_DS_AGCS_CFG;
+#endif /* UAP_SUPPORT */
 
 /** HostCmd_DS_COMMAND */
 typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
@@ -7836,6 +7910,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_CMD_NavMitigationHwCfg nav_mitigation_hw;
 		HostCmd_DS_CMD_LED_CFG ledcntrcfg;
 		HostCmd_DS_CMD_TX_AMPDU_PROT_MODE tx_ampdu_prot_mode;
+		HostCmd_DS_CMD_PREAMBLE_PWR_BOOST preamble_pwr_boost;
 		HostCmd_DS_CMD_RATE_ADAPT_CFG rate_adapt_cfg;
 		HostCmd_DS_CMD_CCK_DESENSE_CFG cck_desense_cfg;
 		/** trpc_config */
@@ -7867,6 +7942,8 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_CMD_802_11_STA_TX_RATE sta_rx_rate;
 		HostCmd_MCLIENT_SCHEDULE_CFG mclient_cfg;
 
+		HostCmd_DS_SECURE_HOST shc;
+
 		/** WMM HOST ADDTS */
 		HostCmd_DS_WMM_HOST_ADDTS_REQ host_add_ts;
 		/** WMM HOST DELTS */
@@ -7874,6 +7951,10 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Auth, (Re)Assoc timeout configuration */
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
+#ifdef UAP_SUPPORT
+		/** Agiled channel switch configuration */
+		HostCmd_DS_AGCS_CFG agcs_cfg;
+#endif /* UAP_SUPPORT */
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 
@@ -7914,6 +7995,16 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_PsStaStatus_t {
 	t_u8 mac[MLAN_MAC_ADDR_LENGTH];
 	t_u8 sleep;
 } MLAN_PACK_END MrvlIEtypes_PsStaStatus_t;
+
+/** per_band_txpwr_cap params */
+typedef struct _MrvlIEtypes_per_band_txpwr_cap {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** band */
+	t_u8 band;
+	/** power value */
+	t_u8 power;
+} MLAN_PACK_END MrvlIEtypes_per_band_txpwr_cap;
 
 /** req host side download vdll block */
 #define VDLL_IND_TYPE_REQ 0
@@ -7970,6 +8061,26 @@ typedef enum _BLOCK_6G_CHAN_SWITCH_REASON {
 	BLOCK_6G_CHAN_SWITCH_REASON_STA_RX_ECSA = 4,
 } BLOCK_6G_CHAN_SWITCH_REASON;
 
+#ifdef UAP_SUPPORT
+/** FW trigger the agiled channel switch */
+#define AGCS_TYPE_CS_TRIGGER 0
+/** FW send current channel statistics */
+#define AGCS_TYPE_STATS_REPORT 1
+
+/* Fw agcs statistics structure */
+typedef MLAN_PACK_START struct _agcs_stats_info_t {
+	/** This is STATS_REPORT or CS_TRIGGER */
+	t_u16 type;
+	/** Channel utilization in the last 100ms */
+	t_u16 ch_load;
+	/** noise in the last 100ms */
+	t_s16 noise;
+	/** nf_threshold is used to check the noise floor of candidate channels
+	 */
+	t_s16 nf_threshold;
+} MLAN_PACK_END agcs_stats_info_t;
+#endif /* UAP_SUPPORT */
+
 #ifdef PRAGMA_PACK
 #pragma pack(pop)
 #endif
@@ -7978,5 +8089,20 @@ typedef MLAN_PACK_START struct _Event_DPD_CAL_t {
 	t_u8 radio_id;
 	t_u8 sub_band;
 } MLAN_PACK_END Event_DPD_CAL_t;
+
+typedef MLAN_PACK_START struct _SECURE_HOST_EVENT_HEADER {
+	/** Type ID */
+	t_u16 type_id;
+	t_u16 bbs;
+	/** Action */
+	t_u16 tls_action;
+} MLAN_PACK_END SECURE_HOST_EVENT_HEADER;
+
+typedef MLAN_PACK_START struct SECURE_HOST_EVENT {
+	/** TLS handshake message header */
+	SECURE_HOST_EVENT_HEADER tls_header;
+	/** TLS handshake message data */
+	t_u8 tls_data[];
+} MLAN_PACK_END SECURE_HOST_EVENT;
 
 #endif /* !_MLAN_FW_H_ */
