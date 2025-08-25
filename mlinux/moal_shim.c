@@ -3531,6 +3531,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		/* 6E Indoor/Outdoor, download the default power table
 		 * after disconnect/link-loss */
 		if ((priv->phandle->fw_bands & BAND_6G) &&
+			(priv->sme_current.channel) &&
 		    (priv->sme_current.channel->band == NL80211_BAND_6GHZ)) {
 			PRINTM(MEVENT, "Downloading default 6E table!!\n");
 			if (MLAN_STATUS_SUCCESS !=
