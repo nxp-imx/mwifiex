@@ -84,7 +84,6 @@ Change log:
 #include <linux/rtc.h>
 #include <linux/utsname.h>
 #endif
-#include "moal_shc.h"
 
 /********************************************************
 		 Global Variables
@@ -942,8 +941,7 @@ static struct _card_info card_info_SD8987 = {
 
 /** Driver version */
 char driver_version[MLAN_MAX_VER_STR_LEN] =
-	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-GPL"
-				   "-("
+	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-("
 				   "FP" FPNUM ")"
 #ifdef DEBUG_LEVEL2
 				   "-dbg"
@@ -1013,18 +1011,6 @@ static mlan_callbacks woal_callbacks = {
 	.moal_tp_accounting_rx_param = moal_tp_accounting_rx_param,
 	.moal_amsdu_tp_accounting = moal_amsdu_tp_accounting,
 	.moal_calc_short_ssid = moal_calc_short_ssid,
-	.moal_secure_host_get_msg_id = moal_secure_host_get_msg_id,
-	.moal_secure_host_init = moal_secure_host_init,
-	.moal_secure_host_cleanup = moal_secure_host_cleanup,
-	.moal_secure_host_do_hello = moal_secure_host_do_hello,
-	.moal_secure_host_device_hello_rcvd =
-		moal_secure_host_device_hello_rcvd,
-	.moal_secure_host_do_finished = moal_secure_host_do_finished,
-	.moal_secure_host_derive_traffic_keys =
-		moal_secure_host_derive_traffic_keys,
-	.moal_secure_host_data_ctx_init = moal_secure_host_data_ctx_init,
-	.moal_secure_host_data_encrypt = moal_secure_host_data_encrypt,
-	.moal_secure_host_data_decrypt = moal_secure_host_data_decrypt,
 	.moal_unaligned_access.moal_read_u16 = moal_read_unaligned_u16,
 	.moal_unaligned_access.moal_read_u32 = moal_read_unaligned_u32,
 	.moal_unaligned_access.moal_write_u16 = moal_write_unaligned_u16,
@@ -2574,8 +2560,6 @@ mlan_status woal_init_sw(moal_handle *handle)
 	t_void *pmlan;
 	int cfg80211_wext = handle->params.cfg80211_wext;
 
-	moal_handle *ref_handle = NULL;
-
 	ENTER();
 
 	/* Initialize moal_handle structure */
@@ -2936,22 +2920,6 @@ mlan_status woal_init_sw(moal_handle *handle)
 	/* Clean up the mode_psd_string for 6E Indoor/Outdoor */
 	memset(handle->mode_psd_string, 0, sizeof(handle->mode_psd_string));
 
-	device.secure_host = (t_u32)handle->params.secure_host;
-
-	if (handle->second_mac && handle->params.secure_host &&
-	    handle->pref_mac) {
-		ref_handle = (moal_handle *)handle->pref_mac;
-		handle->secure = ref_handle->secure;
-	}
-
-	if (handle->second_mac && handle->params.secure_host &&
-	    !handle->secure) {
-		PRINTM(MERROR, "secure host handshake incomplete\n");
-		ret = MLAN_STATUS_FAILURE;
-		LEAVE();
-		return ret;
-	}
-
 	moal_memcpy_ext(handle, &device.callbacks, &woal_callbacks,
 			sizeof(mlan_callbacks), sizeof(mlan_callbacks));
 	if (!handle->params.amsdu_deaggr)
@@ -3039,14 +3007,6 @@ void woal_free_moal_handle(moal_handle *handle)
 		fwdump_fname = NULL;
 	}
 
-	if (handle->params.secure_host) {
-		moal_secure_host_cleanup(handle);
-		handle->secure = NULL;
-		if (handle->pref_mac) {
-			ref_handle = (moal_handle *)handle->pref_mac;
-			ref_handle->secure = NULL;
-		}
-	}
 	/* Free module params */
 	woal_free_module_param(handle);
 	/** clear pref_mac to avoid later crash */

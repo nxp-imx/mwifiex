@@ -37,7 +37,6 @@
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
 #include "mlan_meas.h"
-#include "mlan_shc.h"
 
 /********************************************************
  *			Local Variables
@@ -3474,8 +3473,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_FUNC_INIT:
 	case HostCmd_CMD_FUNC_SHUTDOWN:
-		break;
-	case HostCmd_CMD_SECURE_HOST:
 		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		ret = wlan_ret_802_11_key_material(pmpriv, resp, pioctl_buf);

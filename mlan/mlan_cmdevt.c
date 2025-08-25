@@ -46,8 +46,6 @@ Change Log:
 #endif /* PCIE */
 #include "mlan_init.h"
 
-#include "mlan_shc.h"
-
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -1547,11 +1545,7 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 						   (t_u8 *)pcmd + S_DS_GEN)),
 	       cmd_size, wlan_le16_to_cpu(pcmd->seq_num), timeout);
 
-	if (!pmadapter->shc_secure_host)
-		DBG_HEXDUMP(MCMD_D, "DNLD_CMD", (t_u8 *)pcmd, cmd_size);
-
-	if (pmadapter->shc_secure_host)
-		DBG_HEXDUMP(MSHC_D, "DNLD_CMD", (t_u8 *)pcmd, cmd_size);
+	DBG_HEXDUMP(MCMD_D, "DNLD_CMD", (t_u8 *)pcmd, cmd_size);
 
 #if defined(SDIO) || defined(PCIE)
 	if (!IS_USB(pmadapter->card_type)) {
@@ -1560,21 +1554,6 @@ static mlan_status wlan_dnld_cmd_to_fw(mlan_private *pmpriv,
 		pcmd_node->cmdbuf->data_len += pmadapter->ops.intf_header_len;
 	}
 #endif
-
-	if (pmadapter->shc_secure_host &&
-	    wlan_is_secure_host_cmd(pcmd->command) == MTRUE) {
-		if (wlan_shc_secure_hostcmd_process(pmadapter, pcmd) !=
-		    MLAN_STATUS_FAILURE) {
-			pcmd_node->cmdbuf->data_len += 16;
-			PRINTM(MCMND, "%s is encrypted",
-			       wlan_hostcmd_get_name(cmd_code));
-			DBG_HEXDUMP(MCMD_D, "Encrypted DNLD_CMD", (t_u8 *)pcmd,
-				    pcmd->size);
-		} else {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-	}
 
 	/* Send the command to lower layer */
 	ret = pmadapter->ops.host_to_card(pmpriv, MLAN_TYPE_CMD,
@@ -2479,13 +2458,6 @@ static void wlan_handle_cmd_error_in_pre_aleep(mlan_adapter *pmadapter,
 						       MLAN_STATUS_SUCCESS);
 			pcmd_node->respbuf = MNULL;
 		}
-		if (pmadapter->shc_secure_host) {
-			memcpy_ext(pmadapter,
-				   pcmd_node->cmdbuf->pbuf +
-					   pcmd_node->cmdbuf->data_offset,
-				   rsp, rsp->size, rsp->size);
-			pcmd_node->cmdbuf->data_len = rsp->size;
-		}
 		wlan_insert_cmd_to_pending_q(pmadapter, pcmd_node, MFALSE);
 	}
 
@@ -2549,13 +2521,6 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 
 	resp = (HostCmd_DS_COMMAND *)(pmadapter->curr_cmd->respbuf->pbuf +
 				      pmadapter->curr_cmd->respbuf->data_offset);
-
-	if (pmadapter->shc_secure_host) {
-		if (wlan_shc_secure_hostresp_process(pmadapter, resp) !=
-		    MLAN_STATUS_SUCCESS) {
-			goto done;
-		}
-	}
 
 	orig_cmdresp_no = wlan_le16_to_cpu(resp->command);
 	cmdresp_no = (orig_cmdresp_no & HostCmd_CMD_ID_MASK);
@@ -2688,8 +2653,7 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 
 	/* Check init command response */
 	if (pmadapter->hw_status == WlanHardwareStatusInitializing ||
-	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec ||
-	    pmadapter->hw_status == WlanHardwareStatusSecHandshake) {
+	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec) {
 		if (ret == MLAN_STATUS_FAILURE) {
 #if 0
             //ignore command error for WARM RESET
@@ -2708,11 +2672,6 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 			PRINTM(MERROR,
 			       "cmd 0x%02x failed during initialization\n",
 			       cmdresp_no);
-			if (pmadapter->hw_status ==
-			    WlanHardwareStatusSecHandshake) {
-				PRINTM(MERROR,
-				       "secure host handshake incomplete\n");
-			}
 			wlan_init_fw_complete(pmadapter);
 			goto done;
 		}
@@ -2789,23 +2748,6 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		pmadapter->hw_status = WlanHardwareStatusGetHwSpecdone;
 	}
 #if defined(PCIEAW693)
-	else if (pmadapter->shc_secure_host &&
-		 (pmadapter->hw_status == WlanHardwareStatusGetHwSpec) &&
-		 (HostCmd_CMD_FUNC_INIT == cmdresp_no)) {
-		if (!pmadapter->second_mac) {
-			pmadapter->hw_status = WlanHardwareStatusSecHandshake;
-			PRINTM(MMSG, "secure host handshake start\n");
-			ret = mlan_shc_handshake(pmadapter, TLS_HOST_HELLO,
-						 MNULL);
-			if (ret != MLAN_STATUS_SUCCESS) {
-				pmadapter->hw_status =
-					WlanHardwareStatusNotReady;
-				wlan_init_fw_complete(pmadapter);
-			}
-		} else {
-			wlan_adapter_get_hw_spec(pmadapter);
-		}
-	}
 #endif
 
 done:
@@ -5473,46 +5415,6 @@ mlan_status wlan_cmd_func_init(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd)
 	return MLAN_STATUS_SUCCESS;
 }
 
-mlan_status wlan_adapter_func_init(pmlan_adapter pmadapter)
-{
-	mlan_status ret;
-	pmlan_private priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
-
-	ENTER();
-#if defined(SDIO)
-	/*
-	 * This should be issued in the very first to config
-	 *   SDIO_GPIO interrupt mode.
-	 */
-	if (IS_SD(pmadapter->card_type) &&
-	    (wlan_set_sdio_gpio_int(priv) != MLAN_STATUS_SUCCESS)) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-#endif
-
-#ifdef PCIE
-	if (IS_PCIE(pmadapter->card_type) &&
-	    (MLAN_STATUS_SUCCESS != wlan_set_pcie_buf_config(priv))) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-#endif
-
-	ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT, HostCmd_ACT_GEN_SET,
-			       0, MNULL, MNULL);
-	if (ret) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	ret = MLAN_STATUS_PENDING;
-
-done:
-	LEAVE();
-	return ret;
-}
-
 /**
  *  @brief  This function issues adapter specific commands
  *          to initialize firmware
@@ -5544,20 +5446,18 @@ mlan_status wlan_adapter_get_hw_spec(pmlan_adapter pmadapter)
 #endif
 
 #ifdef PCIE
-	if (IS_PCIE(pmadapter->card_type) && !pmadapter->shc_secure_host &&
+	if (IS_PCIE(pmadapter->card_type) &&
 	    (MLAN_STATUS_SUCCESS != wlan_set_pcie_buf_config(priv))) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 #endif
 
-	if (!pmadapter->shc_secure_host) {
-		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT, HostCmd_ACT_GEN_SET,
+			       0, MNULL, MNULL);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
 
 	/** DPD data dnld cmd prepare */
@@ -12036,12 +11936,6 @@ mlan_status wlan_ret_get_sensor_temp(pmlan_private pmpriv,
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
-}
-
-mlan_status wlan_process_secure_host_event(pmlan_private pmpriv, t_u8 *data,
-					   t_u32 len)
-{
-	return wlan_shc_process_secure_host_event(pmpriv, data, len);
 }
 
 /**

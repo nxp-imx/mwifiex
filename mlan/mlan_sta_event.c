@@ -1661,11 +1661,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			    (t_u8 *)pevent->event_buf, pevent->event_len);
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
-	case EVENT_SECURE_HOST_COMM:
-		ret = wlan_process_secure_host_event(
-			pmpriv, pmbuf->pbuf + pmbuf->data_offset,
-			pmbuf->data_len);
-		break;
 	default:
 		PRINTM(MEVENT, "EVENT: unknown event id: %#x\n", eventcause);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_UNKNOWN, MNULL);

@@ -489,8 +489,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	ENUM_ELEMENT(HostCmd_CMD_NAV_MITIGATION_HW_CFG, 0x0294),
 
-	ENUM_ELEMENT(HostCmd_CMD_SECURE_HOST, 0x0295),
-
 	/** Host Command ID : To enable/disable/force-enable PPB feature */
 	ENUM_ELEMENT(HostCmd_CMD_PREAMBLE_PWR_BOOST, 0x0296),
 	/* Always keep this last */

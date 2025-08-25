@@ -448,9 +448,6 @@ static int make_before_break = 0;
 static int auto_11ax = 1;
 static int reject_addba_req = 0;
 
-/** secure host mode support */
-int secure_host = 0;
-
 /**
  *  @brief This function read a line in module parameter file
  *
@@ -1756,12 +1753,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->make_before_break = out_data;
 			PRINTM(MMSG, "make_before_break=%x\n",
 			       params->make_before_break);
-		} else if (strncmp(line, "secure_host",
-				   strlen("secure_host")) == 0) {
-			if (parse_line_read_int(line, &out_data) !=
-			    MLAN_STATUS_SUCCESS)
-				goto err;
-			params->secure_host = out_data;
 		}
 	}
 
@@ -1773,13 +1764,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 		params->mclient_scheduling = 0;
 #else
 	params->mclient_scheduling = 0;
-#endif
-
-#ifdef PCIE
-	if (!IS_PCIEAW693(handle->card_type))
-		params->secure_host = 0;
-#else
-	params->secure_host = 0;
 #endif
 
 	if (end)
@@ -2240,16 +2224,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.tpe_ie_ignore = params->tpe_ie_ignore;
 	handle->params.make_before_break = make_before_break;
-
-	handle->params.secure_host = secure_host;
-	if (params)
-		handle->params.secure_host = params->secure_host;
-#ifdef PCIE
-	if (!IS_PCIEAW693(handle->card_type))
-		handle->params.secure_host = 0;
-#else
-	handle->params.secure_host = 0;
-#endif
 }
 
 /**
@@ -2859,14 +2833,6 @@ void woal_init_from_dev_tree(void)
 				PRINTM(MERROR, "make_before_break=0x%x\n",
 				       data);
 				make_before_break = data;
-			}
-		}
-
-		else if (!strncmp(prop->name, "secure_host",
-				  strlen("secure_host"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				PRINTM(MIOCTL, "secure_host=0x%x\n", data);
-				secure_host = data;
 			}
 		}
 	}
@@ -3530,8 +3496,3 @@ module_param(make_before_break, int, 0);
 MODULE_PARM_DESC(
 	make_before_break,
 	"1: make_before_break during roam; 0: no make_before_break during roam");
-
-module_param(secure_host, int, 0660);
-MODULE_PARM_DESC(
-	secure_host,
-	"0: Disable secure host mode(default); 1: Enable secure host mode");

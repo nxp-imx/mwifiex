@@ -5156,8 +5156,6 @@ static int woal_priv_set_get_drvdbg(moal_private *priv, t_u8 *respbuf,
 #endif
 	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
 	       (drvdbg & MMPA_D) ? "X" : "");
-	printk(KERN_ALERT "MSHC_D (%08x) %s\n", MSHC_D,
-	       (drvdbg & MSHC_D) ? "X" : "");
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,
@@ -7014,11 +7012,6 @@ static int woal_priv_warmreset(moal_private *priv, t_u8 *respbuf,
 	moal_private *ref_priv;
 	ENTER();
 
-	if (handle->params.secure_host) {
-		PRINTM(MERROR,
-		       "Warm reset not supported with secure host enabled\n");
-		goto done;
-	}
 	ret = woal_pre_warmreset(priv);
 	if (ret)
 		goto done;

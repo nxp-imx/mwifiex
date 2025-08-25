@@ -3900,23 +3900,6 @@ static mlan_status wlan_cmd_auth_assoc_timeout_cfg(pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
-mlan_status wlan_cmd_secure_host(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
-				 t_void *pdata_buf)
-{
-	HostCmd_DS_SECURE_HOST *shc = &cmd->params.shc;
-	SECURE_HOST_MSG_HEADER *tls_hdr = (SECURE_HOST_MSG_HEADER *)pdata_buf;
-	t_u16 tls_len = tls_hdr->len;
-	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SECURE_HOST);
-	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(shc->action) + tls_len);
-
-	shc->action = 0x0;
-	memcpy_ext(pmpriv->adapter, (void *)&shc->tls_data, (void *)pdata_buf,
-		   tls_len, tls_len);
-
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
 /**
  *  @brief This function prepare the command before sending to firmware.
  *
@@ -4539,9 +4522,6 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						      cmd_action, pdata_buf);
 		break;
 
-	case HostCmd_CMD_SECURE_HOST:
-		ret = wlan_cmd_secure_host(pmpriv, cmd_ptr, pdata_buf);
-		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		ret = MLAN_STATUS_FAILURE;

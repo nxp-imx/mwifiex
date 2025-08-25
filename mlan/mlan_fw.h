@@ -1202,9 +1202,6 @@ typedef enum _ENH_PS_MODES {
 	EN_AUTO_PS = 0xff,
 } ENH_PS_MODES;
 
-/** Secure Host command, payload is encrypted*/
-#define HostCmd_Encrypted_BIT 0x4000
-
 /** Command RET code, MSB is set to 1 */
 #define HostCmd_RET_BIT 0x8000
 
@@ -2390,20 +2387,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GTK_REKEY_PARAMS {
 	/** Replay counter high 32 bit */
 	t_u32 replay_ctr_high;
 } MLAN_PACK_END HostCmd_DS_GTK_REKEY_PARAMS;
-
-typedef MLAN_PACK_START struct _SECURE_HOST_MSG_HEADER {
-	t_u32 magic;
-	t_u16 len;
-	t_u8 id;
-	t_u8 version;
-} MLAN_PACK_END SECURE_HOST_MSG_HEADER;
-
-typedef MLAN_PACK_START struct _HostCmd_DS_SECURE_HOST {
-	/** Action */
-	t_u16 action;
-	/** TLS handshake message data */
-	t_u8 tls_data[1024];
-} MLAN_PACK_END HostCmd_DS_SECURE_HOST;
 
 /** Data structure of WMM QoS information */
 typedef MLAN_PACK_START struct _WmmQosInfo_t {
@@ -7942,8 +7925,6 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_CMD_802_11_STA_TX_RATE sta_rx_rate;
 		HostCmd_MCLIENT_SCHEDULE_CFG mclient_cfg;
 
-		HostCmd_DS_SECURE_HOST shc;
-
 		/** WMM HOST ADDTS */
 		HostCmd_DS_WMM_HOST_ADDTS_REQ host_add_ts;
 		/** WMM HOST DELTS */
@@ -8089,20 +8070,5 @@ typedef MLAN_PACK_START struct _Event_DPD_CAL_t {
 	t_u8 radio_id;
 	t_u8 sub_band;
 } MLAN_PACK_END Event_DPD_CAL_t;
-
-typedef MLAN_PACK_START struct _SECURE_HOST_EVENT_HEADER {
-	/** Type ID */
-	t_u16 type_id;
-	t_u16 bbs;
-	/** Action */
-	t_u16 tls_action;
-} MLAN_PACK_END SECURE_HOST_EVENT_HEADER;
-
-typedef MLAN_PACK_START struct SECURE_HOST_EVENT {
-	/** TLS handshake message header */
-	SECURE_HOST_EVENT_HEADER tls_header;
-	/** TLS handshake message data */
-	t_u8 tls_data[];
-} MLAN_PACK_END SECURE_HOST_EVENT;
 
 #endif /* !_MLAN_FW_H_ */

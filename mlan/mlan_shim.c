@@ -547,16 +547,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			(t_u8)pmdevice->bss_attr[0].bss_num;
 	}
 
-	pmadapter->shc_secure_host = pmdevice->secure_host;
-	if (pmadapter->second_mac && pmadapter->shc_secure_host) {
-		if (pcb->moal_secure_host_derive_traffic_keys(
-			    pmadapter->pmoal_handle) ||
-		    pcb->moal_secure_host_data_ctx_init(
-			    pmadapter->pmoal_handle)) {
-			goto error;
-		}
-	}
-
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {
 		if (mlan_ops[j]->bss_role == GET_BSS_ROLE(pmadapter->priv[0])) {
