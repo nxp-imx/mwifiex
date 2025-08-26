@@ -4372,7 +4372,7 @@ static ssize_t woal_set_rps_map(struct netdev_rx_queue *queue, const char *buf,
  *
  * @return              MLAN_STATUS_SUCCESS
  */
-mlan_status woal_get_ind_rst_cfg(moal_handle *handle, t_u8 wait_option)
+static mlan_status woal_get_ind_rst_cfg(moal_handle *handle, t_u8 wait_option)
 {
 	moal_private *priv = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
@@ -13292,7 +13292,7 @@ done:
  * @return              N/A
  *
  */
-void woal_survey_dump_reset(moal_private *priv)
+static void woal_survey_dump_reset(moal_private *priv)
 {
 	mlan_ds_get_stats stats;
 
