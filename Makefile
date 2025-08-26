@@ -43,15 +43,15 @@ CONFIG_PCIE8997=y
 CONFIG_SD8987=y
 CONFIG_SD9097=n
 CONFIG_SD9177=y
-CONFIG_SD8801=y
+CONFIG_SD8801=n
 CONFIG_USB8801=n
 CONFIG_USB9097=n
 CONFIG_PCIE9097=n
 CONFIG_SD9098=y
 CONFIG_USB9098=n
 CONFIG_PCIE9098=y
-CONFIG_SDIW610=n
-CONFIG_USBIW610=n
+CONFIG_SDIW610=y
+CONFIG_USBIW610=y
 CONFIG_SDIW624=n
 CONFIG_SDAW693=n
 CONFIG_PCIEIW624=n
@@ -112,14 +112,14 @@ CONFIG_TASKLET_SUPPORT=n
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
-# add -Wno-packed-bitfield-compat when GCC version greater than 4.4
-#GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
-#ifeq ($(GCC_VERSION),1)
-#ccflags-y += -Wno-packed-bitfield-compat
-#endif
-#ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
+GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
+ifeq ($(GCC_VERSION),1)
+        ccflags-y += -Wno-packed-bitfield-compat
+endif
+WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
+ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
 #ccflags-y += -Wimplicit-fallthrough=3
-#endif
+endif
 #ccflags-y += -Wunused-but-set-variable
 #ccflags-y += -Wmissing-prototypes
 #ccflags-y += -Wold-style-definition
@@ -140,14 +140,13 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 ifeq ($(ANDROID_BUILD), 1)
     KERNEL_CFLAGS += -DANDROID
+    PWD := $(shell pwd)
+    KERNELDIR ?= $(KERNEL_SRC)
     ccflags-y += -DANDROID_SDK_VERSION=$(ANDROID_SDK_VERSION)
 endif
 
-M ?= $(shell pwd)
-KERNELDIR ?= $(KERNEL_SRC)
-
 MODEXT = ko
-ccflags-y += -I$(M)/mlan
+ccflags-y += -I$(PWD)/mlan
 ccflags-y += -DLINUX
 
 
@@ -168,7 +167,7 @@ endif
 
 LD += -S
 
-BINDIR = ../bin_wlan
+BINDIR = bin_wlan
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -612,10 +611,7 @@ moal-objs := $(MOALOBJS)
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
-
-modules_install:
-	$(MAKE) -C $(KERNELDIR) M=$(M) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules_install
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
 
 endif
 

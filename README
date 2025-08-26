@@ -217,9 +217,6 @@
 		               this bit is only used with STA BSS
 		others      -- reserved
 
-	secure_host=0|1 <Disable secure host interface (default) | Enable secure host interface>
-	Note: For secure_host=1, Firmware image shall be secure host enabled.
-
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
 		insmod sdxxx.ko "<para1> <para2> ..."
