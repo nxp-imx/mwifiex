@@ -3589,7 +3589,9 @@ mlan_status wlan_fill_hal_rtt_results(pmlan_private pmpriv,
 		}
 
 		rtt_result_elem->len = pos - rtt_result_elem->data;
-
+		/* Check the left length's validity */
+		if (event_left_len < (tlv_rtt_result_len + sizeof(tlv_rtt_result->header)))
+			break;
 		tlv += tlv_rtt_result_len + sizeof(tlv_rtt_result->header);
 		event_left_len -=
 			tlv_rtt_result_len + sizeof(tlv_rtt_result->header);

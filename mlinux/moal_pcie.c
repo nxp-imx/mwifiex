@@ -999,7 +999,16 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 		woal_sched_timeout(100);
 		count++;
 	}
+#endif
 
+	handle->surprise_removed = MTRUE;
+	handle->fw_reseting = MTRUE;
+	if (ref_handle) {
+		ref_handle->surprise_removed = MTRUE;
+		ref_handle->fw_reseting = MTRUE;
+	}
+
+#if defined(PCIEAW693)
 	// This is just WAR for PRC release
 	/* wake up device before set the reset reg */
 	handle->ops.read_reg(handle, handle->card_info->fw_wakeup_reg, &value);
@@ -1012,13 +1021,6 @@ static void woal_pcie_reset_prepare(struct pci_dev *pdev)
 	if (ref_card)
 		pci_write_config_dword(ref_card->dev, 0x80, 0x40);
 #endif
-
-	handle->surprise_removed = MTRUE;
-	handle->fw_reseting = MTRUE;
-	if (ref_handle) {
-		ref_handle->surprise_removed = MTRUE;
-		ref_handle->fw_reseting = MTRUE;
-	}
 	// TODO: Can add more chips once the related code has been ported to fw
 	// v18
 	if (IS_PCIE9097(handle->card_type) || IS_PCIE9098(handle->card_type) ||

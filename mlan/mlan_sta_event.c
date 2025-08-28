@@ -1398,6 +1398,12 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 
 	case EVENT_FW_DUMP_INFO:
 		PRINTM(MINFO, "EVENT: Dump FW info\n");
+		if (pmadapter->cmd_timer_is_set) {
+			pcb->moal_stop_timer(pmadapter->pmoal_handle,
+					pmadapter->pmlan_cmd_timer);
+			/* Cancel command timeout timer */
+			pmadapter->cmd_timer_is_set = MFALSE;
+		}
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
 		// Ensure event_len does not exceed buffer size
