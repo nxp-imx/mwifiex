@@ -21,6 +21,9 @@
  *
  */
 #include "moal_main.h"
+#ifdef SDIO_MMC
+#include "moal_sdio.h"
+#endif
 
 /** Global moal_handle array */
 extern pmoal_handle m_handle[];
@@ -29,6 +32,7 @@ extern pmoal_handle m_handle[];
 static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
+static char *wifi_fw_name;
 #ifdef PCIE
 int auto_fw_reload = AUTO_FW_RELOAD_ENABLE | AUTO_FW_RELOAD_PCIE_INBAND_RESET;
 #else
@@ -448,6 +452,26 @@ static int make_before_break = 0;
 static int auto_11ax = 1;
 static int reject_addba_req = 0;
 
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+mlan_status check_device_name_info(char *device_name, t_u16 *card_type)
+{
+	t_u32 tbl_size =
+		sizeof(card_type_map_tbl) / sizeof(card_type_map_tbl[0]);
+	t_u32 i;
+
+	for (i = 0; i < tbl_size; i++) {
+		if (strcmp(card_type_map_tbl[i].name, device_name) == 0) {
+			if (card_type != NULL)
+				*card_type = card_type_map_tbl[i].card_type;
+
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
+	return MLAN_STATUS_FAILURE;
+}
+#endif
+
 /**
  *  @brief This function read a line in module parameter file
  *
@@ -456,7 +480,8 @@ static int reject_addba_req = 0;
  *  @param line_pos A pointer to offset of current line
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
+static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos,
+				 t_s32 *cur_pos)
 {
 	t_u8 *src, *dest;
 	static t_s32 pos;
@@ -489,6 +514,9 @@ static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
 	/* parse new line */
 	pos++;
 	*dest = '\0';
+
+	if (cur_pos != NULL)
+		*cur_pos = pos;
 	LEAVE();
 	return strlen(line_pos);
 }
@@ -678,6 +706,108 @@ static bool woal_str2mac(char *str, t_u8 *mac)
 	return MTRUE;
 }
 
+#ifdef SDIO_MMC
+/**
+ *  @brief This function parses slot ID information from configuration data
+ *
+ *  @param data     A pointer to configuration data
+ *  @param size     Size of the configuration data
+ *  @param cur_pos  Current position in the data buffer
+ *  @param handle   A pointer to moal_handle structure
+ *
+ *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status parse_cfg_slot_id_info(t_u8 *data, t_u32 size, t_s32 cur_pos,
+					  moal_handle *handle)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int out_data = -1, end = 0;
+	t_u8 *src, *dest;
+	t_s32 pos = cur_pos;
+	t_u8 line[MAX_LINE_LEN];
+	sdio_mmc_card *card_info = (sdio_mmc_card *)handle->card;
+
+	if (data == NULL)
+		return MLAN_STATUS_FAILURE;
+
+	memset(line, 0, MAX_LINE_LEN);
+	src = data + pos;
+	dest = line;
+
+	while (!end) {
+		while (pos < (t_s32)size && *src != '\x0A' && *src != '\0') {
+			if ((dest - line) >= (MAX_LINE_LEN - 1)) {
+				PRINTM(MERROR,
+				       "error: input data size exceeds the dest buff limit\n");
+				return ret;
+			}
+			if (*src != ' ' && *src != '\t') /* parse space */
+				*dest++ = *src++;
+			else
+				src++;
+			pos++;
+		}
+		/* parse new line */
+		pos++;
+		*dest = '\0';
+
+		PRINTM(MINFO, "get line %s \n", line);
+
+		if (line[0] == '#' || strstr(line, "={")) {
+			memset(line, 0, MAX_LINE_LEN);
+			src = data + pos;
+			dest = line;
+			continue;
+		}
+
+		if (strncmp(line, "}", strlen("}")) == 0) {
+			end = 1;
+			break;
+		}
+
+		if (end == 0 && strstr(line, "{") != NULL) {
+			break;
+		}
+
+		if (strncmp(line, "slot_id", strlen("slot_id")) == 0) {
+			if (parse_line_read_int(line, &out_data) ==
+			    MLAN_STATUS_SUCCESS) {
+				if (out_data >= 0) {
+					if (out_data !=
+					    card_info->func->card->host->index) {
+						ret = MLAN_STATUS_FAILURE;
+						PRINTM(MINFO,
+						       "incorrect conf slot id %d, device slot id %d \n",
+						       out_data,
+						       card_info->func->card
+							       ->host->index);
+					} else {
+						PRINTM(MINFO,
+						       "correct conf slot id %d \n",
+						       out_data);
+					}
+					break;
+				} else {
+					ret = MLAN_STATUS_FAILURE;
+					PRINTM(MERROR, "negative value \n");
+					break;
+				}
+			} else {
+				PRINTM(MERROR, "empty value\n");
+				break;
+			}
+		} else {
+			memset(line, 0, MAX_LINE_LEN);
+			src = data + pos;
+			dest = line;
+			continue;
+		}
+	}
+
+	return ret;
+}
+#endif
+
 /**
  *  @brief This function read blocks in module parameter file
  *
@@ -697,7 +827,7 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 	t_u8 addr[ETH_ALEN];
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
-	while ((int)parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line, NULL) != -1) {
 		if (strncmp(line, "}", strlen("}")) == 0) {
 			end = 1;
 			break;
@@ -766,6 +896,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->auto_fw_reload = out_data;
 			PRINTM(MMSG, "auto_fw_reload %d\n",
 			       params->auto_fw_reload);
+		} else if (strncmp(line, "wifi_fw_name",
+				   strlen("wifi_fw_name")) == 0) {
+			if (parse_line_read_string(line, &out_str) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			woal_dup_string(&params->wifi_fw_name, out_str);
+			PRINTM(MMSG, "wifi_fw_name=%s\n", params->wifi_fw_name);
 		} else if (strncmp(line, "fw_serial", strlen("fw_serial")) ==
 			   0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1810,6 +1947,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.auto_fw_reload = auto_fw_reload;
 	if (params)
 		handle->params.auto_fw_reload = params->auto_fw_reload;
+
+	woal_dup_string(&handle->params.wifi_fw_name, wifi_fw_name);
+	if (params && params->wifi_fw_name)
+		woal_dup_string(&handle->params.wifi_fw_name,
+				params->wifi_fw_name);
+
 	if (fw_serial)
 		moal_extflg_set(handle, EXT_FW_SERIAL);
 	woal_dup_string(&handle->params.hw_name, hw_name);
@@ -2241,6 +2384,11 @@ void woal_free_module_param(moal_handle *handle)
 		kfree(params->fw_name);
 		params->fw_name = NULL;
 	}
+
+	if (params->wifi_fw_name) {
+		kfree(params->wifi_fw_name);
+		params->wifi_fw_name = NULL;
+	}
 	if (params->hw_name) {
 		kfree(params->hw_name);
 		params->hw_name = NULL;
@@ -2468,6 +2616,14 @@ void woal_init_from_dev_tree(void)
 						     &string_data)) {
 				fw_name = (char *)string_data;
 				PRINTM(MIOCTL, "fw_name=%s\n", fw_name);
+			}
+		} else if (!strncmp(prop->name, "wifi_fw_name",
+				    strlen("wifi_fw_name"))) {
+			if (!of_property_read_string(dt_node, prop->name,
+						     &string_data)) {
+				wifi_fw_name = (char *)string_data;
+				PRINTM(MIOCTL, "wifi_fw_name=%s\n",
+				       wifi_fw_name);
 			}
 		} else if (!strncmp(prop->name, "hw_name", strlen("hw_name"))) {
 			if (!of_property_read_string(dt_node, prop->name,
@@ -2876,7 +3032,7 @@ static mlan_status parse_skip_cfg_block(t_u8 *data, t_u32 size)
 {
 	int end = 0;
 	t_u8 line[MAX_LINE_LEN];
-	while ((int)parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line, NULL) != -1) {
 		if (strncmp(line, "}", strlen("}")) == 0) {
 			end = 1;
 			break;
@@ -2935,6 +3091,7 @@ mlan_status woal_init_module_param(moal_handle *handle)
 	t_u8 line[MAX_LINE_LEN], *data = NULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	char *card_type = NULL, *blk_id = NULL;
+	t_s32 cur_pos = 0;
 
 	memset(line, 0, MAX_LINE_LEN);
 	woal_setup_module_param(handle, NULL);
@@ -2963,7 +3120,7 @@ mlan_status woal_init_module_param(moal_handle *handle)
 	// Casting is done to read and parse the data
 	// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
 	data = (t_u8 *)handle->param_data->data;
-	while ((int)parse_cfg_get_line(data, size, line) != -1) {
+	while ((int)parse_cfg_get_line(data, size, line, &cur_pos) != -1) {
 		if (line[0] == '#')
 			continue;
 		if (strstr(line, "={")) {
@@ -2986,7 +3143,13 @@ mlan_status woal_init_module_param(moal_handle *handle)
 				       card_type, handle->blk_id);
 				/* check validation of config id */
 				if (woal_validate_cfg_id(handle) !=
-				    MLAN_STATUS_SUCCESS) {
+					    MLAN_STATUS_SUCCESS
+#ifdef SDIO_MMC
+				    || (parse_cfg_slot_id_info(
+						data, size, cur_pos, handle) !=
+					MLAN_STATUS_SUCCESS)
+#endif
+				) {
 					ret = parse_skip_cfg_block(data, size);
 					if (ret != MLAN_STATUS_SUCCESS) {
 						PRINTM(MMSG,
@@ -3026,7 +3189,7 @@ out:
 	if (handle->param_data) {
 		release_firmware(handle->param_data);
 		/* rewind pos */
-		(void)parse_cfg_get_line(NULL, 0, NULL);
+		(void)parse_cfg_get_line(NULL, 0, NULL, NULL);
 	}
 	if (ret != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Invalid block: %s\n", line);
@@ -3057,6 +3220,8 @@ module_param(fw_reload, int, 0);
 MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
 module_param(auto_fw_reload, int, 0);
+module_param(wifi_fw_name, charp, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(wifi_fw_name, "Wlan firmware name for IR");
 #ifdef PCIE
 MODULE_PARM_DESC(
 	auto_fw_reload,
@@ -3452,9 +3617,13 @@ MODULE_PARM_DESC(
 	"1: Set channel tracking; 0: Restore channel tracking for 9098 only");
 
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
+// Warning is raised for same input name used for
+// module_param and MODULE_PARM_DESC.
 // coverity[misra_c_2012_rule_21_2_violation:SUPPRESS]
 // coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
 module_param(cfg80211_eapol_offload, int, 0);
+// Warning is raised for same input name used for
+// module_param and MODULE_PARM_DESC.
 // coverity[misra_c_2012_rule_21_2_violation:SUPPRESS]
 MODULE_PARM_DESC(cfg80211_eapol_offload,
 		 "0: Disable eapol offload (default); 1: Enable eapol offload");

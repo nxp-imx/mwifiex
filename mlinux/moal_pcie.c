@@ -188,10 +188,11 @@ static t_u16 woal_update_card_type(t_void *card)
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE8897,
 				strlen(CARD_PCIE8897), strlen(driver_version));
 		/* we are copying card name in middle of full version, we can
-		   not copy null termination. This was already tried and
-		   reverted as full version got terminated in middlei(See commit
-		   57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
-		   the coverity warning  for all card types in this function. */
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
@@ -207,6 +208,12 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE8997;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE8997,
 				strlen(CARD_PCIE8997), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
@@ -222,6 +229,12 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE9097;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9097,
 				strlen(CARD_PCIE9097), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
@@ -238,6 +251,12 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIE9098;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIE9098,
 				strlen(CARD_PCIE9098), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
@@ -254,6 +273,12 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIEAW693;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIEAW693,
 				strlen(CARD_PCIEAW693), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,
@@ -269,6 +294,12 @@ static t_u16 woal_update_card_type(t_void *card)
 		card_type = CARD_TYPE_PCIEIW624;
 		moal_memcpy_ext(NULL, driver_version, CARD_PCIEIW624,
 				strlen(CARD_PCIEIW624), strlen(driver_version));
+		/* we are copying card name in middle of full version, we can
+		 * not copy null termination. This was already tried and
+		 * reverted as full version got terminated in middle(See commit
+		 * 57c27201f9a23562337491f3cbb9833ca348076c). thus suppressing
+		 * the coverity warning for all card types in this function.
+		 */
 		// coverity[string_null:SUPPRESS]
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		moal_memcpy_ext(NULL,

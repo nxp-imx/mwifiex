@@ -1127,7 +1127,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			pmpriv, pevent, &radar_chan, &bandwidth);
 		/* Also send this event as passthru */
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-		pevent->event_len = pmbuf->data_len;
 		// Ensure event_len does not exceed buffer size
 		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
@@ -1400,7 +1399,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MINFO, "EVENT: Dump FW info\n");
 		if (pmadapter->cmd_timer_is_set) {
 			pcb->moal_stop_timer(pmadapter->pmoal_handle,
-					pmadapter->pmlan_cmd_timer);
+					     pmadapter->pmlan_cmd_timer);
 			/* Cancel command timeout timer */
 			pmadapter->cmd_timer_is_set = MFALSE;
 		}

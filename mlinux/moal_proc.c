@@ -428,6 +428,8 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 
 	moal_memcpy_ext(NULL, string, buffer + strlen("sdcmd52rw="),
 			len - strlen("sdcmd52rw="), CMD52_STR_LEN - 1);
+	// Ensure null termination
+	string[CMD52_STR_LEN - 1] = '\0';
 	tmp = string;
 	string = strstrip(string);
 
@@ -766,6 +768,10 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	}
 	if (!strncmp(databuf, "drop_point=", strlen("drop_point="))) {
 		line += strlen("drop_point") + 1;
+		/* line is assigned from databuf, which is checked for NULL
+		 * before use. Therefore, line is guaranteed to be non-NULL at
+		 * this point.
+		 */
 		// coverity[string_null:SUPPRESS]
 		config_data = (t_u32)woal_string_to_number(line);
 		if (config_data) {

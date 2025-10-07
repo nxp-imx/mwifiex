@@ -165,8 +165,8 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
-	// coverity[bad_memset:SUPPRESS]
-	memset(pmpriv->adapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmpriv->adapter));
+	_memset(pmpriv->adapter, plocal_tx_pd, 0,
+		Tx_PD_SIZEOF(pmpriv->adapter));
 
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);

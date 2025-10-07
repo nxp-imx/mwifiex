@@ -775,6 +775,8 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 			       cac_left_jiffies / HZ);
 			/* blocking timeout set to 1.5 * CAC checking period
 			 * left time */
+			// coverity error raised for kernel's API
+			// coverity[check_return:SUPPRESS]
 			wait_rv = wait_event_interruptible_timeout(
 				priv->phandle->meas_wait_q,
 				priv->phandle->meas_wait_q_woken,

@@ -370,10 +370,10 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		}
 #ifdef DEBUG_LEVEL1
 		if (mlan_drvdbg & MMPA_D) {
-			pmadapter->pcard_sd->mpa_buf_size =
-				SDIO_MP_DBG_NUM *
-				pmadapter->pcard_sd->mp_aggr_pkt_limit *
-				pmadapter->pcard_sd->sdio_blk_size;
+			pmadapter->pcard_sd->mpa_buf_size = (SECURE_MULT_UINT32(
+				SDIO_MP_DBG_NUM,
+				pmadapter->pcard_sd->mp_aggr_pkt_limit,
+				pmadapter->pcard_sd->sdio_blk_size));
 			if (pmadapter->callbacks.moal_vmalloc &&
 			    pmadapter->callbacks.moal_vfree)
 				ret = pmadapter->callbacks.moal_vmalloc(
@@ -2073,8 +2073,8 @@ static mlan_status wlan_init_interface(pmlan_adapter pmadapter)
 				}
 
 				pmadapter->priv_num++;
-				memset(pmadapter, pmadapter->priv[i], 0,
-				       sizeof(mlan_private));
+				_memset(pmadapter, pmadapter->priv[i], 0,
+					sizeof(mlan_private));
 			}
 			pmadapter->priv[i]->adapter = pmadapter;
 
@@ -2113,6 +2113,11 @@ static mlan_status wlan_init_interface(pmlan_adapter pmadapter)
 			for (j = 0; mlan_ops[j]; j++) {
 				if (mlan_ops[j]->bss_role ==
 				    GET_BSS_ROLE(pmadapter->priv[i])) {
+					/* coverity assumes that Passing
+					 * pmadapter to memset, sets
+					 * pmadapter->callbacks.moal_memcpy_ext
+					 * to NULL
+					 */
 					// coverity[cert_exp34_c_violation:SUPPRESS]
 					memcpy_ext(pmadapter,
 						   &pmadapter->priv[i]->ops,

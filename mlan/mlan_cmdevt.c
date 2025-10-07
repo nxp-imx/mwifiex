@@ -677,7 +677,7 @@ static t_u32 wlan_hexval(t_u8 chr)
  *  @return             The converted hex value if param a is a valid hex, else
  * 0
  */
-static int wlan_atox(t_u8 *a)
+static int wlan_atox(const t_u8 *a)
 {
 	int i = 0;
 
@@ -699,9 +699,9 @@ static int wlan_atox(t_u8 *a)
  *
  *  @return             The parsed hex data length
  */
-static t_u32 wlan_parse_cal_cfg(t_u8 *src, t_size len, t_u8 *dst)
+static t_u32 wlan_parse_cal_cfg(const t_u8 *src, t_size len, t_u8 *dst)
 {
-	t_u8 *ptr;
+	const t_u8 *ptr;
 	t_u8 *dptr;
 
 	ENTER();
@@ -784,9 +784,9 @@ static t_u8 *wlan_strstr(t_u8 *s1, t_u8 *s2)
  *  @return             Location of the first occurrence of the char
  *                      if found, else NULL
  */
-static t_u8 *wlan_strchr(t_u8 *s, int c)
+static const t_u8 *wlan_strchr(const t_u8 *s, int c)
 {
-	t_u8 *pos = s;
+	const t_u8 *pos = s;
 	while (*pos != '\0') {
 		if (*pos == (t_u8)c)
 			return pos;
@@ -810,11 +810,11 @@ static t_u8 *wlan_strchr(t_u8 *s, int c)
  *    @return             MLAN_STATUS_SUCCESS--success, otherwise--fail
  */
 static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
-				      t_u8 *data, t_size size)
+				      const t_u8 *data, t_size size)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	t_u8 *pos = data;
-	t_u8 *intf_s, *intf_e;
+	const t_u8 *pos = data;
+	const t_u8 *intf_s, *intf_e;
 	t_u8 *buf = MNULL;
 	t_u8 *ptr = MNULL;
 	t_u32 cmd_len = 0;
@@ -825,7 +825,7 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 	mlan_adapter *pmadapter = MNULL;
 	mlan_callbacks *pcb = MNULL;
 	t_u8 hostcmd_flag = MFALSE;
-	t_u8 *temp = pos;
+	const t_u8 *temp = pos;
 	t_u8 len = 0;
 	char psd_name[50];
 	t_u8 *intf_p;
@@ -899,11 +899,14 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 		}
 		/* Excluding the 6E Mode based PSD string */
 		if (cfg_type == CFG_TYPE_HOSTCMD) {
-			if (*pos == 'r' || *pos == 'e' || *pos == 's') {
+			if ((start_raw == MFALSE) &&
+			    (*pos == 'r' || *pos == 'e' || *pos == 's')) {
 				memset(pmadapter, psd_name, 0,
 				       sizeof(psd_name));
 				len = 0;
-				while (*temp != ' ') {
+				while (((temp - data) < size) &&
+				       (*temp != ' ') &&
+				       (len < sizeof(psd_name) - 1)) {
 					temp++;
 					len++;
 				}
@@ -916,8 +919,10 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 				 * "rg_powerXX.bin" */
 				intf_p = wlan_strstr(psd_name, "PSD");
 				if (intf_p) {
-					while (*temp != '}') {
-						while (*temp != '\n')
+					while (((temp - data) < size) &&
+					       *temp != '}') {
+						while (((temp - data) < size) &&
+						       *temp != '\n')
 							temp++;
 						temp++;
 					}
@@ -3590,7 +3595,8 @@ mlan_status wlan_fill_hal_rtt_results(pmlan_private pmpriv,
 
 		rtt_result_elem->len = pos - rtt_result_elem->data;
 		/* Check the left length's validity */
-		if (event_left_len < (tlv_rtt_result_len + sizeof(tlv_rtt_result->header)))
+		if (event_left_len <
+		    (tlv_rtt_result_len + sizeof(tlv_rtt_result->header)))
 			break;
 		tlv += tlv_rtt_result_len + sizeof(tlv_rtt_result->header);
 		event_left_len -=
@@ -3960,12 +3966,20 @@ mlan_status wlan_ret_802_11_hs_cfg(pmlan_private pmpriv,
 	phs_cfg->params.hs_config.conditions =
 		wlan_le32_to_cpu(phs_cfg->params.hs_config.conditions);
 	phs_cfg->action = wlan_le16_to_cpu(phs_cfg->action);
-	PRINTM(MCMND,
-	       "CMD_RESP: HS_CFG cmd reply result=%#x,"
-	       " action=0x%x conditions=0x%x gpio=0x%x gap=0x%x\n",
-	       resp->result, phs_cfg->action,
-	       phs_cfg->params.hs_config.conditions,
-	       phs_cfg->params.hs_config.gpio, phs_cfg->params.hs_config.gap);
+	if (phs_cfg->action == HS_CONFIGURE) {
+		PRINTM(MCMND,
+		       "CMD_RESP: HS_CFG cmd reply result=%#x,"
+		       " action=0x%x conditions=0x%x gpio=0x%x gap=0x%x\n",
+		       resp->result, phs_cfg->action,
+		       phs_cfg->params.hs_config.conditions,
+		       phs_cfg->params.hs_config.gpio,
+		       phs_cfg->params.hs_config.gap);
+	} else {
+		PRINTM(MCMND,
+		       "CMD_RESP: HS_CFG cmd reply result=%#x,"
+		       " action=0x%x (Activate)\n",
+		       resp->result, phs_cfg->action);
+	}
 	if ((phs_cfg->action == HS_ACTIVATE &&
 	     !pmadapter->pcard_info->supp_ps_handshake) ||
 	    pmadapter->pcard_info->supp_ps_handshake) {
@@ -6635,7 +6649,7 @@ mlan_status wlan_cmd_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 
 	if ((cmd_oid == OID_TYPE_CAL) && (pmadapter->pcal_data) &&
 	    (pmadapter->cal_data_len > 0)) {
-		len = wlan_parse_cal_cfg((t_u8 *)pmadapter->pcal_data,
+		len = wlan_parse_cal_cfg(pmadapter->pcal_data,
 					 pmadapter->cal_data_len,
 					 (t_u8 *)(temp_pcmd + data_offset));
 	}
@@ -7000,8 +7014,8 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		pmadapter->pcard_sd->mp_end_port =
 			wlan_le16_to_cpu(hw_spec->mp_end_port);
 
-		for (i = 1; i <= (unsigned)(pmadapter->pcard_sd->max_ports -
-					    pmadapter->pcard_sd->mp_end_port);
+		for (i = 1; i <= ((unsigned)pmadapter->pcard_sd->max_ports -
+				  (unsigned)pmadapter->pcard_sd->mp_end_port);
 		     i++)
 			pmadapter->pcard_sd->mp_data_port_mask &=
 				~(1 << (pmadapter->pcard_sd->max_ports - i));
@@ -11736,7 +11750,10 @@ mlan_status wlan_cmd_tsp_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				wlan_cpu_to_le32(cfg->high_thrshld_temp);
 			tsp_config->low_thrshld_temp =
 				wlan_cpu_to_le32(cfg->low_thrshld_temp);
-
+			tsp_config->throttle_duty_cycle =
+				wlan_cpu_to_le32(cfg->throttle_duty_cycle);
+			tsp_config->rf_temp_poll_cnt =
+				wlan_cpu_to_le32(cfg->rf_temp_poll_cnt);
 			for (rfu = 0; rfu < MAX_RFUS; rfu++) {
 				for (rpath = 0; rpath < MAX_PATHS; rpath++) {
 					tsp_config->reg_rfu_val
@@ -11790,6 +11807,11 @@ mlan_status wlan_ret_tsp_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				wlan_le32_to_cpu(tsp_config->high_thrshld_temp);
 			cfg->param.tsp_cfg.low_thrshld_temp =
 				wlan_le32_to_cpu(tsp_config->low_thrshld_temp);
+			cfg->param.tsp_cfg.throttle_duty_cycle =
+				wlan_le32_to_cpu(
+					tsp_config->throttle_duty_cycle);
+			cfg->param.tsp_cfg.rf_temp_poll_cnt =
+				wlan_le32_to_cpu(tsp_config->rf_temp_poll_cnt);
 
 			for (rfu = 0; rfu < MAX_RFUS; rfu++) {
 				for (rpath = 0; rpath < MAX_PATHS; rpath++) {
@@ -11857,8 +11879,8 @@ mlan_status wlan_cmd_tx_frame(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		   tx_frame_cmd->buffer + Tx_PD_SIZEOF(pmpriv->adapter), pdata,
 		   data_len, data_len);
 
-	// coverity[bad_memset:SUPPRESS]
-	memset(pmpriv->adapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmpriv->adapter));
+	_memset(pmpriv->adapter, plocal_tx_pd, 0,
+		Tx_PD_SIZEOF(pmpriv->adapter));
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 	plocal_tx_pd->tx_pkt_length = (t_u16)data_len;

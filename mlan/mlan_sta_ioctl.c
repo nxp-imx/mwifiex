@@ -3915,10 +3915,12 @@ static mlan_status wlan_misc_ioctl_sdio_mpa_ctrl(pmlan_adapter pmadapter,
 					pmadapter->pcard_sd->mpa_tx
 						.buf_size = MIN(
 						mpa_ctrl->tx_buf_size,
-						pmadapter->pcard_sd
-								->max_blk_count *
+						(SECURE_MULT_UINT32(
+							1,
 							pmadapter->pcard_sd
-								->sdio_blk_size);
+								->max_blk_count,
+							pmadapter->pcard_sd
+								->sdio_blk_size)));
 			}
 			if (mpa_ctrl->rx_buf_size > 0)
 				pmadapter->pcard_sd->mpa_rx.buf_size =

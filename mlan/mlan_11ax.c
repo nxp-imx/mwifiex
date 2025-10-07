@@ -1209,9 +1209,8 @@ mlan_status wlan_11ax_ioctl_cmd(pmlan_adapter pmadapter,
 
 		/* reset old entries */
 		pmadapter->llde_totalMacFilters = 0;
-		// coverity[bad_memset: SUPPRESS]
-		memset(pmadapter, (t_u8 *)&pmadapter->llde_macfilters, 0,
-		       MAX_MAC_FILTER_ENTRIES * MLAN_MAC_ADDR_LENGTH);
+		_memset(pmadapter, (t_u8 *)&pmadapter->llde_macfilters, 0,
+			MAX_MAC_FILTER_ENTRIES * MLAN_MAC_ADDR_LENGTH);
 
 		/* copy valid mac adresses only */
 		if (memcmp(pmadapter, &llde_pkt_filter->macfilter1,
@@ -1246,11 +1245,10 @@ mlan_status wlan_11ax_ioctl_cmd(pmlan_adapter pmadapter,
 		/* remove llde packet filter parameters from buffer which will
 		 * be passed to fimrware */
 		/* pass mlan_ds_11ax_llde_cmd params only to fw */
-		// coverity[bad_memset: SUPPRESS]
-		memset(pmadapter,
-		       (t_u8 *)cfg + mlan_ds_11ax_cmd_cfg_header +
-			       sizeof(mlan_ds_11ax_llde_cmd),
-		       0, sizeof(mlan_ds_11ax_llde_pkt_filter_cmd));
+		_memset(pmadapter,
+			(t_u8 *)cfg + mlan_ds_11ax_cmd_cfg_header +
+				sizeof(mlan_ds_11ax_llde_cmd),
+			0, sizeof(mlan_ds_11ax_llde_pkt_filter_cmd));
 	}
 	/* Send request to firmware */
 	status = wlan_prepare_cmd(pmpriv, HostCmd_CMD_11AX_CMD, cmd_action, 0,
@@ -1550,9 +1548,8 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		break;
 	case MLAN_11AX_TWT_INFORMATION_SUBID:
 		twt_information_params = &hostcmd_twtcfg->param.twt_information;
-		// coverity[bad_memset: SUPPRESS]
-		memset(pmadapter, twt_information_params, 0x00,
-		       sizeof(hostcmd_twtcfg->param.twt_information));
+		_memset(pmadapter, twt_information_params, 0x00,
+			sizeof(hostcmd_twtcfg->param.twt_information));
 		twt_information_params->flow_identifier =
 			ds_twtcfg->param.twt_information.flow_identifier;
 		twt_information_params->suspend_duration = wlan_cpu_to_le32(
@@ -1561,9 +1558,8 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		break;
 	case MLAN_11AX_BTWT_AP_CONFIG_SUBID:
 		btwt_ap_config_params = &hostcmd_twtcfg->param.btwt_ap_config;
-		// coverity[bad_memset: SUPPRESS]
-		memset(pmadapter, btwt_ap_config_params, 0x00,
-		       sizeof(hostcmd_twtcfg->param.btwt_ap_config));
+		_memset(pmadapter, btwt_ap_config_params, 0x00,
+			sizeof(hostcmd_twtcfg->param.btwt_ap_config));
 		btwt_ap_config_params->ap_bcast_bet_sta_wait =
 			ds_twtcfg->param.btwt_ap_config.ap_bcast_bet_sta_wait;
 		btwt_ap_config_params->Ap_Bcast_Offset = wlan_cpu_to_le16(

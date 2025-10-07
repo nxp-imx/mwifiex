@@ -324,6 +324,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** 2K buf size */
 #define MLAN_TX_DATA_BUF_SIZE_2K 2048
 
+#define SECURE_MULT_UINT32(a, b, c)                                            \
+	(((t_u64)(a) * (b) * (c)) > UINT32_MAX ?                               \
+		 UINT32_MAX :                                                  \
+		 (t_u32)((t_u32)(a) * (b) * (c)))
+
 /** ADDBA TID mask */
 #define ADDBA_TID_MASK (MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5))
 /** DELBA TID mask */
@@ -4096,6 +4101,10 @@ typedef MLAN_PACK_START struct _HostCmd_DS_TSP_CFG {
 	t_s32 high_thrshld_temp;
 	/** TSP config LOW_THRESHOLD_TEMP */
 	t_s32 low_thrshld_temp;
+	/** TSP current throttle percentage */
+	t_u32 throttle_duty_cycle;
+	/** TSP rfu temp poll count */
+	t_u32 rf_temp_poll_cnt;
 	/** TSP CAU TSEN read value */
 	t_s32 reg_cau_val;
 	/** TSP RFU read values */

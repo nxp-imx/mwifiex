@@ -103,8 +103,7 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
-	// coverity[bad_memset:SUPPRESS]
-	memset(pmadapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmadapter));
+	_memset(pmadapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmadapter));
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
@@ -296,6 +295,7 @@ mlan_status wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	ptx_pd->bss_type = priv->bss_type;
 
 	endian_convert_TxPD(ptx_pd);
+	/* Here pmadapter->ops.host_to_card is not a null pointer. */
 	// coverity[cert_exp34_c_violation:SUPPRESS]
 	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf, MNULL);
 

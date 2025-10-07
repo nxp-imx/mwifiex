@@ -2035,7 +2035,7 @@ static mlan_status wlan_uap_snmp_mib_chan_track(pmlan_adapter pmadapter,
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
-			      pmlan_ioctl_req pioctl_req)
+				     pmlan_ioctl_req pioctl_req)
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_status ret = MLAN_STATUS_SUCCESS;

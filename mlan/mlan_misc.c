@@ -733,6 +733,8 @@ mlan_status wlan_get_info_debug_info(pmlan_adapter pmadapter,
 				pmadapter->pcard_pcie->evtbd_ring_size;
 			debug_info->txrx_bd_size =
 				pmadapter->pcard_pcie->txrx_bd_size;
+			debug_info->txbd_pending =
+				pmadapter->pcard_pcie->txbd_pending;
 		}
 #endif
 		debug_info->data_sent = pmadapter->data_sent;
@@ -2071,11 +2073,10 @@ void wlan_delete_iPhone_entry(mlan_private *priv, t_u8 *mac)
 							 MLAN_MAC_ADDR_LENGTH],
 			   mac, MLAN_MAC_ADDR_LENGTH) == 0) {
 			/* remove device as it is not available */
-			// coverity[bad_memset: SUPPRESS]
-			memset(priv->adapter,
-			       (t_u8 *)&priv->adapter->llde_iphonefilters
-				       [i * MLAN_MAC_ADDR_LENGTH],
-			       0, MLAN_MAC_ADDR_LENGTH);
+			_memset(priv->adapter,
+				(t_u8 *)&priv->adapter->llde_iphonefilters
+					[i * MLAN_MAC_ADDR_LENGTH],
+				0, MLAN_MAC_ADDR_LENGTH);
 			priv->adapter->llde_totalIPhones--;
 			break;
 		}
@@ -3949,10 +3950,9 @@ void wlan_add_iPhone_entry(mlan_private *priv, t_u8 *mac)
 			   MAX_IPHONE_FILTER_ENTRIES * MLAN_MAC_ADDR_LENGTH);
 
 		/* clear original list */
-		// coverity[bad_memset: SUPPRESS]
-		memset(priv->adapter,
-		       (t_u8 *)&priv->adapter->llde_iphonefilters, 0,
-		       MAX_IPHONE_FILTER_ENTRIES * MLAN_MAC_ADDR_LENGTH);
+		_memset(priv->adapter,
+			(t_u8 *)&priv->adapter->llde_iphonefilters, 0,
+			MAX_IPHONE_FILTER_ENTRIES * MLAN_MAC_ADDR_LENGTH);
 
 		/* copy valid entries into original list */
 		for (i = 0, j = 1; i < MAX_IPHONE_FILTER_ENTRIES &&
@@ -5509,10 +5509,8 @@ mlan_status wlan_radio_ioctl_remain_chan_cfg(pmlan_adapter pmadapter,
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (pmpriv->adapter->remain_on_channel &&
 		    !radio_cfg->param.remain_chan.remove) {
-			PRINTM(MCMND, "Ignore New Remain on channe: chan=%d\n",
+			PRINTM(MCMND, "Set New Remain on channe: chan=%d\n",
 			       radio_cfg->param.remain_chan.channel);
-			LEAVE();
-			return MLAN_STATUS_SUCCESS;
 		}
 	}
 

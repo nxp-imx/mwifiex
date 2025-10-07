@@ -537,7 +537,6 @@ mlan_status wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
-
 		hdr_chop = (t_u16)((t_ptr)peth_hdr - (t_ptr)prx_pd);
 	} else {
 		HEXDUMP("RX Data: LLC/SNAP", (t_u8 *)&prx_pkt->rfc1042_hdr,

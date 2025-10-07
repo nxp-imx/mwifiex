@@ -340,6 +340,11 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.dmcs = pmdevice->dmcs;
 	pmadapter->init_para.pref_dbc = pmdevice->pref_dbc;
 
+	if (pmadapter->callbacks.moal_memcpy_ext == MNULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto error;
+	}
+
 #ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		PRINTM(MMSG,
@@ -392,7 +397,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
 		       pmdevice->card_type);
-		// coverity[cert_exp34_c_violation:SUPPRESS]
 		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_pcie_ops,
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
@@ -1371,6 +1375,8 @@ process_start:
 				pmadapter->wakeup_fw_timer_is_set = MFALSE;
 			}
 		} else {
+			if (pmadapter->driver_status)
+				break;
 			/* We have tried to wakeup the card already */
 			if (pmadapter->pm_wakeup_fw_try)
 				break;
@@ -1385,7 +1391,7 @@ process_start:
 			    (pmadapter->tx_lock_flag == MTRUE))
 				break;
 
-			if (pmadapter->data_sent || pmadapter->driver_status ||
+			if (pmadapter->data_sent ||
 			    wlan_is_tdls_link_chan_switching(
 				    pmadapter->tdls_status) ||
 			    (wlan_bypass_tx_list_empty(pmadapter) &&

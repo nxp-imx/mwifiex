@@ -222,6 +222,14 @@ static const struct nla_policy
 };
 #endif
 
+static const struct nla_policy
+	woal_usable_channel_policy[ATTR_USABLE_CHANNEL_MAX + 1] = {
+		[ATTR_USABLE_CHANNEL_BAND] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_IFACE_MODE] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_FILTER] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_MAX_SIZE] = {.type = NLA_U32},
+};
+
 /**
  * @brief get the event id of the events array
  *
@@ -1898,8 +1906,7 @@ static int woal_deinit_ring_buffer(moal_private *priv)
 			ring_buff->interval = 0;
 		}
 		spin_unlock_irqrestore(&ring_buff->lock, lock_flags);
-		if (ring_state == RING_ACTIVE)
-			cancel_delayed_work_sync(&ring_buff->work);
+		cancel_delayed_work_sync(&ring_buff->work);
 		vfree(ring_buff->ring_buf);
 		ring_buff->ring_buf = NULL;
 		vfree(ring_buff);
@@ -7432,6 +7439,511 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ * @brief Vendor cmd to trigger btwt_ap_config_set cmd.
+ * It sets the current uAP BTWT config sets.
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+// Declaration with identifier \"woal_cfg80211_subcmd_btwt_ap_config_set\",
+// which is ambiguous. coverity[misra_c_2012_rule_5_2_violation:SUPPRESS]
+static int woal_cfg80211_subcmd_btwt_ap_config_set(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_twtcfg *btwt_ap_config_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	struct sk_buff *skb = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_s32 ret = 0;
+	t_u8 *data_buff = NULL;
+	char *strBuffer = NULL;
+	t_u32 strBuff_len = 0;
+	t_u8 ap_bcast_bet_sta_wait, bcastTWTLI, count, btwtId[5],
+		Ap_Bcast_Exponent[5], nominalwake[5];
+	t_u16 Ap_Bcast_Offset, Ap_Bcast_Mantissa[5];
+	t_u8 i;
+	ENTER();
+
+	if ((len < 1) || (len + 1) < 0) {
+		PRINTM(MERROR,
+		       "vendor cmd: btwt_ap_config_set - Invalid data length!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	data_buff = (t_u8 *)kzalloc(len + 1, GFP_ATOMIC);
+	if (data_buff == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	memset((char *)data_buff, 0, len + 1);
+	moal_memcpy_ext(priv->phandle, data_buff, data, len, len);
+
+	strBuffer = (char *)kzalloc(len + 1, GFP_ATOMIC);
+	if (strBuffer == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	// Convert ascii data into string buffer
+	asciiToString(data_buff, len, strBuffer, &strBuff_len);
+
+	ap_bcast_bet_sta_wait = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"ap_bcast_bet_sta_wait=", sizeof("ap_bcast_bet_sta_wait="));
+	Ap_Bcast_Offset = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Offset=", sizeof("Ap_Bcast_Offset="));
+	bcastTWTLI = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len, "bcastTWTLI=", sizeof("bcastTWTLI="));
+	count = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					"count=", sizeof("count="));
+
+	btwtId[0] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId0=", sizeof("btwtId0="));
+	Ap_Bcast_Mantissa[0] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa0=", sizeof("Ap_Bcast_Mantissa0="));
+	Ap_Bcast_Exponent[0] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent0=", sizeof("Ap_Bcast_Exponent0="));
+	nominalwake[0] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake0=", sizeof("nominalwake0="));
+
+	btwtId[1] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId1=", sizeof("btwtId1="));
+	Ap_Bcast_Mantissa[1] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa1=", sizeof("Ap_Bcast_Mantissa1="));
+	Ap_Bcast_Exponent[1] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent1=", sizeof("Ap_Bcast_Exponent1="));
+	nominalwake[1] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake1=", sizeof("nominalwake1="));
+
+	btwtId[2] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId2=", sizeof("btwtId2="));
+	Ap_Bcast_Mantissa[2] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa2=", sizeof("Ap_Bcast_Mantissa2="));
+	Ap_Bcast_Exponent[2] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent2=", sizeof("Ap_Bcast_Exponent2="));
+	nominalwake[2] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake2=", sizeof("nominalwake2="));
+
+	btwtId[3] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId3=", sizeof("btwtId3="));
+	Ap_Bcast_Mantissa[3] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa3=", sizeof("Ap_Bcast_Mantissa3="));
+	Ap_Bcast_Exponent[3] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent3=", sizeof("Ap_Bcast_Exponent3="));
+	nominalwake[3] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake3=", sizeof("nominalwake3="));
+
+	btwtId[4] = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					    "btwtId4=", sizeof("btwtId4="));
+	Ap_Bcast_Mantissa[4] = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Mantissa4=", sizeof("Ap_Bcast_Mantissa4="));
+	Ap_Bcast_Exponent[4] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Exponent4=", sizeof("Ap_Bcast_Exponent4="));
+	nominalwake[4] = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"nominalwake4=", sizeof("nominalwake4="));
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_twtcfg));
+	if (req == NULL) {
+		PRINTM(MERROR,
+		       "vendor cmd: Could not allocate mlan ioctl request, btwt_ap_config_set!\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	btwt_ap_config_cfg = (mlan_ds_twtcfg *)req->pbuf;
+	btwt_ap_config_cfg->sub_command = MLAN_OID_11AX_TWT_CFG;
+	btwt_ap_config_cfg->sub_id = MLAN_11AX_BTWT_AP_CONFIG_SUBID;
+	req->req_id = MLAN_IOCTL_11AX_CFG;
+	req->action = MLAN_ACT_SET;
+
+	btwt_ap_config_cfg->param.btwt_ap_config.ap_bcast_bet_sta_wait =
+		ap_bcast_bet_sta_wait;
+	btwt_ap_config_cfg->param.btwt_ap_config.Ap_Bcast_Offset =
+		Ap_Bcast_Offset;
+	btwt_ap_config_cfg->param.btwt_ap_config.bcastTWTLI = bcastTWTLI;
+	btwt_ap_config_cfg->param.btwt_ap_config.count = count;
+
+	for (i = 0; i < 5; i++) {
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i].btwtId =
+			btwtId[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.Ap_Bcast_Mantissa = Ap_Bcast_Mantissa[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.Ap_Bcast_Exponent = Ap_Bcast_Exponent[i];
+		btwt_ap_config_cfg->param.btwt_ap_config.BTWT_sets[i]
+			.nominalwake = nominalwake[i];
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR,
+		       "vendor cmd: BTWT AP Config SET ioctl failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, sizeof(mlan_ds_btwt_ap_config));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "vendor cmd: allocate memory fail for vendor cmd\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret))
+		PRINTM(MERROR, "vendor cmd: reply failed with ret:%d \n", ret);
+
+done:
+	if (data_buff)
+		kfree(data_buff);
+	if (strBuffer)
+		kfree(strBuffer);
+	if (status != MLAN_STATUS_PENDING && req)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Vendor cmd to trigger btwt_ap_config_get cmd.
+ * It gets the current uAP BTWT config sets.
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_btwt_ap_config_get(struct wiphy *wiphy,
+						   struct wireless_dev *wdev,
+						   const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_twtcfg *btwt_ap_config_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	struct sk_buff *skb = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_s32 ret = 0;
+	t_u8 *data_buff = NULL;
+	char *strBuffer = NULL;
+	t_u32 strBuff_len = 0;
+	t_u8 ap_bcast_bet_sta_wait, bcastTWTLI, count;
+	t_u16 Ap_Bcast_Offset;
+
+	ENTER();
+
+	if ((len < 1) || (len + 1) < 0) {
+		PRINTM(MERROR,
+		       "vendor cmd: btwt_ap_config_get - Invalid data length!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	data_buff = (t_u8 *)kzalloc(len + 1, GFP_ATOMIC);
+	if (data_buff == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	memset((char *)data_buff, 0, len + 1);
+	moal_memcpy_ext(priv->phandle, data_buff, data, len, len);
+
+	strBuffer = (char *)kzalloc(len + 1, GFP_ATOMIC);
+	if (strBuffer == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	// Convert ascii data into string buffer.
+	asciiToString(data_buff, len, strBuffer, &strBuff_len);
+
+	ap_bcast_bet_sta_wait = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len,
+		"ap_bcast_bet_sta_wait=", sizeof("ap_bcast_bet_sta_wait="));
+	Ap_Bcast_Offset = (t_u16)extractNumericVal(
+		strBuffer, strBuff_len,
+		"Ap_Bcast_Offset=", sizeof("Ap_Bcast_Offset="));
+	bcastTWTLI = (t_u8)extractNumericVal(
+		strBuffer, strBuff_len, "bcastTWTLI=", sizeof("bcastTWTLI="));
+	count = (t_u8)extractNumericVal(strBuffer, strBuff_len,
+					"count=", sizeof("count="));
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_twtcfg));
+	if (req == NULL) {
+		PRINTM(MERROR,
+		       "vendor cmd: Could not allocate mlan ioctl request, btwt_ap_config_get!\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	btwt_ap_config_cfg = (mlan_ds_twtcfg *)req->pbuf;
+	btwt_ap_config_cfg->sub_command = MLAN_OID_11AX_TWT_CFG;
+	btwt_ap_config_cfg->sub_id = MLAN_11AX_BTWT_AP_CONFIG_SUBID;
+	req->req_id = MLAN_IOCTL_11AX_CFG;
+	req->action = MLAN_ACT_GET;
+
+	btwt_ap_config_cfg->param.btwt_ap_config.ap_bcast_bet_sta_wait =
+		ap_bcast_bet_sta_wait;
+	btwt_ap_config_cfg->param.btwt_ap_config.Ap_Bcast_Offset =
+		Ap_Bcast_Offset;
+	btwt_ap_config_cfg->param.btwt_ap_config.bcastTWTLI = bcastTWTLI;
+	btwt_ap_config_cfg->param.btwt_ap_config.count = count;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR,
+		       "vendor cmd: BTWT AP CONFIG GET ioctl failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, sizeof(mlan_ds_btwt_ap_config));
+	if (!skb) {
+		PRINTM(MERROR,
+		       "vendor cmd: allocate memory fail for vendor cmd\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	ret = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(ret))
+		PRINTM(MERROR, "vendor cmd: reply failed with ret:%d \n", ret);
+
+done:
+	if (data_buff)
+		kfree(data_buff);
+	if (strBuffer)
+		kfree(strBuffer);
+	if (status != MLAN_STATUS_PENDING && req)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Request list of usable channels for requested bands and modes.
+ *        Usable implies channel is allowed as per regulatory for current
+ *        country code and not restricted due to other hard limitations.
+ *        This allows driver to return list of usable channels for each
+ *        mode(STA, AP, P2P-go etc) uniquely to distinguish cases where
+ *        only limited set of modes are allowed on a given channel.
+ *
+ * @param wiphy       A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ *
+ * @param data     a pointer to data
+ * @param  data_len     data length
+ *
+ * @return      0: success  other: fail
+ */
+static int woal_cfg80211_subcmd_get_usable_channels(struct wiphy *wiphy,
+						    struct wireless_dev *wdev,
+						    const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct nlattr *tb[ATTR_WIFI_MAX + 1];
+	t_u32 band = 0, iface_mode, filter, max_size, size;
+	t_u8 cnt = 0, i, j;
+	t_u32 mem_needed = 0;
+	struct ieee80211_supported_band *sband;
+	struct ieee80211_channel *ch;
+	struct sk_buff *skb = NULL;
+	int err = 0;
+	wifi_usable_channel *channels = NULL;
+
+	ENTER();
+
+	err = nla_parse(tb, ATTR_USABLE_CHANNEL_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+	if (!tb[ATTR_USABLE_CHANNEL_BAND]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_BAND]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_BAND]);
+		err = -EINVAL;
+		goto done;
+	}
+	band = nla_get_u32(tb[ATTR_USABLE_CHANNEL_BAND]);
+	if (!tb[ATTR_USABLE_CHANNEL_IFACE_MODE]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_IFACE_MODE]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_IFACE_MODE]);
+		err = -EINVAL;
+		goto done;
+	}
+	iface_mode = nla_get_u32(tb[ATTR_USABLE_CHANNEL_IFACE_MODE]);
+
+	if (!tb[ATTR_USABLE_CHANNEL_FILTER]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_FILTER]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_FILTER]);
+		err = -EINVAL;
+		goto done;
+	}
+	filter = nla_get_u32(tb[ATTR_USABLE_CHANNEL_FILTER]);
+
+	if (!tb[ATTR_USABLE_CHANNEL_MAX_SIZE]) {
+		PRINTM(MERROR, "%s: null attr: tb[ATTR_USABLE_MAX_SIZE]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_MAX_SIZE]);
+		err = -EINVAL;
+		goto done;
+	}
+	max_size = nla_get_u32(tb[ATTR_USABLE_CHANNEL_MAX_SIZE]);
+
+	PRINTM(MCMND,
+	       "get usable channels for - band: %d, iface_mode: %d, filter: %d,"
+	       " max_size: %d",
+	       band, iface_mode, filter, max_size);
+
+	channels = kzalloc(sizeof(wifi_usable_channel) *
+				   MIN(MAX_CHANNEL_NUM, max_size),
+			   GFP_ATOMIC);
+	if (!channels) {
+		PRINTM(MERROR,
+		       "Failed to allocate memory for wifi_usable_channel of size: %d",
+		       MIN(MAX_CHANNEL_NUM, max_size));
+		err = -ENOMEM;
+		goto done;
+	}
+
+	for (i = 0; i < IEEE80211_NUM_BANDS; i++) {
+		if (!priv->wdev->wiphy->bands[i])
+			continue;
+		if ((i == IEEE80211_BAND_2GHZ) && !(band & WLAN_MAC_2_4_BAND))
+			continue;
+		if ((i == IEEE80211_BAND_5GHZ) && !(band & WLAN_MAC_5_0_BAND))
+			continue;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+		if ((i == IEEE80211_BAND_6GHZ) && !(band & WLAN_MAC_6_0_BAND))
+			continue;
+#endif
+		sband = priv->wdev->wiphy->bands[i];
+		for (j = 0; (j < sband->n_channels); j++) {
+			ch = &sband->channels[j];
+			if (ch->flags & IEEE80211_CHAN_DISABLED) {
+				PRINTM(MERROR, "Skip DISABLED channels %d\n",
+				       ieee80211_frequency_to_channel(
+					       ch->center_freq));
+				continue;
+			}
+			if (cnt >= MIN(MAX_CHANNEL_NUM, max_size)) {
+				PRINTM(MERROR,
+				       "cnt=%d exceeds %d, hence ignore remaining channels. "
+				       "cur ch = %dMHz",
+				       cnt, MIN(MAX_CHANNEL_NUM, max_size),
+				       ch->center_freq);
+				break;
+			}
+			channels[cnt].freq = ch->center_freq;
+			channels[cnt].iface_mode_mask =
+				IFACE_MODE_STA | IFACE_MODE_SOFTAP |
+				IFACE_MODE_P2P_CLIENT | IFACE_MODE_P2P_GO;
+			if (!(ch->flags & IEEE80211_CHAN_NO_80MHZ)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_80;
+			} else if (!(ch->flags & IEEE80211_CHAN_NO_HT40PLUS) ||
+				   !(ch->flags & IEEE80211_CHAN_NO_HT40MINUS)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_40;
+			} else if (!(ch->flags & IEEE80211_CHAN_NO_20MHZ)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_20;
+			} else {
+				PRINTM(MERROR, "Invalid channel width");
+				channels[cnt].width = WIFI_CHAN_WIDTH_INVALID;
+			}
+			PRINTM(MINFO, "channel : %d width: %d",
+			       ieee80211_frequency_to_channel(
+				       channels[cnt].freq),
+			       channels[cnt].width);
+			cnt++;
+		}
+	}
+	PRINTM(MCMND, "Usable channel count: %d\n", cnt);
+	size = cnt;
+
+	mem_needed = nla_total_size(size * sizeof(wifi_usable_channel)) +
+		     nla_total_size(sizeof(size)) + VENDOR_REPLY_OVERHEAD;
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, mem_needed);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed");
+		err = -ENOMEM;
+		goto done;
+	}
+
+	if (nla_put_u32(skb, ATTR_USABLE_CHANNEL_SIZE, size)) {
+		PRINTM(MERROR, "nla_put ATTR_USABLE_CHANNEL_SIZE failed!\n");
+		kfree_skb(skb);
+		err = -ENOMEM;
+		goto done;
+	}
+	if (nla_put(skb, ATTR_USABLE_CHANNEL_LIST,
+		    size * sizeof(wifi_usable_channel), channels)) {
+		PRINTM(MERROR, "nla_put ATTR_USABLE_CHANNEL_LIST failed!\n");
+		kfree_skb(skb);
+		err = -ENOMEM;
+		goto done;
+	}
+
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (err) {
+		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
+		goto done;
+	}
+
+done:
+	if (channels)
+		kfree(channels);
+	LEAVE();
+	return err;
+}
+
 // clang-format off
 static const struct wiphy_vendor_command vendor_commands[] = {
 	{
@@ -8109,6 +8621,43 @@ static const struct wiphy_vendor_command vendor_commands[] = {
         .policy = VENDOR_CMD_RAW_DATA,
 #endif
     },
+    {
+        .info = {
+                .vendor_id = MRVL_VENDOR_ID,
+                .subcmd = subcmd_btwt_ap_config_set,
+            },
+        .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+            WIPHY_VENDOR_CMD_NEED_NETDEV,
+        .doit = &woal_cfg80211_subcmd_btwt_ap_config_set,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+        .policy = VENDOR_CMD_RAW_DATA,
+#endif
+    },
+    {
+        .info = {
+                .vendor_id = MRVL_VENDOR_ID,
+                .subcmd = subcmd_btwt_ap_config_get,
+        },
+        .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+            WIPHY_VENDOR_CMD_NEED_NETDEV,
+        .doit = &woal_cfg80211_subcmd_btwt_ap_config_get,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+        .policy = VENDOR_CMD_RAW_DATA,
+#endif
+    },
+	{
+	.info = {
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = subcmd_get_usable_channels,
+	},
+	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+		WIPHY_VENDOR_CMD_NEED_NETDEV,
+	.doit = woal_cfg80211_subcmd_get_usable_channels,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+	.policy = woal_usable_channel_policy,
+	.maxattr = ATTR_USABLE_CHANNEL_MAX,
+#endif
+	},
 };
 // clang-format on
 

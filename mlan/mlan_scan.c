@@ -6354,6 +6354,10 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 	rate_size = 0;
 
 	/* Allocate the beacon buffer for new entry */
+	/* The beacon_buf_size is calculated using validated inputs
+	 * (BEACON_FIX_SIZE and ie_len), both of which are bounded and
+	 * controlled.
+	 */
 	// coverity[overflow_sink:SUPPRESS]
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle, beacon_buf_size,
 			       MLAN_MEM_DEF, (t_u8 **)&pbuf);

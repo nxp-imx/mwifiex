@@ -5586,6 +5586,9 @@ static int woal_priv_hssetpara(moal_private *priv, t_u8 *respbuf,
 		       respbuf + (strlen(CMD_NXP) + strlen(PRIV_CMD_HSSETPARA)),
 		       CMD_BUF_LEN -
 			       (strlen(CMD_NXP) + strlen(PRIV_CMD_HSSETPARA)));
+		/* respbuf is allocated with kzalloc, ensuring null-termination
+		 * snprintf is used safely with bounded size.
+		 */
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		if (snprintf(respbuf, CMD_BUF_LEN, "%s%s%s", CMD_NXP,
 			     PRIV_CMD_HSCFG, buf) <= 0)
@@ -13061,6 +13064,8 @@ static int woal_channel_switch(moal_private *priv, t_u8 block_tx,
 
 	priv->phandle->chsw_wait_q_woken = MFALSE;
 	/* wait for channel switch to complete  */
+	// Coverity error raised for kernel's API
+	// coverity[check_return:SUPPRESS]
 	wait_rv = wait_event_interruptible_timeout(
 		priv->phandle->chsw_wait_q, priv->phandle->chsw_wait_q_woken,
 		(u32)HZ * (switch_count + 2) * 110 / 1000);
@@ -17315,7 +17320,7 @@ static int woal_priv_tsp_config(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
-	int data[8] = {0};
+	int data[9] = {0};
 	int header_len = 0;
 	int user_data_len = 0;
 	int ret = 0;
@@ -17340,7 +17345,7 @@ static int woal_priv_tsp_config(moal_private *priv, t_u8 *respbuf,
 	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 			&user_data_len);
 
-	if (user_data_len > 8) {
+	if (user_data_len > 9) {
 		PRINTM(MERROR, "invalid parameters\n");
 		ret = -EINVAL;
 		goto done;
@@ -17415,6 +17420,11 @@ static int woal_priv_tsp_config(moal_private *priv, t_u8 *respbuf,
 			       "err: TSP Low Threshold Temperature is greater than High Threshold Temperature value\n");
 			ret = -EINVAL;
 			goto done;
+		} else if (data[8] < 1 || data[8] > 10) {
+			PRINTM(MERROR,
+			       "err: TSP RFUTj Temperature poll count isn't in Range\n");
+			ret = -EINVAL;
+			goto done;
 		} else {
 			tsp_cfg->enable = (t_u16)data[0];
 			tsp_cfg->backoff = (t_s32)data[1];
@@ -17424,6 +17434,8 @@ static int woal_priv_tsp_config(moal_private *priv, t_u8 *respbuf,
 			tsp_cfg->duty_cyc_min = (t_s32)data[5];
 			tsp_cfg->high_thrshld_temp = (t_s32)data[6];
 			tsp_cfg->low_thrshld_temp = (t_s32)data[7];
+			tsp_cfg->rf_temp_poll_cnt = (t_s32)data[8];
+			tsp_cfg->throttle_duty_cycle = 0;
 		}
 	}
 
@@ -22385,7 +22397,14 @@ static int woal_priv_per_band_txpwr_cap(moal_private *priv, t_u8 *respbuf,
 
 	if (data[0] != BAND_2GHZ && data[0] != BAND_5GHZ &&
 	    data[0] != BAND_6GHZ) {
-		PRINTM(MERROR, "Invalid band\n");
+		PRINTM(MERROR, "per_band_txpwr_cap: Invalid band input\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	/* tx power capping cannot be negative or above 25 dBm */
+	if (data[1] < 0 || data[1] > 25) {
+		PRINTM(MERROR,
+		       "per_band_txpwr_cap: Invalid power value input\n");
 		ret = -EINVAL;
 		goto done;
 	}

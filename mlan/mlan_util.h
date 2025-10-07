@@ -656,6 +656,7 @@ static INLINE t_bool util_is_time_before(t_u64 t1, t_u64 t2)
 {
 	t_s64 delta = t2 - t1;
 
+	/* The subtraction is safe */
 	// coverity[integer_overflow:SUPPRESS]
 	return delta > 0;
 }

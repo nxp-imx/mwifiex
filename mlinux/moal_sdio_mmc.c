@@ -331,13 +331,30 @@ static void woal_sdio_interrupt(struct sdio_func *func)
  */
 static void woal_sdio_oob_irq_work(struct work_struct *work)
 {
-	sdio_mmc_card *card =
-		container_of(work, sdio_mmc_card, sdio_oob_irq_work);
-	struct mmc_card *mmc_card = card->func->card;
+	sdio_mmc_card *card = NULL;
+	struct mmc_card *mmc_card = NULL;
 	struct sdio_func *func;
 	unsigned char pending;
 	int i;
 	int ret;
+
+	if (!work) {
+		PRINTM(MERROR, "Invalid work structure pointer\n");
+		return;
+	}
+
+	// Use safe container_of with proper type validation
+	// Coverity raised error for kernel API.
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	card = container_of(work, sdio_mmc_card, sdio_oob_irq_work);
+
+	// Validate the resulting card pointer and its members
+	if (!card || !card->func || !card->func->card) {
+		PRINTM(MERROR, "Invalid sdio_mmc_card structure or members\n");
+		return;
+	}
+
+	mmc_card = card->func->card;
 
 	for (i = 0; i < mmc_card->sdio_funcs; i++) {
 		func = NULL;
@@ -587,7 +604,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V15, strlen(V15),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -602,7 +619,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V15, strlen(V15),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -616,7 +633,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V16, strlen(V16),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -630,7 +647,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V16, strlen(V16),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -644,7 +661,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V16, strlen(V16),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -658,7 +675,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V16, strlen(V16),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -672,7 +689,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V18, strlen(V18),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -687,7 +704,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V17, strlen(V17),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -701,7 +718,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V17, strlen(V17),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -716,7 +733,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V17, strlen(V17),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -730,7 +747,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V18, strlen(V18),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -744,7 +761,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
 			V18, strlen(V18),
-			strlen(driver_version) -
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
@@ -910,14 +927,22 @@ void woal_wlan_is_suspended(moal_handle *handle)
  */
 void woal_sdio_shutdown(struct device *dev)
 {
-	struct sdio_func *func = dev_to_sdio_func(dev);
 	moal_handle *handle = NULL;
 	sdio_mmc_card *cardp;
 	mlan_ds_ps_info pm_info;
 	int i, retry_num = 8;
+	struct sdio_func *func;
 
 	ENTER();
 	PRINTM(MCMND, "<--- Enter woal_sdio_shutdown --->\n");
+	if (!dev) {
+		PRINTM(MERROR, "Invalid device pointer in resume\n");
+		LEAVE();
+		return;
+	}
+	// Coverity violation raised for kernel's API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	func = dev_to_sdio_func(dev);
 	cardp = sdio_get_drvdata(func);
 	if (!cardp || !cardp->handle) {
 		PRINTM(MERROR, "Card or moal_handle structure is not valid\n");
@@ -994,7 +1019,6 @@ done:
  */
 int woal_sdio_suspend(struct device *dev)
 {
-	struct sdio_func *func = dev_to_sdio_func(dev);
 	mmc_pm_flag_t pm_flags = 0;
 	moal_handle *handle = NULL;
 	sdio_mmc_card *cardp;
@@ -1003,8 +1027,18 @@ int woal_sdio_suspend(struct device *dev)
 	int hs_actived = 0;
 	mlan_ds_ps_info pm_info;
 
+	struct sdio_func *func;
+
 	ENTER();
 	PRINTM(MCMND, "<--- Enter woal_sdio_suspend --->\n");
+	if (!dev) {
+		PRINTM(MERROR, "Invalid device pointer in resume\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	// coverity issue raised for kernel's API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	func = dev_to_sdio_func(dev);
 	pm_flags = sdio_get_host_pm_caps(func);
 	PRINTM(MCMND, "%s: suspend: PM flags = 0x%x\n", sdio_func_id(func),
 	       pm_flags);
@@ -1129,14 +1163,22 @@ done:
  */
 int woal_sdio_resume(struct device *dev)
 {
-	struct sdio_func *func = dev_to_sdio_func(dev);
 	mmc_pm_flag_t pm_flags = 0;
 	moal_handle *handle = NULL;
 	sdio_mmc_card *cardp;
 	int i;
+	struct sdio_func *func;
 
 	ENTER();
 	PRINTM(MCMND, "<--- Enter woal_sdio_resume --->\n");
+	if (!dev) {
+		PRINTM(MERROR, "Invalid device pointer in resume\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	// coverity issue raised for Kernel's API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	func = dev_to_sdio_func(dev);
 	pm_flags = sdio_get_host_pm_caps(func);
 	PRINTM(MCMND, "%s: resume: PM flags = 0x%x\n", sdio_func_id(func),
 	       pm_flags);
@@ -1824,6 +1866,9 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
 	t_u32 strap = 0;
 #endif
+#if defined(SDAW693) || defined(SDIW610)
+	char *se_pos = NULL;
+#endif
 
 	ENTER();
 
@@ -1843,7 +1888,10 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	woal_sdiommc_read_reg(handle, magic_reg, &magic);
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, host_strap_reg, &strap);
-	strap &= 0x1;
+	if (IS_SDIW624(handle->card_type))
+		strap &= 0x07;
+	else
+		strap &= 0x1;
 	magic &= 0xFF;
 	/* 1 = SDSD, 0 --SD UART */
 	PRINTM(MCMND, "magic=0x%x strap=0x%x\n", magic, strap);
@@ -2039,16 +2087,17 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 				SDAW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			if (magic != 0x03) {
 				/* remove extension .se */
-				if (strstr(handle->card_info->fw_name, ".se"))
-					memset(strstr(handle->card_info->fw_name,
-						      ".se"),
-					       '\0', sizeof(".se"));
-				if (strstr(handle->card_info->fw_name_wlan,
-					   ".se"))
-					memset(strstr(handle->card_info
-							      ->fw_name_wlan,
-						      ".se"),
-					       '\0', sizeof(".se"));
+				se_pos = strstr(handle->card_info->fw_name,
+						".se");
+				if (se_pos) {
+					memset(se_pos, '\0', sizeof(".se"));
+				}
+
+				se_pos = strstr(handle->card_info->fw_name_wlan,
+						".se");
+				if (se_pos) {
+					memset(se_pos, '\0', sizeof(".se"));
+				}
 			}
 			break;
 		default:
@@ -2173,14 +2222,15 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			SDIW610_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 		if (magic != 0x03) {
 			/* remove extension .se */
-			if (strstr(handle->card_info->fw_name, ".se"))
-				memset(strstr(handle->card_info->fw_name,
-					      ".se"),
-				       '\0', sizeof(".se"));
-			if (strstr(handle->card_info->fw_name_wlan, ".se"))
-				memset(strstr(handle->card_info->fw_name_wlan,
-					      ".se"),
-				       '\0', sizeof(".se"));
+			se_pos = strstr(handle->card_info->fw_name, ".se");
+			if (se_pos) {
+				memset(se_pos, '\0', sizeof(".se"));
+			}
+
+			se_pos = strstr(handle->card_info->fw_name_wlan, ".se");
+			if (se_pos) {
+				memset(se_pos, '\0', sizeof(".se"));
+			}
 		}
 	}
 #endif
@@ -2881,6 +2931,8 @@ static void woal_sdiommc_reg_dbg(moal_handle *phandle)
  */
 static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 {
+	moal_private *priv = NULL;
+
 	if (!phandle) {
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
@@ -2916,8 +2968,12 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 	woal_sdiommc_reg_dbg(phandle);
 	if (!phandle->priv_num)
 		return;
-	woal_send_fw_dump_complete_event(
-		woal_get_priv(phandle, MLAN_BSS_ROLE_ANY));
+	priv = woal_get_priv(phandle, MLAN_BSS_ROLE_ANY);
+	if (priv) {
+		woal_send_fw_dump_complete_event(priv);
+	} else {
+		PRINTM(MERROR, "Failed to get private structure for BSS\n");
+	}
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);
 	woal_process_hang(phandle);
@@ -3407,9 +3463,28 @@ err_init_fw:
  */
 static void woal_sdiommc_work(struct work_struct *work)
 {
-	sdio_mmc_card *card = container_of(work, sdio_mmc_card, reset_work);
+	sdio_mmc_card *card = NULL;
 	moal_handle *handle = NULL;
 	moal_handle *ref_handle = NULL;
+
+	// Validate work pointer before container_of operation
+	if (!work) {
+		PRINTM(MERROR, "Invalid work structure pointer\n");
+		return;
+	}
+
+	// Use safe container_of with proper type validation
+	// Coverity raised error for kernel API
+	// coverity[cert_arr39_c_violation:SUPPRESS]
+	card = container_of(work, sdio_mmc_card, reset_work);
+
+	// Validate the resulting card pointer
+	if (!card) {
+		PRINTM(MERROR,
+		       "Failed to get sdio_mmc_card from work structure\n");
+		return;
+	}
+
 	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 	handle = card->handle;
 	woal_send_auto_recovery_start_event(handle);
@@ -3467,8 +3542,7 @@ static void woal_sdiommc_work(struct work_struct *work)
 	}
 	card->work_flags = MFALSE;
 	wifi_status = WIFI_STATUS_OK;
-	if (handle)
-		woal_send_auto_recovery_complete_event(handle);
+	woal_send_auto_recovery_complete_event(handle);
 	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }

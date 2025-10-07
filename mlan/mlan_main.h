@@ -244,6 +244,10 @@ extern t_u32 mlan_drvdbg;
 #define memset(adapter, s, c, len)                                             \
 	(adapter->callbacks.moal_memset(adapter->pmoal_handle, s, c, len))
 
+/** Memset routine */
+#define _memset(adapter, s, c, len)                                            \
+	(adapter->callbacks.moal_memset(adapter->pmoal_handle, s, c, len))
+
 #ifdef memmove
 #undef memmove
 #endif
@@ -3035,15 +3039,15 @@ struct _mlan_adapter {
 	/** SCAN IOCTL request buffer pointer */
 	pmlan_ioctl_req pscan_ioctl_req;
 	/** DPD data pointer */
-	t_u8 *pdpd_data;
+	const t_u8 *pdpd_data;
 	/** DPD data length  */
 	t_u32 dpd_data_len;
 	/** region txpowerlimit cfg data buf pointer */
-	t_u8 *ptxpwr_data;
+	const t_u8 *ptxpwr_data;
 	/** region txpowerlimit cfg data len */
 	t_u32 txpwr_data_len;
 	/** Cal data pointer */
-	t_u8 *pcal_data;
+	const t_u8 *pcal_data;
 	/** Cal data length  */
 	t_u32 cal_data_len;
 	/** tdls status */
@@ -4875,7 +4879,7 @@ static INLINE t_u32 wlan_strlen(const char *str)
  *
  *  @return                     Non zero if chr is a hex, else 0
  */
-static INLINE t_u32 wlan_isxdigit(t_u8 chr)
+static INLINE t_u32 wlan_isxdigit(const t_u8 chr)
 {
 	return (chr <= 'f' && chr >= 'a') || (chr <= 'F' && chr >= 'A') ||
 	       (chr <= '9' && chr >= '0');

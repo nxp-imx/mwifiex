@@ -3353,6 +3353,11 @@ static mlan_status wlan_uap_ret_snmp_mib(pmlan_private pmpriv,
 			tlv_type = wlan_le16_to_cpu(
 				read_u16_unaligned(pmadapter, psnmp_oid));
 			psnmp_oid += sizeof(t_u16) + sizeof(t_u16);
+			/* The memcpy_ext() call copies a fixed number of bytes
+			 * (sizeof(t_u32)) from a buffer (psnmp_oid) that is
+			 * validated to have sufficient remaining length before
+			 * the copy.
+			 */
 			// coverity[cert_arr30_c_violation:SUPPRESS]
 			// coverity[overrun:SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
@@ -3493,11 +3498,8 @@ static mlan_status wlan_uap_ret_get_log(pmlan_private pmpriv,
 
 	if (pioctl_buf) {
 		pget_info = (mlan_ds_get_info *)pioctl_buf->pbuf;
-		// coverity[bad_memset:SUPPRESS]
-		// coverity[too_many_arguments:SUPPRESS]
-		// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-		memset(pmpriv->adapter, &pget_info->param.stats, 0,
-		       sizeof(HostCmd_DS_802_11_GET_LOG));
+		_memset(pmpriv->adapter, &pget_info->param.stats, 0,
+			sizeof(HostCmd_DS_802_11_GET_LOG));
 		memcpy_ext(pmpriv->adapter, (t_u8 *)&get_log_tmp,
 			   (t_u8 *)pget_log,
 			   ((resp->size) - (sizeof(HostCmd_DS_GEN))),
@@ -6935,6 +6937,9 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);
+		/* The buffer pevent->event_buf is populated using memcpy_ext
+		 * with a known bounded length.
+		 */
 		// coverity[cert_str32_c_violation:SUPPRESS]
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 	}

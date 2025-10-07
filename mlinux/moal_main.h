@@ -250,7 +250,7 @@ Change log:
 #define IEEE80211_NUM_BANDS NUM_NL80211_BANDS
 #endif
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define IEEE80211_BAND_6GHZ NL80211_BAND_6GHZ
 #endif
 
@@ -438,6 +438,10 @@ typedef enum _MOAL_HARDWARE_STATUS {
 #define FW_CAPINFO_DISABLE_NAN MBIT(29)
 /** fw cap info BGA */
 #define FW_CAPINFO_80211BGA (MBIT(8) | MBIT(9) | MBIT(10))
+
+#define NUM_2G_CHAN 14
+#define NUM_5G_CHAN 42
+#define NUM_6G_CHAN 59
 
 /** moal_wait_option */
 enum { MOAL_NO_WAIT, MOAL_IOCTL_WAIT, MOAL_IOCTL_WAIT_TIMEOUT };
@@ -2207,6 +2211,11 @@ struct _moal_private {
 
 	moal_priv_linkstats_cfg plinkstats_cfg;
 	moal_priv_linkstats plinkstats;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	struct cfg80211_qos_map *qos_map;
+#endif
+#endif
 
 	/*BSS active time*/
 	t_u64 bss_active_time;
@@ -2650,6 +2659,27 @@ int woal_enable_fw_roaming(moal_private *priv, int data);
 #define GTK_REKEY_OFFLOAD_ENABLE 1
 #define GTK_REKEY_OFFLOAD_SUSPEND 2
 
+#if defined(STA_CFG80211)
+struct chan_power {
+	/** channel hw value */
+	t_u8 channel;
+	/** max tx power value */
+	t_u8 max_tx_pwr;
+};
+/** peer countryIE information */
+typedef struct _peer_country_info {
+	/** country code */
+	t_u8 country_code[COUNTRY_CODE_LEN];
+	/** for all channels in 2GHz band */
+	struct chan_power band_2g[NUM_2G_CHAN];
+	/** for all channels in 5GHz band */
+	struct chan_power band_5g[NUM_5G_CHAN];
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+	/** for all channels in 6GHz band */
+	struct chan_power band_6g[NUM_6G_CHAN];
+#endif
+} peer_country_info_t;
+#endif
 /** Supported bandwidth for monitor mode */
 enum {
 	SNIFF_BW_20MHZ = 0,
@@ -2774,6 +2804,7 @@ typedef struct _moal_mod_para {
 	char *fw_name;
 	int fw_reload;
 	int auto_fw_reload;
+	char *wifi_fw_name;
 	char *mac_addr;
 #ifdef MFG_CMD_SUPPORT
 	int mfg_mode;
@@ -3054,6 +3085,8 @@ struct _moal_handle {
 	const struct firmware *txpwr_data;
 	/** Operation Mode PSD String */
 	char mode_psd_string[64];
+	/** Operation Mode PSD RU String */
+	char mode_psd_ru_string[64];
 	/** Load time file name */
 	char mode_psd_file[64];
 	/** Hotplug device */
@@ -3232,6 +3265,10 @@ struct _moal_handle {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	/** regulatory work */
 	struct work_struct regulatory_work;
+#endif
+#if defined(STA_CFG80211)
+	/** peer countryIE information */
+	peer_country_info_t peer_country_info;
 #endif
 	/** band */
 	enum ieee80211_band band;
@@ -4457,6 +4494,9 @@ mlan_status woal_get_wpa_enable(moal_private *priv, t_u8 wait_option,
 #endif /**STA_SUPPORT */
 
 mlan_status woal_set_11d(moal_private *priv, t_u8 wait_option, t_u8 enable);
+#if defined(STA_CFG80211)
+void woal_reset_peer_country_info(moal_private *priv);
+#endif
 
 mlan_status woal_process_rf_test_mode(moal_handle *handle, t_u32 mode);
 mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
@@ -4835,7 +4875,9 @@ void woal_print_linkstats_info(moal_private *priv, bool is_reset);
 mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration);
 mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
 				     t_s16 *noise);
+#ifdef UAP_SUPPORT
 mlan_status woal_get_sta_list(moal_private *priv, mlan_ds_sta_list *sta_list);
+#endif
 
 #ifdef DUMP_TO_PROC
 void woal_print_firmware_dump_buf(t_u8 *pfd_buf, t_u64 fwdump_len);
@@ -4889,4 +4931,7 @@ extern mlan_status moal_agcs_trans_state(moal_private *priv,
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
 #endif /* UAP_SUPPORT */
 
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+extern mlan_status check_device_name_info(char *device_name, t_u16 *card_type);
+#endif
 #endif /* _MOAL_MAIN_H */

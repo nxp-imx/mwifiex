@@ -219,7 +219,6 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 #if defined(USB9098)
 	t_u32 revision_id = 0;
 #endif
-	t_u32 i = 0;
 	t_u32 fw_data_param = pmadapter->init_para.fw_data_cfg;
 	fw_data_t fw_data_list[MAX_FW_DATA_BLOCK] = {0};
 	t_u32 fw_data_param_num = 0, fw_data_index = 0;
@@ -290,8 +289,9 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 			       sizeof(FWHeader));
 			DataLength = 0;
 		} else {
-			/* Copy the header of the firmware data to get the
-			 * length */
+			/* reset length and Copy the header of the firmware data
+			 * to get the length */
+			fwdata->fw_header.data_length = 0;
 			if (firmware)
 				memcpy_ext(pmadapter, &fwdata->fw_header,
 					   &firmware[TotalBytes],
@@ -441,16 +441,16 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 		PRINTM(MINFO, ".\n");
 
 		if (fw_data_param) {
-			for (i = fw_data_index; i < fw_data_param_num;) {
-				firmware = fw_data_list[i].fw_data_buffer;
+			if (fw_data_index < fw_data_param_num) {
+				firmware = fw_data_list[fw_data_index]
+						   .fw_data_buffer;
 				/** make TotalBytes as 0 as allocated custom Fw
 				 * data buffers are not contiguous */
 				TotalBytes = 0;
 				fw_data_index++;
-				break;
 			}
 			/** custom Fw data download complete, restore Fw */
-			if (i >= fw_data_param_num) {
+			if (fw_data_index >= fw_data_param_num) {
 				firmware = pmfw->pfw_buf;
 				fw_data_param = 0;
 				fw_data_index = 0;
@@ -906,7 +906,7 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	RxPD *prx_pd;
 	t_u8 *pdata;
 	t_s32 aggr_len;
-	pmlan_buffer pdeaggr_buf;
+	pmlan_buffer pdeaggr_buf = MNULL;
 	t_u16 max_loop_cnt = 0;
 	/* (8 * (MLAN_USB_BLOCK_SIZE * 4)) */
 #define MAX_USB_RX_DATA_SIZE (MLAN_USB_RX_MAX_AGGR_NUM * MLAN_USB_MAX_PKT_SIZE)
@@ -944,6 +944,10 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		/* make new buffer and copy packet to it (including RxPD).
 		 * Also, reserve headroom so that there must have space
 		 * to change RxPD to TxPD for bridge packet in uAP mode */
+		/* pdeaggr_buf is freed in moal_recv_complete(), therefore
+		 * Overwriting pdeaggr_buf is not harmful.
+		 */
+		// coverity[overwrite_var:SUPPRESS]
 		pdeaggr_buf = wlan_alloc_mlan_buffer(pmadapter, curr_pkt_len,
 						     MLAN_RX_HEADER_LEN,
 						     MOAL_ALLOC_MLAN_BUFFER);
@@ -962,7 +966,11 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		memcpy_ext(pmadapter,
 			   pdeaggr_buf->pbuf + pdeaggr_buf->data_offset, pdata,
 			   curr_pkt_len, pdeaggr_buf->data_len);
-
+		/* Deaggr buffer is freed in moal_recv_complete() after rx data
+		 * handling completed, Coverity is not able to trace callbacks
+		 * registered for and process_rx_packet and moal_recv_complete
+		 */
+		// coverity[RESOURCE_LEAK]: SUPPRESS
 		/* send new packet to processing */
 		ret = wlan_handle_rx_packet(pmadapter, pdeaggr_buf);
 		if (ret == MLAN_STATUS_FAILURE) {
@@ -999,6 +1007,8 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	pmadapter->callbacks.moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
 						pmadapter->rx_data_ep, ret);
 	LEAVE();
+	/* pdeaggr_buf is freed in moal_recv_complete() */
+	// coverity[leaked_storage:SUPPRESS]
 	return ret;
 }
 

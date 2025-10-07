@@ -614,6 +614,7 @@ typedef enum {
 
 /** BIT value */
 #define MBIT(x) (((t_u32)1) << (x))
+#define MBIT64(x) (1ULL << (x))
 
 /** Buffer flag for requeued packet */
 #define MLAN_BUF_FLAG_REQUEUED_PKT MBIT(0)
@@ -1010,15 +1011,15 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 /** Custom data structure */
 typedef struct _mlan_init_param {
 	/** DPD data buffer pointer */
-	t_u8 *pdpd_data_buf;
+	const t_u8 *pdpd_data_buf;
 	/** DPD data length */
 	t_u32 dpd_data_len;
 	/** region txpowerlimit cfg data buffer pointer */
-	t_u8 *ptxpwr_data_buf;
+	const t_u8 *ptxpwr_data_buf;
 	/** region txpowerlimit cfg data length */
 	t_u32 txpwr_data_len;
 	/** Cal data buffer pointer */
-	t_u8 *pcal_data_buf;
+	const t_u8 *pcal_data_buf;
 	/** Cal data length */
 	t_u32 cal_data_len;
 	/** Other custom data */
@@ -1351,6 +1352,7 @@ typedef MLAN_PACK_START struct _radiotap_timestamp {
 	 * 1 microseconds,
 	 * 2 nanoseconds,
 	 * 3-15 reserved */
+	// bit-field usage is required to match protocol-defined layout
 	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u8 unit : 4;
 	/* position:
@@ -1361,6 +1363,7 @@ typedef MLAN_PACK_START struct _radiotap_timestamp {
 	 * 4-14 reserved
 	 * 15 unknown or vendor/OOB defined
 	 */
+	// bit-field usage is required to match protocol-defined layout
 	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u8 position : 4;
 	/* flags

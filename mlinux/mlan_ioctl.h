@@ -2660,6 +2660,8 @@ typedef struct _mlan_debug_info {
 	t_u8 *evtbd_ring_vbase;
 	/** evtbd ring size */
 	t_u32 evtbd_ring_size;
+	/** pending tx ring buffer in firmware */
+	t_u16 txbd_pending;
 #endif
 	/** Corresponds to cmdresp_received member of mlan_adapter */
 	t_u8 cmd_resp_received;
@@ -6545,6 +6547,10 @@ typedef struct _mlan_ds_tsp_cfg {
 	t_s32 high_thrshld_temp;
 	/** TSP config LOW_THRESHOLD_TEMP */
 	t_s32 low_thrshld_temp;
+	/** TSP current throttle percentage */
+	t_u32 throttle_duty_cycle;
+	/** TSP rfu temp poll count */
+	t_u32 rf_temp_poll_cnt;
 	/** TSP CAU TSEN register */
 	t_s32 reg_cau_val;
 	/** TSP RFU registers */

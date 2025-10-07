@@ -1543,6 +1543,8 @@ static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 	}
 
 	pmadapter->selected_mlan_bss = MNULL;
+	/* priv_num is checked earlier in the function to ensure it is non-zero.
+	 */
 	// coverity[cert_arr30_c_violation:SUPPRESS]
 	return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
 }
@@ -2620,6 +2622,8 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 	}
 
 	LEAVE();
+	// allocated ra_list is enqueued and managed via
+	// wmm.tid_tbl_ptr[i].ra_list, freed during cleanup
 	// coverity[leaked_storage:SUPPRESS]
 }
 
@@ -5189,7 +5193,9 @@ static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
 	}
 
 	rate = rate * nss;
-
+	/* The maximum possible value of rate after all operations
+	 * remains within the bounds of a 32-bit unsigned integer.
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return rate;
 }
@@ -5246,7 +5252,9 @@ static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
 	if (bw == bw_40) {
 		rate = (rate * 2077u) / 1000;
 	}
-
+	/* The maximum possible value of rate after all operations
+	 * remains within the bounds of a 32-bit unsigned integer.
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return rate;
 }
