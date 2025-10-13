@@ -29,6 +29,7 @@ extern pmoal_handle m_handle[];
 static char *fw_name;
 static int req_fw_nowait;
 int fw_reload;
+static char *wifi_fw_name;
 #ifdef PCIE
 int auto_fw_reload = AUTO_FW_RELOAD_ENABLE | AUTO_FW_RELOAD_PCIE_INBAND_RESET;
 #else
@@ -448,6 +449,26 @@ static int make_before_break = 0;
 static int auto_11ax = 1;
 static int reject_addba_req = 0;
 
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+mlan_status check_device_name_info(char *device_name, t_u16 *card_type)
+{
+	t_u32 tbl_size =
+		sizeof(card_type_map_tbl) / sizeof(card_type_map_tbl[0]);
+	t_u32 i;
+
+	for (i = 0; i < tbl_size; i++) {
+		if (strcmp(card_type_map_tbl[i].name, device_name) == 0) {
+			if (card_type != NULL)
+				*card_type = card_type_map_tbl[i].card_type;
+
+			return MLAN_STATUS_SUCCESS;
+		}
+	}
+
+	return MLAN_STATUS_FAILURE;
+}
+#endif
+
 /**
  *  @brief This function read a line in module parameter file
  *
@@ -766,6 +787,13 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->auto_fw_reload = out_data;
 			PRINTM(MMSG, "auto_fw_reload %d\n",
 			       params->auto_fw_reload);
+		} else if (strncmp(line, "wifi_fw_name",
+				   strlen("wifi_fw_name")) == 0) {
+			if (parse_line_read_string(line, &out_str) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			woal_dup_string(&params->wifi_fw_name, out_str);
+			PRINTM(MMSG, "wifi_fw_name=%s\n", params->wifi_fw_name);
 		} else if (strncmp(line, "fw_serial", strlen("fw_serial")) ==
 			   0) {
 			if (parse_line_read_int(line, &out_data) !=
@@ -1810,6 +1838,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.auto_fw_reload = auto_fw_reload;
 	if (params)
 		handle->params.auto_fw_reload = params->auto_fw_reload;
+
+	woal_dup_string(&handle->params.wifi_fw_name, wifi_fw_name);
+	if (params && params->wifi_fw_name)
+		woal_dup_string(&handle->params.wifi_fw_name,
+				params->wifi_fw_name);
+
 	if (fw_serial)
 		moal_extflg_set(handle, EXT_FW_SERIAL);
 	woal_dup_string(&handle->params.hw_name, hw_name);
@@ -2241,6 +2275,11 @@ void woal_free_module_param(moal_handle *handle)
 		kfree(params->fw_name);
 		params->fw_name = NULL;
 	}
+
+	if (params->wifi_fw_name) {
+		kfree(params->wifi_fw_name);
+		params->wifi_fw_name = NULL;
+	}
 	if (params->hw_name) {
 		kfree(params->hw_name);
 		params->hw_name = NULL;
@@ -2468,6 +2507,14 @@ void woal_init_from_dev_tree(void)
 						     &string_data)) {
 				fw_name = (char *)string_data;
 				PRINTM(MIOCTL, "fw_name=%s\n", fw_name);
+			}
+		} else if (!strncmp(prop->name, "wifi_fw_name",
+				    strlen("wifi_fw_name"))) {
+			if (!of_property_read_string(dt_node, prop->name,
+						     &string_data)) {
+				wifi_fw_name = (char *)string_data;
+				PRINTM(MIOCTL, "wifi_fw_name=%s\n",
+				       wifi_fw_name);
 			}
 		} else if (!strncmp(prop->name, "hw_name", strlen("hw_name"))) {
 			if (!of_property_read_string(dt_node, prop->name,
@@ -3057,6 +3104,8 @@ module_param(fw_reload, int, 0);
 MODULE_PARM_DESC(fw_reload,
 		 "0: disable fw_reload; 1: enable fw reload feature");
 module_param(auto_fw_reload, int, 0);
+module_param(wifi_fw_name, charp, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(wifi_fw_name, "Wlan firmware name for IR");
 #ifdef PCIE
 MODULE_PARM_DESC(
 	auto_fw_reload,

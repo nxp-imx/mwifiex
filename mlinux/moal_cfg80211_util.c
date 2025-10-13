@@ -222,6 +222,14 @@ static const struct nla_policy
 };
 #endif
 
+static const struct nla_policy
+	woal_usable_channel_policy[ATTR_USABLE_CHANNEL_MAX + 1] = {
+		[ATTR_USABLE_CHANNEL_BAND] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_IFACE_MODE] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_FILTER] = {.type = NLA_U32},
+		[ATTR_USABLE_CHANNEL_MAX_SIZE] = {.type = NLA_U32},
+};
+
 /**
  * @brief get the event id of the events array
  *
@@ -7432,6 +7440,193 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ * @brief Request list of usable channels for requested bands and modes.
+ *        Usable implies channel is allowed as per regulatory for current
+ *        country code and not restricted due to other hard limitations.
+ *        This allows driver to return list of usable channels for each
+ *        mode(STA, AP, P2P-go etc) uniquely to distinguish cases where
+ *        only limited set of modes are allowed on a given channel.
+ *
+ * @param wiphy       A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ *
+ * @param data     a pointer to data
+ * @param  data_len     data length
+ *
+ * @return      0: success  other: fail
+ */
+static int woal_cfg80211_subcmd_get_usable_channels(struct wiphy *wiphy,
+						    struct wireless_dev *wdev,
+						    const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	struct nlattr *tb[ATTR_WIFI_MAX + 1];
+	t_u32 band = 0, iface_mode, filter, max_size, size;
+	t_u8 cnt = 0, i, j;
+	t_u32 mem_needed = 0;
+	struct ieee80211_supported_band *sband;
+	struct ieee80211_channel *ch;
+	struct sk_buff *skb = NULL;
+	int err = 0;
+	wifi_usable_channel *channels = NULL;
+
+	ENTER();
+
+	err = nla_parse(tb, ATTR_USABLE_CHANNEL_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		err = -EFAULT;
+		goto done;
+	}
+
+	if (!tb[ATTR_USABLE_CHANNEL_BAND]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_BAND]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_BAND]);
+		err = -EINVAL;
+		goto done;
+	}
+	band = nla_get_u32(tb[ATTR_USABLE_CHANNEL_BAND]);
+	if (!tb[ATTR_USABLE_CHANNEL_IFACE_MODE]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_IFACE_MODE]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_IFACE_MODE]);
+		err = -EINVAL;
+		goto done;
+	}
+	iface_mode = nla_get_u32(tb[ATTR_USABLE_CHANNEL_IFACE_MODE]);
+
+	if (!tb[ATTR_USABLE_CHANNEL_FILTER]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_USABLE_CHANNEL_FILTER]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_FILTER]);
+		err = -EINVAL;
+		goto done;
+	}
+	filter = nla_get_u32(tb[ATTR_USABLE_CHANNEL_FILTER]);
+
+	if (!tb[ATTR_USABLE_CHANNEL_MAX_SIZE]) {
+		PRINTM(MERROR, "%s: null attr: tb[ATTR_USABLE_MAX_SIZE]=%p\n",
+		       __func__, tb[ATTR_USABLE_CHANNEL_MAX_SIZE]);
+		err = -EINVAL;
+		goto done;
+	}
+	max_size = nla_get_u32(tb[ATTR_USABLE_CHANNEL_MAX_SIZE]);
+
+	PRINTM(MCMND,
+	       "get usable channels for - band: %d, iface_mode: %d, filter: %d,"
+	       " max_size: %d",
+	       band, iface_mode, filter, max_size);
+
+	channels = kzalloc(sizeof(wifi_usable_channel) *
+				   MIN(MAX_CHANNEL_NUM, max_size),
+			   GFP_ATOMIC);
+	if (!channels) {
+		PRINTM(MERROR,
+		       "Failed to allocate memory for wifi_usable_channel of size: %d",
+		       MIN(MAX_CHANNEL_NUM, max_size));
+		err = -ENOMEM;
+		goto done;
+	}
+
+	for (i = 0; i < IEEE80211_NUM_BANDS; i++) {
+		if (!priv->wdev->wiphy->bands[i])
+			continue;
+		if ((i == IEEE80211_BAND_2GHZ) && !(band & WLAN_MAC_2_4_BAND))
+			continue;
+		if ((i == IEEE80211_BAND_5GHZ) && !(band & WLAN_MAC_5_0_BAND))
+			continue;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+		if ((i == IEEE80211_BAND_6GHZ) && !(band & WLAN_MAC_6_0_BAND))
+			continue;
+#endif
+		sband = priv->wdev->wiphy->bands[i];
+		for (j = 0; (j < sband->n_channels); j++) {
+			ch = &sband->channels[j];
+			if (ch->flags & IEEE80211_CHAN_DISABLED) {
+				PRINTM(MERROR, "Skip DISABLED channels %d\n",
+				       ieee80211_frequency_to_channel(
+					       ch->center_freq));
+				continue;
+			}
+			if (cnt >= MIN(MAX_CHANNEL_NUM, max_size)) {
+				PRINTM(MERROR,
+				       "cnt=%d exceeds %d, hence ignore remaining channels. "
+				       "cur ch = %dMHz",
+				       cnt, MIN(MAX_CHANNEL_NUM, max_size),
+				       ch->center_freq);
+				break;
+			}
+			channels[cnt].freq = ch->center_freq;
+			channels[cnt].iface_mode_mask =
+				IFACE_MODE_STA | IFACE_MODE_SOFTAP |
+				IFACE_MODE_P2P_CLIENT | IFACE_MODE_P2P_GO;
+			if (!(ch->flags & IEEE80211_CHAN_NO_80MHZ)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_80;
+			} else if (!(ch->flags & IEEE80211_CHAN_NO_HT40PLUS) ||
+				   !(ch->flags & IEEE80211_CHAN_NO_HT40MINUS)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_40;
+			} else if (!(ch->flags & IEEE80211_CHAN_NO_20MHZ)) {
+				channels[cnt].width = WIFI_CHAN_WIDTH_20;
+			} else {
+				PRINTM(MERROR, "Invalid channel width");
+				channels[cnt].width = WIFI_CHAN_WIDTH_INVALID;
+			}
+			PRINTM(MINFO, "channel : %d width: %d",
+			       ieee80211_frequency_to_channel(
+				       channels[cnt].freq),
+			       channels[cnt].width);
+			cnt++;
+		}
+	}
+	PRINTM(MCMND, "Usable channel count: %d\n", cnt);
+	size = cnt;
+
+	mem_needed = nla_total_size(size * sizeof(wifi_usable_channel)) +
+		     nla_total_size(sizeof(size)) + VENDOR_REPLY_OVERHEAD;
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, mem_needed);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed");
+		err = -ENOMEM;
+		goto done;
+	}
+
+	if (nla_put_u32(skb, ATTR_USABLE_CHANNEL_SIZE, size)) {
+		PRINTM(MERROR, "nla_put ATTR_USABLE_CHANNEL_SIZE failed!\n");
+		kfree_skb(skb);
+		err = -ENOMEM;
+		goto done;
+	}
+	if (nla_put(skb, ATTR_USABLE_CHANNEL_LIST,
+		    size * sizeof(wifi_usable_channel), channels)) {
+		PRINTM(MERROR, "nla_put ATTR_USABLE_CHANNEL_LIST failed!\n");
+		kfree_skb(skb);
+		err = -ENOMEM;
+		goto done;
+	}
+
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (err) {
+		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
+		goto done;
+	}
+
+done:
+	if (channels)
+		kfree(channels);
+	LEAVE();
+	return err;
+}
+
 // clang-format off
 static const struct wiphy_vendor_command vendor_commands[] = {
 	{
@@ -8109,6 +8304,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
         .policy = VENDOR_CMD_RAW_DATA,
 #endif
     },
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = subcmd_get_usable_channels,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_get_usable_channels,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_usable_channel_policy,
+		.maxattr = ATTR_USABLE_CHANNEL_MAX,
+#endif
+	},
 };
 // clang-format on
 

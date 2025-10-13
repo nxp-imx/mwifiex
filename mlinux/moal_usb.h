@@ -264,6 +264,27 @@ struct usb_card_rec {
 	t_u8 second_mac;
 };
 
+#ifdef USB_CUSTOMER_VIDPID
+#define MAX_CONFIG_ENTRIES 3
+#define MAX_VID_PID_PAIRS 10
+#define MAX_DEVICE_NAME 64
+
+typedef struct {
+	char device_name[MAX_DEVICE_NAME];
+	t_u16 vid_pid_count; /* Actual number of VID/PID pairs found */
+	struct {
+		t_u16 vid;
+		t_u16 pid;
+	} vid_pid_pairs[MAX_VID_PID_PAIRS];
+} usb_config_entry_t;
+
+typedef struct {
+	usb_config_entry_t entries[MAX_CONFIG_ENTRIES];
+	t_u16 total_entries;
+	t_u16 total_vid_pid_pairs;
+} usb_config_t;
+#endif
+
 void woal_kill_urbs(moal_handle *handle);
 void woal_resubmit_urbs(moal_handle *handle);
 
@@ -277,4 +298,10 @@ void woal_submit_rx_urb(moal_handle *handle, t_u8 ep);
 void woal_usb_bus_unregister(void);
 mlan_status woal_usb_bus_register(void);
 void woal_usb_free(struct usb_card_rec *cardp);
+
+#ifdef USB_CUSTOMER_VIDPID
+extern int woal_usb_init_extended_table(const char *config_path);
+mlan_status check_usb_ext_table_info(char *device_name, t_u16 *card_type,
+				     t_u16 pid);
+#endif
 #endif /*_MOAL_USB_H */

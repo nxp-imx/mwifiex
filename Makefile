@@ -57,7 +57,7 @@ CONFIG_SDAW693=n
 CONFIG_PCIEIW624=n
 CONFIG_USBIW624=n
 CONFIG_PCIEAW693=y
-
+CONFIG_USB_CUSTOMER_VIDPID=y
 
 # Debug Option
 # DEBUG LEVEL n/1/2:
@@ -112,6 +112,7 @@ CONFIG_TASKLET_SUPPORT=n
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
+ifeq ($(ANDROID),)
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
         ccflags-y += -Wno-packed-bitfield-compat
@@ -133,12 +134,20 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
-
+endif
 #############################################################################
 # Select Platform Tools
 #############################################################################
 
-ifeq ($(ANDROID_BUILD), 1)
+ifeq ($(ANDROID), yes)
+# Set target Android SDK version.
+# ANDROID_SDK_VERSION 29 corresponds to Android 10 Android 10
+# ANDROID_SDK_VERSION 30 corresponds to Android 11 (Red Velvet Cake)
+# ANDROID_SDK_VERSION 31 corresponds to Android 12 (Snow Cone)
+# ANDROID_SDK_VERSION 33 corresponds to Android 13 (Tiramisu)
+# ANDROID_SDK_VERSION 34 corresponds to Android 14 (Upside Down Cake)
+# ANDROID_SDK_VERSION 35 corresponds to Android 15 (Vanilla Ice Cream)
+# ANDROID_SDK_VERSION 36 corresponds to Android 16
     KERNEL_CFLAGS += -DANDROID
     PWD := $(shell pwd)
     KERNELDIR ?= $(KERNEL_SRC)
@@ -175,7 +184,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p7"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p17"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -244,6 +253,7 @@ endif
 ifeq ($(CONFIG_ANDROID_KERNEL), y)
 	ccflags-y += -DANDROID_KERNEL
 	CONFIG_DUMP_TO_PROC=y
+	CONFIG_USB_CUSTOMER_VIDPID=n
 endif
 
 ifeq ($(CONFIG_DUMP_TO_PROC), y)
@@ -339,6 +349,9 @@ endif
 ifeq ($(CONFIG_USBIW610),y)
 	CONFIG_MUSB=y
 	ccflags-y += -DUSBIW610
+endif
+ifeq ($(CONFIG_USB_CUSTOMER_VIDPID),y)
+       ccflags-y += -DUSB_CUSTOMER_VIDPID
 endif
 ifeq ($(CONFIG_USBIW624),y)
 	CONFIG_MUSB=y

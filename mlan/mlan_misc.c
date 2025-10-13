@@ -5509,10 +5509,8 @@ mlan_status wlan_radio_ioctl_remain_chan_cfg(pmlan_adapter pmadapter,
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (pmpriv->adapter->remain_on_channel &&
 		    !radio_cfg->param.remain_chan.remove) {
-			PRINTM(MCMND, "Ignore New Remain on channe: chan=%d\n",
+			PRINTM(MCMND, "Set New Remain on channe: chan=%d\n",
 			       radio_cfg->param.remain_chan.channel);
-			LEAVE();
-			return MLAN_STATUS_SUCCESS;
 		}
 	}
 

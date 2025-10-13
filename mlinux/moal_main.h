@@ -2778,6 +2778,7 @@ typedef struct _moal_mod_para {
 	char *fw_name;
 	int fw_reload;
 	int auto_fw_reload;
+	char *wifi_fw_name;
 	char *mac_addr;
 #ifdef MFG_CMD_SUPPORT
 	int mfg_mode;
@@ -4893,4 +4894,7 @@ extern mlan_status moal_agcs_trans_state(moal_private *priv,
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
 #endif /* UAP_SUPPORT */
 
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+extern mlan_status check_device_name_info(char *device_name, t_u16 *card_type);
+#endif
 #endif /* _MOAL_MAIN_H */

@@ -4356,7 +4356,15 @@ int woal_uap_cfg80211_dump_station(struct wiphy *wiphy, struct net_device *dev,
 	       (int)info->param.sta_list.info[idx].rssi);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	sinfo->filled = BIT(NL80211_STA_INFO_INACTIVE_TIME) |
+			BIT(NL80211_STA_INFO_RX_BYTES) |
+			BIT(NL80211_STA_INFO_TX_BYTES) |
+			BIT(NL80211_STA_INFO_RX_PACKETS) |
+			BIT(NL80211_STA_INFO_TX_PACKETS) |
 			BIT(NL80211_STA_INFO_SIGNAL);
+	sinfo->rx_bytes = info->param.sta_list.info[idx].stats.rx_bytes;
+	sinfo->tx_bytes = info->param.sta_list.info[idx].stats.tx_bytes;
+	sinfo->rx_packets = info->param.sta_list.info[idx].stats.rx_packets;
+	sinfo->tx_packets = info->param.sta_list.info[idx].stats.tx_packets;
 #else
 	sinfo->filled = STATION_INFO_INACTIVE_TIME | STATION_INFO_SIGNAL;
 #endif

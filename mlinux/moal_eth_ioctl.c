@@ -22385,7 +22385,14 @@ static int woal_priv_per_band_txpwr_cap(moal_private *priv, t_u8 *respbuf,
 
 	if (data[0] != BAND_2GHZ && data[0] != BAND_5GHZ &&
 	    data[0] != BAND_6GHZ) {
-		PRINTM(MERROR, "Invalid band\n");
+		PRINTM(MERROR, "per_band_txpwr_cap: Invalid band input\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	/* tx power capping cannot be negative or above 25 dBm */
+	if (data[1] < 0 || data[1] > 25) {
+		PRINTM(MERROR,
+		       "per_band_txpwr_cap: Invalid power value input\n");
 		ret = -EINVAL;
 		goto done;
 	}

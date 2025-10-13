@@ -98,6 +98,10 @@ struct semaphore AddRemoveCardSem;
  **/
 moal_handle *m_handle[MAX_MLAN_ADAPTER];
 static int reg_work;
+
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+static char *c_vidpid;
+#endif
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -2309,15 +2313,21 @@ done:
  */
 void woal_update_firmware_name(moal_handle *handle)
 {
-	if (handle->params.fw_name) {
-		handle->drv_mode.fw_name = handle->params.fw_name;
+	if ((handle->fw_reload || handle->fw_reseting) &&
+	    handle->params.wifi_fw_name) {
+		handle->drv_mode.fw_name = handle->params.wifi_fw_name;
 	} else {
-		if (!moal_extflg_isset(handle, EXT_FW_SERIAL) ||
-		    handle->fw_reload || handle->params.fw_reload) {
-			handle->drv_mode.fw_name =
-				handle->card_info->fw_name_wlan;
-		} else
-			handle->drv_mode.fw_name = handle->card_info->fw_name;
+		if (handle->params.fw_name) {
+			handle->drv_mode.fw_name = handle->params.fw_name;
+		} else {
+			if (!moal_extflg_isset(handle, EXT_FW_SERIAL) ||
+			    handle->fw_reload || handle->params.fw_reload) {
+				handle->drv_mode.fw_name =
+					handle->card_info->fw_name_wlan;
+			} else
+				handle->drv_mode.fw_name =
+					handle->card_info->fw_name;
+		}
 	}
 }
 /**
@@ -15357,7 +15367,12 @@ static int woal_init_module(void)
 	woal_init_from_dev_tree();
 #endif
 
-	/* Create workqueue for hang process */
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+	if (c_vidpid != NULL)
+		woal_usb_init_extended_table(c_vidpid);
+#endif
+
+		/* Create workqueue for hang process */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
 	/* For kernel less than 2.6.14 name can not be greater than 10
 	   characters */
@@ -15830,6 +15845,11 @@ module_param(reg_work, int, 0);
 MODULE_PARM_DESC(
 	reg_work,
 	"0: disable register work_queue; 1: enable register work_queue");
+
+#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+module_param(c_vidpid, charp, 0);
+MODULE_PARM_DESC(c_vidpid, "Customer USB VID/PID configuration file");
+#endif
 
 MODULE_DESCRIPTION("M-WLAN Driver");
 MODULE_AUTHOR("NXP");
