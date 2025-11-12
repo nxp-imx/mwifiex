@@ -312,6 +312,7 @@ typedef struct _chan_stats {
 
 #define PRIV_CMD_ARB_CFG "arb"
 
+#define PRIV_CMD_FOUNDRY_TYPE "foundry_type"
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
 /**Private command to configure static OFDM DESENSE config */

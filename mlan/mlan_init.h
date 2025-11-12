@@ -4,7 +4,7 @@
  *  structures.
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -105,6 +105,40 @@ typedef MLAN_PACK_START struct _FWSyncPkt {
 	/** fw status */
 	t_u32 fw_ready;
 } MLAN_PACK_END FWSyncPkt;
+
+/** Firmware Meta data section */
+#define FW_CMD_24 0x00000018
+
+#define TLV_FLAG_WIFI 0x1
+
+#define TLV_ID_UUID 0x40
+#define TLV_ID_UUID_LEN 16
+
+#define TLV_ID_PUBLIC_KEY 0x50
+#define TLV_ID_PUBLIC_KEY_LEN 64
+
+#define TLV_ID_PUBLICK_KEY_OFFSET 33
+
+#define META_MAGIC_OFFSET 12
+#define META_MAGIC_LEN 8
+#define DATA_CRC_OFFSET 4
+#define DATA_CRC_LEN 4
+
+/*
+ * Minimum payload len is sum of a must required fields length for Wi-Fi
+ * ==========================================================================
+ * |  ID  |    |   |PAY |   ID    |    |   |   | PAY|   |  META  | META|DATA|
+ * |(UUID)|FLAG|LEN|LOAD|(PUB KEY)|FLAG|LEN|PAD|LOAD|PAD|DATA LEN|MAGIC|CRC |
+ * ==========================================================================
+ *   2B     2B   4B  16B   2B       2B  4B  1B  64B  3B    4B      8B    4B
+ */
+#define MIN_PAYLOAD_LEN 116
+
+typedef MLAN_PACK_START struct _FWMetaData {
+	t_u16 id;
+	t_u16 flag;
+	t_u32 len;
+} MLAN_PACK_END FWMetaData;
 
 #ifdef BIG_ENDIAN_SUPPORT
 /** Convert sequence number and command fields

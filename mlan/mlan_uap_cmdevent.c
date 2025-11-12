@@ -5135,6 +5135,8 @@ static mlan_status wlan_uap_ret_agcs_cfg(pmlan_private pmpriv,
 		pagcs_cfg->nf_margin = pcmd_agcs_cfg->nf_margin;
 		pagcs_cfg->nav_mitigation_th = pcmd_agcs_cfg->nav_mitigation_th;
 		pagcs_cfg->ch_th = pcmd_agcs_cfg->ch_th;
+		pagcs_cfg->min_pkt_percentage =
+			pcmd_agcs_cfg->min_pkt_percentage;
 	}
 
 	LEAVE();
@@ -5177,6 +5179,7 @@ static mlan_status wlan_cmd_apcmd_agcs_cfg(pmlan_private pmpriv,
 	pcmd_agcs_cfg->nf_margin = pagcs_cfg->nf_margin;
 	pcmd_agcs_cfg->nav_mitigation_th = pagcs_cfg->nav_mitigation_th;
 	pcmd_agcs_cfg->ch_th = pagcs_cfg->ch_th;
+	pcmd_agcs_cfg->min_pkt_percentage = pagcs_cfg->min_pkt_percentage;
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -5247,6 +5250,8 @@ static mlan_status wlan_process_agcs_event(pmlan_private priv,
 				(t_s16)wlan_le16_to_cpu(stats->nf_threshold);
 			pacs_start_event->stats.all_sta_ecs = MTRUE;
 			pacs_start_event->stats.all_sta_6g = MTRUE;
+			pacs_start_event->stats.scan_idx = 0;
+			pacs_start_event->stats.is_5g_scaned = MFALSE;
 			switch (priv->uap_bandwidth) {
 			case CHAN_BW_20MHZ:
 				bandwidth = BW_20MHZ;
@@ -5789,6 +5794,9 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
 		break;
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_cmd_get_foundry_type(pmpriv, cmd_ptr, cmd_action);
+		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
@@ -6267,6 +6275,9 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_DS_GET_SENSOR_TEMP:
 		ret = wlan_ret_get_sensor_temp(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:

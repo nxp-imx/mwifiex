@@ -1415,16 +1415,20 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 			}
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_IND].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_IND].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_IND].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_IND].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_IND].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_IND].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_IND].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_IND].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			break;
 		}
 		/* Standard Power Mode */
@@ -1459,16 +1463,20 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 			}
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_SP].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_SP].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_SP].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_SP].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_SP].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_SP].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_SP].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_SP].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			break;
 		}
 		/* Very Low Power Mode */
@@ -1503,16 +1511,20 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 			}
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_VLP].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_VLP].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_string,
 				mode_psd_6G[UAP_MODE_VLP].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_VLP].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_VLP].op_mode,
-				strlen(mode_psd_6G[UAP_MODE_VLP].op_mode));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			strncat(priv->phandle->mode_psd_ru_string,
 				mode_psd_6G[UAP_MODE_VLP].psd_dbm,
-				strlen(mode_psd_6G[UAP_MODE_VLP].psd_dbm));
+				(sizeof(priv->phandle->mode_psd_string) -
+				 strlen(priv->phandle->mode_psd_string) - 1));
 			break;
 		}
 		default:
@@ -3652,6 +3664,7 @@ int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	t_u32 bandctrl = 0;
 	moal_private *sta_priv =
 		woal_get_priv_bss_type(priv->phandle, MLAN_BSS_TYPE_STA);
 
@@ -3726,6 +3739,22 @@ int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 		ieee80211_frequency_to_channel(params->channel->center_freq);
 #endif
 #endif
+
+	if (priv->phandle->params.bandctrl) {
+		if (sta_priv) {
+			if ((priv->channel <= MAX_BG_CHANNEL)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+			    && (params->chandef.chan->band != NL80211_BAND_6GHZ)
+#endif
+			) {
+				bandctrl = BANDCTRL_BLOCK_SCAN;
+			} else {
+				bandctrl = BANDCTRL_2G_ONLY;
+			}
+			woal_set_bandctrl(sta_priv, bandctrl);
+		}
+	}
+
 	/* bss config */
 	if (MLAN_STATUS_SUCCESS != woal_cfg80211_beacon_config(priv, params)) {
 		ret = -EFAULT;
@@ -3931,9 +3960,8 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
-#ifdef STA_SUPPORT
+	t_u32 bandctrl = 0;
 	moal_private *pmpriv = NULL;
-#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
 	moal_private *dfs_priv =
 		woal_get_priv_bss_type(priv->phandle, MLAN_BSS_TYPE_DFS);
@@ -4059,6 +4087,14 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 	priv->multi_ap_flag = 0;
 
 	PRINTM(MMSG, "wlan: %s AP stopped\n", dev->name);
+
+	if (priv->phandle->params.bandctrl) {
+		pmpriv = woal_get_priv((moal_handle *)priv->phandle,
+				       MLAN_BSS_ROLE_STA);
+		bandctrl = BANDCTRL_SET_BANDCFG;
+		woal_set_bandctrl(pmpriv, bandctrl);
+	}
+
 done:
 	LEAVE();
 	return ret;

@@ -3417,7 +3417,9 @@ err_init_fw:
 						 handle->init_wait_q_woken);
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	wakeup_source_trash(handle->ws);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	wakeup_source_trash(&handle->ws);
 #else
 	wake_lock_destroy(&handle->wake_lock);
@@ -3487,7 +3489,6 @@ static void woal_sdiommc_work(struct work_struct *work)
 
 	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 	handle = card->handle;
-	woal_send_auto_recovery_start_event(handle);
 	// handle-> mac0 , ref_handle->second mac
 	if (handle->pref_mac) {
 		if (handle->second_mac) {

@@ -1,0 +1,35 @@
+#  File: Makefile
+#
+#  Copyright 2025 NXP
+#
+#  This software file (the File) is distributed by NXP
+#  under the terms of the GNU General Public License Version 2, June 1991
+#  (the License).  You may use, redistribute and/or modify the File in
+#  accordance with the terms and conditions of the License, a copy of which
+#  is available by writing to the Free Software Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+#  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+#
+#  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+#  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+#  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+#  this warranty disclaimer.
+#
+
+config WLAN_VENDOR_NXP
+	bool "NXP WLAN devices"
+	default y
+	help
+	  If you have a wireless card belonging to this class, say Y.
+
+config NXP_WLAN_DRIVER
+	tristate "NXP WLAN Driver"
+	depends on CFG80211 && (MMC || PCI || USB)
+	select LIB80211
+	select FW_LOADER
+	help
+	  This adds support for wireless adapters based on NXP
+	  WLAN chipsets.
+
+	  Say Y here to add support for NXP WLAN driver into the kernel,
+	  or say M here to compile as a module (mlan.ko and moal.ko)

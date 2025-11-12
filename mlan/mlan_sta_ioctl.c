@@ -1444,6 +1444,8 @@ wlan_rate_ioctl_get_supported_rate(pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_rate *rate = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 temp_rates[MLAN_SUPPORTED_RATES]; // Temporary buffer to avoid
+					       // union overlap
 
 	ENTER();
 	if (pioctl_req->action != MLAN_ACT_GET) {
@@ -1452,16 +1454,20 @@ wlan_rate_ioctl_get_supported_rate(pmlan_adapter pmadapter,
 		return MLAN_STATUS_FAILURE;
 	}
 	rate = (mlan_ds_rate *)pioctl_req->pbuf;
+	_memset(pmadapter, temp_rates, 0x00, sizeof(temp_rates)); // Clear temp
+								  // buffer
 	if (rate->param.rate_band_cfg.config_bands &&
 	    rate->param.rate_band_cfg.bss_mode)
 		wlan_get_active_data_rates(
 			pmpriv, rate->param.rate_band_cfg.bss_mode,
-			rate->param.rate_band_cfg.config_bands,
-			rate->param.rates);
+			rate->param.rate_band_cfg.config_bands, temp_rates);
 	else
 		wlan_get_active_data_rates(pmpriv, pmpriv->bss_mode,
-					   pmpriv->config_bands,
-					   rate->param.rates);
+					   pmpriv->config_bands, temp_rates);
+	// Copy the result into the union safely
+	memcpy_ext(pmadapter, rate->param.rates, temp_rates,
+		   MLAN_SUPPORTED_RATES, sizeof(rate->param.rates));
+
 	pioctl_req->data_read_written =
 		MLAN_SUPPORTED_RATES + MLAN_SUB_COMMAND_SIZE;
 	LEAVE();
@@ -2949,6 +2955,9 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 			index = pmpriv->wep_key_curr_index;
 			sec->param.encrypt_key.key_index =
 				pmpriv->wep_key[index].key_index;
+			/* memcpy_ext enforces bounds checking and key_length is
+			 * validated to ensure safe copying within fixed-size
+			 * key_material buffer */
 			// coverity[cert_arr30_c_violation: SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
@@ -2980,6 +2989,9 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 		if (pmpriv->wep_key[index].key_length) {
 			sec->param.encrypt_key.key_index =
 				pmpriv->wep_key[index].key_index;
+			/* memcpy_ext enforces bounds checking and key_length is
+			 * validated to ensure safe copying within fixed-size
+			 * key_material buffer */
 			// coverity[cert_arr30_c_violation: SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
@@ -5377,6 +5389,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status =
 			wlan_misc_auth_assoc_timeout_cfg(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_FOUNDRY_TYPE:
+		status = wlan_misc_ioctl_foundry_type(pmadapter, pioctl_req);
+		break;
 	case MLAN_OID_MISC_PER_BAND_TXPWR_CAP:
 		status = wlan_misc_ioctl_per_band_txpwr_cap(pmadapter,
 							    pioctl_req);
@@ -5580,6 +5595,11 @@ start_config:
 		case MLAN_OID_SCAN_TABLE_FLUSH:
 			status = wlan_flush_scan_table(pmadapter);
 			break;
+
+		case MLAN_OID_SCAN_TABLE_FLUSH_WITH_BAND:
+			status = wlan_flush_scan_table_with_band(
+				pmadapter, pmpriv, pscan->param.band);
+			break;
 		case MLAN_OID_SCAN_BGSCAN_CONFIG:
 			/* Send request to firmware */
 			status = wlan_prepare_cmd(
@@ -5595,6 +5615,8 @@ start_config:
 
 		if ((status == MLAN_STATUS_SUCCESS) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_TABLE_FLUSH) &&
+		    (pscan->sub_command !=
+		     MLAN_OID_SCAN_TABLE_FLUSH_WITH_BAND) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_CANCEL) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_CONFIG) &&
 		    (pscan->sub_command != MLAN_OID_SCAN_6G_CONFIG)) {

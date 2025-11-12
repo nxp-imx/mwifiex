@@ -196,14 +196,6 @@ static const struct nla_policy
 };
 
 // clang-format off
-static const struct nla_policy
-	woal_fw_roaming_policy[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX + 1] = {
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL] = {.type = NLA_U32},
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID] = {
-			.type = NLA_BINARY},
-		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID] = {
-			.type = NLA_BINARY},
-};
 // clang-format on
 
 static const struct nla_policy
@@ -928,9 +920,6 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
 	if (fw_info.rtt_support)
 		supp_feature_set |= WLAN_FEATURE_D2AP_RTT;
-	if (fw_info.fw_roaming_support)
-		supp_feature_set |= WLAN_FEATURE_CONTROL_ROAMING;
-
 	priv->phandle->wifi_hal_flag = MTRUE;
 
 	reply_len = sizeof(supp_feature_set);
@@ -2024,6 +2013,9 @@ int woal_ring_event_logger(moal_private *priv, int ring_id, pmlan_event pmevent)
 				MIN(UINT16_MAX,
 				    msg_hdr.entry_size +
 					    sizeof(connectivity_event->event));
+			/* msg_hdr.entry_size is carefully bounded using MIN
+			 * function and all data fits within the statically
+			 * sized event_buf, ensuring safe access */
 			// coverity[overrun-buffer-arg:SUPPRESS]
 			// coverity[cert_arr30_c_violation:SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
@@ -2408,6 +2400,8 @@ static int woal_deinit_packet_filter(moal_private *priv)
 	spin_unlock_irqrestore(&pkt_filter->lock, flags);
 
 	vfree(pkt_filter);
+	/* packet_filter is cleared after deinitialization and free, with no
+	 * expected concurrent access, making locking unnecessary */
 	// coverity[LOCK_EVASION:SUPPRESS]
 	priv->packet_filter = NULL;
 
@@ -2877,6 +2871,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	if (pkt_filter->state != PACKET_FILTER_STATE_START)
 		goto done;
 
+	/* pkt_filter is already validated in call of unlikely macro */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	// coverity[tainted_data:SUPPRESS]
 	DBG_HEXDUMP(MDAT_D, "packet_filter_program",
@@ -2884,6 +2879,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 		    pkt_filter->packet_filter_len);
 	DBG_HEXDUMP(MDAT_D, "packet_filter_data", data, len);
 	spin_lock_irqsave(&pkt_filter->lock, flags);
+	/* pkt_filter is already validated in call of unlikely macro */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	// coverity[tainted_data:SUPPRESS]
 	ret = process_packet(pkt_filter->packet_filter_program,
@@ -4309,261 +4305,6 @@ int woal_roam_ap_info(moal_private *priv, t_u8 *data, int len)
 	/**send event*/
 	cfg80211_vendor_event(skb, GFP_ATOMIC);
 
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to get fw roaming capability
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int
-woal_cfg80211_subcmd_get_roaming_capability(struct wiphy *wiphy,
-					    struct wireless_dev *wdev,
-					    const void *data, int len)
-{
-	int ret = MLAN_STATUS_SUCCESS;
-	wifi_roaming_capabilities capa;
-	struct sk_buff *skb = NULL;
-	int err = 0;
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	capa.max_blacklist_size = MAX_AP_LIST;
-	capa.max_whitelist_size = MAX_SSID_NUM;
-
-	/* Alloc the SKB for vendor_event */
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(
-		wiphy, sizeof(wifi_roaming_capabilities) + 50);
-	if (unlikely(!skb)) {
-		PRINTM(MERROR, "skb alloc failed\n");
-		goto done;
-	}
-
-	/* Push the data to the skb */
-	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CAPA,
-		sizeof(wifi_roaming_capabilities), (t_u8 *)&capa);
-
-	err = cfg80211_vendor_cmd_reply(skb);
-	if (unlikely(err))
-		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
-
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to enable/disable fw roaming
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int woal_cfg80211_subcmd_fw_roaming_enable(struct wiphy *wiphy,
-						  struct wireless_dev *wdev,
-						  const void *data, int len)
-{
-	moal_private *priv;
-	struct net_device *dev;
-	int ret = MLAN_STATUS_SUCCESS;
-	struct sk_buff *skb = NULL;
-	const struct nlattr *iter;
-	int type, rem, err;
-	t_u32 fw_roaming_enable = 0;
-#ifdef STA_CFG80211
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-	t_u8 enable = 0;
-#endif
-#endif
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	dev = wdev->netdev;
-	priv = (moal_private *)woal_get_netdev_priv(dev);
-	if (!priv || !priv->phandle) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	nla_for_each_attr (iter, data, len, rem) {
-		type = nla_type(iter);
-		switch (type) {
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL:
-			fw_roaming_enable = nla_get_u32(iter);
-			break;
-		default:
-			PRINTM(MERROR, "Unknown type: %d\n", type);
-			ret = -EINVAL;
-			goto done;
-		}
-	}
-
-	PRINTM(MMSG, "FW roaming set enable=%d from wifi hal.\n",
-	       fw_roaming_enable);
-	ret = woal_enable_fw_roaming(priv, fw_roaming_enable);
-	/* Alloc the SKB for vendor_event */
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(t_u32) + 50);
-	if (unlikely(!skb)) {
-		PRINTM(MERROR, "skb alloc failed\n");
-		goto done;
-	}
-
-	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL, sizeof(t_u32),
-		&fw_roaming_enable);
-	err = cfg80211_vendor_cmd_reply(skb);
-	if (unlikely(err))
-		PRINTM(MERROR, "Vendor Command reply failed ret:%d\n", err);
-
-#ifdef STA_CFG80211
-#if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
-	if (!fw_roaming_enable)
-		woal_cfg80211_vendor_event(priv, event_set_key_mgmt_offload,
-					   &enable, sizeof(enable));
-#endif
-#endif
-
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief vendor command to config blacklist and whitelist for fw roaming
- *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
- *
- * @return      0: success  fail otherwise
- */
-static int woal_cfg80211_subcmd_fw_roaming_config(struct wiphy *wiphy,
-						  struct wireless_dev *wdev,
-						  const void *data, int len)
-{
-	moal_private *priv;
-	struct net_device *dev;
-	int ret = MLAN_STATUS_SUCCESS;
-	const struct nlattr *iter;
-	int type, rem;
-	woal_roam_offload_cfg *roam_offload_cfg = NULL;
-	wifi_bssid_params blacklist;
-	wifi_ssid_params whitelist;
-
-	ENTER();
-
-	if (!wdev || !wdev->netdev) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	dev = wdev->netdev;
-	priv = (moal_private *)woal_get_netdev_priv(dev);
-	if (!priv || !priv->phandle) {
-		LEAVE();
-		return -EFAULT;
-	}
-
-	memset((char *)&blacklist, 0, sizeof(wifi_bssid_params));
-	memset((char *)&whitelist, 0, sizeof(wifi_ssid_params));
-	nla_for_each_attr (iter, data, len, rem) {
-		type = nla_type(iter);
-		switch (type) {
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID:
-			moal_memcpy_ext(priv->phandle, (t_u8 *)&blacklist,
-					nla_data(iter), nla_len(iter),
-					sizeof(wifi_bssid_params));
-			break;
-		case MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID:
-			moal_memcpy_ext(priv->phandle, (t_u8 *)&whitelist,
-					nla_data(iter), nla_len(iter),
-					sizeof(wifi_ssid_params));
-			break;
-		default:
-			PRINTM(MERROR, "Unknown type: %d\n", type);
-			ret = -EINVAL;
-			goto done;
-		}
-	}
-
-	if (moal_extflg_isset(priv->phandle, EXT_ROAMOFFLOAD_IN_HS)) {
-		/*save blacklist and whitelist in driver*/
-		priv->phandle->fw_roam_params.black_list.ap_num =
-			blacklist.num_bssid;
-		moal_memcpy_ext(
-			priv->phandle,
-			(t_u8 *)priv->phandle->fw_roam_params.black_list.ap_mac,
-			(t_u8 *)blacklist.mac_addr,
-			sizeof(wifi_bssid_params) - sizeof(blacklist.num_bssid),
-			sizeof(mlan_ds_misc_roam_offload_aplist) -
-				sizeof(priv->phandle->fw_roam_params.black_list
-					       .ap_num));
-		priv->phandle->fw_roam_params.ssid_list.ssid_num =
-			whitelist.num_ssid;
-		moal_memcpy_ext(
-			priv->phandle,
-			(t_u8 *)priv->phandle->fw_roam_params.ssid_list.ssids,
-			(t_u8 *)whitelist.whitelist_ssid,
-			sizeof(wifi_ssid_params) - sizeof(whitelist.num_ssid),
-			MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
-	} else {
-		roam_offload_cfg = (woal_roam_offload_cfg *)kmalloc(
-			sizeof(woal_roam_offload_cfg), GFP_KERNEL);
-		if (!roam_offload_cfg) {
-			PRINTM(MERROR, "kmalloc failed!\n");
-			ret = -ENOMEM;
-			goto done;
-		}
-		/*download parameters directly to fw*/
-		memset((char *)roam_offload_cfg, 0,
-		       sizeof(woal_roam_offload_cfg));
-		roam_offload_cfg->black_list.ap_num = blacklist.num_bssid;
-		moal_memcpy_ext(priv->phandle,
-				(t_u8 *)&roam_offload_cfg->black_list.ap_mac,
-				(t_u8 *)blacklist.mac_addr,
-				sizeof(wifi_bssid_params) -
-					sizeof(blacklist.num_bssid),
-				sizeof(mlan_ds_misc_roam_offload_aplist) -
-					sizeof(priv->phandle->fw_roam_params
-						       .black_list.ap_num));
-		roam_offload_cfg->ssid_list.ssid_num = whitelist.num_ssid;
-		moal_memcpy_ext(priv->phandle,
-				(t_u8 *)&roam_offload_cfg->ssid_list.ssids,
-				(t_u8 *)whitelist.whitelist_ssid,
-				sizeof(wifi_ssid_params) -
-					sizeof(whitelist.num_ssid),
-				MAX_SSID_NUM * sizeof(mlan_802_11_ssid));
-		if (woal_config_fw_roaming(priv, ROAM_OFFLOAD_PARAM_CFG,
-					   roam_offload_cfg)) {
-			PRINTM(MERROR, "%s: config fw roaming failed \n",
-			       __func__);
-			ret = -EFAULT;
-		}
-	}
-
-done:
-	if (roam_offload_cfg)
-		kfree(roam_offload_cfg);
 	LEAVE();
 	return ret;
 }
@@ -7129,9 +6870,14 @@ static t_u16 extractNumericVal(char *str, t_u32 str_len, char *substr,
 	if (findStr == NULL)
 		return finalVal;
 
+	/* Function usage is controlled and input validation ensures safe
+	 * operation */
 	// coverity[misra_c_2012_rule_21_13_violation:SUPPRESS]
 	// coverity[overflow_sink:SUPPRESS]
 	while ((j < str_len) && (findStr[j] != '\0') && isdigit(findStr[j])) {
+		/* Loop bounds protected by str_len check and isdigit()
+		 * validation. Buffer overflow prevented by result[6] sizing for
+		 * maximum expected value */
 		// coverity[overflow_sink:SUPPRESS]
 		result[i++] = findStr[j];
 		j++;
@@ -7869,7 +7615,7 @@ static int woal_cfg80211_subcmd_get_usable_channels(struct wiphy *wiphy,
 		for (j = 0; (j < sband->n_channels); j++) {
 			ch = &sband->channels[j];
 			if (ch->flags & IEEE80211_CHAN_DISABLED) {
-				PRINTM(MERROR, "Skip DISABLED channels %d\n",
+				PRINTM(MINFO, "Skip DISABLED channels %d\n",
 				       ieee80211_frequency_to_channel(
 					       ch->center_freq));
 				continue;
@@ -8109,44 +7855,6 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.doit = woal_cfg80211_subcmd_set_roaming_offload_key,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = VENDOR_CMD_RAW_DATA,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_get_roaming_capability,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_get_roaming_capability,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_fw_roaming_enable,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_fw_roaming_enable,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = woal_fw_roaming_policy,
-		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
-#endif
-	},
-	{
-		.info = {
-				.vendor_id = MRVL_VENDOR_ID,
-				.subcmd = sub_cmd_fw_roaming_config,
-			},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_NETDEV,
-		.doit = woal_cfg80211_subcmd_fw_roaming_config,
-#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = woal_fw_roaming_policy,
-		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
 #endif
 	},
 	{

@@ -481,6 +481,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : HS Event masking configuration */
 	ENUM_ELEMENT(HostCmd_CMD_HS_EVENT_MASK, 0x028a),
+	/** Host Command ID : Get foundry type */
+	ENUM_ELEMENT(HostCmd_CMD_DS_GET_FOUNDRY_TYPE, 0X028c),
 
 #ifdef UAP_SUPPORT
 	/** Host Command ID : Agiled channel switch configuration */

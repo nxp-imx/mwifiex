@@ -4722,6 +4722,7 @@ done:
  *
  *  @return             0 --success, otherwise fail
  */
+// coverity[HIS_CALLING:SUPPRESS]
 int woal_set_drvdbg(moal_private *priv, t_u32 drv_dbg)
 {
 	mlan_ioctl_req *req = NULL;
@@ -6402,6 +6403,8 @@ mlan_status woal_cancel_scan(moal_private *priv, t_u8 wait_option)
 	/* add 300ms delay, incase firmware delay 0x7f event after scan cancel
 	 * command response */
 	woal_sched_timeout(300);
+	/* scan_priv is cleared after scan completion in a controlled context
+	 * where concurrent access is not expected */
 	// coverity[LOCK_EVASION:SUPPRESS]
 	handle->scan_priv = NULL;
 done:
@@ -7593,6 +7596,175 @@ mlan_status woal_set_band(moal_private *priv, char *pband)
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief set bandctrl
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param bandctrl         new bandctrl
+ *
+ *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
+ */
+mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	int band = 0;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_radio_cfg *radio_cfg = NULL;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	int cfg80211_wext;
+#endif
+
+	ENTER();
+
+	if (priv == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		LEAVE();
+		return ret;
+	}
+
+	if (priv->band_ctrl == bandctrl) {
+		LEAVE();
+		return ret;
+	}
+
+	if (bandctrl == BANDCTRL_BLOCK_SCAN) {
+		priv->fake_scan_complete = MTRUE;
+		woal_flush_scan_table(priv, BAND_SELECT_ALL);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+		/* Clear the internal BSS list maintained by the cfg80211
+		 * subsystem */
+		if (priv->wdev && priv->wdev->wiphy) {
+			cfg80211_bss_flush(priv->wdev->wiphy);
+		}
+#endif
+		/** deauth ext-ap */
+		if (priv->media_connected && !priv->cfg_disconnect) {
+			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
+			       MAC2STR(priv->cfg_bssid));
+			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
+					priv->cfg_bssid,
+					DEF_DEAUTH_REASON_CODE);
+		}
+	} else if (bandctrl == BANDCTRL_SET_BANDCFG) {
+		priv->fake_scan_complete = MFALSE;
+	} else if (bandctrl == BANDCTRL_2G_ONLY) {
+		/** deauth ext-5g ap */
+		if (priv->media_connected && !priv->cfg_disconnect &&
+		    (priv->channel > 14)) {
+			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
+			       MAC2STR(priv->cfg_bssid));
+			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
+					priv->cfg_bssid,
+					DEF_DEAUTH_REASON_CODE);
+		}
+		woal_flush_scan_table(priv, BAND_SELECT_2G_ONLY);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+		/* Clear the internal BSS list maintained by the cfg80211
+		 * subsystem */
+		if (priv->wdev && priv->wdev->wiphy) {
+			cfg80211_bss_flush(priv->wdev->wiphy);
+		}
+#endif
+		priv->fake_scan_complete = MFALSE;
+	}
+	priv->band_ctrl = bandctrl;
+	if (priv->band_ctrl == BANDCTRL_SET_BANDCFG ||
+	    priv->band_ctrl == BANDCTRL_2G_ONLY) {
+		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
+		if (req == NULL) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		radio_cfg = (mlan_ds_radio_cfg *)req->pbuf;
+		radio_cfg->sub_command = MLAN_OID_BAND_CFG;
+		req->req_id = MLAN_IOCTL_RADIO_CFG;
+
+		/* Get fw supported values from MLAN */
+		req->action = MLAN_ACT_GET;
+		ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+		if (ret != MLAN_STATUS_SUCCESS)
+			goto done;
+		if (priv->band_ctrl == BANDCTRL_SET_BANDCFG) {
+			band = radio_cfg->param.band_cfg.fw_bands;
+		} else {
+			band = BAND_B | BAND_G;
+			band |= BAND_GN;
+			band |= BAND_GAX;
+		}
+
+		/* Set config_bands to MLAN */
+		req->action = MLAN_ACT_SET;
+		memset(&radio_cfg->param.band_cfg, 0, sizeof(mlan_ds_band_cfg));
+		radio_cfg->param.band_cfg.config_bands = band;
+		ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	}
+done:
+	if (req && (ret != MLAN_STATUS_PENDING))
+		kfree(req);
+
+	/* Stopping the previous background scan */
+	if (priv->sched_scanning == MTRUE) {
+		PRINTM(MMSG, "wlan: %s %s stop sch scan\n", __func__,
+		       priv->netdev->name);
+		priv->bg_scan_start = MFALSE;
+		priv->bg_scan_reported = MFALSE;
+		woal_stop_bg_scan(priv, MOAL_IOCTL_WAIT);
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+		cfg80211_wext = priv->phandle->params.cfg80211_wext;
+		if (IS_STA_CFG80211(cfg80211_wext)) {
+			woal_bgscan_stop_event(priv);
+		}
+#endif
+#endif
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief flush scan table
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param band_select      BAND_SELECT_2G_ONLY/BAND_SELECT_ALL
+ *
+ *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
+ */
+mlan_status woal_flush_scan_table(moal_private *priv, t_u32 band_select)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_scan *scan = NULL;
+
+	ENTER();
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_scan));
+	if (req == NULL) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	scan = (mlan_ds_scan *)req->pbuf;
+	if (band_select == BAND_SELECT_2G_ONLY) {
+		scan->sub_command = MLAN_OID_SCAN_TABLE_FLUSH_WITH_BAND;
+		scan->param.band = BAND_A;
+		scan->param.band |= BAND_6G;
+	} else {
+		scan->sub_command = MLAN_OID_SCAN_TABLE_FLUSH;
+	}
+	req->req_id = MLAN_IOCTL_SCAN;
+	req->action = MLAN_ACT_SET;
+	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+
 	LEAVE();
 	return ret;
 }

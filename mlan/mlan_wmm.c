@@ -1003,6 +1003,8 @@ static t_bool wlan_wmm_txq_count_donw(mlan_wmm_contention *txq_cont,
 	if (txq_cont->remaining_aifs == 0)
 		txq_cont->remaining_backoff -= duration;
 
+	/* Input values are bounded and subtraction logic ensures no integer
+	 * overflow during contention timer update. */
 	// coverity[integer_overflow:SUPPRESS]
 	return txq_cont->remaining_backoff == 0 &&
 	       txq_cont->remaining_aifs == 0;
@@ -1286,6 +1288,8 @@ static t_s32 wlan_wmm_refill_budget(t_s32 current_value, t_u32 init_value)
 	if (current_value > 0)
 		return init_value;
 
+	/* Input values are constrained and addition logic ensures no overflow
+	 */
 	// coverity[integer_overflow:SUPPRESS]
 	return current_value + init_value;
 }
@@ -3819,6 +3823,7 @@ static INLINE t_u8 wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 	return ret;
 }
 
+#ifdef UAP_SUPPORT
 /**
  *  @brief Drop tx pkts
  *
@@ -3848,6 +3853,7 @@ t_void wlan_drop_tx_pkts(pmlan_private priv)
 					      priv->wmm.ra_list_spinlock);
 	return;
 }
+#endif
 
 /**
  *  @brief Remove peer ralist
@@ -5042,6 +5048,7 @@ void wlan_dump_ralist(mlan_private *priv)
  *  @return             tid_down
  *
  */
+// coverity[HIS_COMF:SUPPRESS]
 int wlan_get_wmm_tid_down(mlan_private *priv, int tid)
 {
 	return wlan_wmm_downgrade_tid(priv, tid);

@@ -69,6 +69,27 @@ Change log:
 #include <linux/config.h>
 #endif
 
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#include <linux/bpf.h>
+/*
+ * <------------------ First 256 Bytes of xdp frame ------------------->
+ * =====================================================================
+ * |     0 - 31        |   32 - 224     |  225 -254 |   255            |
+ * | occupied by frame | driver header  |  Reserved | occupied by frame|
+ * |   initiator       |                |           |   initiator      |
+ * =====================================================================
+ * XDP frame data pointer is decremented by WIFI_HEADER_START_OFFSET to add
+ * WIFI_HEADROOM bytes of driver header.
+ */
+#define XDP_RESERVED_BYTES 32
+#define WIFI_HEADER_START_OFFSET (XDP_PACKET_HEADROOM - XDP_RESERVED_BYTES)
+#define WIFI_HEADROOM (sizeof(mlan_buffer) + MLAN_MIN_DATA_HEADER_LEN)
+/* XDP frame data start offset */
+#define XDP_DATA_OFFSET 96
+#endif
+#endif
+
 #ifdef USB
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
 #include <linux/freezer.h>
@@ -1796,6 +1817,13 @@ typedef struct _moal_priv_linkstats {
 	t_s16 noise;
 } moal_priv_linkstats;
 
+#define BANDCTRL_SET_BANDCFG MBIT(0)
+#define BANDCTRL_BLOCK_SCAN MBIT(1)
+#define BANDCTRL_2G_ONLY MBIT(2)
+
+#define BAND_SELECT_ALL 0
+#define BAND_SELECT_2G_ONLY 1
+
 /** Private structure for MOAL */
 struct _moal_private {
 	/** Handle structure */
@@ -2225,6 +2253,16 @@ struct _moal_private {
 	t_u64 rx_airtime_base;
 	/*TX airtime count*/
 	t_u64 tx_airtime_base;
+
+	t_u32 band_ctrl;
+
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	/** xdp */
+	struct bpf_prog *xdp_prog;
+	struct xdp_rxq_info xdp_rxq;
+#endif
+#endif
 };
 
 #ifdef SDIO
@@ -2844,10 +2882,12 @@ typedef struct _moal_mod_para {
 	int amsdu_deaggr;
 	int tx_budget;
 	int mclient_scheduling;
+	int copy_policy;
 	int ext_scan;
 	int bootup_cal_ctrl;
 	int ps_mode;
 	int p2a_scan;
+	int tcpackenh;
 	/** scan chan gap */
 	int scan_chan_gap;
 	int sched_scan;
@@ -2919,6 +2959,11 @@ typedef struct _moal_mod_para {
 	int auto_11ax;
 	/** hs_auto_arp setting */
 	int hs_auto_arp;
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	int xdp;
+#endif
+#endif
 	/** Dual-BT **/
 	int dual_nb;
 	/* reject addba req config for HS or FW Auto-reconnect */
@@ -2929,6 +2974,10 @@ typedef struct _moal_mod_para {
 	int tpe_ie_ignore;
 	/* make_before_break during roam */
 	int make_before_break;
+	int bandctrl;
+
+	/** plinkstats_cfg setting */
+	char *plinkstats;
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -3034,6 +3083,9 @@ typedef MLAN_PACK_START struct {
 	t_u16 nav_mitigation_th;
 	/* ch threshold to trigger channel switch for nighthawk */
 	t_u16 ch_th;
+	/* Channel switching is triggered only when the current pkts > the min
+	 * average packet percentage. */
+	t_u16 min_pkt_percentage;
 } MLAN_PACK_END wlan_agcs_info;
 #endif /* UAP_SUPPORT */
 
@@ -3462,7 +3514,9 @@ struct _moal_handle {
 	t_s8 driver_version[MLAN_MAX_VER_STR_LEN];
 	char *fwdump_fname;
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	struct wakeup_source *ws;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	struct wakeup_source ws;
 #else
 	struct wake_lock wake_lock;
@@ -3540,6 +3594,8 @@ struct _moal_handle {
 	wlan_agcs_info agcs_info;
 	/* fw cap and cap_ext */
 	mlan_hw_info hw_info;
+	/* agcs scan event */
+	agcs_stats agcs_scan_event;
 #endif /* UAP_SUPPORT */
 
 #ifdef DUMP_TO_PROC
@@ -3548,6 +3604,12 @@ struct _moal_handle {
 	t_u64 ssu_dump_len;
 	/** Pointer of ssu dump buffer */
 	t_u8 *ssu_dump_buf;
+#endif
+#endif
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	struct page *page;
+	t_u32 xdp_rd;
 #endif
 #endif
 };
@@ -4208,17 +4270,26 @@ mlan_status woal_shutdown_fw(moal_private *priv, t_u8 wait_option);
 /* Functions in interface module */
 #ifdef ANDROID_KERNEL
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+static inline void wakeup_source_init(struct device *dev,
+				      struct wakeup_source **ws,
+				      const char *name)
+#else
 static inline void wakeup_source_init(struct wakeup_source *ws,
 				      const char *name)
+#endif
 {
 	ENTER();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	*ws = wakeup_source_register(dev, name);
+#else
 	if (ws) {
 		memset(ws, 0, sizeof(*ws));
 		ws->name = name;
 	}
 	wakeup_source_add(ws);
-
+#endif
 	LEAVE();
 }
 
@@ -4230,8 +4301,12 @@ static inline void wakeup_source_trash(struct wakeup_source *ws)
 		PRINTM(MERROR, "ws is null!\n");
 		return;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+	wakeup_source_unregister(ws);
+#else
 	wakeup_source_remove(ws);
 	__pm_relax(ws);
+#endif
 
 	LEAVE();
 }
@@ -4688,6 +4763,8 @@ mlan_status woal_set_scan_time(moal_private *priv, t_u16 active_scan_time,
 			       t_u16 specific_scan_time);
 mlan_status woal_get_band(moal_private *priv, int *band);
 mlan_status woal_set_band(moal_private *priv, char *pband);
+mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl);
+mlan_status woal_flush_scan_table(moal_private *priv, t_u32 band_select);
 mlan_status woal_add_rxfilter(moal_private *priv, char *rxfilter);
 mlan_status woal_remove_rxfilter(moal_private *priv, char *rxfilter);
 mlan_status woal_priv_qos_cfg(moal_private *priv, t_u32 action, char *qos_cfg);
@@ -4931,7 +5008,8 @@ extern mlan_status moal_agcs_trans_state(moal_private *priv,
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
 #endif /* UAP_SUPPORT */
 
-#if defined(USB) && defined(USB_CUSTOMER_VIDPID)
+#if defined(USB)
 extern mlan_status check_device_name_info(char *device_name, t_u16 *card_type);
+extern mlan_status woal_get_c_vidpid(char **c_vidpid);
 #endif
 #endif /* _MOAL_MAIN_H */

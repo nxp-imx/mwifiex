@@ -1290,6 +1290,45 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP);
 			padma_bd_buf->pkt_size = 0;
 			padma_bd_buf->reserved = 0;
+
+			if (wlan_copy_on_tx_enabled(pmadapter)) {
+				mlan_buffer *pmbuf = MNULL;
+				t_u8 *tx_coherent_vbase;
+				t_u64 tx_coherent_pbase = 0;
+
+				/* alloc tx coherent buf */
+				pmbuf = wlan_alloc_mlan_buffer(
+					pmadapter, 0, 0, MOAL_MALLOC_BUFFER);
+				if (!pmbuf) {
+					PRINTM(MERROR,
+					       "Tx buffer create : Unable to allocate mlan_buffer\n");
+					LEAVE();
+					return MLAN_STATUS_FAILURE;
+				}
+				ret = pcb->moal_malloc_cached(
+					pmadapter->pmoal_handle,
+					MLAN_TX_DATA_BUF_SIZE_4K,
+					&tx_coherent_vbase, &tx_coherent_pbase);
+
+				if (ret != MLAN_STATUS_SUCCESS) {
+					PRINTM(MERROR,
+					       "%s: No free moal_malloc_consistent\n",
+					       __FUNCTION__);
+					/* free pmbuf */
+					wlan_free_mlan_buffer(pmadapter, pmbuf);
+					LEAVE();
+					return MLAN_STATUS_FAILURE;
+				}
+
+				pmbuf->buf_pa = tx_coherent_pbase;
+				pmbuf->pbuf = tx_coherent_vbase;
+				pmbuf->data_offset = 0;
+				pmbuf->data_len = MLAN_TX_DATA_BUF_SIZE_4K;
+				pmbuf->total_pcie_buf_len =
+					MLAN_TX_DATA_BUF_SIZE_4K;
+				pmadapter->pcard_pcie->tx_coherent_buf_list[i] =
+					pmbuf;
+			}
 		}
 #endif
 
@@ -1339,11 +1378,13 @@ static mlan_status wlan_pcie_delete_txbd_ring(mlan_adapter *pmadapter)
 	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		if (pmadapter->pcard_pcie->tx_buf_list[i]) {
 			pmbuf = pmadapter->pcard_pcie->tx_buf_list[i];
-			pcb->moal_unmap_memory(pmadapter->pmoal_handle,
-					       pmbuf->pbuf + pmbuf->data_offset,
-					       pmbuf->buf_pa,
-					       MLAN_RX_DATA_BUF_SIZE,
-					       PCI_DMA_TODEVICE);
+			if (!wlan_copy_on_tx_enabled(pmadapter)) {
+				pcb->moal_unmap_memory(
+					pmadapter->pmoal_handle,
+					pmbuf->pbuf + pmbuf->data_offset,
+					pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
+					PCI_DMA_TODEVICE);
+			}
 			wlan_write_data_complete(pmadapter, pmbuf,
 						 MLAN_STATUS_FAILURE);
 		}
@@ -1378,6 +1419,19 @@ static mlan_status wlan_pcie_delete_txbd_ring(mlan_adapter *pmadapter)
 				padma_bd_buf->pkt_size = 0;
 				padma_bd_buf->reserved = 0;
 			}
+
+			/* release tx coherent buf */
+			if (pmadapter->pcard_pcie->tx_coherent_buf_list[i]) {
+				pmbuf = pmadapter->pcard_pcie
+						->tx_coherent_buf_list[i];
+				if (pmbuf->pbuf)
+					pcb->moal_mfree_cached(
+						pmadapter->pmoal_handle,
+						pmbuf->total_pcie_buf_len,
+						pmbuf->pbuf, pmbuf->buf_pa);
+				wlan_free_mlan_buffer(pmadapter, pmbuf);
+			}
+			pmadapter->pcard_pcie->tx_coherent_buf_list[i] = MNULL;
 		}
 #endif
 		pmadapter->pcard_pcie->txbd_ring[i] = MNULL;
@@ -1412,7 +1466,6 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
-	mlan_buffer *pmbuf = MNULL;
 	t_u32 i;
 #if defined(PCIE8997) || defined(PCIE8897)
 	mlan_pcie_data_buf *prxbd_buf;
@@ -1420,6 +1473,9 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 	adma_dual_desc_buf *padma_bd_buf;
+	mlan_buffer *pcbuf = MNULL;
+	t_u8 *rx_coherent_vbase;
+	t_u64 rx_coherent_pbase = 0;
 #endif
 
 	ENTER();
@@ -1483,7 +1539,8 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 
 	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		/* Allocate buffer here so that firmware can DMA data on it */
-		pmbuf = wlan_alloc_mlan_buffer(pmadapter, MLAN_RX_DATA_BUF_SIZE,
+		mlan_buffer *pmbuf =
+			wlan_alloc_mlan_buffer(pmadapter, MLAN_RX_DATA_BUF_SIZE,
 					       MLAN_RX_HEADER_LEN,
 					       MOAL_ALLOC_MLAN_BUFFER);
 		if (!pmbuf) {
@@ -1496,16 +1553,19 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 
 		pmadapter->pcard_pcie->rx_buf_list[i] = pmbuf;
 
-		if (MLAN_STATUS_FAILURE ==
-		    pcb->moal_map_memory(pmadapter->pmoal_handle,
-					 pmbuf->pbuf + pmbuf->data_offset,
-					 &pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
-					 PCI_DMA_FROMDEVICE)) {
-			PRINTM(MERROR,
-			       "Rx ring create : moal_map_memory failed\n");
-			wlan_pcie_delete_rxbd_ring(pmadapter);
-			LEAVE();
-			return MLAN_STATUS_FAILURE;
+		if (!wlan_copy_on_rx_enabled(pmadapter)) {
+			if (MLAN_STATUS_FAILURE ==
+			    pcb->moal_map_memory(
+				    pmadapter->pmoal_handle,
+				    pmbuf->pbuf + pmbuf->data_offset,
+				    &pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
+				    PCI_DMA_FROMDEVICE)) {
+				PRINTM(MERROR,
+				       "Rx ring create : moal_map_memory failed\n");
+				wlan_pcie_delete_rxbd_ring(pmadapter);
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
 		}
 
 		PRINTM(MINFO,
@@ -1514,6 +1574,44 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 		       "buf_len: %#x\n",
 		       pmbuf, pmbuf->pbuf, (t_u32)((t_u64)pmbuf->buf_pa >> 32),
 		       (t_u32)pmbuf->buf_pa, pmbuf->data_len);
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		if (wlan_copy_on_rx_enabled(pmadapter)) {
+			/* alloc rx buf */
+			pcbuf = wlan_alloc_mlan_buffer(pmadapter, 0, 0,
+						       MOAL_MALLOC_BUFFER);
+			if (!pcbuf) {
+				PRINTM(MERROR,
+				       "Rx buffer create : Unable to allocate mlan_buffer\n");
+				wlan_pcie_delete_rxbd_ring(pmadapter);
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
+			ret = pcb->moal_malloc_cached(pmadapter->pmoal_handle,
+						      MLAN_RX_DATA_BUF_SIZE,
+						      &rx_coherent_vbase,
+						      &rx_coherent_pbase);
+
+			if (ret != MLAN_STATUS_SUCCESS) {
+				PRINTM(MERROR,
+				       "%s: No free moal_malloc_cached\n",
+				       __FUNCTION__);
+				wlan_pcie_delete_rxbd_ring(pmadapter);
+				wlan_free_mlan_buffer(pmadapter, pcbuf);
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
+
+			pcbuf->buf_pa = rx_coherent_pbase;
+			pcbuf->pbuf = rx_coherent_vbase;
+			pcbuf->data_offset = 0;
+			pcbuf->data_len = MLAN_RX_DATA_BUF_SIZE;
+			pcbuf->total_pcie_buf_len = MLAN_RX_DATA_BUF_SIZE;
+			pmadapter->pcard_pcie->rx_coherent_buf_list[i] = pcbuf;
+			pmbuf = pcbuf;
+		}
+#endif
 
 #if defined(PCIE8997) || defined(PCIE8897)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
@@ -1578,21 +1676,37 @@ static mlan_status wlan_pcie_delete_rxbd_ring(mlan_adapter *pmadapter)
 	defined(PCIEIW624)
 	adma_dual_desc_buf *padma_bd_buf;
 #endif
+	const t_bool unmap_buffers = !wlan_copy_on_rx_enabled(pmadapter);
 
 	ENTER();
 	for (i = 0; i < pmadapter->pcard_pcie->txrx_bd_size; i++) {
 		if (pmadapter->pcard_pcie->rx_buf_list[i]) {
 			pmbuf = pmadapter->pcard_pcie->rx_buf_list[i];
-			pcb->moal_unmap_memory(pmadapter->pmoal_handle,
-					       pmbuf->pbuf + pmbuf->data_offset,
-					       pmbuf->buf_pa,
-					       MLAN_RX_DATA_BUF_SIZE,
-					       PCI_DMA_FROMDEVICE);
+
+			if (unmap_buffers) {
+				pcb->moal_unmap_memory(
+					pmadapter->pmoal_handle,
+					pmbuf->pbuf + pmbuf->data_offset,
+					pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
+					PCI_DMA_FROMDEVICE);
+			}
 			wlan_free_mlan_buffer(
 				pmadapter,
 				pmadapter->pcard_pcie->rx_buf_list[i]);
 		}
 		pmadapter->pcard_pcie->rx_buf_list[i] = MNULL;
+
+		/* release rx coherent buf */
+		if (pmadapter->pcard_pcie->rx_coherent_buf_list[i]) {
+			pmbuf = pmadapter->pcard_pcie->rx_coherent_buf_list[i];
+			if (pmbuf->pbuf)
+				pcb->moal_mfree_cached(
+					pmadapter->pmoal_handle,
+					pmbuf->total_pcie_buf_len, pmbuf->pbuf,
+					pmbuf->buf_pa);
+			wlan_free_mlan_buffer(pmadapter, pmbuf);
+		}
+		pmadapter->pcard_pcie->rx_coherent_buf_list[i] = MNULL;
 
 #if defined(PCIE8997) || defined(PCIE8897)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
@@ -2053,6 +2167,8 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 	t_u32 wrdoneidx;
 	t_u32 rdptr = 0;
 	t_u32 unmap_count = 0;
+	const t_bool unmap_on_tx = !wlan_copy_on_tx_enabled(pmadapter);
+
 #if defined(PCIE8997) || defined(PCIE8897)
 	t_u32 txrx_rw_ptr_mask = pmadapter->pcard_pcie->reg->txrx_rw_ptr_mask;
 	t_u32 txrx_rw_ptr_rollover_ind =
@@ -2110,15 +2226,21 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 			       "SEND DATA COMP: Detach pmbuf %p at tx_ring[%d], pmadapter->txbd_rdptr=0x%x\n",
 			       pmbuf, wrdoneidx,
 			       pmadapter->pcard_pcie->txbd_rdptr);
-			ret = pcb->moal_unmap_memory(
-				pmadapter->pmoal_handle,
-				pmbuf->pbuf + pmbuf->data_offset, pmbuf->buf_pa,
-				pmbuf->data_len, PCI_DMA_TODEVICE);
-			if (ret == MLAN_STATUS_FAILURE) {
-				PRINTM(MERROR, "%s: moal_unmap_memory failed\n",
-				       __FUNCTION__);
-				break;
+
+			if (unmap_on_tx) {
+				ret = pcb->moal_unmap_memory(
+					pmadapter->pmoal_handle,
+					pmbuf->pbuf + pmbuf->data_offset,
+					pmbuf->buf_pa, pmbuf->data_len,
+					PCI_DMA_TODEVICE);
+				if (ret == MLAN_STATUS_FAILURE) {
+					PRINTM(MERROR,
+					       "%s: moal_unmap_memory failed\n",
+					       __FUNCTION__);
+					break;
+				}
 			}
+
 			unmap_count++;
 #if defined(PCIE8997) || defined(PCIE8897)
 			if (pmadapter->pcard_pcie->txbd_flush)
@@ -2320,8 +2442,17 @@ static mlan_status wlan_pcie_send_adma_data(mlan_adapter *pmadapter,
 	t_u32 rxbd_val = 0;
 	t_u32 wrindx;
 	t_u32 wr_ptr_start = 0;
+	const t_bool handle_mapping = !wlan_copy_on_tx_enabled(pmadapter);
 
 	ENTER();
+
+	if (!handle_mapping) {
+		PRINTM(MERROR,
+		       "%s() copy on TX is enabled, SG should not be used",
+		       __FUNCTION__);
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 
 	if (!pmbuf) {
 		PRINTM(MERROR, "%s() has no buffer", __FUNCTION__);
@@ -2361,6 +2492,7 @@ static mlan_status wlan_pcie_send_adma_data(mlan_adapter *pmadapter,
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
+
 		wrindx = pmadapter->pcard_pcie->txbd_wrptr & (num_tx_buffs - 1);
 		PRINTM(MDAT_D,
 		       "SEND DATA: Attach pmbuf %p at tx_ring[%d], txbd_wrptr=0x%x\n",
@@ -2473,6 +2605,7 @@ done_unmap:
 		PRINTM(MERROR, "SEND DATA: failed to moal_unmap_memory\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
+
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmlan_pcie_lock);
 	pmadapter->pcard_pcie->txbd_pending--;
@@ -2529,6 +2662,7 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 	t_u32 wrindx;
 	t_u8 *payload;
 	t_u32 wr_ptr_start = 0;
+	const t_bool copy_on_tx = wlan_copy_on_tx_enabled(pmadapter);
 
 	ENTER();
 
@@ -2568,17 +2702,38 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 		write_u16_unaligned(pmadapter, &payload[2],
 				    wlan_cpu_to_le16(type));
 
-		/* Map pmbuf, and attach to tx ring */
-		if (MLAN_STATUS_FAILURE ==
-		    pcb->moal_map_memory(pmadapter->pmoal_handle,
-					 pmbuf->pbuf + pmbuf->data_offset,
-					 &pmbuf->buf_pa, pmbuf->data_len,
-					 PCI_DMA_TODEVICE)) {
-			PRINTM(MERROR,
-			       "SEND DATA: failed to moal_map_memory\n");
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
+		if (copy_on_tx) {
+			mlan_buffer *staged_buf;
+
+			/* copy tx data to staged buf */
+			wrindx = pmadapter->pcard_pcie->txbd_wrptr &
+				 (num_tx_buffs - 1);
+			staged_buf = pmadapter->pcard_pcie
+					     ->tx_coherent_buf_list[wrindx];
+			memcpy_ext(pmadapter, staged_buf->pbuf,
+				   pmbuf->pbuf + pmbuf->data_offset,
+				   pmbuf->data_len, MLAN_TX_DATA_BUF_SIZE_4K);
+
+			/* make sure payload will be wisible to device */
+			pcb->moal_dma_sync_to_device(pmadapter->pmoal_handle,
+						     pmbuf->data_len,
+						     staged_buf->buf_pa,
+						     MOAL_DMA_SYNC_TO_DEVICE);
+		} else {
+			/* Map pmbuf, and attach to tx ring */
+			if (MLAN_STATUS_FAILURE ==
+			    pcb->moal_map_memory(
+				    pmadapter->pmoal_handle,
+				    pmbuf->pbuf + pmbuf->data_offset,
+				    &pmbuf->buf_pa, pmbuf->data_len,
+				    PCI_DMA_TODEVICE)) {
+				PRINTM(MERROR,
+				       "SEND DATA: failed to moal_map_memory\n");
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
 		}
+
 		wrindx = pmadapter->pcard_pcie->txbd_wrptr & (num_tx_buffs - 1);
 		PRINTM(MDAT_D,
 		       "SEND DATA: Attach pmbuf %p at tx_ring[%d], txbd_wrptr=0x%x\n",
@@ -2623,7 +2778,18 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 			wr_ptr_start = ADMA_WPTR_START;
 			padma_bd_buf = (adma_dual_desc_buf *)pmadapter
 					       ->pcard_pcie->txbd_ring[wrindx];
-			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
+
+			if (copy_on_tx) {
+				/* attach tx staged buf */
+				padma_bd_buf->paddr =
+					pmadapter->pcard_pcie
+						->tx_coherent_buf_list[wrindx]
+						->buf_pa;
+			} else {
+				padma_bd_buf->paddr =
+					wlan_cpu_to_le64(pmbuf->buf_pa);
+			}
+
 			padma_bd_buf->len = pmbuf->data_len;
 
 #if defined(PCIEAW693)
@@ -2716,13 +2882,16 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 	return ret;
 
 done_unmap:
-	if (MLAN_STATUS_FAILURE ==
-	    pcb->moal_unmap_memory(
-		    pmadapter->pmoal_handle, pmbuf->pbuf + pmbuf->data_offset,
-		    pmbuf->buf_pa, pmbuf->data_len, PCI_DMA_TODEVICE)) {
+	if (!copy_on_tx &&
+	    MLAN_STATUS_FAILURE ==
+		    pcb->moal_unmap_memory(pmadapter->pmoal_handle,
+					   pmbuf->pbuf + pmbuf->data_offset,
+					   pmbuf->buf_pa, pmbuf->data_len,
+					   PCI_DMA_TODEVICE)) {
 		PRINTM(MERROR, "SEND DATA: failed to moal_unmap_memory\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
+
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
 			    pmadapter->pmlan_pcie_lock);
 	pmadapter->pcard_pcie->txbd_pending--;
@@ -2886,8 +3055,23 @@ static void wlan_pcie_rx_ring_attach_buf(mlan_adapter *pmadapter,
 			(adma_dual_desc_buf *)
 				pmadapter->pcard_pcie->rxbd_ring[rd_index];
 		if (pmbuf) {
-			padma_bd_buf->paddr = wlan_cpu_to_le64(pmbuf->buf_pa);
-			padma_bd_buf->len = wlan_cpu_to_le16(pmbuf->data_len);
+			if (wlan_copy_on_rx_enabled(pmadapter)) {
+				/* attach rx staged buf */
+				padma_bd_buf->paddr = wlan_cpu_to_le64(
+					pmadapter->pcard_pcie
+						->rx_coherent_buf_list[rd_index]
+						->buf_pa);
+				padma_bd_buf->len = wlan_cpu_to_le16(
+					pmadapter->pcard_pcie
+						->rx_coherent_buf_list[rd_index]
+						->data_len);
+			} else {
+				padma_bd_buf->paddr =
+					wlan_cpu_to_le64(pmbuf->buf_pa);
+				padma_bd_buf->len =
+					wlan_cpu_to_le16(pmbuf->data_len);
+			}
+
 			padma_bd_buf->flags = wlan_cpu_to_le16(
 				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_DST_HOST);
 			padma_bd_buf->pkt_size = 0;
@@ -3076,15 +3260,20 @@ mlan_status wlan_pcie_reattach_pmbuf(mlan_adapter *pmadapter, t_u32 rd_index,
 		pmadapter->pcard_pcie->rx_buf_list[rd_index] = MNULL;
 		return ret;
 	}
-	if (MLAN_STATUS_FAILURE ==
-	    pcb->moal_map_memory(pmadapter->pmoal_handle,
-				 (*pmbuf)->pbuf + (*pmbuf)->data_offset,
-				 &(*pmbuf)->buf_pa, MLAN_RX_DATA_BUF_SIZE,
-				 PCI_DMA_FROMDEVICE)) {
+
+	if (wlan_copy_on_rx_enabled(pmadapter)) {
+		/* do noting */
+	} else if (MLAN_STATUS_FAILURE ==
+		   pcb->moal_map_memory(pmadapter->pmoal_handle,
+					(*pmbuf)->pbuf + (*pmbuf)->data_offset,
+					&(*pmbuf)->buf_pa,
+					MLAN_RX_DATA_BUF_SIZE,
+					PCI_DMA_FROMDEVICE)) {
 		wlan_free_mlan_buffer(pmadapter, *pmbuf);
 		ret = MLAN_STATUS_FAILURE;
 		return ret;
 	}
+
 	PRINTM(MDAT_D, "RECV DATA: Attach new pmbuf %p at rx_ring[%d]\n",
 	       *pmbuf, rd_index);
 	pmadapter->pcard_pcie->rx_buf_list[rd_index] = *pmbuf;
@@ -3114,6 +3303,7 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 
 	t_u32 in_ts_sec = 0;
 	t_u32 in_ts_usec = 0;
+	const t_bool copy_on_rx = wlan_copy_on_rx_enabled(pmadapter);
 
 	ENTER();
 
@@ -3162,16 +3352,34 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			PRINTM(MERROR, "RECV DATA: invalid pmbuf");
 			goto reattach;
 		}
-		if (MLAN_STATUS_FAILURE ==
-		    pcb->moal_unmap_memory(pmadapter->pmoal_handle,
-					   pmbuf->pbuf + pmbuf->data_offset,
-					   pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
-					   PCI_DMA_FROMDEVICE)) {
+
+		if (copy_on_rx) {
+			mlan_buffer *staged_buf =
+				pmadapter->pcard_pcie
+					->rx_coherent_buf_list[rd_index];
+			pcb->moal_dma_sync_to_cpu(pmadapter->pmoal_handle,
+						  MLAN_RX_DATA_BUF_SIZE,
+						  staged_buf->buf_pa,
+						  MOAL_DMA_SYNC_FROM_DEVICE);
+			/* copy rx data from staged buf */
+			rx_len =
+				read_u16_unaligned(pmadapter, staged_buf->pbuf);
+			rx_len = wlan_le16_to_cpu(rx_len);
+			memcpy_ext(pmadapter, pmbuf->pbuf + pmbuf->data_offset,
+				   staged_buf->pbuf, rx_len,
+				   MLAN_RX_DATA_BUF_SIZE);
+		} else if (MLAN_STATUS_FAILURE ==
+			   pcb->moal_unmap_memory(
+				   pmadapter->pmoal_handle,
+				   pmbuf->pbuf + pmbuf->data_offset,
+				   pmbuf->buf_pa, MLAN_RX_DATA_BUF_SIZE,
+				   PCI_DMA_FROMDEVICE)) {
 			PRINTM(MERROR,
 			       "RECV DATA: moal_unmap_memory failed.\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
+
 		PRINTM(MDAT_D,
 		       "RECV DATA: Detach pmbuf %p at rx_ring[%d], pmadapter->rxbd_rdptr=0x%x\n",
 		       pmbuf, rd_index, pmadapter->pcard_pcie->rxbd_rdptr);

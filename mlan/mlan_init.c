@@ -472,19 +472,14 @@ mlan_status wlan_init_priv(pmlan_private priv)
 
 	memset(pmadapter, &priv->assoc_rsp_buf, 0, sizeof(priv->assoc_rsp_buf));
 	priv->assoc_rsp_size = 0;
-	// coverity[no_effect:SUPPRESS]
-	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-	memset(pmadapter, &priv->assoc_req_buf, 0, sizeof(priv->assoc_req_buf));
+	_memset(pmadapter, &priv->assoc_req_buf, 0,
+		sizeof(priv->assoc_req_buf));
 	priv->assoc_req_size = 0;
-	// coverity[no_effect:SUPPRESS]
-	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-	memset(pmadapter, &priv->prior_assoc_rsp, 0,
-	       sizeof(priv->prior_assoc_rsp));
+	_memset(pmadapter, &priv->prior_assoc_rsp, 0,
+		sizeof(priv->prior_assoc_rsp));
 	priv->prior_assoc_rsp_size = 0;
-	// coverity[no_effect:SUPPRESS]
-	// coverity[misra_c_2012_rule_21_18_violation:SUPPRESS]
-	memset(pmadapter, &priv->prior_assoc_req, 0,
-	       sizeof(priv->prior_assoc_req));
+	_memset(pmadapter, &priv->prior_assoc_req, 0,
+		sizeof(priv->prior_assoc_req));
 	priv->prior_assoc_req_size = 0;
 
 	wlan_11d_priv_init(priv);
@@ -1578,7 +1573,7 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 #ifdef MFG_CMD_SUPPORT
 	if (pmadapter->mfg_mode != MTRUE) {
 #endif
-		wlan_adapter_get_hw_spec(pmadapter);
+			wlan_adapter_get_hw_spec(pmadapter);
 #ifdef MFG_CMD_SUPPORT
 	}
 #ifdef PCIE
@@ -1589,7 +1584,8 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 		}
 	}
 
-	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693) {
+	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693
+	) {
 		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
 				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 		if (ret) {

@@ -275,6 +275,9 @@ static mlan_status wlan_custom_ioctl_auto_delete(pmlan_private pmpriv,
 					   cnt, MAX_IE_SIZE);
 				if (pmpriv->mgmt_ie[index].ie_length >
 				    (cnt + del_len)) {
+					/*buffer bounds are validated using MIN
+					 *and logic ensures safe access within
+					 *allocated array size. */
 					// coverity[cert_arr30_c_violation:
 					// SUPPRESS]
 					// coverity[cert_str31_c_violation:SUPPRESS]
@@ -1142,12 +1145,6 @@ mlan_status wlan_misc_csi(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 	ENTER();
 
 	if (csi_cfg->param.csi_params.csi_enable == 1) {
-		if (pmadapter->csi_enabled) {
-			PRINTM(MERROR,
-			       "Enable CSI: CSI was already enabled.\n");
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
 		cmd_act = CSI_CMD_ENABLE;
 	} else {
 		if (!pmadapter->csi_enabled) {
@@ -2766,6 +2763,9 @@ static void wlan_get_ap_ext_cap(mlan_private *pmpriv, ExtCap_t *ext_cap)
 	pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
 	memset(pmadapter, ext_cap, 0, sizeof(ExtCap_t));
 	if (pbss_desc->pext_cap) {
+		/* pointer arithmetic is safely bounded and offset is validated
+		 * against structure size before use, ensuring no invalid
+		 * pointer dereference. */
 		// coverity[cert_exp34_c_violation:SUPPRESS]
 		memcpy_ext(pmadapter, (t_u8 *)ext_cap,
 			   (t_u8 *)pbss_desc->pext_cap +
@@ -4367,6 +4367,7 @@ void wlan_check_sta_capability(pmlan_private priv, pmlan_buffer pevent,
 					priv->adapter, assoc_req_ie, ie_len,
 					&sta_ptr->multi_ap_ie);
 #endif
+
 				pExtCap = (IEEEtypes_ExtCap_t *)
 					wlan_get_specific_ie(priv, assoc_req_ie,
 							     ie_len,
@@ -7284,6 +7285,32 @@ mlan_status wlan_misc_ioctl_ch_load(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_GET_CH_LOAD, cmd_action, 0,
 			       (t_void *)pioctl_req,
 			       (t_void *)&misc->param.ch_load);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+mlan_status wlan_misc_ioctl_foundry_type(pmlan_adapter pmadapter,
+					 mlan_ioctl_req *pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else {
+		PRINTM(MERROR, " foundry_type  only support get operation \n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DS_GET_FOUNDRY_TYPE,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;

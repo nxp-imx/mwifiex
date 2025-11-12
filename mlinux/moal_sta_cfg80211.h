@@ -3,7 +3,7 @@
  * @brief This file contains the STA CFG80211 specific defines.
  *
  *
- * Copyright 2011-2024 NXP
+ * Copyright 2011-2021, 2025 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -27,5 +27,7 @@
 #define RSSI_DBM_TO_MDM(x) ((x)*100)
 
 mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type);
+int woal_priv_init_link_stats(moal_private *priv);
+int parse_plinkstats_args(const char *input_str, int *parsed_values);
 
 #endif /* _MOAL_STA_CFG80211_H_ */

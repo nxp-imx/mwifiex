@@ -156,6 +156,7 @@ typedef struct _pcie_service_card {
 	void __iomem *pci_mmap;
 	/** I/O memory regions pointer to the bus */
 	void __iomem *pci_mmap1;
+	t_u32 cache_alignment_mask;
 } pcie_service_card, *ppcie_service_card;
 
 /** Register to bus driver function */

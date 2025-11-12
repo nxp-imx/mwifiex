@@ -38,6 +38,11 @@ Change log:
 #endif
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#include <linux/filter.h>
+#endif
+#endif
 #endif
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211_util.h"
@@ -59,6 +64,13 @@ Change log:
 
 #include <linux/crc32.h>
 
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static struct sk_buff *woal_process_xdp(moal_private *priv,
+					struct net_device *ndev,
+					pmlan_buffer pmbuf);
+#endif
+#endif
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -238,6 +250,153 @@ mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 #endif
 	*pbuf_pa = (t_u64)dma;
 	atomic_inc(&handle->malloc_cons_count);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Alloc a non-coherent block of memory
+ *
+ *  @param pmoal Pointer to the MOAL context
+ *  @param size         The size of the buffer to be allocated
+ *  @param ppbuf        Pointer to a buffer location to store memory allocated
+ *  @param pbuf_pa      Pointer to a buffer location to store physical address
+ * of above memory
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_malloc_cached(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
+			       t_pu64 pbuf_pa)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = (pcie_service_card *)handle->card;
+	dma_addr_t dma;
+	gfp_t flag;
+
+	*pbuf_pa = 0;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	flag = in_atomic()     ? GFP_ATOMIC :
+	       irqs_disabled() ? GFP_ATOMIC :
+				 GFP_KERNEL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	*ppbuf = dma_alloc_noncoherent(&card->dev->dev, size, &dma,
+				       DMA_BIDIRECTIONAL, flag);
+#else
+	*ppbuf = dma_alloc_attrs(&card->dev->dev, size, &dma, flag,
+				 DMA_ATTR_NON_CONSISTENT);
+#endif
+
+	if (unlikely(*ppbuf == NULL)) {
+		PRINTM(MERROR,
+		       "%s: allocate noncoherent memory (%d bytes) failed!\n",
+		       __func__, (int)size);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	*pbuf_pa = (t_u64)dma;
+	atomic_inc(&handle->malloc_cons_count);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Free a non-coherent block of memory
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         The size of the buffer to be freed
+ *  @param pbuf         Pointer to the buffer to be freed
+ *  @param buf_pa       Physical address of the buffer to be freed
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_mfree_cached(t_void *pmoal, t_u32 size, t_u8 *pbuf,
+			      t_u64 buf_pa)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!pbuf || !card))
+		return MLAN_STATUS_FAILURE;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	dma_free_noncoherent(&card->dev->dev, size, pbuf, buf_pa,
+			     DMA_BIDIRECTIONAL);
+#else
+	dma_free_attrs(&card->dev->dev, size, pbuf, buf_pa,
+		       DMA_ATTR_NON_CONSISTENT);
+#endif
+
+	atomic_dec(&handle->malloc_cons_count);
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Sync DMA buffer for CPU access
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         Size of the buffer to sync
+ *  @param buf_pa       Physical address of the buffer
+ *  @param direction    DMA sync direction
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_dma_sync_to_cpu(t_void *pmoal, t_u32 size, t_u64 buf_pa,
+				 moal_dma_sync_direction_t direction)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	size = (size + card->cache_alignment_mask) &
+	       ~card->cache_alignment_mask;
+
+	// make sure we have one-to-one mapping to Linux`s enum
+	// dma_data_direction
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_BIDIR != (int)DMA_BIDIRECTIONAL);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_TO_DEVICE != (int)DMA_TO_DEVICE);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_FROM_DEVICE != (int)DMA_FROM_DEVICE);
+
+	dma_sync_single_range_for_cpu(&card->dev->dev, buf_pa, 0, size,
+				      (enum dma_data_direction)direction);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Sync DMA buffer for device access
+ *
+ *  @param pmoal        Pointer to the MOAL context
+ *  @param size         Size of the buffer to sync
+ *  @param buf_pa       Physical address of the buffer
+ *  @param direction    DMA sync direction
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status moal_dma_sync_to_device(t_void *pmoal, t_u32 size, t_u64 buf_pa,
+				    moal_dma_sync_direction_t direction)
+{
+	moal_handle *handle = (moal_handle *)pmoal;
+	pcie_service_card *card = handle->card;
+
+	if (unlikely(!card))
+		return MLAN_STATUS_FAILURE;
+
+	size = (size + card->cache_alignment_mask) &
+	       ~card->cache_alignment_mask;
+
+	// make sure we have one-to-one mapping to Linux`s enum
+	// dma_data_direction
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_BIDIR != (int)DMA_BIDIRECTIONAL);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_TO_DEVICE != (int)DMA_TO_DEVICE);
+	BUILD_BUG_ON((int)MOAL_DMA_SYNC_FROM_DEVICE != (int)DMA_FROM_DEVICE);
+
+	dma_sync_single_for_device(&card->dev->dev, buf_pa, size,
+				   (enum dma_data_direction)direction);
 
 	return MLAN_STATUS_SUCCESS;
 }
@@ -1260,6 +1419,17 @@ mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 #endif
 
 	ENTER();
+
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	if (pmbuf && (pmbuf->flags & MLAN_BUF_FLAG_XDP)) {
+		woal_free_mlan_buffer(handle, pmbuf);
+		atomic_dec(&handle->tx_pending);
+		return MLAN_STATUS_SUCCESS;
+	}
+#endif
+#endif
+
 	if (pmbuf && pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA) {
 		woal_free_mlan_buffer(handle, pmbuf);
 		atomic_dec(&handle->tx_pending);
@@ -2290,6 +2460,11 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	mlan_status status = MLAN_STATUS_FAILURE;
 	struct sk_buff *skb = NULL;
 	struct sk_buff *frame = NULL;
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	struct sk_buff *xdp_skb = NULL;
+#endif
+#endif
 	int remaining;
 	const struct ethhdr *eth;
 	u8 dst[ETH_ALEN], src[ETH_ALEN];
@@ -2437,6 +2612,17 @@ mlan_status moal_recv_amsdu_packet(t_void *pmoal, pmlan_buffer pmbuf)
 			dev_kfree_skb(frame);
 			continue;
 		}
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		if (priv->xdp_prog) {
+			xdp_skb = woal_process_xdp(priv, priv->netdev, &mbuf);
+			if (xdp_skb)
+				napi_gro_receive(&handle->napi_rx, xdp_skb);
+			dev_kfree_skb(frame);
+			continue;
+		}
+#endif
+#endif
 		frame->protocol = eth_type_trans(frame, netdev);
 		frame->ip_summed = CHECKSUM_NONE;
 
@@ -2516,6 +2702,74 @@ static t_u8 moal_user_priority_to_qos(t_u32 userPriority)
 	return aci;
 }
 
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+/**
+ *  @brief This function acts based on action returned by bpf program
+ *         XDP_DROP: drop packet
+ *         XDP_PASS: upload packet to network stack
+ *         XDP_REDIRECT: redirect packet to other XDP enabled interface
+ *  @param pmoal Pointer to the MOAL context
+ *  @param pmbuf Pointer to the mlan buffer structure
+ *
+ *  @return NULL or sk_buff
+ */
+static struct sk_buff *woal_process_xdp(moal_private *priv,
+					struct net_device *ndev,
+					pmlan_buffer pmbuf)
+{
+	t_u32 xdp_act;
+	struct xdp_buff xdp_buff;
+	struct sk_buff *skb = NULL;
+	struct page *page;
+	__u8 *data;
+	int ret = 0;
+
+	page = dev_alloc_page();
+	if (unlikely(!page))
+		netdev_err(ndev, "page alloc failed\n");
+
+	data = page_address(page);
+
+	memcpy(data + XDP_PACKET_HEADROOM, pmbuf->pbuf + pmbuf->data_offset,
+	       pmbuf->data_len);
+	xdp_init_buff(&xdp_buff, PAGE_SIZE - XDP_PACKET_HEADROOM,
+		      &priv->xdp_rxq);
+	xdp_prepare_buff(&xdp_buff, data, XDP_PACKET_HEADROOM, pmbuf->data_len,
+			 false);
+	xdp_buff_clear_frags_flag(&xdp_buff);
+
+	xdp_act = bpf_prog_run_xdp(priv->xdp_prog, &xdp_buff);
+	switch (xdp_act) {
+	case XDP_DROP:
+		__free_page(page);
+		break;
+	case XDP_PASS:
+		skb = build_skb(xdp_buff.data_hard_start, PAGE_SIZE);
+		skb_reserve(skb, XDP_PACKET_HEADROOM);
+		skb_put(skb, xdp_buff.data_end - xdp_buff.data);
+#if defined(CONFIG_PAGE_POOL)
+		skb_mark_for_recycle(skb);
+#endif
+		skb->dev = ndev;
+		skb->protocol = eth_type_trans(skb, skb->dev);
+		skb->ip_summed = CHECKSUM_NONE;
+		return skb;
+	case XDP_REDIRECT:
+		ret = xdp_do_redirect(ndev, &xdp_buff, priv->xdp_prog);
+		if (ret)
+			PRINTM(MERROR, "XDP: redirect failed:%d\n", ret);
+		priv->phandle->xdp_rd++;
+		break;
+	default:
+		return skb;
+	}
+
+	return skb;
+}
+#endif
+#endif
+
 /**
  *  @brief This function uploads the packet to the network stack
  *
@@ -2570,6 +2824,16 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #endif
 
 		priv = woal_bss_index_to_priv(pmoal, pmbuf->bss_index);
+#if defined(UAP_SUPPORT) && defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		if (priv->xdp_prog) {
+			skb = woal_process_xdp(priv, priv->netdev, pmbuf);
+			if (skb)
+				napi_gro_receive(&handle->napi_rx, skb);
+			goto done;
+		}
+#endif
+#endif
 		skb = (struct sk_buff *)pmbuf->pdesc;
 		if (priv) {
 			if (skb) {
@@ -2657,9 +2921,6 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 				       "\n",
 				       priv->netdev->name,
 				       MAC2STR(ethh->h_source));
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-				priv->deauth_evt_cnt = 0;
-#endif
 			} else if (ntohs(ethh->h_proto) == NXP_ETH_P_WAPI) {
 				PRINTM(MEVENT,
 				       "wlan: %s Rx WAPI pkt from " MACSTR "\n",
@@ -2801,7 +3062,11 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 #endif
 #ifdef ANDROID_KERNEL
 			if (handle->params.wakelock_timeout) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				__pm_wakeup_event(
+					handle->ws,
+					handle->params.wakelock_timeout);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 				__pm_wakeup_event(
 					&handle->ws,
 					handle->params.wakelock_timeout);
@@ -3036,6 +3301,37 @@ static void woal_rx_mgmt_pkt_event(moal_private *priv, t_u8 *pkt, t_u16 len)
 #endif
 
 /**
+ * @brief   Handle CSI STATUS event
+ *
+ *  @param  pmevent  Pointer to the mlan event structure
+ *
+ * @return          N/A
+ */
+static void woal_process_csi_status_report(pmlan_event pmevent)
+{
+	csi_status_info *pcsi_status = (csi_status_info *)pmevent->event_buf;
+	if (pcsi_status->status == CSI_STATUS_ENABLED) {
+		PRINTM(MEVENT,
+		       "csi status report: enable and start csi on channel %d \r\n",
+		       pcsi_status->channel);
+	} else if (pcsi_status->status == CSI_STATUS_DISABLED) {
+		PRINTM(MEVENT, "csi status report: stop and disable csi \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_CONFIG_WRONG) {
+		PRINTM(MEVENT,
+		       "csi status report: channel or bandwidth config wrong \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_RESET) {
+		PRINTM(MEVENT,
+		       "csi status report: FW internal restart csi on channel %d \r\n",
+		       pcsi_status->channel);
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_STOP) {
+		PRINTM(MEVENT, "csi status report: FW internal stop csi \r\n");
+	} else if (pcsi_status->status == CSI_STATUS_INTERNAL_DISABLED) {
+		PRINTM(MEVENT,
+		       "csi status report: FW internal stop and disable csi, user should put in csi cmd to enable csi \r\n");
+	}
+}
+
+/**
  *  @brief This function handles rgpower key mismatch event
  *
  *  @param priv pointer to the moal_private structure.
@@ -3085,6 +3381,7 @@ static void woal_wifi_reset_event(moal_private *priv, t_u8 deauth_evt_cnt)
 		spin_unlock_irqrestore(&handle->evt_lock, flags);
 		queue_work(handle->evt_workqueue, &handle->evt_work);
 	}
+	/* evt is freed in woal_evt_work_queue, hence suppressed*/
 	// coverity[leaked_storage]: SUPPRESS
 }
 #endif
@@ -4040,7 +4337,10 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			) {
 				priv->roaming_required = MTRUE;
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+				__pm_wakeup_event(priv->phandle->ws,
+						  ROAMING_WAKE_LOCK_TIMEOUT);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 				__pm_wakeup_event(&priv->phandle->ws,
 						  ROAMING_WAKE_LOCK_TIMEOUT);
 #else
@@ -5446,7 +5746,13 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			roam_info->req_ie_len = ie_len;
 			roam_info->resp_ie = pinfo->rsp_ie;
 			roam_info->resp_ie_len = pinfo->header.len;
-			cfg80211_roamed(priv->netdev, roam_info, GFP_KERNEL);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+			if (priv->wdev->u.client.ssid_len)
+#else
+			if (priv->wdev->ssid_len)
+#endif
+				cfg80211_roamed(priv->netdev, roam_info,
+						GFP_KERNEL);
 			kfree(roam_info);
 		}
 #else
@@ -5521,6 +5827,9 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     custom_len + csi_len);
 		priv->csi_seq++;
+		break;
+	case MLAN_EVENT_ID_CSI_STATUS:
+		woal_process_csi_status_report(pmevent);
 		break;
 	case MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH:
 		if (handle->sec_rgpower)
@@ -5842,4 +6151,18 @@ inline void moal_write_unaligned_u32(void *dest, t_u32 val)
 #else
 	memcpy(dest, &val, sizeof(t_u32));
 #endif
+}
+
+/**
+ *  @brief This function generates crc through kernek API
+ *
+ *  @param initial_crc     Starting crc
+ *  @param data            A pointer to input data buffer
+ *  @param len             Length of the buffer
+ *
+ *  @return                crc value
+ */
+t_u32 moal_crc32_be(t_u32 initial_crc, t_u8 const *data, unsigned long len)
+{
+	return crc32_be(initial_crc, data, len);
 }

@@ -58,10 +58,8 @@ typedef struct {
 /** Name of the USB driver */
 static const char usbdriver_name[] = "usbxxx";
 
-#ifdef USB_CUSTOMER_VIDPID
 static struct usb_device_id *woal_usb_table_ext = NULL;
 static usb_config_t customer_usb_config = {0x0};
-#endif
 
 /** This structure contains the device signature */
 static struct usb_device_id woal_usb_table[] = {
@@ -708,9 +706,7 @@ static t_u16 woal_update_card_type(t_void *card)
 {
 	struct usb_card_rec *cardp_usb = (struct usb_card_rec *)card;
 	t_u16 card_type = 0;
-#ifdef USB_CUSTOMER_VIDPID
 	char device_name[MAX_DEVICE_NAME];
-#endif
 
 	/* Update card type */
 #ifdef USB8897
@@ -843,7 +839,6 @@ static t_u16 woal_update_card_type(t_void *card)
 	}
 #endif
 
-#ifdef USB_CUSTOMER_VIDPID
 	if (check_usb_ext_table_info(
 		    device_name, &card_type,
 		    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct)) ==
@@ -896,7 +891,6 @@ static t_u16 woal_update_card_type(t_void *card)
 						strlen(KERN_VERSION));
 		}
 	}
-#endif
 	return card_type;
 }
 
@@ -934,12 +928,10 @@ static int woal_usb_probe(struct usb_interface *intf,
 		return -ENOMEM;
 	}
 
-#ifdef USB_CUSTOMER_VIDPID
 	if (woal_usb_table_ext != NULL) {
 		PRINTM(MINFO, "Use usb table with customer vid pid\n");
 		usb_table = woal_usb_table_ext;
 	}
-#endif
 
 	/* Check probe is for our device */
 	for (i = 0; usb_table[i].idVendor; i++) {
@@ -1008,7 +1000,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 
 				usb_cardp->boot_state = USB_FW_READY;
 				break;
-#ifdef USB_CUSTOMER_VIDPID
 			default:
 				if (check_usb_ext_table_info(
 					    NULL, NULL,
@@ -1019,7 +1010,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 					usb_cardp->boot_state = USB_FW_READY;
 
 				break;
-#endif
 			}
 			/*To do, get card type*/
 			/*			if
@@ -1919,11 +1909,9 @@ mlan_status woal_usb_bus_register(void)
 		woal_usb_driver.id_table = woal_usb_table_skip_fwdnld;
 	}
 
-#ifdef USB_CUSTOMER_VIDPID
 	if (woal_usb_table_ext != NULL) {
 		woal_usb_driver.id_table = woal_usb_table_ext;
 	}
-#endif
 	/*
 	 * API registers the NXP USB driver
 	 * to the USB system
@@ -1948,12 +1936,10 @@ void woal_usb_bus_unregister(void)
 	/* API unregisters the driver from USB subsystem */
 	usb_deregister(&woal_usb_driver);
 
-#ifdef USB_CUSTOMER_VIDPID
 	if (woal_usb_table_ext != NULL) {
 		kfree(woal_usb_table_ext);
 		woal_usb_table_ext = NULL;
 	}
-#endif
 
 	LEAVE();
 	return;
@@ -2356,7 +2342,14 @@ done:
 	return ret;
 }
 
-#ifdef USB_CUSTOMER_VIDPID
+/**
+ *  @brief Parse a single line from USB configuration file
+ *
+ *  @param line               Input line to parse
+ *  @param entry              Array of USB configuration entries to populate
+ *  @param current_entry_idx  Pointer to current entry index
+ *  @return                   0 on success, negative error code on failure
+ */
 static int parse_config_line(char *line, usb_config_entry_t *entry,
 			     t_u16 *current_entry_idx)
 {
@@ -2476,13 +2469,67 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 	return 0;
 }
 
+/**
+ *  @brief This function read a line in module parameter file
+ *
+ *  @param data     A pointer to module parameter data buffer
+ *  @param size     module parameter file size
+ *  @param line_pos A pointer to offset of current line
+ *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
+{
+	t_u8 *src, *dest;
+	static t_s32 pos;
+
+	ENTER();
+
+	if ((pos >= (t_s32)size) || (data == NULL) ||
+	    (line_pos == NULL)) { /* reach the end */
+		pos = 0; /* Reset position for rfkill */
+		LEAVE();
+		return -1;
+	}
+	memset(line_pos, 0, MAX_LINE_LEN);
+	src = data + pos;
+	dest = line_pos;
+
+	while (pos < (t_s32)size && *src != '\x0A' && *src != '\0') {
+		if ((dest - line_pos) >= (MAX_LINE_LEN - 1)) {
+			PRINTM(MERROR,
+			       "error: input data size exceeds the dest buff limit\n");
+			LEAVE();
+			return -1;
+		}
+		if (*src != ' ' && *src != '\t') /* parse space */
+			*dest++ = *src++;
+		else
+			src++;
+		pos++;
+	}
+	/* parse new line */
+	pos++;
+	*dest = '\0';
+	LEAVE();
+	return strlen(line_pos);
+}
+
+/**
+ *  @brief This function parses a USB configuration file to extract device
+ * entries and VID/PID pairs
+ *
+ *  @param config_path  A pointer to the configuration file path
+ *  @param config       A pointer to usb_config_t structure to store parsed
+ * configuration
+ *  @return             0 on success, negative error code on failure
+ */
 static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 {
-	struct file *file;
-	t_u8 line[MAX_LINE_LEN];
-	loff_t pos = 0;
+	t_u8 line[MAX_LINE_LEN], *data = NULL;
+	t_u32 size;
 	int ret = 0;
 	t_u16 entry_idx = 0;
+	const struct firmware *config_data = NULL;
 
 	if (!config_path || !config) {
 		PRINTM(MERROR, "Invalid parameters\n");
@@ -2491,40 +2538,22 @@ static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 
 	memset(config, 0, sizeof(usb_config_t));
 
-	/* Open the configuration file */
-	file = filp_open(config_path, O_RDONLY, 0);
-	if (IS_ERR(file)) {
-		PRINTM(MERROR, "Failed to open config file: %s\n", config_path);
-		ret = PTR_ERR(file);
-		goto cleanup;
+	/* Load the configuration file */
+	ret = request_firmware(&config_data, config_path, NULL);
+	if (ret < 0 || (config_data == NULL)) {
+		PRINTM(MERROR, "Request config data: %s failed, error: %d\n",
+		       config_path, ret);
+		return ret;
 	}
+	size = (t_u32)config_data->size;
+	// Casting is done to read and parse the data
+	// coverity[misra_c_2012_rule_11_8_violation:SUPPRESS]
+	data = (t_u8 *)config_data->data;
 
 	PRINTM(MINFO, "Parsing USB config file: %s\n", config_path);
 
 	/* Read file line by line */
-	while (1) {
-		int i = 0;
-		char c;
-
-		/* Read one line */
-		memset(line, 0, MAX_LINE_LEN);
-		while (i < MAX_LINE_LEN - 1) {
-			ret = kernel_read(file, &c, 1, &pos);
-			if (ret <= 0)
-				break;
-
-			if (c == '\n') {
-				line[i] = '\0';
-				break;
-			}
-			line[i++] = c;
-		}
-
-		if (ret <= 0 && i == 0)
-			break; /* End of file */
-
-		line[i] = '\0';
-
+	while ((int)parse_cfg_get_line(data, size, line) != -1) {
 		/* Parse the line */
 		ret = parse_config_line(line, config->entries, &entry_idx);
 		if (ret < 0) {
@@ -2534,10 +2563,11 @@ static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 	}
 
 	if (ret >= 0) {
+		int i, j;
 		config->total_entries = entry_idx;
 
 		/* Count total valid VID/PID pairs */
-		int i, j;
+
 		config->total_vid_pid_pairs = 0;
 		for (i = 0; i < config->total_entries; i++) {
 			for (j = 0; j < config->entries[i].vid_pid_count; j++) {
@@ -2560,12 +2590,29 @@ static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 		ret = 0;
 	}
 
-	filp_close(file, NULL);
+	if (config_data) {
+		release_firmware(config_data);
+		(void)parse_cfg_get_line(NULL, 0, NULL);
+	}
 
-cleanup:
 	return ret;
 }
 
+/**
+ * extend_usb_table - Extend the USB device table with additional VID/PID pairs
+ * @table: Original USB device ID table
+ * @table_size: Size of the original table
+ * @config: USB configuration containing additional device entries
+ *
+ * This function creates an extended USB device table by combining the original
+ * table with additional VID/PID pairs from the configuration. It allocates a
+ * new table, copies the original entries, adds the new entries from config,
+ * and sets up the extended table for use.
+ *
+ * Return: 0 on success, negative error code on failure
+ *         -EINVAL for invalid parameters or too many VID/PID pairs
+ *         -ENOMEM for memory allocation failure
+ */
 static int extend_usb_table(struct usb_device_id *table, t_u32 table_size,
 			    usb_config_t *config)
 {
@@ -2652,6 +2699,17 @@ static int extend_usb_table(struct usb_device_id *table, t_u32 table_size,
 	return 0;
 }
 
+/**
+ * woal_usb_init_extended_table - Initialize extended USB device table
+ * @config_path: Path to the USB configuration file
+ *
+ * This function extends the existing USB device table with additional
+ * VID/PID pairs from a configuration file. It first counts the original
+ * table size, parses the configuration file for new USB devices, and
+ * then extends the USB table with the additional entries.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
 int woal_usb_init_extended_table(const char *config_path)
 {
 	usb_config_t *config = &customer_usb_config;
@@ -2690,6 +2748,18 @@ int woal_usb_init_extended_table(const char *config_path)
 	return 0;
 }
 
+/**
+ * check_usb_ext_table_info - Check USB extended table for device information
+ * @device_name: Buffer to store the device name (can be NULL)
+ * @card_type: Pointer to store the card type (can be NULL)
+ * @pid: Product ID to search for
+ *
+ * This function searches through the customer USB configuration table
+ * to find a matching product ID. If found, it retrieves the associated
+ * device name and card type information.
+ *
+ * Return: MLAN_STATUS_SUCCESS if device found, MLAN_STATUS_FAILURE otherwise
+ */
 mlan_status check_usb_ext_table_info(char *device_name, t_u16 *card_type,
 				     t_u16 pid)
 {
@@ -2743,7 +2813,6 @@ mlan_status check_usb_ext_table_info(char *device_name, t_u16 *card_type,
 
 	return MLAN_STATUS_FAILURE;
 }
-#endif
 
 static moal_if_ops usb_ops = {
 	.register_dev = woal_usb_register_dev,

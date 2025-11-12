@@ -175,7 +175,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p22"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p33"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -511,6 +511,8 @@ endif
 
 
 
+# Default for out-of-tree builds
+CONFIG_NXP_WLAN_DRIVER ?= m
 
 MOALOBJS =	mlinux/moal_main.o \
 		mlinux/moal_ioctl.o \
@@ -590,9 +592,7 @@ endif
 
 
 
-
-
-obj-m := mlan.o
+obj-$(CONFIG_NXP_WLAN_DRIVER) := mlan.o
 mlan-objs := $(MLANOBJS)
 
 ifeq ($(CONFIG_MUSB),y)
@@ -604,7 +604,7 @@ endif
 ifeq ($(CONFIG_PCIE),y)
 MOALOBJS += mlinux/moal_pcie.o
 endif
-obj-m += moal.o
+obj-$(CONFIG_NXP_WLAN_DRIVER) += moal.o
 moal-objs := $(MOALOBJS)
 
 # Otherwise we were called directly from the command line; invoke the kernel build system.

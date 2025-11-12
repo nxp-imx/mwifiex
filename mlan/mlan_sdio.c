@@ -1046,8 +1046,17 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter,
 		}
 
 		/* Ignore CRC check before download the 1st packet */
-		if (offset == 0 && (len & MBIT(0)))
+		if (offset == 0 && (len & MBIT(0))) {
 			len &= ~MBIT(0);
+			/* When offset is 0 return an error in case of len=0 to
+			 * avoid infinite loop */
+			if (len == 0) {
+				PRINTM(MERROR,
+				       "WLAN: FW download failed as length is 0\n");
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
+		}
 
 		txlen = len;
 

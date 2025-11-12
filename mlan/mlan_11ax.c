@@ -1008,6 +1008,7 @@ mlan_status wlan_cmd_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		hecfg->he_cap.len = MIN(hecfg->he_cap.len,
 					MRVDRV_SIZE_OF_CMD_BUFFER - cmd->size);
 		tlv->len = wlan_cpu_to_le16(hecfg->he_cap.len);
+		/* he_cap.len is already bounded using MIN function above. */
 		// coverity[cert_arr30_c_violation:SUPPRESS]
 		// coverity[cert_str31_c_violation:SUPPRESS]
 		// coverity[overrun-buffer-arg:SUPPRESS]
@@ -1031,6 +1032,7 @@ mlan_status wlan_cmd_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		hecap->len =
 			MIN(hecap->len, MRVDRV_SIZE_OF_CMD_BUFFER - cmd->size);
 		tlv->len = wlan_cpu_to_le16(hecap->len);
+		/* he_cap->len is already bounded using MIN function above */
 		// coverity[cert_arr30_c_violation:SUPPRESS]
 		// coverity[overrun-buffer-arg:SUPPRESS]
 		// coverity[cert_str31_c_violation:SUPPRESS]

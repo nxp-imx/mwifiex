@@ -4521,7 +4521,9 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_auth_assoc_timeout_cfg(pmpriv, cmd_ptr,
 						      cmd_action, pdata_buf);
 		break;
-
+	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
+		ret = wlan_cmd_get_foundry_type(pmpriv, cmd_ptr, cmd_action);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		ret = MLAN_STATUS_FAILURE;

@@ -316,6 +316,8 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 	PRINTM(MINFO, "Tx DataRate is set to 0x%X\n", pmpriv->data_rate);
 
 	if (!pmpriv->is_data_rate_auto) {
+		/* rate1_size is decremented in sync with ptr++ and loop exits
+		 * when rate1_size becomes 0 ensures no overflow */
 		// coverity[integer_overflow:SUPPRESS]
 		while (rate1_size && *ptr) {
 			/* loop exits when rate1_size becomes 0 */

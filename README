@@ -11,9 +11,56 @@
 	Goto source code directory.
 	make [clean] build
 	The driver and utility binaries can be found in bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.15.0.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.17.0.
 
-2) FOR DRIVER INSTALL
+2) FOR INTEGRATING DRIVER INTO LINUX KERNEL (BUILT-IN SUPPORT)
+
+	a) mkdir -p <Linux_Kernel_Repo>/drivers/net/wireless/nxp
+	b) Clone the WLAN source code from nxp-imx/mwifiex repo to the drivers/net/wireless/nxp directory in the kernel repo.
+		cd <Linux_Kernel_Repo>/drivers/net/wireless/nxp
+		git clone https://github.com/nxp-imx/mwifiex.git
+	c) Make sure the directories mlan/, mlinux/ as well as the files Makefile, Kconfig are present in drivers/net/wireless/nxp/mwifiex.
+	d) In <Linux_Kernel_Repo>/drivers/net/wireless/Kconfig, add the following line:
+		'source "drivers/net/wireless/nxp/mwifiex/Kconfig"'
+	e) In <Linux_Kernel_Repo>/drivers/net/wireless/Makefile, add the following line:
+		'obj-$(CONFIG_WLAN_VENDOR_NXP) += nxp/mwifiex/'
+	f) Run make defconfig or menuconfig to enable support for NXP WLAN devices:
+		Device Drivers > Network device support > Wireless LAN
+			[*]		"NXP WLAN devices"
+	g) To configure the driver as a module:
+			<M>		"NXP WLAN Driver"
+	   Or to configure the driver as inbuilt:
+			<*>		"NXP WLAN Driver"
+	h) Save. Verify the kernel .config file for CONFIG_WLAN_VENDOR_NXP and CONFIG_NXP_WLAN_DRIVER flags.
+	i) source <toolchain>
+	j) make
+
+	There is a high chance that the inbuilt NXP WLAN driver would be loaded before rootfs is mounted.
+	In such scenario, the firmware files can also be added to the linux kernel Image using the following steps:
+	a) mkdir -p <Linux_Kernel_Repo>/kernel/firmware/nxp
+	b) Copy FW files to <Linux_Kernel_Repo>/kernel/firmware/nxp/
+	c) In kernel .config, add 2 new config flags:
+		i) CONFIG_EXTRA_FIRMWARE="nxp/wifi_mod_para.conf nxp/pcieuartaw693_combo_v1.bin nxp/sduart_nw61x_v1.bin.se"
+		ii) CONFIG_EXTRA_FIRMWARE_DIR="kernel/firmware"
+	d) make
+
+	To pass module parameters to the inbuilt NXP WLAN driver, append the kernel bootargs with:
+		moal.<param>=<value>
+	For Example:
+		moal.mod_para=nxp/wifi_mod_para.conf moal.ps_mode=2 moal.drvdbg=0x37
+
+	To speed up driver loading, WLAN interface creation and reduce boot time, append the kernel bootargs with:
+		loglevel=2
+
+	Performance Comparison - WLAN Interface Creation Time (Example measurements):
+		Test Platform: iMX8MQ + PCIE AW693 on Linux 6.12.32 iMX BSP
+		a) WLAN drivers as loadable modules (rc.local/init script):       10 seconds
+		b) WLAN drivers as auto-load modules (modprobe.d/modules-load.d):  7 seconds
+		c) WLAN drivers built into kernel:                                 5 seconds
+		d) WLAN drivers built into kernel with loglevel=2:                 3 seconds
+	Note: Option 2 is the default configuration in iMX Linux BSP from kernel version 6.12.xx onwards.
+
+3) FOR DRIVER INSTALL
 
 	a) Copy firmware image to /lib/firmware/nxp/, copy wifi_mod_para.conf to /lib/firmware/nxp/.
 	b) Install WLAN driver
@@ -88,6 +135,7 @@
 	amsdu_deaggr=0|1 <buf copy in amsud deaggregation | avoid buf copy in amsud deaggregation (default)>
 	bootup_cal_ctrl=0|1 <disable boot time config default | enable boot time config>
 	ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
+	tcpackenh=0|1 <disable TCP ACK enhancement | enable TCP ACK enhancement (default)>
 	sched_scan=0|1 <disable sched_scan | enable sched_scan default>
 	max_tx_buf=2048|4096|8192 <maximum AMSDU Tx buffer size>
 	pm_keep_power=1|0 <PM keep power in suspend (default) | PM no power in suspend>
@@ -112,6 +160,16 @@
 		For AW693, it's recommended to use mod_para configuration file for antcfg as MAC1 supports 2x2 and MAC2 supports only 1x1.
 	For 8897/8997: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
 	For others: antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
+	  plinkstats=0|1|2 <Disable plinkstats (default) | Enable plinkstats | Restore plinkstats>
+	Example usage:
+		insmod moal.ko plinkstats=0            : Disable link statistics prints
+		insmod moal.ko plinkstats=1            : Enable link statistics prints
+		insmod moal.ko plinkstats=2            : Reset link statistics prints
+		insmod moal.ko plinkstats=1,0x7,5,0    : Enable Num TX Packets, Num RX Packets and Channel prints on dmesg.
+		insmod moal.ko plinkstats=1,0xf,5,1    : Enable Num TX Packets, Num RX Packets, Channel and Region prints on dmesg, and netlink event also enabled.
+	Note:
+		1. For more details about plinkstats parameters, refer plinkstats command details in README_MLAN file.
+		2. When changing drvdbg mask dynamically while running test, set MLSTATS bit(0x800) along with the change, if wifi logging feature is enabled.
 	slew_rate: Slew Rate Control value = 0|1|2|3 (0 is the slowest slew rate and 03 has the highest slew rate (default))
 	init_cfg=<init config (MAC addresses, registers etc.) file name>
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=nxp/init_cfg.conf
@@ -221,7 +279,7 @@
 	for module parameters.
 		insmod sdxxx.ko "<para1> <para2> ..."
 
-3) FOR DRIVER PROC & DEBUG
+4) FOR DRIVER PROC & DEBUG
 
 	The following info are provided in /proc/net/mwlan/adapterX/mlanY|uapY|wfdY/info,
 	on kernel 2.6.24 or later, the entry is /proc/mwlan/adapterX/mlanY|uapY|wfdY/info.
@@ -387,7 +445,7 @@
 	                                     will be printed to the console)
 	echo 15 > /proc/sys/kernel/printk   (all messages will be printed to console)
 
-4) FOR FW RELOAD
+5) FOR FW RELOAD
     a) Enable parallel firmware download in driver parameter
        insmod sdxxx.ko fw_serial=0
 
@@ -404,7 +462,7 @@
     (Note: This feature will be supported on IW416 and 8997.
            For 8987, it only work with the board which supports parallel fw download)
 
-5) FOR RF test mode commands:
+6) FOR RF test mode commands:
 
     Following commands are used to perform RF testing of the wifi chipset.
     Please not that these test mode commands can only be issued while the
@@ -579,7 +637,7 @@
     echo "trigger_frame=1 0 1 2 5484 0 256 0 0 0 1 0 0 0 1 60 1 0 65535 0 511 5 0 61 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
     echo "tx_frame=1 0x1102 0xabababab 200" >/proc/mwlan/adapter0/config
 
-6) Set host sleep parameters
+7) Set host sleep parameters
 
     hssetpara
 	This command is used to set host sleep parameters.
@@ -587,7 +645,7 @@
         echo "hssetpara=2 0xff 0xc8 3 400" > /proc/mwlan/adapter0/config
         echo "hssetpara=2 1 0xc8 3 400 " > /proc/mwlan/adapter0/config
 
-7) For Antenna Diversity Command
+8) For Antenna Diversity Command
 
     antcfg
         This command is used to set/get the mode of Tx/Rx path.

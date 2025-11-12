@@ -125,6 +125,9 @@ static int woal_associate_ssid_bssid(moal_private *priv, struct iwreq *wrq)
 			mac_idx++;
 		} else {
 			if (mac_idx < ETH_ALEN) {
+				/* Data inside buf is copied from user space and
+				 * its length is bounded and validated before
+				 * use */
 				// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 				ssid_bssid->bssid[mac_idx] =
 					(t_u8)woal_atox(buf + i);
@@ -285,7 +288,7 @@ static int woal_get_signal(moal_private *priv, struct iwreq *wrq)
 			ret = -EINVAL;
 			goto done;
 		}
-		/* Fall through */
+		fallthrough;
 	case 1: /* Check type range */
 		if (in_data[0] < 1 || in_data[0] > 3) {
 			ret = -EINVAL;
@@ -4086,7 +4089,8 @@ static int woal_set_get_ip_addr(moal_private *priv, struct iwreq *wrq)
 		misc->param.ipaddr_cfg.ip_addr_num = 1;
 		misc->param.ipaddr_cfg.ip_addr_type = IPADDR_TYPE_IPV4;
 	}
-
+	/* Data inside buf is copied from userspace and it's length is validated
+	 * before use */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	if (woal_atoi(&op_code, buf) != MLAN_STATUS_SUCCESS) {
 		ret = -EINVAL;
@@ -5087,19 +5091,19 @@ static int woal_do_sdio_mpa_ctrl(moal_private *priv, struct iwreq *wrq)
 	switch (data_length) {
 	case 6:
 		misc->param.mpa_ctrl.rx_max_ports = data[5];
-		/* fall through */
+		fallthrough;
 	case 5:
 		misc->param.mpa_ctrl.tx_max_ports = data[4];
-		/* fall through */
+		fallthrough;
 	case 4:
 		misc->param.mpa_ctrl.rx_buf_size = data[3];
-		/* fall through */
+		fallthrough;
 	case 3:
 		misc->param.mpa_ctrl.tx_buf_size = data[2];
-		/* fall through */
+		fallthrough;
 	case 2:
 		misc->param.mpa_ctrl.rx_enable = data[1];
-		/* fall through */
+		fallthrough;
 	case 1:
 		/* Set cmd */
 		req->action = MLAN_ACT_SET;

@@ -1473,6 +1473,10 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_CSI on STA\n");
 		wlan_process_csi_event(pmpriv);
 		break;
+	case EVENT_CSI_STATUS:
+		PRINTM(MEVENT, "EVENT: EVENT_CSI_STATUS on STA\n");
+		wlan_process_csi_status(pmpriv);
+		break;
 	case EVENT_MEF_HOST_WAKEUP:
 		PRINTM(MEVENT, "EVENT: EVENT_MEF_HOST_WAKEUP len=%d\n",
 		       pmbuf->data_len);

@@ -30,6 +30,9 @@ Change log:
 #ifndef _MLAN_MAIN_H_
 #define _MLAN_MAIN_H_
 
+#define PUBLIC_KEY_SIZE 64
+#define UUID_LEN 16
+
 #ifdef DEBUG_LEVEL1
 extern t_void (*print_callback)(t_pvoid pmoal_handle, t_u32 level,
 				char *pformat, IN...);
@@ -115,6 +118,7 @@ extern t_u32 mlan_drvdbg;
 			print_callback(MNULL, MIF_D, msg);                     \
 	} while (0)
 
+#ifdef DEBUG_LEVEL1
 #define PRINTM_MIOCTL(msg...)                                                  \
 	do {                                                                   \
 		if ((mlan_drvdbg & MIOCTL) && (print_callback))                \
@@ -130,10 +134,10 @@ extern t_u32 mlan_drvdbg;
 		if ((mlan_drvdbg & MEVENT) && (print_callback))                \
 			print_callback(MNULL, MEVENT, msg);                    \
 	} while (0)
-#define PRINTM_MCMND(msg...)                                                   \
+#define PRINTM_MCMND(msg, ...)                                                 \
 	do {                                                                   \
 		if ((mlan_drvdbg & MCMND) && (print_callback))                 \
-			print_callback(MNULL, MCMND, msg);                     \
+			print_callback(MNULL, MCMND, msg, ##__VA_ARGS__);      \
 	} while (0)
 #define PRINTM_MDATA(msg...)                                                   \
 	do {                                                                   \
@@ -155,7 +159,7 @@ extern t_u32 mlan_drvdbg;
 		if ((mlan_drvdbg & MMSG) && (print_callback))                  \
 			print_callback(MNULL, MMSG, msg);                      \
 	} while (0)
-
+#endif
 #define PRINTM_MSCH_D(msg...)                                                  \
 	do {                                                                   \
 		if ((mlan_drvdbg & MSCH_D) && (print_callback))                \
@@ -175,6 +179,16 @@ extern t_u32 mlan_drvdbg;
 				pmpriv->bss_index, level);                     \
 	} while (0)
 #endif /* __GNUC__ */
+
+#ifndef fallthrough
+#if defined(__GNUC__) && __GNUC__ >= 7
+#define fallthrough __attribute__((fallthrough))
+#elif defined(__clang__) && __clang_major__ >= 10
+#define fallthrough __attribute__((fallthrough))
+#else
+#define fallthrough /* fall through */
+#endif
+#endif
 
 /** Max hex dump data length */
 #define MAX_DATA_DUMP_LEN 64
@@ -2064,6 +2078,9 @@ typedef struct _mlan_init_para {
 	/** adma ring size */
 	t_u16 ring_size;
 #endif
+	/**  copy policy on RX and RX data path */
+	t_u8 copy_on_rx;
+	t_u8 copy_on_tx;
 	t_u8 ext_scan;
 	t_u8 mcs32;
 	/** antcfg */
@@ -2412,6 +2429,12 @@ typedef struct _mlan_pcie_card {
 	/** last tx_pkt_size  */
 	t_u32 last_tx_pkt_size[MLAN_MAX_TXRX_BD];
 
+	/** A list of mlan_buffer objects used for data tx */
+	mlan_buffer *tx_coherent_buf_list[MLAN_MAX_TXRX_BD];
+
+	/** A list of mlan_buffer objects used for data rx */
+	mlan_buffer *rx_coherent_buf_list[MLAN_MAX_TXRX_BD];
+
 } mlan_pcie_card, *pmlan_pcie_card;
 #endif
 
@@ -2714,6 +2737,8 @@ struct _mlan_adapter {
 	mlan_list_head ioctl_pending_q;
 	/** pending_ioctl flag */
 	t_u8 pending_ioctl;
+	/** pending clean */
+	t_u8 pending_clean;
 	pmlan_private pending_disconnect_priv;
 	/** mlan_processing */
 	t_u32 scan_processing;
@@ -3141,6 +3166,9 @@ struct _mlan_adapter {
 	/** agiled channel switch info */
 	agcs_stats agcs_info;
 #endif /* UAP_SUPPORT */
+	t_u8 key[PUBLIC_KEY_SIZE];
+	t_u8 uuid[UUID_LEN];
+	t_u32 fw_meta_data_len;
 };
 
 /** IPv4 ARP request header */
@@ -3227,10 +3255,10 @@ typedef MLAN_PACK_START struct {
 #define MLAN_IP_PROTOCOL_UDP (0x11)
 
 #define LLDE_FILTER_PKT_ALL 0
-#define LLDE_FILTER_PKT_ICMP_PING 1
-#define LLDE_FILTER_PKT_TCP_ACK 2
-#define LLDE_FILTER_PKT_TCP_DATA 4
-#define LLDE_FILTER_PKT_UDP 8
+#define LLDE_FILTER_PKT_ICMP_PING MBIT(0)
+#define LLDE_FILTER_PKT_TCP_ACK MBIT(1)
+#define LLDE_FILTER_PKT_TCP_DATA MBIT(2)
+#define LLDE_FILTER_PKT_UDP MBIT(3)
 #define MLAN_TCP_ACK_OFFSET 24
 #define MLAN_TCP_ACK_HEADER_LEN 52
 
@@ -3376,6 +3404,7 @@ mlan_status wlan_misc_csi(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req);
 mlan_status wlan_cmd_csi(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 			 t_u16 cmd_action, t_u16 *pdata_buf);
 mlan_status wlan_process_csi_event(pmlan_private pmpriv);
+mlan_status wlan_process_csi_status(pmlan_private pmpriv);
 
 mlan_status wlan_misc_hal_phy_cfg(pmlan_adapter pmadapter,
 				  pmlan_ioctl_req pioctl_req);
@@ -3863,6 +3892,10 @@ mlan_status wlan_ops_sta_init_cmd(t_void *priv, t_u8 first_bss);
 
 /** Flush the scan table */
 mlan_status wlan_flush_scan_table(pmlan_adapter pmadapter);
+
+/** Flush the scan table with band */
+mlan_status wlan_flush_scan_table_with_band(pmlan_adapter pmadapter,
+					    mlan_private *pmpriv, t_u32 band);
 
 /** Scan for networks */
 mlan_status wlan_scan_networks(mlan_private *pmpriv, t_void *pioctl_buf,
@@ -4685,6 +4718,15 @@ mlan_status wlan_cmd_get_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				 t_u16 cmd_action, t_void *pdata_buf);
 mlan_status wlan_ret_ch_load(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			     mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_cmd_get_foundry_type(pmlan_private pmpriv,
+				      HostCmd_DS_COMMAND *cmd,
+				      t_u16 cmd_action);
+mlan_status wlan_ret_foundry_type(pmlan_private pmpriv,
+				  HostCmd_DS_COMMAND *resp,
+				  mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_misc_ioctl_foundry_type(pmlan_adapter pmadapter,
+					 mlan_ioctl_req *pioctl_req);
 
 mlan_status wlan_misc_ioctl_get_tsf(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
@@ -5218,5 +5260,17 @@ void wlan_add_iPhone_entry(mlan_private *priv, t_u8 *mac);
 void wlan_delete_iPhone_entry(mlan_private *priv, t_u8 *mac);
 
 extern void print_chan_switch_block_event(t_u16 reason_code);
+
+mlan_status mlan_read_meta_data(mlan_adapter *pmadapter, pmlan_fw_image pmfw);
+
+static inline t_bool wlan_copy_on_tx_enabled(const mlan_adapter *adapter)
+{
+	return adapter->init_para.copy_on_tx;
+}
+
+static inline t_bool wlan_copy_on_rx_enabled(const mlan_adapter *adapter)
+{
+	return adapter->init_para.copy_on_rx;
+}
 
 #endif /* !_MLAN_MAIN_H_ */

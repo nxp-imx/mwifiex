@@ -26,6 +26,7 @@ Change log:
 ********************************************************/
 
 #include "mlan.h"
+#include "mlan_init.h"
 #ifdef STA_SUPPORT
 #include "mlan_join.h"
 #endif
@@ -128,6 +129,18 @@ t_u32 mlan_drvdbg = DEFAULT_DEBUG_MASK;
 #ifdef USB
 extern mlan_status wlan_get_usb_device(pmlan_adapter pmadapter);
 #endif
+
+static INLINE t_bool wlan_is_adma_supported(mlan_adapter *pmadapter)
+{
+	t_bool is_adma_supported = 0;
+#if defined(PCIE)
+	is_adma_supported = IS_PCIE(pmadapter->card_type) &&
+			    pmadapter->pcard_pcie->reg->use_adma;
+#endif
+
+	return is_adma_supported;
+}
+
 /********************************************************
 			Local Functions
 *******************************************************/
@@ -405,11 +418,19 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->init_para.tx_budget = pmdevice->tx_budget;
 		pmadapter->init_para.mclient_scheduling =
 			pmdevice->mclient_scheduling;
+
 		ret = wlan_get_pcie_device(pmadapter);
 		if (MLAN_STATUS_SUCCESS != ret) {
 			ret = MLAN_STATUS_FAILURE;
 			goto error;
 		}
+
+		pmadapter->init_para.copy_on_rx =
+			pmdevice->copy_on_rx &&
+			wlan_is_adma_supported(pmadapter);
+		pmadapter->init_para.copy_on_tx =
+			pmdevice->copy_on_tx &&
+			wlan_is_adma_supported(pmadapter);
 	}
 #endif
 
@@ -672,6 +693,129 @@ mlan_status mlan_unregister(t_void *padapter)
 }
 
 /**
+ *  @brief This function reads metadata support enabled firmware
+ *
+ *  @param padapter   A pointer mlan_adapter structure
+ *  @param pmfw       A pointer to firmware image
+ *
+ *  @return           MLAN_STATUS_SUCCESS - successful parse or if no meta data
+ *                    MLAN_STATUS_FAILURE - failure to parse metadata
+ */
+mlan_status mlan_read_meta_data(mlan_adapter *pmadapter, pmlan_fw_image pmfw)
+{
+	mlan_status ret = MLAN_STATUS_FAILURE;
+	t_u8 magic[META_MAGIC_LEN] = {0x6d, 0x65, 0x74, 0x61,
+				      0x6d, 0x61, 0x67, 0x63};
+	t_u32 len = 0, offset = 0;
+	const t_u8 *meta_payload = MNULL;
+	const FWMetaData *data;
+	const FWHeader *header;
+	t_u32 fw_data_crc;
+	t_u32 hdr_crc, local_data_crc;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+
+	if (pmfw->fw_len < (MIN_PAYLOAD_LEN + sizeof(FWHeader))) {
+		PRINTM(MERROR,
+		       "FW length too short (%d bytes) to parse meta data\n",
+		       pmfw->fw_len);
+		return ret;
+	}
+
+	/** check for metamagic in firmware */
+	if (memcmp(pmadapter, magic,
+		   (pmfw->pfw_buf + pmfw->fw_len) - META_MAGIC_OFFSET,
+		   META_MAGIC_LEN)) {
+			ret = MLAN_STATUS_SUCCESS;
+
+		LEAVE();
+		return ret;
+	}
+
+	/** read length */
+	memcpy_ext(pmadapter, &len,
+		   (pmfw->pfw_buf + pmfw->fw_len) - DATA_CRC_OFFSET -
+			   META_MAGIC_OFFSET,
+		   sizeof(len), sizeof(len));
+
+	if (len < MIN_PAYLOAD_LEN) {
+		PRINTM(MMSG, "Invalid meta data len 0x%x in fw image\n", len);
+		LEAVE();
+		return ret;
+	}
+
+	/** check if metadata starts with command 24 */
+	header = (const FWHeader *)((pmfw->pfw_buf + pmfw->fw_len) -
+				    (len + sizeof(FWHeader)));
+	if (wlan_le32_to_cpu(header->dnld_cmd) != FW_CMD_24) {
+		PRINTM(MERROR, "Invalid command id:0x%x\n", header->dnld_cmd);
+		LEAVE();
+		return ret;
+	}
+
+	memcpy_ext(pmadapter, &fw_data_crc,
+		   (pmfw->pfw_buf + pmfw->fw_len) - DATA_CRC_OFFSET,
+		   DATA_CRC_LEN, DATA_CRC_LEN);
+
+	meta_payload = (pmfw->pfw_buf + pmfw->fw_len) - len;
+
+	hdr_crc = pcb->moal_crc32_be(0, (const t_u8 *)header,
+				     sizeof(FWHeader) - 4);
+	local_data_crc = pcb->moal_crc32_be(0, meta_payload, len - 4);
+
+	/* compare header crc from firmware and locally generated header crc */
+	if (hdr_crc != header->crc) {
+		PRINTM(MERROR, "Invalid header crc\n");
+		LEAVE();
+		return ret;
+	}
+
+	/* compare data crc from firmware and locally generated data crc */
+	if (local_data_crc != fw_data_crc) {
+		PRINTM(MERROR, "Invalid data crc\n");
+		LEAVE();
+		return ret;
+	}
+
+	/* parse metadata for mandatory fields for Wi-Fi */
+	while (offset <= len) {
+		data = (const FWMetaData *)(meta_payload + offset);
+		if (data->flag == TLV_FLAG_WIFI) {
+			if (data->id == TLV_ID_UUID) {
+				offset += sizeof(FWMetaData);
+				memcpy_ext(
+					pmadapter, pmadapter->uuid,
+					(const t_u8 *)(meta_payload + offset),
+					TLV_ID_UUID_LEN, TLV_ID_UUID_LEN);
+				offset += data->len;
+			} else if (data->id == TLV_ID_PUBLIC_KEY) {
+				/**
+				 * Increment by "1" since public key prefixed
+				 * with 0x4 to indicate uncompressed public key
+				 * which forces firmware metadata to be padded
+				 * with "3" bytes for alignment.
+				 */
+				offset += sizeof(FWMetaData) + 1;
+				memcpy_ext(
+					pmadapter, pmadapter->key,
+					(const t_u8 *)(meta_payload + offset),
+					TLV_ID_PUBLIC_KEY_LEN,
+					TLV_ID_PUBLIC_KEY_LEN);
+				offset += data->len + 3;
+				pmadapter->fw_meta_data_len =
+					len + sizeof(FWHeader);
+				break;
+			}
+		} else {
+			offset += sizeof(FWMetaData) + data->len;
+			if (data->id == TLV_ID_PUBLIC_KEY)
+				offset += 3;
+		}
+	}
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function downloads the firmware
  *
  *  @param padapter   A pointer to a t_void pointer to store
@@ -690,6 +834,10 @@ mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
 
 	ENTER();
 	MASSERT(padapter);
+
+	if (!pmadapter->second_mac)
+		if (mlan_read_meta_data(pmadapter, pmfw) != MLAN_STATUS_SUCCESS)
+			return ret;
 
 	/* Download helper/firmware */
 	if (pmfw) {
@@ -1232,6 +1380,22 @@ static void mlan_refill_rx_ring(t_void *padapter)
 #endif
 
 /**
+ *  @brief clean up txrx
+ *
+ *  @param adapter	A pointer to mlan_adapter structure
+ *
+ *  @return		N/A
+ */
+static t_void wlan_free_txrx(pmlan_adapter pmadapter)
+{
+	t_u8 i;
+	for (i = 0; i < pmadapter->priv_num; i++) {
+		if (pmadapter->priv[i])
+			wlan_clean_txrx(pmadapter->priv[i]);
+	}
+}
+
+/**
  *  @brief The main process
  *
  *  @param padapter	A pointer to mlan_adapter structure
@@ -1280,6 +1444,12 @@ process_start:
 			wlan_reset_connect_state(
 				pmadapter->pending_disconnect_priv, MTRUE);
 			pmadapter->pending_disconnect_priv = MNULL;
+		}
+		if (pmadapter->pending_clean) {
+			PRINTM(MEVENT, "Cancel all pending cmd and txrx\n");
+			wlan_cancel_all_pending_cmd(pmadapter, MFALSE);
+			wlan_free_txrx(pmadapter);
+			pmadapter->pending_clean = MFALSE;
 		}
 #if defined(SDIO)
 		if (IS_SD(pmadapter->card_type)) {
@@ -1616,19 +1786,18 @@ static void mlan_check_llde_pkt_filter(mlan_adapter *pmadapter,
 	 * llde packet */
 	if (matched_filter) {
 		if ((pmadapter->llde_packet_type == LLDE_FILTER_PKT_ALL) ||
-		    ((pmadapter->llde_packet_type == LLDE_FILTER_PKT_UDP) &&
+		    ((pmadapter->llde_packet_type & LLDE_FILTER_PKT_UDP) &&
 		     (ip_protocol == MLAN_IP_PROTOCOL_UDP))) {
 			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
-		} else if (((pmadapter->llde_packet_type ==
-			     LLDE_FILTER_PKT_TCP_ACK) ||
-			    (pmadapter->llde_packet_type ==
+		} else if ((pmadapter->llde_packet_type &
+			    (LLDE_FILTER_PKT_TCP_ACK |
 			     LLDE_FILTER_PKT_TCP_DATA)) &&
 			   (ip_protocol == MLAN_IP_PROTOCOL_TCP)) {
 			/*TODO: identify TCP ACK and Data packets and set the
 			 * MLAN_BUF_FLAG_LLDE_PKT_FILTER flag accordingly */
 			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
 
-		} else if ((pmadapter->llde_packet_type ==
+		} else if ((pmadapter->llde_packet_type &
 			    LLDE_FILTER_PKT_ICMP_PING) &&
 			   (ip_protocol == MLAN_IP_PROTOCOL_ICMP)) {
 			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
@@ -1761,22 +1930,6 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 }
 
 /**
- *  @brief clean up txrx
- *
- *  @param adapter	A pointer to mlan_adapter structure
- *
- *  @return		N/A
- */
-static t_void wlan_free_txrx(pmlan_adapter pmadapter)
-{
-	t_u8 i;
-	for (i = 0; i < pmadapter->priv_num; i++) {
-		if (pmadapter->priv[i])
-			wlan_clean_txrx(pmadapter->priv[i]);
-	}
-}
-
-/**
  *  @brief MLAN ioctl handler
  *
  *  @param adapter	A pointer to mlan_adapter structure
@@ -1794,9 +1947,8 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 	ENTER();
 
 	if (pioctl_req == MNULL) {
-		PRINTM(MMSG, "Cancel all pending cmd and txrx queue\n");
-		wlan_cancel_all_pending_cmd(pmadapter, MFALSE);
-		wlan_free_txrx(pmadapter);
+		PRINTM(MMSG, "set pending clean\n");
+		pmadapter->pending_clean = MTRUE;
 		goto exit;
 	}
 	pmpriv = pmadapter->priv[pioctl_req->bss_index];

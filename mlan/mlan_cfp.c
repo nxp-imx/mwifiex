@@ -3801,6 +3801,7 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 	int k = 0, rows, cols;
 	t_u16 max_tx_pwr_bg = WLAN_TX_PWR_DEFAULT;
 	t_u16 max_tx_pwr_a = WLAN_TX_PWR_DEFAULT;
+	t_u8 ww_country_code[COUNTRY_CODE_LEN] = {'W', 'W', '\0'};
 	t_u8 *tlv_buf;
 	t_u8 *data;
 	t_u8 *tmp;
@@ -3911,13 +3912,17 @@ void wlan_add_fw_cfp_tables(pmlan_private pmpriv, t_u8 *buf, t_u16 buf_left)
 				       pmadapter->otp_region->country_code[1],
 				       pmadapter->country_code[0],
 				       pmadapter->country_code[1]);
-
-				/* FW code mismatch, replace with the driver
-				 * code */
-				pmadapter->otp_region->country_code[0] =
-					pmadapter->country_code[0];
-				pmadapter->otp_region->country_code[1] =
-					pmadapter->country_code[1];
+				if (memcmp(pmadapter,
+					   pmadapter->otp_region->country_code,
+					   ww_country_code,
+					   COUNTRY_CODE_LEN - 1)) {
+					/* FW code mismatch and not WW, replace
+					 * with the driver code */
+					pmadapter->otp_region->country_code[0] =
+						pmadapter->country_code[0];
+					pmadapter->otp_region->country_code[1] =
+						pmadapter->country_code[1];
+				}
 			}
 			pmadapter->country_code[2] = '\0';
 			pmadapter->domain_reg.country_code[0] =

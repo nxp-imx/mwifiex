@@ -1564,11 +1564,12 @@ reflective_enum_lookup_name(const struct reflective_enum_element *elements,
 {
 	const struct reflective_enum_element *elem = elements;
 
+	// The elements array is guaranteed to be NULL-terminated.
 	// coverity[overflow_sink:SUPPRESS]
 	while (elem->name && elem->id != id) {
 		elem++;
 	}
-
+	// The elements array is guaranteed to be NULL-terminated.
 	// coverity[overflow_sink:SUPPRESS]
 	return elem->name;
 }
