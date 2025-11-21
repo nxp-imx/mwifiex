@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2024 NXP
+#  Copyright 2008-2025 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -75,6 +75,8 @@ CONFIG_UAP_SUPPORT=y
 # Enable WIFIDIRECT support
 CONFIG_WIFI_DIRECT_SUPPORT=y
 
+# Enable WIFIDISPLAY support
+CONFIG_WIFI_DISPLAY_SUPPORT=n
 
 # Re-association in driver
 CONFIG_REASSOCIATION=y
@@ -89,6 +91,8 @@ CONFIG_OPENWRT_SUPPORT=n
 # Big-endian platform
 CONFIG_BIG_ENDIAN=n
 
+CONFIG_XDP_SUPPORT=n
+
 
 
 
@@ -102,11 +106,11 @@ CONFIG_DFS_TESTING_SUPPORT=y
 CONFIG_MULTI_CHAN_SUPPORT=y
 
 
-
+# Enable driver/FW dump to proc
 CONFIG_DUMP_TO_PROC=y
 
+# Enable tasklet support (PCIe only)
 CONFIG_TASKLET_SUPPORT=n
-
 
 
 #32bit app over 64bit kernel support
@@ -137,8 +141,15 @@ endif
 #############################################################################
 # Select Platform Tools
 #############################################################################
-
 ifeq ($(ANDROID_BUILD), 1)
+# Set target Android SDK version.
+# ANDROID_SDK_VERSION 29 corresponds to Android 10 Android 10
+# ANDROID_SDK_VERSION 30 corresponds to Android 11 (Red Velvet Cake)
+# ANDROID_SDK_VERSION 31 corresponds to Android 12 (Snow Cone)
+# ANDROID_SDK_VERSION 33 corresponds to Android 13 (Tiramisu)
+# ANDROID_SDK_VERSION 34 corresponds to Android 14 (Upside Down Cake)
+# ANDROID_SDK_VERSION 35 corresponds to Android 15 (Vanilla Ice Cream)
+# ANDROID_SDK_VERSION 36 corresponds to Android 16
     KERNEL_CFLAGS += -DANDROID
     PWD := $(shell pwd)
     KERNELDIR ?= $(KERNEL_SRC)
@@ -175,7 +186,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p33"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p34"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -214,6 +225,9 @@ endif
 
 ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
 	ccflags-y += -DWIFI_DIRECT_SUPPORT
+endif
+ifeq ($(CONFIG_WIFI_DISPLAY_SUPPORT),y)
+	ccflags-y += -DWIFI_DISPLAY_SUPPORT
 endif
 
 ifeq ($(CONFIG_MFG_CMD_SUPPORT),y)
@@ -308,17 +322,9 @@ ifeq ($(CONFIG_SD9177),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9177
 endif
-ifeq ($(CONFIG_SD8801),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8801
-endif
 ifeq ($(CONFIG_SD9098),y)
 	CONFIG_SDIO=y
 	ccflags-y += -DSD9098
-endif
-ifeq ($(CONFIG_USB8801),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB8801
 endif
 ifeq ($(CONFIG_USB8897),y)
 	CONFIG_MUSB=y
@@ -371,6 +377,10 @@ endif
 ifeq ($(CONFIG_PCIEAW693),y)
 	CONFIG_PCIE=y
 	ccflags-y += -DPCIEAW693
+	CONFIG_XDP_SUPPORT=y
+ifeq ($(ANDROID_BUILD), 1)
+	CONFIG_XDP_SUPPORT=n
+endif
 endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
@@ -508,6 +518,9 @@ endif
 endif
 endif
 
+ifeq ($(CONFIG_XDP_SUPPORT), y)
+	 ccflags-y += -DXDP_SUPPORT
+endif
 
 
 
@@ -583,6 +596,9 @@ ifdef CONFIG_PROC_FS
 MOALOBJS += mlinux/moal_proc.o
 MOALOBJS += mlinux/moal_debug.o
 endif
+
+
+
 
 ifeq ($(CONFIG_MAC80211_SUPPORT),y)
 MOALOBJS += mlinux/moal_mac80211.o

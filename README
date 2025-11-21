@@ -275,6 +275,8 @@
 		               this bit is only used with STA BSS
 		others      -- reserved
 
+	bandctrl=0|1 <Disable bandctrl mode (default) | Enable bandctrl mode>
+
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
 		insmod sdxxx.ko "<para1> <para2> ..."

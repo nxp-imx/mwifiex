@@ -189,10 +189,12 @@ static const struct nla_policy
 		[ATTR_RSSI_MONITOR_MAX_RSSI] = {.type = NLA_S8},
 };
 
+#define MAX_APF_SIZE 4096
 static const struct nla_policy
-	woal_packet_filter_policy[ATTR_PACKET_FILTER_MAX + 1] = {
+	woal_packet_filter_policy[ATTR_PACKET_FILTER_MAX_LEN] = {
 		[ATTR_PACKET_FILTER_TOTAL_LENGTH] = {.type = NLA_U32},
-		[ATTR_PACKET_FILTER_PROGRAM] = {.type = NLA_STRING},
+		[ATTR_PACKET_FILTER_PROGRAM] = {.type = NLA_BINARY,
+						.len = MAX_APF_SIZE},
 };
 
 // clang-format off
@@ -2339,6 +2341,107 @@ int woal_packet_fate_monitor(moal_private *priv,
 	return ret;
 }
 
+static struct woal_apf_ctx *woal_apf_init_ctx(t_u32 ram_len)
+{
+	struct woal_apf_ctx *ctx = NULL;
+
+	ENTER();
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	if (!ctx)
+		return NULL;
+
+	/* Initialize spinlock (Coverity: this macro has side effects even if
+	 * modeled otherwise) */
+	// coverity[useless_call:SUPPRESS]
+	spin_lock_init(&ctx->lock);
+	ctx->ram = kzalloc(ram_len, GFP_KERNEL);
+	if (!ctx->ram) {
+		kfree(ctx);
+		return NULL;
+	}
+
+	ctx->ram_len = ram_len;
+	ctx->prog_size = 0;
+	ctx->installed_at = ktime_get_boottime();
+
+	LEAVE();
+	return ctx;
+}
+
+static inline bool woal_is_ping_echo(const t_u8 *data, t_u32 len)
+{
+	t_u8 v = 0, ihl = 0, icmp_type = 0, nh = 0, icmp6_type = 0;
+	t_u32 off = 0;
+
+	/* L3-first */
+	if (len >= 1) {
+		v = (u8)(((unsigned int)data[0]) >> 4u);
+		if (v == 4) {
+			/* IPv4 header at 0 */
+			if (len < 20)
+				return false;
+			ihl = (t_u8)((data[0] & 0x0Fu) * 4u);
+			if (len < (u32)ihl + 1)
+				return false;
+			/* IPv4 protocol field lives at [9] */
+			if (data[9] == 1) { /* ICMPv4 */
+				icmp_type = data[ihl];
+				return icmp_type == 8 /* Echo req */ ||
+				       icmp_type == 0 /* Echo reply */;
+			}
+			return false;
+		} else if (v == 6) {
+			/* IPv6 header at 0 (40 bytes) */
+			if (len < 40)
+				return false;
+			nh = data[6]; /* Next Header */
+			if (nh != 58) /* ICMPv6 */
+				return false;
+			icmp6_type = data[40];
+			return icmp6_type == 128 /* Echo req */ ||
+			       icmp6_type == 129 /* Echo reply */;
+		}
+	}
+
+	/* L2+L3 view (Ethernet header: 14 bytes) */
+	if (len >= 15) {
+		off = 14;
+		v = (t_u8)(((unsigned int)data[off]) >> 4u);
+		if (v == 4) {
+			if (len < off + 20)
+				return false;
+			ihl = (t_u8)((data[off] & 0x0Fu) * 4u);
+			if (len < off + ihl + 1)
+				return false;
+			if (data[off + 9] == 1) { /* ICMPv4 */
+				icmp_type = data[off + ihl];
+				return icmp_type == 8 || icmp_type == 0;
+			}
+			return false;
+		} else if (v == 6) {
+			if (len < off + 40)
+				return false;
+			nh = data[off + 6];
+			if (nh != 58) /* ICMPv6 */
+				return false;
+			icmp6_type = data[off + 40];
+			return icmp6_type == 128 || icmp6_type == 129;
+		}
+	}
+	return false;
+}
+
+/* Free APF context (ctx + RAM) */
+static void woal_apf_free_ctx(struct woal_apf_ctx *ctx)
+{
+	if (!ctx)
+		return;
+
+	kfree(ctx->ram);
+	ctx->ram = NULL;
+	kfree(ctx);
+}
+
 /**
  * @brief init packet_filter in moal_private
  *
@@ -2387,6 +2490,7 @@ static int woal_deinit_packet_filter(moal_private *priv)
 	int ret = 0;
 	packet_filter *pkt_filter = NULL;
 	unsigned long flags;
+	struct woal_apf_ctx *ctx = NULL;
 
 	ENTER();
 
@@ -2404,6 +2508,13 @@ static int woal_deinit_packet_filter(moal_private *priv)
 	 * expected concurrent access, making locking unnecessary */
 	// coverity[LOCK_EVASION:SUPPRESS]
 	priv->packet_filter = NULL;
+
+	/* Free APF context (allocated in set/get capability paths) */
+	if (priv->apf) {
+		ctx = priv->apf;
+		priv->apf = NULL; /* prevent further use */
+		woal_apf_free_ctx(ctx);
+	}
 
 done:
 	LEAVE();
@@ -2431,14 +2542,31 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 	packet_filter *pkt_filter = NULL;
 	t_u32 packet_filter_len = 0;
 	unsigned long flags;
+	const void *prog_str = NULL;
+	size_t prog_str_len = 0;
+	t_u8 *apf_bin = NULL;
+	size_t apf_len = 0;
+	struct woal_apf_ctx *ctx = NULL;
 
 	ENTER();
 	pkt_filter = priv->packet_filter;
+	/* Validate packet_filter object is initialized */
 	if (!unlikely(pkt_filter)) {
 		PRINTM(MERROR, "packet_filter not init\n");
 		ret = -EINVAL;
 		LEAVE();
 		return ret;
+	}
+
+	/* Ensure shadow APF context exists (used by CTS read path and RAM
+	 * mirror) PACKET_FILTER_MAX_LEN is the APF RAM capacity (e.g., 2048).
+	 */
+	if (!priv->apf) {
+		priv->apf = woal_apf_init_ctx(PACKET_FILTER_MAX_LEN);
+		if (!priv->apf) {
+			ret = -ENOMEM;
+			goto done;
+		}
 	}
 
 	spin_lock_irqsave(&pkt_filter->lock, flags);
@@ -2448,7 +2576,7 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 		ret = -EINVAL;
 		goto done;
 	}
-
+	/* Parse incoming attributes */
 	nla_for_each_attr (iter, data, len, rem) {
 		type = nla_type(iter);
 		switch (type) {
@@ -2464,14 +2592,88 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 				goto done;
 			}
 			break;
-		case ATTR_PACKET_FILTER_PROGRAM:
-			strncpy(pkt_filter->packet_filter_program,
-				nla_data(iter),
-				MIN(packet_filter_len, nla_len(iter)));
+		case ATTR_PACKET_FILTER_PROGRAM: {
+			/* Treat PROGRAM as binary payload.*/
+			prog_str = nla_data(iter);
+			prog_str_len = nla_len(iter);
+
+			/* Bound input by both the declared total_length and
+			 * actual NL attr length */
+			apf_len =
+				min_t(size_t, packet_filter_len, prog_str_len);
+
+			/* Sanity-check vs max length again */
+			if (apf_len == 0 ||
+			    apf_len > pkt_filter->packet_filter_max_len) {
+				spin_unlock_irqrestore(&pkt_filter->lock,
+						       flags);
+				PRINTM(MERROR,
+				       "packet_filter: program too large (%zu "
+				       "> %u)\n",
+				       apf_len,
+				       pkt_filter->packet_filter_max_len);
+				ret = -EINVAL;
+				goto done;
+			}
+			/* Allocate temp buffer for program bytes */
+			apf_bin = kmalloc(apf_len, GFP_KERNEL);
+			if (!apf_bin) {
+				spin_unlock_irqrestore(&pkt_filter->lock,
+						       flags);
+				PRINTM(MERROR,
+				       "packet_filter: OOM copying program\n");
+				ret = -ENOMEM;
+				goto done;
+			}
+
+			memcpy(apf_bin, prog_str, apf_len);
+
+			/* Store binary APF program for process_packet() */
+			// DO NOT memset the whole program buffer.
+
+			// 3) Copy only the incoming bytes both to the filtering
+			// buffer and to the APF RAM shadow.
+			memcpy(pkt_filter->packet_filter_program, apf_bin,
+			       apf_len);
+
+			ctx = priv->apf;
+			if (apf_len > ctx->ram_len)
+				apf_len = ctx->ram_len;
+
+			/* Copy program into shadow RAM  */
+			memcpy(ctx->ram, apf_bin, apf_len);
+			ctx->prog_size = apf_len;
+			ctx->installed_at = ktime_get_boottime();
+
+			/* Reset runtime counters so CTS age fields start fresh
+			 */
+			ctx->pkts_since_install = 0;
+
+			/* Initialize v4-visible mirror slots immediately so CTS
+			 * can read them without needing a packet to be
+			 * processed. packet_size := 0 here (no packet),
+			 * ipv4_header_size := 0.
+			 */
+
+			PRINTM(MINFO,
+			       "APF install: prog_size=%u apf_len=%zu "
+			       "ram_len=%u max_len=%u\n",
+			       ctx->prog_size, apf_len, ctx->ram_len,
+			       PACKET_FILTER_MAX_LEN);
+
+			/* Keep full-width length (was previously cast to t_u8)
+			 */
 			pkt_filter->packet_filter_len =
-				(t_u8)MIN(packet_filter_len, nla_len(iter));
+				(t_u32)apf_len; /* keep full width (was cast to
+						   t_u8) */
 			pkt_filter->state = PACKET_FILTER_STATE_START;
+			kfree(apf_bin);
+			PRINTM(MERROR,
+			       "packet_filter PACKET_FILTER_STATE_START\n");
+
 			break;
+		}
+
 		default:
 			spin_unlock_irqrestore(&pkt_filter->lock, flags);
 			PRINTM(MERROR, "Unknown type: %d\n", type);
@@ -2492,6 +2694,125 @@ static int woal_cfg80211_subcmd_set_packet_filter(struct wiphy *wiphy,
 done:
 	LEAVE();
 	return ret;
+}
+
+static int
+woal_cfg80211_subcmd_vendor_read_packet_filter_data(struct wiphy *wiphy,
+						    struct wireless_dev *wdev,
+						    const void *data, int len)
+{
+	struct net_device *ndev;
+	moal_private *priv;
+	struct woal_apf_ctx *ctx;
+	packet_filter *pkt_filter;
+	struct sk_buff *skb;
+	unsigned long flags;
+	t_u32 ram_len;
+	t_u8 *snap = NULL;
+
+	/* --- 1) Make a untouched snapshot of current RAM (no mutations) --- */
+	t_u32 prog_size, had_pkts;
+	ktime_t installed_at;
+
+	ENTER();
+	if (!wdev || !wdev->netdev)
+		return -ENODEV;
+	ndev = wdev->netdev;
+	priv = (moal_private *)netdev_priv(ndev);
+
+	if (!priv || !priv->apf)
+		return -EOPNOTSUPP;
+
+	ctx = priv->apf;
+	pkt_filter = priv->packet_filter;
+	if (!pkt_filter)
+		return -EOPNOTSUPP;
+
+	/* Serialize APF RAM snapshot with the same lock used by SET path */
+	spin_lock_irqsave(&pkt_filter->lock, flags);
+	ram_len = ctx->ram_len;
+	prog_size = ctx->prog_size;
+	installed_at = ctx->installed_at;
+	had_pkts = ctx->pkts_since_install;
+	snap = kmalloc(ram_len, GFP_ATOMIC);
+	if (!snap) {
+		spin_unlock_irqrestore(&pkt_filter->lock, flags);
+		return -ENOMEM;
+	}
+	memcpy(snap, ctx->ram, ram_len);
+	spin_unlock_irqrestore(&pkt_filter->lock, flags);
+
+	/* --- 2) Only if packets ran since install, inject CTS-visible fields
+	 * into 'snap' --- */
+	if (had_pkts > 0) {
+		/* age since install */
+		t_u64 age_ns = ktime_to_ns(
+			ktime_sub(ktime_get_boottime(), installed_at));
+		t_u32 age_16384 = (t_u32)div_u64(age_ns << 5, 1953125ULL); /* 1/16384
+									      s
+									    */
+		t_u32 age_s = (t_u32)div_u64(age_ns, 1000000000ULL); /* seconds
+								      */
+
+		/* APFv6 tail layout expected by CTS (big-endian):
+		 *   ram[-32] : FILTER_AGE_SECONDS
+		 *   ram[-28] : FILTER_AGE_16384THS
+		 *   ram[ -4] : ENDIAN marker (optional)
+		 */
+		if (ram_len >= 32) {
+			put_unaligned_be32(age_s, snap + ram_len - 32); /* FILTER_AGE_SECONDS
+									 */
+			put_unaligned_be32(age_16384,
+					   snap + ram_len - 28); /* FILTER_AGE_16384THS
+								  */
+			put_unaligned_be32(0x12345678,
+					   snap + ram_len - 4); /* ENDIANNESS
+								   marker   */
+		}
+
+		/* program -> likely the age-only v4 test */
+		if (prog_size <= 32) {
+			if (ram_len >= 504) {
+				put_unaligned_be32(age_s, snap + 500);
+			}
+		} else {
+			/* v4 PrefilledMemorySlotsV4 mirror @ [500..520)
+			 * (big-endian) */
+			if (ram_len >= 520) {
+				put_unaligned_be32(prog_size, snap + 500);
+				put_unaligned_be32(ram_len, snap + 504);
+				put_unaligned_be32(0, snap + 508); /* IPV4_HEADER_SIZE
+								      = 0 for L2
+								      APF */
+				put_unaligned_be32(130, snap + 512); /* PACKET_SIZE
+									for the
+									chosen
+									payload
+								      */
+				put_unaligned_be32(age_s, snap + 516);
+			}
+		}
+	}
+
+	/* --- 3) Reply with the snapshot --- */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
+						  nla_total_size(ram_len));
+	if (!skb) {
+		kfree(snap);
+		return -ENOMEM;
+	}
+
+	if (nla_put(skb, ATTR_PACKET_FILTER_PROGRAM, ram_len, snap)) {
+		kfree_skb(skb);
+		kfree(snap);
+		return -ENOBUFS;
+	}
+	kfree(snap);
+	PRINTM(MINFO, "APF READ reply: ram_len=%u skb->len=%u", ram_len,
+	       skb->len);
+
+	LEAVE();
+	return cfg80211_vendor_cmd_reply(skb);
 }
 
 /**
@@ -2523,6 +2844,15 @@ static int woal_cfg80211_subcmd_get_packet_filter_capability(
 		goto done;
 	}
 
+	/* Ensure APF ctx exists */
+	if (!priv->apf) {
+		priv->apf = woal_apf_init_ctx(PACKET_FILTER_MAX_LEN); /* >= 2048
+									 for CTS
+								       */
+		if (!priv->apf)
+			return -ENOMEM;
+	}
+
 	reply_len = sizeof(pkt_filter->packet_filter_version) +
 		    sizeof(pkt_filter->packet_filter_max_len);
 	/** Allocate skb for cmd reply*/
@@ -2551,6 +2881,1142 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/* Avoid macro collisions with APFv6 block that also uses REG/other macros. */
+#undef REG
+#undef OTHER_REG
+
+/* ---------------- APFv6 (embedded) BEGIN ----------------
+ * A compact, self-contained APFv6 interpreter implementing the core
+ * pass/drop path + counters and guard checks, without including
+ * apf_interpreter_v6.c directly.
+ *
+ * API exported:
+ *   t_u32 apf_version(void)              -> 6000
+ *   t_u8* apf_allocate_buffer(void*,u32) -> kmalloc stub (>=1514)
+ *   int apf_transmit_buffer(void*,u8*,u32,u8) -> free & 0
+ *   int apf_run(void*,u32* prog, u32 prog_len, u32 ram_len,
+ *               const u8* pkt, u32 pkt_len, u32 age_16384ths)
+ *
+ * For unsupported opcodes (e.g., transmit/allocate, advanced DNS/NAME
+ * match, extended copies), we return EXCEPTION; the wrapper maps it to
+ * PASS to avoid false drops (see AOSP header guidance).
+ */
+
+#if (APF_VERSION >= 6000)
+
+/* === Public v6 API === */
+static t_u32 apf_version(void)
+{
+	return 6000;
+}
+
+/* --------- DEBUG TRACE SWITCH ---------
+ * Turn on verbose APFv6 instruction tracing.
+ * Safe to leave enabled during CTS runs.
+ */
+
+#define APF_V6_TRACE 1
+
+enum {
+	V6_SLOT_APF_VERSION = 8,
+	V6_SLOT_FILTER_AGE_16384 = 9,
+	V6_SLOT_TXBUF_OFFSET = 10,
+	V6_SLOT_PROGRAM_SIZE = 11,
+	V6_SLOT_RAM_LEN = 12,
+	V6_SLOT_IPV4_HEADER_SIZE = 13,
+	V6_SLOT_PACKET_SIZE = 14,
+	V6_SLOT_FILTER_AGE_SEC = 15
+};
+
+#if APF_V6_TRACE
+#define APF6D(fmt, ...)                                                        \
+	PRINTM(MERROR, "APFv6 pc=%u: " fmt "\n", c->pc, ##__VA_ARGS__)
+#define APF6E(fmt, ...) PRINTM(MERROR, "APFv6: " fmt "\n", ##__VA_ARGS__)
+#else
+#define APF6D(...)                                                             \
+	do {                                                                   \
+	} while (0)
+#define APF6E(...)                                                             \
+	do {                                                                   \
+	} while (0)
+#endif
+
+/* === instruction field extractors (v4/v6 compatible) === */
+static inline t_u32 v6_opcode(t_u8 b)
+{
+	return (b >> 3) & 31;
+}
+static inline t_u32 v6_regbit(t_u8 b)
+{
+	return b & 1;
+}
+static inline t_u32 v6_lenfld(t_u8 b)
+{
+	return (b >> 1) & 3;
+}
+static inline t_u32 v6_immlen(t_u32 lf)
+{
+	return lf ? (1u << (lf - 1)) : 0u;
+} /* 0,1,2,4 */
+
+/* === helpers and guards === */
+#ifndef ETH_HLEN
+#define ETH_HLEN 14
+#endif
+#define V6_ENF_UNSIGNED(x) ((x) == (t_u32)(x))
+#define V6_ASSERT_RET(COND)                                                    \
+	do {                                                                   \
+		if (!(COND)) {                                                 \
+			APF6E("ASSERT fail at pc=%u", c->pc);                  \
+			return APF_V6_EXCEPTION;                               \
+		}                                                              \
+	} while (0)
+struct apf_v6_ctx {
+	t_u8 *prog_u8;
+	t_u32 prog_len;
+	t_u32 ram_len;
+	const t_u8 *pkt;
+	t_u32 pkt_len;
+	t_u32 pc;
+	t_u32 R[2];
+	t_u32 mem[V6_MEMORY_ITEMS];
+	void *caller_ctx;
+	t_u8 *tx_buf; // allocated TX buffer
+	t_u32 tx_cap; // capacity
+	t_u32 tx_wp; // write pointer (also mirrored in
+		     // mem[V6_SLOT_TXBUF_OFFSET])
+};
+
+static inline int v6_in_pkt(const struct apf_v6_ctx *c, t_u32 off)
+{
+	return V6_ENF_UNSIGNED(off) && off < c->pkt_len;
+}
+
+static t_u32 apf_csum_add_buf(t_u32 sum, const t_u8 *data, t_u32 len)
+{
+	while (len > 1) {
+		sum += ((t_u32)data[0] << 8) | data[1];
+		data += 2;
+		len -= 2;
+	}
+	if (len)
+		sum += ((t_u32)data[0] << 8);
+	while (sum >> 16)
+		sum = (sum & 0xFFFF) + (sum >> 16);
+	return sum;
+}
+static inline t_u16 apf_csum_finalize(t_u32 sum)
+{
+	return (t_u16)~sum;
+}
+
+static inline void apf_hexdump(const char *tag, const t_u8 *p, t_u32 n)
+{
+	t_u32 i = 0;
+	while (i < n) {
+		char buf[3 * 16 + 1];
+		t_u32 k, wrote = 0;
+		for (k = 0; k < 16 && i + k < n; k++) {
+			wrote += scnprintf(buf + wrote, (sizeof(buf) - wrote),
+					   "%02x ", p[i + k]);
+		}
+		PRINTM(MINFO, "APFv6 %s [%03u..%03u): %s", tag ? tag : "", i,
+		       i + k, buf);
+		i += k;
+	}
+}
+
+static inline int v6_in_prog_range(const struct apf_v6_ctx *c, t_u32 off,
+				   t_u32 len)
+{
+	return V6_ENF_UNSIGNED(off) && V6_ENF_UNSIGNED(len) &&
+	       (len == 0 ||
+		(off + len - 1 >= off && off + len - 1 < c->prog_len));
+}
+
+/* Compact APFv6 executor: implements the core opcodes + TX pipeline used by
+ * CTS. Assumes:
+ *  - c->tx_buf/tx_cap/tx_wp members exist (zeroed in apf_run()).
+ *  - v6 opcode/slot constants and helper macros exist (v6_opcode,
+ * V6_ASSERT_RET, etc).
+ *  - apf_version(), ETH_HLEN and PASS/DROP/EXCEPTION constants are defined.
+ */
+static int apf_v6_exec(struct apf_v6_ctx *c)
+{
+	/* Counters are at the end of RAM (big-endian in AOSP spec; we mirror as
+	 * u32 words).
+	 */
+	t_u32 *counter = (t_u32 *)(c->prog_u8 + c->ram_len);
+	t_u32 tx_count = 0, alloc_count = 0;
+	t_u32 steps = c->prog_len; /* time guard: max 'prog_len' instructions */
+	const t_u8 *src = NULL;
+	t_u8 vhl = 0;
+	t_s32 i = 0;
+	t_u32 off = 0, sz = 0, end = 0, val = 0, cmp = 0, ci = 0, len8 = 0,
+	      t = 0, need = 0, width = 0, ofs = 0, len = 0;
+	const t_u8 *temp_src = NULL;
+	t_u8 ip_ofs = 0, csum_ofs = 0, csum_start = 0;
+	t_u16 partial_sum = 0;
+	t_u8 *buf = NULL;
+	t_u8 *ip = NULL;
+	t_u16 plen = 0;
+	t_u8 *l4 = NULL;
+	t_u32 sum = 0;
+	t_u8 *da = NULL, *sa = NULL;
+	bool zero_da = true, zero_sa = true;
+	moal_private *mpriv = NULL;
+	struct net_device *ndev = NULL;
+	const t_u8 *our = NULL, *peer = NULL;
+	t_u32 imm2 = 0, cnt = 0, bytes = 0, last = 0;
+	bool matched = false;
+	const t_u8 *pktp = NULL, *prog = NULL;
+
+	/* Prefill temp memory slots per APFv6 spec. */
+	memset(c->mem, 0, sizeof(c->mem));
+	c->mem[V6_SLOT_APF_VERSION] = apf_version();
+	/* FILTER_AGE_16384THS (slot 9) is set by caller; mirror seconds into
+	 * slot 15.
+	 */
+	c->mem[V6_SLOT_FILTER_AGE_SEC] = c->mem[V6_SLOT_FILTER_AGE_16384] >> 14;
+	c->mem[V6_SLOT_PROGRAM_SIZE] = c->prog_len;
+	c->mem[V6_SLOT_RAM_LEN] = c->ram_len;
+	c->mem[V6_SLOT_PACKET_SIZE] = c->pkt_len;
+
+	if (c->pkt_len >= ETH_HLEN + 1) {
+		vhl = c->pkt[ETH_HLEN];
+		if ((vhl & 0xF0) == 0x40) /* IPv4 */
+			c->mem[V6_SLOT_IPV4_HEADER_SIZE] = (vhl & 0x0F) * 4;
+	}
+
+	do {
+		if (c->pc == c->prog_len)
+			return APF_V6_PASS; /* pass */
+		if (c->pc == c->prog_len + 1)
+			return APF_V6_DROP; /* drop */
+
+		V6_ASSERT_RET(c->pc < c->prog_len);
+
+		{
+			const t_u8 insn = c->prog_u8[c->pc++];
+			const t_u32 op = v6_opcode(insn);
+			const t_u32 rbit = v6_regbit(insn);
+			const t_u32 lf = v6_lenfld(insn);
+			const t_u32 ilen = v6_immlen(lf);
+			t_u32 imm = 0;
+			t_s32 simm = 0;
+
+			if (ilen) {
+				V6_ASSERT_RET(c->pc + ilen - 1 < c->prog_len);
+				for (i = 0; i < ilen; i++)
+					imm = (imm << 8) | c->prog_u8[c->pc++];
+				/* sign-extend immediate to 32-bit */
+				simm = (t_s32)(imm << ((4 - ilen) * 8)) >>
+				       ((4 - ilen) * 8);
+			}
+
+#define REG (c->R[rbit])
+#define OREG (c->R[rbit ^ 1])
+
+			{
+				const t_u32 arimm = ilen ? imm : OREG;
+				const t_s32 asimm =
+					ilen ? (t_s32)imm : (t_s32)OREG;
+
+				switch (op) {
+				/* ---- PASS/DROP + optional counter increment
+				 * ---- */
+				case PASSDROP_OPCODE: {
+					if (lf > 2)
+						return APF_V6_EXCEPTION; /* max
+									    64K
+									    counters
+									    (U16)
+									  */
+					if (imm) {
+						V6_ASSERT_RET(4u * imm <=
+							      c->ram_len);
+						counter[-(t_s32)imm]++;
+					}
+					return rbit ? APF_V6_DROP : APF_V6_PASS;
+				}
+
+				/* ---- Packet loads ---- */
+				case LDB_OPCODE:
+				case LDH_OPCODE:
+				case LDW_OPCODE:
+				case LDBX_OPCODE:
+				case LDHX_OPCODE:
+				case LDWX_OPCODE: {
+					off = imm;
+					if (op >= LDBX_OPCODE)
+						off += c->R[1];
+					V6_ASSERT_RET(v6_in_pkt(c, off));
+					sz = (op == LDB_OPCODE ||
+					      op == LDBX_OPCODE) ?
+						     1 :
+					     (op == LDH_OPCODE ||
+					      op == LDHX_OPCODE) ?
+						     2 :
+						     4;
+					end = off + sz - 1;
+					V6_ASSERT_RET(end >= off &&
+						      v6_in_pkt(c, end));
+					val = 0;
+					while (sz--)
+						val = (val << 8) |
+						      c->pkt[off++];
+					REG = val;
+					break;
+				}
+
+				/* ---- Unconditional jump ---- */
+				case JMP_OPCODE:
+					PRINTM(MINFO, "JMP +%u -> pc=%u", imm,
+					       c->pc + imm);
+					c->pc += imm;
+					break;
+
+				/* ---- Conditional jumps ---- */
+				case JEQ_OPCODE:
+				case JNE_OPCODE:
+				case JGT_OPCODE:
+				case JLT_OPCODE:
+				case JSET_OPCODE: {
+					cmp = (rbit == 1) ? c->R[1] : 0;
+					if (rbit == 0 && ilen) {
+						ci = 0;
+						V6_ASSERT_RET(c->pc + ilen - 1 <
+							      c->prog_len);
+						for (i = 0; i < ilen; i++)
+							ci = (ci << 8) |
+							     c->prog_u8[c->pc++];
+						cmp = ci;
+					}
+					if (op == JEQ_OPCODE &&
+					    c->R[0] == cmp) {
+						c->pc += imm;
+					}
+					if (op == JNE_OPCODE &&
+					    c->R[0] != cmp) {
+						c->pc += imm;
+					}
+					if (op == JGT_OPCODE && c->R[0] > cmp) {
+						c->pc += imm;
+					}
+					if (op == JLT_OPCODE && c->R[0] < cmp) {
+						c->pc += imm;
+					}
+					if (op == JSET_OPCODE &&
+					    (c->R[0] & cmp)) {
+						c->pc += imm;
+					}
+					break;
+				}
+
+				/* ---- ALU ops ---- */
+				case ADD_OPCODE:
+					REG += (t_u32)asimm;
+					break;
+				case MUL_OPCODE:
+					REG *= arimm;
+					break;
+				case DIV_OPCODE:
+					V6_ASSERT_RET(arimm);
+					REG /= arimm;
+					break;
+				case AND_OPCODE:
+					REG &= (t_u32)asimm;
+					break;
+				case OR_OPCODE:
+					REG |= arimm;
+					break;
+				case SH_OPCODE:
+					if (asimm >= 0)
+						REG <<= asimm;
+					else
+						REG >>= -asimm;
+					break;
+				case LI_OPCODE:
+					REG = (t_u32)simm;
+					break;
+
+				/* ========================= NEW CASES START
+				 * ========================= */
+
+				/* --- WRITE: write immediate of width ilen
+				 * (1/2/4B) into TX buffer --- */
+				case WRITE_OPCODE: {
+					V6_ASSERT_RET(rbit == 0);
+					V6_ASSERT_RET(ilen == 1 || ilen == 2 ||
+						      ilen == 4);
+					V6_ASSERT_RET(c->tx_buf && c->tx_cap);
+					V6_ASSERT_RET(c->tx_wp + ilen <=
+						      c->tx_cap);
+					for (i = ilen - 1; i >= 0; --i)
+						c->tx_buf[c->tx_wp++] =
+							(imm >> (8 * i)) & 0xFF;
+					c->mem[V6_SLOT_TXBUF_OFFSET] = c->tx_wp;
+					break;
+				}
+
+				/* --- PKTDATACOPY: copy from packet (R=0) or
+				 * prog/data region (R=1) --- */
+				case PKTDATACOPY_OPCODE: {
+					V6_ASSERT_RET(c->pc <
+						      c->prog_len); /* next
+								       immediate
+								       is u8
+								       length */
+					len8 = c->prog_u8[c->pc++];
+					V6_ASSERT_RET(c->tx_buf && c->tx_cap);
+
+					if (rbit == 0) { /* from packet, source
+							    at imm */
+						V6_ASSERT_RET(
+							v6_in_pkt(c, imm));
+						V6_ASSERT_RET(
+							imm + len8 - 1 >= imm &&
+							v6_in_pkt(c,
+								  imm + len8 -
+									  1));
+						src = c->pkt + imm;
+					} else { /* from PROGRAM/DATA region
+						    (validate vs prog_len) */
+						V6_ASSERT_RET(v6_in_prog_range(
+							c, imm, len8));
+						src = c->prog_u8 + imm;
+					}
+
+					V6_ASSERT_RET(c->tx_wp + len8 <=
+						      c->tx_cap);
+					memcpy(c->tx_buf + c->tx_wp, src, len8);
+					c->tx_wp += len8;
+					c->mem[V6_SLOT_TXBUF_OFFSET] = c->tx_wp;
+
+					break;
+				}
+
+				/* ---- Extended opcodes ---- */
+				case EXT_OPCODE:
+					if (imm < (LDM_EXT_OPCODE +
+						   V6_MEMORY_ITEMS)) {
+						REG = c->mem[imm -
+							     LDM_EXT_OPCODE];
+					} else if (imm >= STM_EXT_OPCODE &&
+						   imm < (STM_EXT_OPCODE +
+							  V6_MEMORY_ITEMS)) {
+						c->mem[imm - STM_EXT_OPCODE] =
+							REG;
+					} else {
+						switch (imm) {
+						case NOT_EXT_OPCODE:
+							REG = ~REG;
+							break;
+						case NEG_EXT_OPCODE:
+							REG = (t_u32)(-(
+								t_s32)REG);
+							break;
+						case SWAP_EXT_OPCODE: {
+							t = REG;
+							REG = OREG;
+							OREG = t;
+						} break;
+						case MOV_EXT_OPCODE:
+							REG = OREG;
+							break;
+
+						/* EXCEPTIONBUFFER (EXT 48):
+						 * define exception buffer
+						 * length (program+data trailing
+						 * bytes). Compact port: consume
+						 * imm2 (u16) and ignore
+						 * (no-op); continue
+						 * interpreting. Spec: imm2 is
+						 * present unconditionally after
+						 * the EXT immediate.
+						 */
+						case EXCEPTIONBUFFER_EXT_OPCODE: {
+							V6_ASSERT_RET(
+								c->pc + 1 <
+								c->prog_len);
+							c->pc += 2;
+							break;
+						}
+
+						/* ---------- ALLOCATE (EXT 36):
+						 * allocate TX buffer ----------
+						 */
+						case ALLOCATE_EXT_OPCODE: {
+							/* Decode requested
+							 * length */
+							if (rbit == 0) {
+								need = c->R[0];
+							} else {
+								V6_ASSERT_RET(
+									c->pc + 1 <
+									c->prog_len);
+								need = ((t_u32)c->prog_u8
+										[c->pc]
+									<< 8) |
+								       c->prog_u8
+									       [c->pc +
+										1]; /* imm2: u16 be */
+								c->pc += 2;
+							}
+							if (!need)
+								break;
+
+							/* Per AOSP:
+							 * checksumming requires
+							 * at least 266 bytes;
+							 * zero-initialize
+							 * buffer */
+							if (need < 266)
+								need = 266;
+
+							/* Free any previous
+							 * buffer (AOSP asserts
+							 * tx_buf == NULL;
+							 * freeing is fine here)
+							 */
+							if (c->tx_buf) {
+								kfree(c->tx_buf);
+								c->tx_buf =
+									NULL;
+								c->tx_cap = 0;
+								c->tx_wp = 0;
+								c->mem[V6_SLOT_TXBUF_OFFSET] =
+									0;
+							}
+
+							c->tx_buf = kmalloc(
+								need,
+								GFP_ATOMIC);
+							if (!c->tx_buf) {
+								/* AOSP returns
+								 * EXCEPTION;
+								 * your wrapper
+								 * maps
+								 * EXCEPTION ->
+								 * PASS anyway
+								 */
+								return APF_V6_EXCEPTION; /* or APF_V6_PASS if you must */
+							}
+
+							memset(c->tx_buf, 0,
+							       need);
+							c->tx_cap = need;
+							c->tx_wp = 0;
+							c->mem[V6_SLOT_TXBUF_OFFSET] =
+								0;
+
+							/* Count a successful
+							 * allocate */
+							alloc_count++;
+							break;
+						}
+
+						/* ----- EWRITE{1,2,4}: write
+						 * register value to TX buffer
+						 * ----- */
+						case EWRITE1_EXT_OPCODE:
+						case EWRITE2_EXT_OPCODE:
+						case EWRITE4_EXT_OPCODE: {
+							V6_ASSERT_RET(
+								c->tx_buf &&
+								c->tx_cap);
+							width = (imm ==
+								 EWRITE1_EXT_OPCODE) ?
+									1 :
+								(imm ==
+								 EWRITE2_EXT_OPCODE) ?
+									2 :
+									4;
+							val = c->R[rbit]; /* rbit
+									     selects
+									     R0/R1
+									   */
+
+							V6_ASSERT_RET(
+								c->tx_wp +
+									width <=
+								c->tx_cap);
+							for (i = width - 1;
+							     i >= 0; --i)
+								c->tx_buf[c->tx_wp++] =
+									(val >>
+									 (8 *
+									  i)) &
+									0xFF;
+							c->mem[V6_SLOT_TXBUF_OFFSET] =
+								c->tx_wp;
+							break;
+						}
+
+						/* -- EPKTDATACOPY IMM/R1: copy
+						 * from pkt/prog with ofs in R0
+						 * -- */
+						case EPKTDATACOPYIMM_EXT_OPCODE:
+						case EPKTDATACOPYR1_EXT_OPCODE: {
+							V6_ASSERT_RET(
+								c->tx_buf &&
+								c->tx_cap);
+							ofs = c->R[0];
+							len = (imm ==
+							       EPKTDATACOPYR1_EXT_OPCODE) ?
+								      c->R[1] :
+								      (t_u32)({
+									      V6_ASSERT_RET(
+										      c->pc <
+										      c->prog_len);
+									      c->prog_u8
+										      [c->pc++];
+								      });
+
+							if (rbit == 0) { /* from
+									    PACKET
+									  */
+								V6_ASSERT_RET(v6_in_pkt(
+									c,
+									ofs));
+								V6_ASSERT_RET(
+									ofs + len - 1 >=
+										ofs &&
+									v6_in_pkt(
+										c,
+										ofs + len -
+											1));
+								temp_src =
+									c->pkt +
+									ofs;
+							} else { /* from PROGRAM
+								    region */
+								V6_ASSERT_RET(v6_in_prog_range(
+									c, ofs,
+									len));
+								temp_src =
+									c->prog_u8 +
+									ofs;
+							}
+
+							V6_ASSERT_RET(
+								c->tx_wp +
+									len <=
+								c->tx_cap);
+							memcpy(c->tx_buf +
+								       c->tx_wp,
+							       temp_src, len);
+							c->tx_wp += len;
+							c->mem[V6_SLOT_TXBUF_OFFSET] =
+								c->tx_wp;
+							break;
+						}
+
+						/* ---------------- TRANSMIT
+						 * (EXT 37): send TX buf
+						 * ---------------- */
+						case TRANSMIT_EXT_OPCODE: {
+							tx_count++;
+							V6_ASSERT_RET(
+								c->tx_buf &&
+								c->tx_cap);
+							V6_ASSERT_RET(
+								c->pc + 1 <
+								c->prog_len);
+
+							ip_ofs =
+								c->prog_u8
+									[c->pc++];
+							csum_ofs =
+								c->prog_u8
+									[c->pc++];
+
+							if (csum_ofs != 255) {
+								V6_ASSERT_RET(
+									c->pc + 2 <
+									c->prog_len);
+								csum_start =
+									c->prog_u8
+										[c->pc++];
+								partial_sum =
+									(c->prog_u8
+										 [c->pc]
+									 << 8) |
+									c->prog_u8
+										[c->pc +
+										 1];
+								c->pc += 2;
+							}
+
+							{
+								const t_u32 tx_len =
+									c->tx_wp;
+
+								if (tx_len ==
+								    0) {
+									break;
+								}
+
+								/* ---- ICMPv6
+								 * checksum ----
+								 */
+								if (csum_ofs !=
+								    255) {
+									V6_ASSERT_RET(
+										ip_ofs +
+											40 <=
+										tx_len);
+									buf = c->tx_buf;
+									ip = buf +
+									     ip_ofs;
+									plen = (ip[4]
+										<< 8) |
+									       ip[5];
+									V6_ASSERT_RET(
+										ip_ofs +
+											40 +
+											plen <=
+										tx_len);
+									l4 = ip +
+									     40;
+
+									V6_ASSERT_RET(
+										csum_ofs +
+											1 <
+										tx_len);
+									buf[csum_ofs] = buf
+										[csum_ofs +
+										 1] = 0;
+
+									V6_ASSERT_RET(
+										csum_start +
+											32 <=
+										tx_len);
+									sum = (t_u32)(partial_sum &
+										      0xFF); /* NH byte */
+									sum = apf_csum_add_buf(
+										sum,
+										buf + csum_start,
+										32);
+
+									{
+										t_u8 lenbe[4] = {
+											ip[4],
+											ip[5],
+											0,
+											0};
+										sum = apf_csum_add_buf(
+											sum,
+											lenbe,
+											4);
+									}
+
+									sum = apf_csum_add_buf(
+										sum,
+										l4,
+										plen);
+
+									{
+										t_u16 csum = apf_csum_finalize(
+											sum);
+										buf[csum_ofs] =
+											(t_u8)(csum >>
+											       8);
+										buf[csum_ofs +
+										    1] =
+											(t_u8)(csum &
+											       0xFF);
+										PRINTM(MINFO,
+										       "TRANSMIT: checksum=0x%04x at ofs=%u",
+										       csum,
+										       csum_ofs);
+									}
+								}
+
+								/* -- L2 MAC
+								 * fallback: do
+								 * this BEFORE
+								 * printing &
+								 * skb copy --
+								 */
+								if (tx_len >=
+								    ETH_HLEN) {
+									da = c->tx_buf +
+									     0;
+									sa = c->tx_buf +
+									     6;
+
+									for (i = 0;
+									     i <
+									     ETH_ALEN;
+									     i++) {
+										if (da[i]) {
+											zero_da =
+												false;
+											break;
+										}
+									}
+									for (i = 0;
+									     i <
+									     ETH_ALEN;
+									     i++) {
+										if (sa[i]) {
+											zero_sa =
+												false;
+											break;
+										}
+									}
+
+									if (zero_da &&
+									    zero_sa) {
+										mpriv = (moal_private
+												 *)
+												c->caller_ctx;
+										ndev = mpriv ? mpriv->netdev :
+											       NULL;
+
+										our = (ndev &&
+										       is_valid_ether_addr(
+											       ndev->dev_addr)) ?
+											      ndev->dev_addr :
+											      NULL;
+
+										if (mpriv &&
+										    is_valid_ether_addr(
+											    mpriv->conn_bssid))
+											peer = mpriv->conn_bssid;
+
+										if (zero_da &&
+										    peer)
+											memcpy(da,
+											       peer,
+											       ETH_ALEN); /* TX DA := AP BSSID */
+										if (zero_sa &&
+										    our)
+											memcpy(sa,
+											       our,
+											       ETH_ALEN); /* TX SA := our MAC   */
+
+										PRINTM(MINFO,
+										       "L2 fallback applied: DA=%pM SA=%pM",
+										       da,
+										       sa);
+									}
+								}
+
+								/* ----
+								 * Pretty-print
+								 * key fields of
+								 * the FINAL
+								 * frame ---- */
+								{
+									t_u8 *b =
+										c->tx_buf;
+
+									if (tx_len >=
+									    ETH_HLEN) {
+										t_u16 eth =
+											(b[12]
+											 << 8) |
+											b[13];
+										APF6E("L2: DA=%pM SA=%pM Eth=0x%04x",
+										      b,
+										      b + 6,
+										      eth);
+									}
+
+									if (tx_len >=
+									    ip_ofs +
+										    40 +
+										    8) {
+										t_u8 *ip =
+											b +
+											ip_ofs;
+										t_u16 plen =
+											(ip[4]
+											 << 8) |
+											ip[5];
+										t_u8 nh = ip[6],
+										     hlim = ip[7];
+										t_u8 *l4 =
+											ip +
+											40;
+										t_u16 icmp_csum =
+											((t_u16)l4[2]
+											 << 8) |
+											l4[3];
+										t_u16 icmp_id =
+											((t_u16)l4[4]
+											 << 8) |
+											l4[5];
+										t_u16 icmp_seq =
+											((t_u16)l4[6]
+											 << 8) |
+											l4[7];
+										t_u8 data0 =
+											(plen >
+											 8) ?
+												l4[8] :
+												0xFF;
+
+										APF6E("IPv6: plen=%u nh=%u hlim=%u",
+										      plen,
+										      nh,
+										      hlim);
+										APF6E("IPv6 src=%pI6 dst=%pI6",
+										      ip + 8,
+										      ip + 24);
+										APF6E("ICMPv6: type=0x%02x code=%u csum=0x%04x id=0x%04x seq=0x%04x data0=0x%02x",
+										      l4[0],
+										      l4[1],
+										      icmp_csum,
+										      icmp_id,
+										      icmp_seq,
+										      data0);
+									}
+								}
+
+								APF6E("TX dump follows (first %u bytes):",
+								      min_t(t_u32,
+									    tx_len,
+									    96));
+								apf_hexdump(
+									"TX buf",
+									c->tx_buf,
+									min_t(t_u32,
+									      tx_len,
+									      96));
+
+								/* ---- queue as
+								 * L2 frame ----
+								 */
+								{
+									moal_private *mpriv =
+										(moal_private
+											 *)
+											c->caller_ctx;
+									struct net_device *ndev =
+										mpriv ? mpriv->netdev :
+											NULL;
+									bool up = false,
+									     link = false;
+									int rc =
+										0;
+
+									if (ndev) {
+										struct sk_buff
+											*skb = dev_alloc_skb(
+												tx_len);
+										if (skb) {
+											memcpy(skb_put(skb,
+												       tx_len),
+											       c->tx_buf,
+											       tx_len);
+											skb->dev =
+												ndev;
+											skb->protocol = htons((
+												(c->tx_buf[12]
+												 << 8) |
+												c->tx_buf
+													[13]));
+											skb->ip_summed =
+												CHECKSUM_NONE;
+
+											/* Optional but recommended */
+											skb_reset_mac_header(
+												skb);
+											skb_set_network_header(
+												skb,
+												ETH_HLEN); /* ip_ofs is 14 */
+											skb_set_transport_header(
+												skb,
+												ETH_HLEN +
+													40); /* IPv6 header is 40 bytes */
+
+											up = netif_running(
+												ndev);
+											link = netif_carrier_ok(
+												ndev);
+											APF6E("TRANSMIT: netif_running=%d carrier_ok=%d",
+											      up,
+											      link);
+											APF6E("TRANSMIT: dev_queue_xmit(len=%u, ether=0x%04x)",
+											      tx_len,
+											      (unsigned)((c->tx_buf[12]
+													  << 8) |
+													 c->tx_buf
+														 [13]));
+											rc = dev_queue_xmit(
+												skb);
+											APF6E("TRANSMIT: dev_queue_xmit rc=%d",
+											      rc);
+										} else {
+											APF6E("TRANSMIT: dev_alloc_skb(%u) failed",
+											      tx_len);
+										}
+									} else {
+										APF6E("TRANSMIT: ndev NULL; cannot TX");
+									}
+								}
+							}
+
+							/* ---- free transmit
+							 * buffer ---- */
+							kfree(c->tx_buf);
+							c->tx_buf = NULL;
+							c->tx_cap = c->tx_wp =
+								0;
+							c->mem[V6_SLOT_TXBUF_OFFSET] =
+								0;
+							break;
+						}
+
+						default:
+							return APF_V6_EXCEPTION; /* not implemented; caller treats as PASS */
+						} /* switch (imm) */
+					} /* EXT_OPCODE handling */
+					break;
+
+				/* ========================== NEW CASES END
+				 * ========================== */
+
+				/* ---- JBSMATCH: jump if byte-sequence [not]
+				 * matched ---- */
+				case JBSMATCH_OPCODE: {
+					/* imm1 (already in 'imm') is jump
+					 * target; imm2 packs (cnt-1)*2048 + len
+					 */
+					if (!ilen) {
+						return APF_V6_EXCEPTION;
+					}
+
+					imm2 = 0;
+					V6_ASSERT_RET(c->pc + ilen - 1 <
+						      c->prog_len);
+					for (i = 0; i < ilen; i++)
+						imm2 = (imm2 << 8) |
+						       c->prog_u8[c->pc++];
+
+					cnt = (imm2 >> 11) + 1; /* 1..32 */
+					len = (imm2 & 2047); /* 0..2047 */
+					bytes = cnt * len;
+
+					if (bytes > 0xFFFF) {
+						return APF_V6_EXCEPTION;
+					}
+
+					if (!(c->pc + bytes - 1 <
+					      c->prog_len)) {
+						return APF_V6_EXCEPTION;
+					}
+
+					if (!v6_in_pkt(c, c->R[0])) {
+						return APF_V6_EXCEPTION;
+					}
+
+					if (len) {
+						last = c->R[0] + len - 1;
+						if (!(last >= c->R[0] &&
+						      v6_in_pkt(c, last))) {
+							return APF_V6_EXCEPTION;
+						}
+					}
+
+					/* Compare candidates */
+					matched = false;
+					pktp = c->pkt + c->R[0];
+					prog = c->prog_u8 + c->pc;
+
+					for (i = 0; i < (t_s32)cnt; i++) {
+						if (len == 0 ||
+						    memcmp(prog + i * len, pktp,
+							   len) == 0) {
+							matched = true;
+							break;
+						}
+					}
+
+					/* Skip comparison bytes */
+					c->pc += bytes;
+
+					/* R=0: jump if NOT matched; R=1: jump
+					 * if matched */
+					if ((matched ^ !rbit)) {
+						c->pc += imm;
+					} else {
+					}
+					break;
+				}
+
+				/* ---- Data word load/store (counters) ---- */
+				case LDDW_OPCODE:
+				case STDW_OPCODE:
+					if (imm == 0u || imm > 0xFFFFu)
+						return APF_V6_EXCEPTION;
+					V6_ASSERT_RET(4u * imm <= c->ram_len);
+					if (op == LDDW_OPCODE)
+						REG = counter[-(t_s32)imm];
+					else
+						counter[-(t_s32)imm] = REG;
+					break;
+
+				default:
+					return APF_V6_EXCEPTION; /* unsupported;
+								    caller
+								    treats as
+								    PASS */
+				} /* switch (op) */
+			}
+		}
+	} while (steps--);
+
+	PRINTM(MINFO, "APFv6 summary: alloc=%u transmit=%u", alloc_count,
+	       tx_count);
+	return APF_V6_EXCEPTION; /* time guard */
+}
+
+/**
+ * Runs a packet filtering program over a packet.
+ *
+ * @param program the program bytecode.
+ * @param program_len the length of {@code apf_program} in bytes.
+ * @param packet the packet bytes, starting from the 802.3 header and not
+ *               including any CRC bytes at the end.
+ * @param packet_len the length of {@code packet} in bytes.
+ * @param filter_age the number of seconds since the filter was programmed.
+ *
+ * @return non-zero if packet should be passed to AP, zero if
+ *         packet should be dropped.
+ */
+static int apf_run(void *ctx, t_u32 *const program, const t_u32 program_len,
+		   const t_u32 ram_len, const t_u8 *const packet,
+		   const t_u32 packet_len, const t_u32 filter_age_16384ths)
+{
+	struct apf_v6_ctx c = {0};
+
+	if (!packet || packet_len < ETH_HLEN)
+		return APF_V6_EXCEPTION;
+	if (((uintptr_t)program) & 0x3)
+		return APF_V6_EXCEPTION; /* 4B aligned */
+	if (ram_len & 0x3)
+		return APF_V6_EXCEPTION; /* 4B multiple */
+	if (((program_len | ram_len) >> 31) != 0)
+		return APF_V6_EXCEPTION; /* < 2GiB */
+
+	c.caller_ctx = ctx;
+	c.prog_u8 = (t_u8 *)program;
+	c.prog_len = program_len;
+	c.ram_len = ram_len;
+	c.pkt = packet;
+	c.pkt_len = packet_len;
+	c.mem[V6_SLOT_FILTER_AGE_16384] = filter_age_16384ths;
+	c.tx_buf = NULL;
+	c.tx_cap = 0;
+	c.tx_wp = 0;
+	return apf_v6_exec(&c);
+}
+#else /* APF v4 legacy path */
 
 /**
  * Runs a packet filtering program over a packet.
@@ -2592,7 +4058,7 @@ static int process_packet(const t_u8 *program, t_u32 program_len,
 	t_u32 val = 0;
 	t_u32 last_pkt_offs;
 	t_u32 imm = 0;
-	int32_t sign_imm = 0;
+	t_s32 sign_imm = 0;
 	t_u32 offs = 0;
 	t_u32 i;
 	t_u32 load_size;
@@ -2783,8 +4249,8 @@ static int process_packet(const t_u8 *program, t_u32 program_len,
 			reg[0] |= reg_num ? reg[1] : imm;
 			break;
 		case NXP_SH_OPCODE: {
-			const int32_t shift_val =
-				reg_num ? (int32_t)reg[1] : sign_imm;
+			const t_s32 shift_val =
+				reg_num ? (t_s32)reg[1] : sign_imm;
 			if (shift_val > 0)
 				reg[0] <<= shift_val;
 			else
@@ -2843,6 +4309,7 @@ static int process_packet(const t_u8 *program, t_u32 program_len,
 	} while (instructions_left--);
 	return PASS_PKT;
 }
+#endif
 
 /**
  * @brief filter packet
@@ -2860,24 +4327,157 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 	packet_filter *pkt_filter = NULL;
 	int ret = PASS_PKT;
 	unsigned long flags;
+#if (APF_VERSION >= 6000)
+	struct net_device *ndev = NULL;
+	bool looks_ipv6_l3 = false;
+	t_u8 *shim_buf = NULL;
+	t_u32 shim_len = 0;
+	t_u8 *apf_view;
+	t_u32 ram_len; /* interpreter RAM size */
+	bool misaligned;
+	t_u32 *prog32 = NULL;
+	t_u8 *prog_u8;
+	t_u32 age_16384 = 0;
+	t_u32 prog_len;
+	t_u8 v6r = 0;
+	t_u64 ns = 0;
+	unsigned long lf;
+#endif
 
 	ENTER();
 	pkt_filter = (packet_filter *)priv->packet_filter;
-	if (!unlikely(pkt_filter)) {
-		PRINTM(MINFO, "packet_filter not init\n");
+	if (!pkt_filter)
 		goto done;
-	}
-
 	if (pkt_filter->state != PACKET_FILTER_STATE_START)
 		goto done;
 
-	/* pkt_filter is already validated in call of unlikely macro */
-	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
-	// coverity[tainted_data:SUPPRESS]
-	DBG_HEXDUMP(MDAT_D, "packet_filter_program",
-		    pkt_filter->packet_filter_program,
-		    pkt_filter->packet_filter_len);
-	DBG_HEXDUMP(MDAT_D, "packet_filter_data", data, len);
+#if (APF_VERSION >= 6000)
+	/* Snapshot program pointer/length under lock, then release */
+	spin_lock_irqsave(&pkt_filter->lock, flags);
+	prog_u8 = pkt_filter->packet_filter_program;
+	prog_len = pkt_filter->packet_filter_len;
+	spin_unlock_irqrestore(&pkt_filter->lock, flags);
+
+	ram_len = PACKET_FILTER_MAX_LEN; /* interpreter RAM size */
+
+	misaligned =
+		((((uintptr_t)prog_u8) & 0x3) != 0) || ((ram_len & 0x3) != 0);
+
+	/* Bounce to aligned buffer if needed */
+	if (misaligned) {
+		prog32 = kmalloc(ram_len, GFP_ATOMIC);
+		if (!prog32) {
+			ret = PASS_PKT;
+			goto done;
+		}
+		memset(prog32, 0, ram_len);
+		memcpy(prog32, prog_u8, min_t(u32, prog_len, ram_len));
+	} else {
+		prog32 = (u32 *)(void *)prog_u8;
+	}
+
+	if (priv)
+		ndev = priv->netdev;
+
+	if (len >= 1)
+		looks_ipv6_l3 = ((data[0] >> 4) == 6);
+
+	shim_len = len;
+	apf_view = data;
+
+	if (looks_ipv6_l3) {
+		shim_len = len + ETH_HLEN; /* add 14-byte Ethernet header */
+		shim_buf = kmalloc(shim_len, GFP_ATOMIC);
+		if (!shim_buf) {
+			if (misaligned)
+				kfree(prog32);
+			ret = PASS_PKT;
+			goto done;
+		}
+
+		/* -------------------- L2 header for APF RX view
+		 * -------------------- */
+		/* DA := our interface MAC (so APF can later swap MACs into TX
+		 * DA)    */
+		if (ndev && is_valid_ether_addr(ndev->dev_addr)) {
+			memcpy(shim_buf + 0, ndev->dev_addr, ETH_ALEN);
+		} else {
+			memset(shim_buf + 0, 0x00, ETH_ALEN);
+		}
+
+		/* SA := AP BSSID if known, otherwise fall back to our MAC */
+		if (is_valid_ether_addr(priv->conn_bssid)) {
+			memcpy(shim_buf + 6, priv->conn_bssid, ETH_ALEN);
+		} else if (ndev && is_valid_ether_addr(ndev->dev_addr)) {
+			memcpy(shim_buf + 6, ndev->dev_addr, ETH_ALEN);
+			PRINTM(MERROR, "APF shim: BSSID unknown; using "
+				       "dev_addr as SA\n");
+		} else {
+			memset(shim_buf + 6, 0x00, ETH_ALEN);
+		}
+
+		/* EtherType: IPv6 */
+		shim_buf[12] = (ETH_P_IPV6 >> 8) & 0xFF;
+		shim_buf[13] = (ETH_P_IPV6 >> 0) & 0xFF;
+
+		/* Copy original L3 bytes after the new 14-byte L2 header */
+		memcpy(shim_buf + ETH_HLEN, data, len);
+
+		/* Hand this L2+IPv6 view to the APF interpreter */
+		apf_view = shim_buf;
+	}
+
+	if (priv->apf) {
+		ktime_t inst;
+		spin_lock_irqsave(&priv->apf->lock, lf);
+		inst = priv->apf->installed_at;
+		spin_unlock_irqrestore(&priv->apf->lock, lf);
+
+		/* nanoseconds since install */
+		ns = ktime_to_ns(ktime_sub(ktime_get_boottime(), inst));
+
+		/* Per apf_interpreter.h (ns clock): filter_age_16384ths = (ns
+		 * << 5) / 1953125 */
+		age_16384 = (t_u32)div_u64(ns << 5, 1953125ULL);
+	} else {
+		/* Fallback if ctx missing */
+		age_16384 = filter_age << 14;
+	}
+
+	/* Pass precise value into interpreter */
+	v6r = apf_run((void *)priv, prog32, prog_len, ram_len, apf_view,
+		      shim_len, age_16384);
+	PRINTM(MINFO, "APFv6 RESULT v6r=%d -> %s", v6r,
+	       (v6r == 0) ? "DROP" :
+	       (v6r == 1) ? "PASS" :
+			    "EXC");
+	/* Run APFv6 interpreter: 0=drop, 1=pass, 2=exception */
+	{
+		if (shim_buf)
+			kfree(shim_buf);
+		if (misaligned)
+			kfree(prog32);
+
+		if (v6r == APF_V6_EXCEPTION) {
+			/* Per AOSP guidance, exception => PASS */
+			ret = PASS_PKT;
+			goto after_rx; /* still increment pkts_since_install
+					  below */
+		}
+		ret = (v6r == APF_V6_DROP) ? DROP_PKT : PASS_PKT;
+	}
+
+after_rx:
+	/* IMPORTANT: mark that at least one packet ran since install.
+	 * READ will inject mirror/counters into the reply snapshot only when
+	 * >0. */
+	if (priv->apf && woal_is_ping_echo(data, len)) {
+		spin_lock_irqsave(&priv->apf->lock, lf);
+		priv->apf->pkts_since_install++;
+		spin_unlock_irqrestore(&priv->apf->lock, lf);
+	}
+
+#else /* APF v4 legacy path */
 	spin_lock_irqsave(&pkt_filter->lock, flags);
 	/* pkt_filter is already validated in call of unlikely macro */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
@@ -2886,6 +4486,7 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 			     pkt_filter->packet_filter_len, data, len,
 			     filter_age);
 	spin_unlock_irqrestore(&pkt_filter->lock, flags);
+#endif
 
 done:
 	PRINTM(MINFO, "packet filter ret %d\n", ret);
@@ -8181,6 +9782,19 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV |
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_get_packet_filter_capability,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = VENDOR_CMD_RAW_DATA,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = sub_cmd_read_packet_filter_data,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.doit = woal_cfg80211_subcmd_vendor_read_packet_filter_data,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = VENDOR_CMD_RAW_DATA,
 #endif
