@@ -1,0 +1,113 @@
+[Link to index page](../index.md)
+
+# Bug fixes/feature enhancements
+
+## Firmware version 17.92.1.p98.1 to 17.92.1.p116.1
+
+None.
+
+## Firmware version 17.92.1.p116.1 to 17.92.1.p136.13
+
+None.
+
+## Firmware version 17.92.1.p136.13 to 17.92.1.p136.24
+
+**Coexistence**
+- OPP file transfer gets failed while OPP file transfer is ongoing and Wi-Fi traffic initiated with 2.4GHz external AP.
+
+## Firmware version 17.92.1.p136.24 to 17.92.1.p136.131
+
+**Bluetooth**
+- A2DP Audio glitches heard while audio streaming and OPP file transfer to another ref device at the same time.
+
+## Firmware version 17.92.1.p136.131 to 17.92.1.p149.131
+
+**Wi-Fi**
+- During the Roaming stress test, a command timeout causing the device Hang/Crash is observed.
+
+## Firmware version 17.92.1.p149.131 to 17.92.1.p149.43
+
+None.
+
+## Firmware version 17.92.1.p149.43 to 17.92.1.p149.157
+
+**Wi-Fi**
+- In RF test mode, Inconsistent TX-power observed between configured and measured values in txcontinuous Carrier Suppression \(CS\) mode.
+- In RF test mode, EVM value degradations are seen on the DFS channels with Linux BSP v6.6.23
+
+**Bluetooth**
+- In legacy remote devices, pairing with PIN code method is failed with LMP/LL timeout.
+
+## Firmware version 17.92.1.p149.157 to 17.92.1.p149.53
+
+None.
+
+## Firmware version 17.92.1.p149.53 to 17.92.1.p149.60
+
+**Wi-Fi**
+- Fixed kernel panic fetal error due to connecting the DUT STA to a long SSID Ex-AP.<br/>
+- In DUT STA mode, a wake-up card timeout is observed when Ex-AP is momentarily offline and when there is a connection times out.
+- In DUT STA mode, the firmware command 0xd0 timeout is observed in a stress testing with good RSSI AP connection.
+
+**Bluetooth**
+- In extended Bluetooth LE scanning, an unexpected HCI\_LE\_Scan\_Timeout event is observed.
+
+## Firmware version 17.92.1.p149.60 to 17.92.1.p149.64
+
+**Wi-Fi**
+- During firmware automatic recovery test, kernel crash causing system reboot due to Wi-Fi driver on a specific platform running in DUT STA mode.
+- Readback of `txratecfg` command not showing expected output.
+- In DUT STA mode, the Reassociation response from the External Access Point was dropped after the acknowledgement was sent, which resulted in another Reassociation request, ultimately leading to Deauthentication from the External Access Point.
+- Firmware crash occurrence in the 2.4 GHz band during roaming stress test scenario.
+
+## Firmware version 17.92.1.p149.64 to 17.92.1.p149.70
+
+**Wi-Fi**
+- Firmware command timeout error \[0xb\] observed during long-term stress testing of legacy roaming.
+- Firmware command timeout error \[0x107\] observed during long-term stress testing of legacy roaming.
+- TX timeout error observed during long-term stress testing of legacy roaming.<br/>
+- Firmware crash observed in the long run test when AP is enabled and STA is connected to ext. AP.
+- Linux kernel panic with Netlink hung task observed randomly while booting and shutting down host system.
+
+**Bluetooth**
+- During firmware initialization, the process fails if any pulse is observed on the UART TX line.
+- After braktooth attack of duplicated encapsulated payload, DUT not able to start the Page and Inquiry scan.
+
+## Firmware version 17.92.1.p149.70 to 17.92.1.p149.72
+
+**Wi-Fi**
+- Easymesh is enabled
+- Firmware command timeout 0x249 observed sometimes during stress test of roaming on specific platform
+- Fixed random kernel crash while performing stress test of automatic firmware recovery.
+
+## Firmware version 17.92.1.p149.72 to 17.92.1.p149.74
+
+**Wi-Fi**
+- Added CSI - Ambient Motion Index (AMI) feature support.
+
+## Firmware version 17.92.1.p149.74 to 17.92.1.p149.76
+
+**Wi-Fi**
+- Wakeup card timeout and background scan timeout reported following association failure.
+- In monitor mode, RSSI readings sometimes show positive values when the signal strength is close to the ambient noise level.
+- DUT sends a second Reassociation Request even after receiving an acknowledgment for the initial Reassociation Request.
+- Observed 30–40% throughput degradation when MTU size is configured to 1532 bytes.
+- Kernel panic observed upon removal of the SD interface after netmon configuration.
+
+# Firmware version 17.92.1.p149.76 to 17.92.1.p149.77
+
+**Wi-Fi**
+- Firmware dump triggered automatically during profile switch due to WL_AHB_TIMEOUT on DUTSTA.
+- Unable to set the txratecfg settings when antcfg is configured on rtap interface.
+- Firmware dump triggered during suspend-resume cycle when gtk_rekey_offload=2 is set.
+- Incorrect noise floor values observed in open environment conditions.
+
+# Firmware version 17.92.1.p149.77 to 17.92.1.p149.81
+
+**Wi-Fi**
+- Antenna configuration (antcfg) was not taking effect in sniffer mode when no connection was present
+- Firmware command timeout (0x25f) observed when connecting the 48th client to DUT AP on channel 36 in HE80 and WPA3-SAE configurations.
+- Firmware command timeout (0x28c) occurred after issuing the foundry_type command while STAUT was in a connected state.
+- In DUT STA mode, STA was sending probe request frames on disabled channels.
+- Integrated tx_retries and fcs_err_count into kernel station_info for enhancement and diagnostics.
+- Introduced driver load parameter for plinkstats to support Wi-Fi performance metrics.

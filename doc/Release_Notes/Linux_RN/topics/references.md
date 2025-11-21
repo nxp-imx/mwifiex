@@ -1,0 +1,25 @@
+[Link to the index page](../index.md)
+
+# References
+
+1. Application note – AN12976: Wi-Fi Alliance Derivative Certification \([link](https://www.nxp.com/docs/en/application-note/AN12976.pdf))
+2. Engineering bulletins (EB)–NXP Security Advisory–Wi-Fi Vulnerability–USIRP02–2020 ([link](https://www.nxp.com/webapp/sps/download/license.jsp?colCode=SECURITY_ADVISORY-USIRP02&appType=file1&DOWNLOAD_ID=null))
+3. Engineering bulletins (EB) – NXP Security Advisory – Bluetooth Vulnerability – ANSSI \([link](https://www.nxp.com/webapp/sps/download/license.jsp?colCode=NXP_SECUIRTY_ADVISORY_ANSSI_VULNERABILITY&appType=file1&DOWNLOAD_ID=null))
+4. GitHub – mlan utility \([link](https://github.com/nxp-imx/mwifiex/tree/lf-5.15.52_2.1.0/mxm_wifiex/wlan_src/mapp/mlanutl))
+5. Software – IW610 manufacturing firmware release \([link](https://www.nxp.com/webapp/sps/download/license.jsp?colCode=FG-SD-IW610X-MF-LABTOOL-X86-2.0.0.2&appType=file1&DOWNLOAD_ID=null))
+6. User manual – UM11483: Getting Started with NXP–based Wireless Modules on i.MX 8M Quad EVK Running Linux OS \([link](https://https://docs.nxp.com/bundle/UM11483))
+7. User manual – UM11675: How to Download and Build NXP Wi-Fi Drivers \([link](https://docs.nxp.com/bundle/UM11675)\)
+8. User manual – UM12029: Zigbee Software User Manual for IW612 \([link](https://www.nxp.com/webapp/ownload?colCode=UM12029&appType=license))
+9. User manual – UM12065: Dual PAN Software User Manual for IW612 \([link](https://www.nxp.com/webapp/Download?colCode=UM12265&appType=license))
+10. Webpage – Thread certified products \([link](https://www.threadgroup.org/Certified-Products))
+11. Webpage – Matter – NXP i.MX8M MPU + IW612 Tri–radio \([link](https://csa-iot.org/csa_product/nxp-i-mx8m-mpu-iw612-tri-radio-2/))
+12. Webpage – Embedded Linux for i.MX Applications Processors \(IMXLINUX\) \([link](https://www.nxp.com/design/software/embedded-software/i-mx-software/embedded-linux-for-i-mx-applications-processors:IMXLINUX))
+13. Webpage – Bluetooth Launch Studio ([link](https://launchstudio.bluetooth.com))
+14. Webpage – Matter certificate for IW612 \([link](https://csa-iot.org/csa_product/nxp-i-mx8m-mpu-iw612-tri-radio))
+15. Webpage – Wi-Fi alliance certificate for IW612 \([link](https://www.wi-fi.org/product-finder-results?keywords=IW612))
+16. Webpage – Qualification workspace – Qualified product details – AW693 ([link](https://qualification.bluetooth.com/ListingDetails/290930))
+17. Webpage – Qualification workspace – Qualified product details – IW610 ([link](https://qualification.bluetooth.com/ListingDetails/266348))
+18. Webpage – FC controller certificate for IW612 \([link](https://qualification.bluetooth.com/ListingDetails/277216))
+19. Webpage – FC controller certificate for IW612 \(sub-set\) \([link](https://qualification.bluetooth.com/ListingDetails/293939)\)
+20. Webpage – mwifiex GitHub \(GitHub\) \([link](https://github.com/nxp-imx/mwifiex/tree/hotfix/lf-6.12.34_2.1.0_hotfix))
+
