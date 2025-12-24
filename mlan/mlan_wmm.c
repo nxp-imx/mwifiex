@@ -161,9 +161,9 @@ static raListTbl *wlan_wmm_allocate_ralist_node(pmlan_adapter pmadapter,
 
 	ENTER();
 
-	if (pmadapter->callbacks.moal_malloc(pmadapter->pmoal_handle,
-					     sizeof(raListTbl), MLAN_MEM_DEF,
-					     (t_u8 **)&ra_list)) {
+	if (pmadapter->callbacks.moal_malloc(
+		    pmadapter->pmoal_handle, sizeof(raListTbl),
+		    MLAN_MEM_FLAG_ATOMIC, (t_u8 **)&ra_list)) {
 		PRINTM(MERROR, "Fail to allocate ra_list\n");
 		goto done;
 	}

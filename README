@@ -158,7 +158,7 @@
 	For 9097/9098: antcfg=0x101|0x303|.. <Bit0: Tx/Rx Path A for 2G, Bit1: Tx/Rx Path B for 2G, Bit8: Tx/Rx Path A for 5G, Bit9: Tx/Rx Path B for 5G>
 	For IW624/AW693: antcfg=0x10101|0x30303|.. <Bit0: Tx/Rx Path A for 2G, Bit1: Tx/Rx Path B for 2G, Bit8: Tx/Rx Path A for 5G, Bit9: Tx/Rx Path B for 5G, Bit16: Tx/Rx Path A for 6G, Bit17: Tx/Rx Path B for 6G>
 		For AW693, it's recommended to use mod_para configuration file for antcfg as MAC1 supports 2x2 and MAC2 supports only 1x1.
-	For 8897/8997: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
+	For 8897: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
 	For others: antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
 	  plinkstats=0|1|2 <Disable plinkstats (default) | Enable plinkstats | Restore plinkstats>
 	Example usage:
@@ -274,6 +274,9 @@
 		Bit 1 : 1   -- reject the addba request when FW auto re-connect enabled
 		               this bit is only used with STA BSS
 		others      -- reserved
+
+	secure_host=0|1 <Disable secure host interface (default) | Enable secure host interface>
+	Note: For secure_host=1, Firmware image shall be secure host enabled.
 
 	bandctrl=0|1 <Disable bandctrl mode (default) | Enable bandctrl mode>
 
@@ -461,7 +464,7 @@
        echo "fw_reload=4" > /proc/mwlan/adapterX/config   trigger PCIe FLR and reload firmware.
        echo "fw_reload=6" > /proc/mwlan/adapterX/config   trigger PCIe inband firmware reset and reload firmware.
 
-    (Note: This feature will be supported on IW416 and 8997.
+    (Note: This feature will be supported on IW416.
            For 8987, it only work with the board which supports parallel fw download)
 
 6) FOR RF test mode commands:

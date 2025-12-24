@@ -34,8 +34,8 @@ extern struct semaphore AddRemoveCardSem;
 		Local Variables
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 /** Card-type detection frame response */
 typedef struct {
 	/** 32-bit ACK+WINNER field */
@@ -67,16 +67,6 @@ static struct usb_device_id woal_usb_table[] = {
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_1, "NXP WLAN USB Adapter")},
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
-#endif
-#ifdef USB8997
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_1, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997V2_PID_1,
-			"NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_2, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_3, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_4, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_5, "NXP WLAN USB Adapter")},
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_6, "NXP WLAN USB Adapter")},
 #endif
 #ifdef USB8978
 	{NXP_USB_DEVICE(USB8978_VID_1, USB8978_PID_1, "NXP WLAN USB Adapter")},
@@ -115,9 +105,6 @@ static struct usb_device_id woal_usb_table_skip_fwdnld[] = {
 /* Enter the device signature inside */
 #ifdef USB8897
 	{NXP_USB_DEVICE(USB8897_VID_1, USB8897_PID_2, "NXP WLAN USB Adapter")},
-#endif
-#ifdef USB8997
-	{NXP_USB_DEVICE(USB8997_VID_1, USB8997_PID_2, "NXP WLAN USB Adapter")},
 #endif
 #ifdef USB8978
 	{NXP_USB_DEVICE(USB8978_VID_1, USB8978_PID_2, "NXP WLAN USB Adapter")},
@@ -500,8 +487,8 @@ rx_ret:
 		Global Functions
 ********************************************************/
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 /**
  *  @brief  Check chip revision
  *
@@ -726,33 +713,6 @@ static t_u16 woal_update_card_type(t_void *card)
 				strlen(INTF_CARDTYPE) - strlen(KERN_VERSION));
 	}
 #endif
-#ifdef USB8997
-	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_1 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_2 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_3 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_4 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_5 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997_PID_6 ||
-	    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
-		    (__force __le16)USB8997V2_PID_1) {
-		card_type = CARD_TYPE_USB8997;
-		moal_memcpy_ext(NULL, driver_version, CARD_USB8997,
-				strlen(CARD_USB8997), strlen(driver_version));
-		moal_memcpy_ext(
-			NULL,
-			driver_version + strlen(INTF_CARDTYPE) +
-				strlen(KERN_VERSION),
-			V16, strlen(V16),
-			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
-				strlen(INTF_CARDTYPE) - strlen(KERN_VERSION));
-	}
-#endif
 #ifdef USB8978
 	if (woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct) ==
 		    (__force __le16)USB8978_PID_1 ||
@@ -843,15 +803,17 @@ static t_u16 woal_update_card_type(t_void *card)
 		    device_name, &card_type,
 		    woal_cpu_to_le16(cardp_usb->udev->descriptor.idProduct)) ==
 	    MLAN_STATUS_SUCCESS) {
-		moal_memcpy_ext(NULL, driver_version, device_name,
-				strlen(device_name), strlen(driver_version));
+		moal_memcpy_ext(
+			NULL, driver_version, device_name, strlen(device_name),
+			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1));
 
 		if (card_type == CARD_TYPE_USB8801) {
 			moal_memcpy_ext(NULL,
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V14, strlen(V14),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USB8897) {
@@ -859,16 +821,17 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V15, strlen(V15),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
-		} else if (card_type == CARD_TYPE_USB8997 ||
-			   card_type == CARD_TYPE_USB8978) {
+		} else if (card_type == CARD_TYPE_USB8978) {
 			moal_memcpy_ext(NULL,
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V16, strlen(V16),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USB9098 ||
@@ -877,7 +840,8 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V17, strlen(V17),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		} else if (card_type == CARD_TYPE_USBIW624 ||
@@ -886,11 +850,15 @@ static t_u16 woal_update_card_type(t_void *card)
 					driver_version + strlen(INTF_CARDTYPE) +
 						strlen(KERN_VERSION),
 					V18, strlen(V18),
-					strlen(driver_version) -
+					strnlen(driver_version,
+						MLAN_MAX_VER_STR_LEN - 1) -
 						strlen(INTF_CARDTYPE) -
 						strlen(KERN_VERSION));
 		}
 	}
+
+	driver_version[MLAN_MAX_VER_STR_LEN - 1] = '\0';
+
 	return card_type;
 }
 
@@ -947,10 +915,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_1:
 #endif /* USB8897 */
-#ifdef USB8997
-			case (__force __le16)USB8997_PID_1:
-			case (__force __le16)USB8997V2_PID_1:
-#endif /* USB8997 */
 #ifdef USB8978
 			case (__force __le16)USB8978_PID_1:
 			case (__force __le16)USB8978_PID_1_BT:
@@ -978,9 +942,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 #ifdef USB8897
 			case (__force __le16)USB8897_PID_2:
 #endif /* USB8897 */
-#ifdef USB8997
-			case (__force __le16)USB8997_PID_2:
-#endif /* USB8997 */
 #ifdef USB8978
 			case (__force __le16)USB8978_PID_2:
 			case (__force __le16)USB8978_PID_2_BT:
@@ -1011,15 +972,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 
 				break;
 			}
-			/*To do, get card type*/
-			/*			if
-			   (woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			   USB8897_PID_2) usb_cardp->card_type =
-			   CARD_TYPE_USB8897; else if
-			   (woal_cpu_to_le16(udev->descriptor.idProduct) ==
-			   USB8997_PID_2) usb_cardp->card_type =
-			   CARD_TYPE_USB997;
-			*/
 			break;
 		}
 	}
@@ -2159,8 +2111,8 @@ done:
 static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 	t_u32 revision_id = 0;
 	t_u32 strap = 0;
 	t_u32 boot_mode = 0;
@@ -2179,8 +2131,8 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 	if (cardp->boot_state == USB_FW_READY)
 		goto done;
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 	ret = woal_check_chip_revision(handle, &revision_id, &strap,
 				       &boot_mode);
 	if (ret != MLAN_STATUS_SUCCESS) {
@@ -2189,19 +2141,6 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		goto done;
 	}
 	PRINTM(MCMND, "revision=0x%x, strap=0x%x\n", revision_id, strap);
-#endif
-
-#ifdef USB8997
-	if (IS_USB8997(handle->card_type)) {
-		if (strap == CARD_TYPE_USB_UART)
-			strncpy(handle->card_info->fw_name,
-				USBUART8997_DEFAULT_COMBO_FW_NAME,
-				FW_NAMW_MAX_LEN);
-		else if (strap != 0)
-			strncpy(handle->card_info->fw_name,
-				USBUSB8997_DEFAULT_COMBO_FW_NAME,
-				FW_NAMW_MAX_LEN);
-	}
 #endif
 
 #ifdef USB8978

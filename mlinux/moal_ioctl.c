@@ -2314,7 +2314,27 @@ mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
 	/* Send IOCTL request to MLAN */
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status == MLAN_STATUS_SUCCESS) {
-		priv->phandle->fw_release_number = info->param.fw_info.fw_ver;
+		moal_memcpy_ext(priv->phandle,
+				&priv->phandle->fw_release_number,
+				&info->param.fw_info.fw_ver,
+				sizeof(info->param.fw_info.fw_ver),
+				sizeof(priv->phandle->fw_release_number));
+		strncpy(priv->phandle->fw_ver_milestone,
+			info->param.fw_info.fw_ver_milestone,
+			sizeof(priv->phandle->fw_ver_milestone) - 1);
+		priv->phandle->fw_ver_milestone
+			[sizeof(priv->phandle->fw_ver_milestone) - 1] = '\0';
+		strncpy(priv->phandle->fw_ver_buildtype,
+			info->param.fw_info.fw_ver_buildtype,
+			sizeof(priv->phandle->fw_ver_buildtype) - 1);
+		priv->phandle->fw_ver_buildtype
+			[sizeof(priv->phandle->fw_ver_buildtype) - 1] = '\0';
+		strncpy(priv->phandle->fw_ver_data,
+			info->param.fw_info.fw_ver_data,
+			sizeof(priv->phandle->fw_ver_data) - 1);
+		priv->phandle
+			->fw_ver_data[sizeof(priv->phandle->fw_ver_data) - 1] =
+			'\0';
 		priv->phandle->fw_hotfix_version =
 			info->param.fw_info.hotfix_version;
 		priv->phandle->fw_ecsa_enable = info->param.fw_info.ecsa_enable;
@@ -4571,33 +4591,61 @@ done:
  */
 void woal_get_version(moal_handle *handle, char *version, int max_len)
 {
-	t_u8 hotfix_ver = 0;
-	union {
-		t_u32 l;
-		t_u8 c[4];
-	} ver;
-	char fw_ver[32];
+	t_u8 hotfix_ver = 0, copied_len = 0;
+	char fw_ver[100];
 
 	ENTER();
 
+	memset(fw_ver, 0, sizeof(fw_ver));
 	hotfix_ver = handle->fw_hotfix_version;
-	ver.l = handle->fw_release_number;
 
-	if (hotfix_ver) {
-		if (snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u.%u",
-			     ver.c[2], ver.c[1], ver.c[0], ver.c[3],
-			     hotfix_ver) <= 0)
+	if (strlen(handle->fw_ver_milestone) != 0) {
+		if (snprintf(fw_ver, sizeof(fw_ver), "%s-",
+			     handle->fw_ver_milestone) <= 0)
 			PRINTM(MERROR,
-			       "Failed to print hotfix fw version in buffer\n");
-
-	} else {
-		if (snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u", ver.c[2],
-			     ver.c[1], ver.c[0], ver.c[3]) <= 0)
-			PRINTM(MERROR,
-			       "Failed to print fw version in buffer\n");
+			       "Failed to print fw version milestone in buffer\n");
+		else
+			copied_len = strlen(fw_ver);
 	}
 
-	if (snprintf(version, max_len, handle->driver_version, fw_ver) <= 0)
+	if (snprintf(fw_ver + copied_len, sizeof(fw_ver) - copied_len,
+		     "%u.%u.%u.p%u", handle->fw_release_number.majorRevNum,
+		     handle->fw_release_number.minorRevNum,
+		     handle->fw_release_number.releaseNum,
+		     handle->fw_release_number.patchLevel) <= 0)
+		PRINTM(MERROR, "Failed to print fw version in buffer\n");
+	else
+		copied_len = strlen(fw_ver);
+
+	if (hotfix_ver) {
+		if (snprintf(fw_ver + copied_len, sizeof(fw_ver) - copied_len,
+			     ".%u", hotfix_ver) <= 0)
+			PRINTM(MERROR,
+			       "Failed to print hotfix fw version in buffer\n");
+		else
+			copied_len = strlen(fw_ver);
+	}
+
+	if (strlen(handle->fw_ver_data) != 0) {
+		if (snprintf(fw_ver + copied_len, sizeof(fw_ver) - copied_len,
+			     ", %s", handle->fw_ver_data) <= 0)
+			PRINTM(MERROR,
+			       "Failed to print fw version data in buffer\n");
+		else
+			copied_len = strlen(fw_ver);
+	}
+
+	if (strlen(handle->fw_ver_buildtype) != 0) {
+		if (snprintf(fw_ver + copied_len, sizeof(fw_ver) - copied_len,
+			     "-%s", handle->fw_ver_buildtype) <= 0)
+			PRINTM(MERROR,
+			       "Failed to print fw version buildtype in buffer\n");
+		else
+			copied_len = strlen(fw_ver);
+	}
+
+	if (snprintf(version, max_len, handle->driver_version, fw_ver,
+		     REL_MILESTONE) <= 0)
 		PRINTM(MERROR, "Failed to print driver version in buffer\n");
 
 	LEAVE();
@@ -7645,9 +7693,13 @@ mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
 		if (priv->media_connected && !priv->cfg_disconnect) {
 			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
 			       MAC2STR(priv->cfg_bssid));
-			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
-					priv->cfg_bssid,
-					DEF_DEAUTH_REASON_CODE);
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
+					    priv->cfg_bssid,
+					    DEF_DEAUTH_REASON_CODE)) {
+				PRINTM(MERROR, "%s: woal_disconnect failed \n",
+				       __func__);
+			}
 		}
 	} else if (bandctrl == BANDCTRL_SET_BANDCFG) {
 		priv->fake_scan_complete = MFALSE;
@@ -7657,9 +7709,13 @@ mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
 		    (priv->channel > 14)) {
 			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
 			       MAC2STR(priv->cfg_bssid));
-			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
-					priv->cfg_bssid,
-					DEF_DEAUTH_REASON_CODE);
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
+					    priv->cfg_bssid,
+					    DEF_DEAUTH_REASON_CODE)) {
+				PRINTM(MERROR, "%s: woal_disconnect failed \n",
+				       __func__);
+			}
 		}
 		woal_flush_scan_table(priv, BAND_SELECT_2G_ONLY);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
@@ -8785,6 +8841,7 @@ void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info)
 #define HE_TB_TX_STR_LEN 30
 #define MAX_RADIO_MODE 21
 #define OTP_RDWR_LEN 50
+#define MAX_THERMAL_SIMULATION_LEN 100
 
 /*
  *  @brief Parse mfg cmd radio mode string
@@ -9647,6 +9704,110 @@ done:
 	return ret;
 }
 
+/*
+ *  @brief Parse mfg_CmdDebugTemperature_Cfg_t
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *  @param s        A pointer to user buffer
+ *  @param len      Length of user buffer
+ *  @param d        A pointer to mfg_cmd_generic_cfg struct
+ *  @return         0 on success, -EINVAL otherwise
+ */
+
+static int parse_set_debug_temperature(const char *s, size_t len,
+				       mfg_CmdDebugTemperature_Cfg_t *d)
+{
+	int ret = MLAN_STATUS_SUCCESS;
+	char *string = NULL;
+	char *temp = NULL;
+	char *pos = NULL;
+	t_u8 mac, rpath;
+	gfp_t flag;
+	size_t prefix_len;
+
+	ENTER();
+
+	if (!s || !d) {
+		LEAVE();
+		return -EINVAL;
+	}
+
+	flag = GFP_KERNEL;
+	if (in_atomic())
+		flag = GFP_ATOMIC;
+	else if (irqs_disabled())
+		flag = GFP_ATOMIC;
+
+	string = kzalloc(MAX_THERMAL_SIMULATION_LEN, flag);
+	if (!string) {
+		PRINTM(MERROR, "Memory allocation failed\n");
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	memset(d, 0, sizeof(mfg_CmdDebugTemperature_Cfg_t));
+	// Safely copy the input string, excluding the prefix
+	prefix_len = strlen("set_debug_temperature=");
+	if (len <= prefix_len) {
+		PRINTM(MERROR, "Invalid input string length\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	strncpy(string, s + prefix_len, MAX_THERMAL_SIMULATION_LEN - 1);
+	string[MAX_THERMAL_SIMULATION_LEN - 1] = '\0';
+
+	temp = strstrip(string);
+
+	// Parse simulation enable
+	pos = strsep(&temp, " \t");
+	if (!pos) {
+		PRINTM(MERROR, "Missing simulation enable parameter\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	d->simulation_enable = (t_u32)woal_string_to_number(pos);
+	if (d->simulation_enable == MFALSE) {
+		PRINTM(MERROR, "Thermal simulation disabled\n");
+		goto done;
+	}
+
+	// Parse CAU temperature
+	pos = strsep(&temp, " \t");
+	if (!pos) {
+		PRINTM(MERROR, "Missing CAU temperature parameter\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	d->cau_temperature = (t_s32)woal_string_to_number(pos);
+
+	// Parse RFU temperatures
+	for (mac = 0; mac < MAX_RFUS; mac++) {
+		for (rpath = 0; rpath < MAX_PATHS; rpath++) {
+			pos = strsep(&temp, " \t");
+			if (!pos) {
+				PRINTM(MERROR, "Insufficient parameters\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			d->rfu_temperature[mac][rpath] =
+				(t_s32)woal_string_to_number(pos);
+		}
+	}
+
+	// Validate simulation enable
+	if (d->simulation_enable > 1) {
+		PRINTM(MERROR, "Invalid simulation enable value\n");
+		ret = -EINVAL;
+	}
+
+done:
+
+	kfree(string);
+	LEAVE();
+	return ret;
+}
+
 /**
  *  @brief This function sends RF test mode command in firmware
  *
@@ -9663,6 +9824,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 	mlan_ds_misc_cfg *misc = NULL;
 	int err = MFALSE;
 	int i;
+	t_u8 mac, rpath;
 
 	ENTER();
 
@@ -9692,9 +9854,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_CHANNELBW:
-		if (val != 0 && val != 1 &&
-		    (val != 4 ||
-		     (val == 4 && handle->rf_data->band == BAND_2GHZ)))
+		if (val != 0 && val != 1 && val != 4)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_CHAN:
@@ -9745,6 +9905,13 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		misc->sub_command = MLAN_OID_MISC_OTP_CAL_DATA_RD_WR;
 		if (parse_otp_cal_data_rd_wr_string(
 			    buffer, len, &misc->param.mfg_otp_cal_data_rd_wr)) {
+			err = MTRUE;
+		}
+		break;
+	case MFG_CMD_SET_DEBUG_TEMPERATURE:
+		misc->sub_command = MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE;
+		if (parse_set_debug_temperature(buffer, len,
+						&misc->param.mfg_debug_temp)) {
 			err = MTRUE;
 		}
 		break;
@@ -9915,6 +10082,21 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		     i++) {
 			handle->rf_data->mfg_otp_cal_data_rd_wr.cal_data[i] =
 				misc->param.mfg_otp_cal_data_rd_wr.cal_data[i];
+		}
+		break;
+	case MFG_CMD_SET_DEBUG_TEMPERATURE:
+		handle->rf_data->mfg_debug_temp.action =
+			misc->param.mfg_debug_temp.action;
+		handle->rf_data->mfg_debug_temp.simulation_enable =
+			misc->param.mfg_debug_temp.simulation_enable;
+		handle->rf_data->mfg_debug_temp.cau_temperature =
+			misc->param.mfg_debug_temp.cau_temperature;
+		for (mac = 0; mac < MAX_RFUS; mac++) {
+			for (rpath = 0; (rpath < MAX_PATHS); rpath++)
+				handle->rf_data->mfg_debug_temp
+					.rfu_temperature[mac][rpath] =
+					misc->param.mfg_debug_temp
+						.rfu_temperature[mac][rpath];
 		}
 		break;
 	}

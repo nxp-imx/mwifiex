@@ -2909,6 +2909,91 @@ done:
 }
 
 /**
+ *  @brief Set/Get esupplicant ssid_protection configurations
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_setget_priv_ssid_protection(moal_private *priv, t_u8 *respbuf,
+					    t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_sec_cfg *sec = NULL;
+	int ret = 0;
+	t_u32 data[1];
+	int user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv->phandle->card_info->embedded_supp) {
+		PRINTM(MERROR, "Not supported cmd on this card\n");
+		ret = -EOPNOTSUPP;
+		goto done;
+	}
+
+	if (strlen(respbuf) ==
+	    (strlen(CMD_NXP) + strlen(PRIV_CMD_SSID_PROTECTION))) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
+		parse_arguments(respbuf + strlen(CMD_NXP) +
+					strlen(PRIV_CMD_SSID_PROTECTION),
+				data, ARRAY_SIZE(data), &user_data_len);
+	}
+
+	if (user_data_len >= 2) {
+		PRINTM(MERROR, "Too many arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	if (user_data_len) {
+		if (data[0] > 1) {
+			PRINTM(MERROR, "Invalid ssid protection value\n");
+			ret = -EINVAL;
+			goto done;
+		}
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_SEC_CFG;
+	sec = (mlan_ds_sec_cfg *)req->pbuf;
+	sec->sub_command = MLAN_OID_SEC_CFG_SSID_PROTECTION;
+	if (user_data_len == 0)
+		req->action = MLAN_ACT_GET;
+	else {
+		req->action = MLAN_ACT_SET;
+		sec->param.ssid_protection = data[0];
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	moal_memcpy_ext(priv->phandle, respbuf,
+			(t_u8 *)&sec->param.ssid_protection, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Deauthenticate
  *
  *  @param priv         A pointer to moal_private structure
@@ -5157,6 +5242,10 @@ static int woal_priv_set_get_drvdbg(moal_private *priv, t_u8 *respbuf,
 #endif
 	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
 	       (drvdbg & MMPA_D) ? "X" : "");
+#ifdef SECURE_HOST
+	printk(KERN_ALERT "MSHC_D (%08x) %s\n", MSHC_D,
+	       (drvdbg & MSHC_D) ? "X" : "");
+#endif
 	printk(KERN_ALERT "MIF_D  (%08x) %s\n", MIF_D,
 	       (drvdbg & MIF_D) ? "X" : "");
 	printk(KERN_ALERT "MFW_D  (%08x) %s\n", MFW_D,
@@ -7016,6 +7105,13 @@ static int woal_priv_warmreset(moal_private *priv, t_u8 *respbuf,
 	moal_private *ref_priv;
 	ENTER();
 
+#ifdef SECURE_HOST
+	if (handle->params.secure_host) {
+		PRINTM(MERROR,
+		       "Warm reset not supported with secure host enabled\n");
+		goto done;
+	}
+#endif
 	ret = woal_pre_warmreset(priv);
 	if (ret)
 		goto done;
@@ -9728,6 +9824,7 @@ static int woal_priv_set_get_dscp_map(moal_private *priv, t_u8 *respbuf,
 	return ret;
 }
 
+#define BUF_LEN 50
 /**
  *  @brief Get extended driver version
  *
@@ -9744,6 +9841,7 @@ static int woal_priv_get_driver_verext(moal_private *priv, t_u8 *respbuf,
 	mlan_ds_get_info *info = NULL;
 	mlan_ioctl_req *req = NULL;
 	int ret = 0;
+	char buf[BUF_LEN];
 	int copy_size = 0;
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -9789,15 +9887,24 @@ static int woal_priv_get_driver_verext(moal_private *priv, t_u8 *respbuf,
 		goto done;
 	}
 
+	ret = snprintf(buf, BUF_LEN, "%s%s-%s, ", DRV_BUILDTYPE, KERN_VERSION,
+		       MLAN_EXT_RELEASE_VERSION);
+	if (ret <= 0) {
+		PRINTM(MERROR, "Failed to mlan release ext version\n");
+		goto done;
+	}
 	/*
 	 * Set the amount to copy back to the application as the minimum of the
 	 *   available assoc resp data or the buffer provided by the application
 	 */
-	copy_size = MIN(strlen(info->param.ver_ext.version_str), respbuflen);
-	moal_memcpy_ext(priv->phandle, respbuf, info->param.ver_ext.version_str,
-			copy_size, respbuflen);
+	copy_size =
+		MIN(ret + strlen(info->param.ver_ext.version_str), respbuflen);
+	moal_memcpy_ext(priv->phandle, respbuf, buf, ret, respbuflen);
+	moal_memcpy_ext(priv->phandle, respbuf + ret,
+			info->param.ver_ext.version_str, copy_size - ret,
+			respbuflen);
 	ret = copy_size;
-	PRINTM(MINFO, "MOAL EXTENDED VERSION: %s\n",
+	PRINTM(MERROR, "MOAL EXTENDED VERSION: %s\n",
 	       info->param.ver_ext.version_str);
 
 done:
@@ -17792,6 +17899,84 @@ done:
 #endif
 
 /**
+ * @brief               Set/Get LTE coexistence parameters
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_lte_coex_band_cfg(moal_private *priv, t_u8 *respbuf,
+				       t_u32 respbuflen)
+{
+	int ret = 0;
+	t_u8 *pos = NULL;
+	int user_data_len = 0, header_len = 0, data[1];
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc_cfg = NULL;
+	mlan_ds_misc_lte_coex_band_cfg *lte_cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_LTE_COEX_CFG);
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	misc_cfg->sub_command = MLAN_OID_MISC_LTE_COEX_CFG;
+	lte_cfg = &misc_cfg->param.lte_cfg;
+
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		pos = respbuf + header_len;
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+		if (user_data_len == 1) {
+			lte_cfg->band = data[0];
+		}
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!user_data_len) {
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)lte_cfg,
+				sizeof(mlan_ds_misc_lte_coex_band_cfg),
+				respbuflen);
+		ret = sizeof(mlan_ds_misc_lte_coex_band_cfg);
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief               Set/Get DFS repeater mode
  *
  * @param priv          Pointer to moal_private structure
@@ -22763,6 +22948,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_setget_priv_passphrase(priv, buf,
 							  priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_SSID_PROTECTION,
+				    strlen(PRIV_CMD_SSID_PROTECTION)) == 0) {
+			/* SSID protection mode configuration */
+			len = woal_setget_priv_ssid_protection(
+				priv, buf, priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_DEAUTH,
 				    strlen(PRIV_CMD_DEAUTH)) == 0) {
 			/* Deauth */
@@ -23601,6 +23793,7 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_get_foundry_type(priv, buf,
 							 priv_cmd.total_len);
 			goto handled;
+
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_CROSS_CHIP_SYNCH,
 				    strlen(PRIV_CMD_CROSS_CHIP_SYNCH)) == 0) {
@@ -23800,6 +23993,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 						       priv_cmd.total_len);
 			goto handled;
 #endif
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_LTE_COEX_CFG,
+				    strlen(PRIV_CMD_LTE_COEX_CFG)) == 0) {
+			/* Set/Get LTE coexistence parameters */
+			len = woal_priv_lte_coex_band_cfg(priv, buf,
+							  priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_DFS_REPEATER_CFG,
 				    strlen(PRIV_CMD_DFS_REPEATER_CFG)) == 0) {

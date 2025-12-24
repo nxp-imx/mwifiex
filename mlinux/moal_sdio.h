@@ -92,13 +92,6 @@ Change log:
 #define SD8977_DEFAULT_WLAN_FW_NAME "nxp/sd8977_wlan_v2.bin"
 #endif /* SD8977 */
 
-#ifdef SD8997
-#define SD8997_DEFAULT_COMBO_FW_NAME "nxp/sduart8997_combo_v4.bin"
-#define SDUART8997_DEFAULT_COMBO_FW_NAME "nxp/sduart8997_combo_v4.bin"
-#define SDSD8997_DEFAULT_COMBO_FW_NAME "nxp/sdsd8997_combo_v4.bin"
-#define SD8997_DEFAULT_WLAN_FW_NAME "nxp/sd8997_wlan_v4.bin"
-#endif /* SD8997 */
-
 #ifdef SD8987
 #define SD8987_DEFAULT_COMBO_FW_NAME "nxp/sduart8987_combo.bin"
 #define SDUART8987_DEFAULT_COMBO_FW_NAME "nxp/sduart8987_combo.bin"

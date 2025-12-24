@@ -410,6 +410,9 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
 		       pmdevice->card_type);
+		/* coverity assumes that Passing pmadapter to memset,
+		 *  sets pmadapter->callbacks.moal_memcpy_ext to NULL
+		 */
 		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_pcie_ops,
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
@@ -441,6 +444,11 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
 		       pmdevice->card_type);
+		/* coverity assumes that Passing pmadapter to memset,
+		 * sets pmadapter->callbacks.moal_memcpy_ext to NULL but
+		 * memset of pmadapter will not nullify
+		 * pmadapter->callbacks.moal_memcpy_ext.
+		 */
 		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_usb_ops,
 			   sizeof(mlan_adapter_operations),
 			   sizeof(mlan_adapter_operations));
@@ -571,6 +579,18 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->priv[0]->bss_num =
 			(t_u8)pmdevice->bss_attr[0].bss_num;
 	}
+
+#ifdef SECURE_HOST
+	pmadapter->shc_secure_host = pmdevice->secure_host;
+	if (pmadapter->second_mac && pmadapter->shc_secure_host) {
+		if (pcb->moal_secure_host_derive_traffic_keys(
+			    pmadapter->pmoal_handle) ||
+		    pcb->moal_secure_host_data_ctx_init(
+			    pmadapter->pmoal_handle)) {
+			goto error;
+		}
+	}
+#endif
 
 	/* init function table */
 	for (j = 0; mlan_ops[j]; j++) {
@@ -725,6 +745,12 @@ mlan_status mlan_read_meta_data(mlan_adapter *pmadapter, pmlan_fw_image pmfw)
 	if (memcmp(pmadapter, magic,
 		   (pmfw->pfw_buf + pmfw->fw_len) - META_MAGIC_OFFSET,
 		   META_MAGIC_LEN)) {
+#ifdef SECURE_HOST
+		if (pmadapter->shc_secure_host)
+			PRINTM(MERROR,
+			       "Secure host failed: No Meta magic in FW\n");
+		else
+#endif
 			ret = MLAN_STATUS_SUCCESS;
 
 		LEAVE();
@@ -2255,8 +2281,10 @@ void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop)
 t_void mlan_set_driver_status(t_void *adapter, t_u8 driver_status)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
+
 	ENTER();
-	pmadapter->driver_status = driver_status;
+	if (pmadapter)
+		pmadapter->driver_status = driver_status;
 	LEAVE();
 }
 

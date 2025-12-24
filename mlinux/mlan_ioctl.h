@@ -308,6 +308,8 @@ enum _mlan_ioctl_req_id {
 #endif
 	MLAN_OID_MISC_TDLS_OPER = 0x00200026,
 	MLAN_OID_MISC_GET_TDLS_IES = 0x00200027,
+	MLAN_OID_MISC_LTE_COEX_CFG = 0x00200028,
+
 	MLAN_OID_MISC_LOW_PWR_MODE = 0x00200029,
 	MLAN_OID_MISC_MEF_FLT_CFG = 0x0020002A,
 	MLAN_OID_MISC_DFS_REAPTER_MODE = 0x0020002B,
@@ -400,11 +402,16 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_FOUNDRY_TYPE = 0X0020009B,
 
 	MLAN_OID_MISC_NAV_MITIGATION_HW = 0x0020009C,
+
 	MLAN_OID_MISC_PREAMBLE_PWR_BOOST = 0x0020009D,
 	MLAN_OID_MISC_PER_BAND_TXPWR_CAP = 0x0020009E,
+
 #ifdef UAP_SUPPORT
-	MLAN_OID_MISC_AGCS_CONFIG = 0x0020009F,
+	MLAN_OID_MISC_AGCS_CONFIG = 0x002000A0,
 #endif /* UAP_SUPPORT */
+	MLAN_OID_SEC_CFG_SSID_PROTECTION = 0x002000A1,
+	MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE = 0x002000A2
+
 };
 
 /** Sub command size */
@@ -453,6 +460,9 @@ enum _mlan_ext_scan {
 	MLAN_EXT_SCAN,
 	MLAN_EXT_SCAN_ENH
 };
+
+#define MAX_RFUS 2
+#define MAX_PATHS 2
 
 /** Max number of supported rates */
 #define MLAN_SUPPORTED_RATES 32
@@ -2009,10 +2019,22 @@ typedef struct _mlan_ds_get_signal {
 /** bit for 5 G antenna diversity */
 #define ANT_DIVERSITY_5G MBIT(7)
 
+/** firmware complete version number */
+typedef struct {
+	/** FW release number */
+	t_u8 releaseNum;
+	/** minor version */
+	t_u8 minorRevNum;
+	/** major version */
+	t_u8 majorRevNum;
+	/** patch level version */
+	t_u16 patchLevel;
+} fw_release_version_t;
+
 /** mlan_fw_info data structure for MLAN_OID_GET_FW_INFO */
 typedef struct _mlan_fw_info {
 	/** Firmware version */
-	t_u32 fw_ver;
+	fw_release_version_t fw_ver;
 	/** Firmware Hotfix version */
 	t_u8 hotfix_version;
 	/** tx buf size */
@@ -2083,6 +2105,12 @@ typedef struct _mlan_fw_info {
 	t_u8 sec_rgpower;
 	/*country code from OTP*/
 	t_u16 fw_country_code;
+	/** firmware version milestone */
+	char fw_ver_milestone[10];
+	/** firmware version buildtype */
+	char fw_ver_buildtype[10];
+	/** firmware version data */
+	char fw_ver_data[30];
 } mlan_fw_info, *pmlan_fw_info;
 
 /** Version string buffer length */
@@ -3001,6 +3029,7 @@ typedef struct _mlan_ds_sec_cfg {
 		t_u8 sta_mac[MLAN_MAC_ADDR_LENGTH];
 #endif
 		mlan_ds_passphrase roam_passphrase[MAX_SEC_SSID_NUM];
+		t_u32 ssid_protection;
 	} param;
 } mlan_ds_sec_cfg, *pmlan_ds_sec_cfg;
 
@@ -5649,6 +5678,13 @@ typedef struct _mlan_ds_misc_tdls_ies {
 	t_u8 regulatory_class[IEEE_MAX_IE_SIZE];
 } mlan_ds_misc_tdls_ies;
 
+/** Type definition of mlan_ds_misc_lte_coex_band_cfg
+ * for MLAN_OID_MISC_LTE_COEX_CFG */
+typedef struct _mlan_ds_misc_lte_coex_band_cfg {
+	/** LTE COEX BAND */
+	t_u8 band;
+} mlan_ds_misc_lte_coex_band_cfg;
+
 typedef struct _mlan_ds_misc_dfs_repeater {
 	/** Set or Get */
 	t_u16 action;
@@ -6113,7 +6149,7 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 #define MFG_CMD_CONFIG_TRIGGER_FRAME 0x110C
 #define MFG_CMD_OTP_MAC_ADD 0x108C
 #define MFG_CMD_OTP_CAL_DATA 0x121A
-
+#define MFG_CMD_SET_DEBUG_TEMPERATURE 0x121f
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
 	/** MFG command code */
@@ -6441,6 +6477,24 @@ typedef MLAN_PACK_START struct _mfg_cmd_otp_cal_data_rd_wr_t {
 	t_u8 cal_data[CAL_DATA_LEN];
 } MLAN_PACK_END mfg_cmd_otp_cal_data_rd_wr_t;
 
+/** Thermal simulation structure */
+typedef MLAN_PACK_START struct _mfg_cmd_set_debug_temperature {
+	/** MFG command code */
+	t_u32 mfg_cmd;
+	/** Action */
+	t_u16 action;
+	/** Device ID */
+	t_u16 device_id;
+	/** MFG Error code */
+	t_u32 error;
+	/** enable/disable thermal simulation */
+	t_u32 simulation_enable;
+	/** CAU temperature to be set */
+	t_s32 cau_temperature;
+	/** RFU temperature to be set */
+	t_s32 rfu_temperature[MAX_RFUS][MAX_PATHS];
+} MLAN_PACK_END mfg_CmdDebugTemperature_Cfg_t;
+
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** length */
 	t_u16 length;
@@ -6536,8 +6590,6 @@ typedef struct _mlan_ds_foundry_type {
 	t_u8 foundry_type;
 } mlan_ds_foundry_type;
 
-#define MAX_RFUS 2
-#define MAX_PATHS 2
 typedef struct _mlan_ds_tsp_cfg {
 	/** TSP config action 0-GET, 1-SET */
 	t_u16 action;
@@ -6771,6 +6823,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_gpio_tsf_latch gpio_tsf_latch_config;
 		mlan_ds_tsf_info tsf_info;
 		mlan_ds_coalesce_cfg coalesce_cfg;
+		mlan_ds_misc_lte_coex_band_cfg lte_cfg;
 		t_u8 low_pwr_mode;
 		/** MEF-FLT-CONFIG for MLAN_OID_MISC_NV_FLT_CFG */
 		mlan_ds_misc_mef_flt_cfg mef_flt_cfg;
@@ -6830,6 +6883,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 		mfg_cmd_otp_cal_data_rd_wr_t mfg_otp_cal_data_rd_wr;
+		mfg_CmdDebugTemperature_Cfg_t mfg_debug_temp;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;
@@ -6851,7 +6905,9 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_gpio_cfg_ops gpio_cfg_ops;
 		mlan_ds_auth_assoc_timeout_cfg auth_assoc_cfg;
 		mlan_ds_foundry_type soc_foundry_type;
+
 		mlan_ds_misc_per_band_txpwr_cap per_band_txpwr_cap;
+
 #ifdef UAP_SUPPORT
 		/** config AGCS for MLAN_OID_MISC_AGCS_CONFIG */
 		mlan_ds_agcs_cfg agcs_cfg;

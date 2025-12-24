@@ -403,7 +403,22 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_GET_FW_INFO:
 		pioctl_req->data_read_written =
 			sizeof(mlan_fw_info) + MLAN_SUB_COMMAND_SIZE;
-		pget_info->param.fw_info.fw_ver = pmadapter->fw_release_number;
+		memcpy_ext(pmadapter, &pget_info->param.fw_info.fw_ver,
+			   &pmadapter->fw_release_number,
+			   sizeof(pget_info->param.fw_info.fw_ver),
+			   sizeof(pmadapter->fw_release_number));
+		memcpy_ext(pmadapter, pget_info->param.fw_info.fw_ver_milestone,
+			   pmadapter->fw_ver_milestone,
+			   sizeof(pget_info->param.fw_info.fw_ver_milestone),
+			   sizeof(pmadapter->fw_ver_milestone));
+		memcpy_ext(pmadapter, pget_info->param.fw_info.fw_ver_buildtype,
+			   pmadapter->fw_ver_buildtype,
+			   sizeof(pget_info->param.fw_info.fw_ver_buildtype),
+			   sizeof(pmadapter->fw_ver_buildtype));
+		memcpy_ext(pmadapter, pget_info->param.fw_info.fw_ver_data,
+			   pmadapter->fw_ver_data,
+			   sizeof(pget_info->param.fw_info.fw_ver_data),
+			   sizeof(pmadapter->fw_ver_data));
 		pget_info->param.fw_info.hotfix_version =
 			pmadapter->fw_hotfix_ver;
 		pget_info->param.fw_info.tx_buf_size = pmadapter->tx_buf_size;
@@ -1215,7 +1230,6 @@ static mlan_status wlan_query_passphrase(mlan_private *priv,
 	LEAVE();
 	return ret;
 }
-
 /**
  *  @brief Search for a BSS
  *
@@ -1244,6 +1258,34 @@ static mlan_status wlan_bss_ioctl_find_bss(pmlan_adapter pmadapter,
 
 	ret = wlan_find_bss(pmpriv, pioctl_req);
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Set/Get ssid protection capability status
+ *
+ *  @param pmadapter   A pointer to mlan_adapter structure
+ *  @param pioctl_req  A pointer to ioctl request buffer
+ *
+ *  @return            MLAN_STATUS_SUCCESS --success
+ */
+static mlan_status wlan_sec_ioctl_ssid_protection(IN pmlan_adapter pmadapter,
+						  IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_sec_cfg *sec = MNULL;
+	ENTER();
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		sec->param.ssid_protection = pmpriv->ssid_protection;
+	} else {
+		pmpriv->ssid_protection = (t_u8)sec->param.ssid_protection;
+		PRINTM(MINFO, "Set: SSID Protection = %d\n",
+		       (int)pmpriv->ssid_protection);
+	}
+	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 	LEAVE();
 	return ret;
 }
@@ -3248,6 +3290,9 @@ static mlan_status wlan_sec_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_SEC_CFG_ESUPP_MODE:
 		status = wlan_sec_ioctl_esupp_mode(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_SEC_CFG_SSID_PROTECTION:
+		status = wlan_sec_ioctl_ssid_protection(pmadapter, pioctl_req);
+		break;
 
 	default:
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
@@ -5179,6 +5224,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_DRCS_CFG:
 		status = wlan_misc_ioctl_drcs_config(pmadapter, pioctl_req);
 		break;
+	case MLAN_OID_MISC_LTE_COEX_CFG:
+		status = wlan_misc_ioctl_lte_coex_band_cfg(pmadapter,
+							   pioctl_req);
+		break;
 	case MLAN_OID_MISC_LOW_PWR_MODE:
 		status = wlan_misc_ioctl_low_pwr_mode(pmadapter, pioctl_req);
 		break;
@@ -5357,6 +5406,7 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_RF_TEST_TX_FRAME:
 	case MLAN_OID_MISC_RF_TEST_HE_POWER:
 	case MLAN_OID_MISC_OTP_MAC_RD_WR:
+	case MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE:
 	case MLAN_OID_MISC_OTP_CAL_DATA_RD_WR:
 		status = wlan_misc_ioctl_rf_test_cfg(pmadapter, pioctl_req);
 		break;
@@ -5392,10 +5442,12 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_FOUNDRY_TYPE:
 		status = wlan_misc_ioctl_foundry_type(pmadapter, pioctl_req);
 		break;
+
 	case MLAN_OID_MISC_PER_BAND_TXPWR_CAP:
 		status = wlan_misc_ioctl_per_band_txpwr_cap(pmadapter,
 							    pioctl_req);
 		break;
+
 	default:
 		if (pioctl_req)
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;

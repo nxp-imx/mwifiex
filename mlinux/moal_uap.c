@@ -308,7 +308,9 @@ static int woal_uap_get_fw_info(struct net_device *dev, struct ifreq *req)
 		ret = -EFAULT;
 		goto done;
 	}
-	fw.fw_release_number = fw_info.fw_ver;
+	//	fw.fw_release_number = fw_info.fw_ver;
+	moal_memcpy_ext(priv->phandle, &fw.fw_release_number, &fw_info.fw_ver,
+			sizeof(fw.fw_release_number), sizeof(fw_info.fw_ver));
 	fw.hw_dev_mcs_support = fw_info.hw_dev_mcs_support;
 	fw.fw_bands = fw_info.fw_bands;
 	fw.region_code = fw_info.region_code;

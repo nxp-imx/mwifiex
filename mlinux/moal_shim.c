@@ -281,7 +281,7 @@ mlan_status moal_malloc_cached(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
 	flag = in_atomic()     ? GFP_ATOMIC :
 	       irqs_disabled() ? GFP_ATOMIC :
 				 GFP_KERNEL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	*ppbuf = dma_alloc_noncoherent(&card->dev->dev, size, &dma,
 				       DMA_BIDIRECTIONAL, flag);
 #else
@@ -321,7 +321,7 @@ mlan_status moal_mfree_cached(t_void *pmoal, t_u32 size, t_u8 *pbuf,
 	if (unlikely(!pbuf || !card))
 		return MLAN_STATUS_FAILURE;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	dma_free_noncoherent(&card->dev->dev, size, pbuf, buf_pa,
 			     DMA_BIDIRECTIONAL);
 #else
@@ -1871,8 +1871,13 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 					struct ieee80211_radiotap_header);
 				if (rt_info.radiotap_extra) {
 					rth_hdr->it_present |= cpu_to_le32(
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 9, 0)
 						(1
-						 << IEEE80211_RADIOTAP_TIMESTAMP) |
+						 << IEEE80211_RADIOTAP_TIMESTAMP)
+#else
+						0
+#endif
+						|
 						(1
 						 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
 						(1 << IEEE80211_RADIOTAP_EXT));
@@ -3597,6 +3602,35 @@ static void woal_survey_dump_reset_event(moal_private *priv)
 	// coverity[leaked_storage]: SUPPRESS
 }
 
+#ifdef STA_CFG80211
+/**
+ * @brief   This function send event to inform BSS from scan result
+ *
+ * @param priv       A pointer moal_private structure
+ *
+ * @return          N/A
+ */
+static void woal_send_bss_scan_result_event(moal_private *priv)
+{
+	struct woal_event *evt;
+	unsigned long flags;
+	moal_handle *handle = priv->phandle;
+
+	evt = kzalloc(sizeof(struct woal_event), GFP_ATOMIC);
+	if (evt) {
+		evt->priv = priv;
+		evt->type = WOAL_EVENT_CFG80211_INFORM_BSS;
+		INIT_LIST_HEAD(&evt->link);
+		spin_lock_irqsave(&handle->evt_lock, flags);
+		list_add_tail(&evt->link, &handle->evt_queue);
+		spin_unlock_irqrestore(&handle->evt_lock, flags);
+		queue_work(handle->evt_workqueue, &handle->evt_work);
+	}
+	// evt buffer will be freed by woal_evt_work_queue() once event is
+	// handled coverity[misra_c_2012_rule_22_1_violation:SUPPRESS]
+	// coverity[leaked_storage]: SUPPRESS
+}
+#endif
 /**
  *  @brief This function handles event receive
  *
@@ -3609,9 +3643,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 {
 #ifdef STA_SUPPORT
 	int custom_len = 0;
-#ifdef STA_CFG80211
-	unsigned long flags;
-#endif
 #endif
 	moal_private *priv = NULL;
 #if defined(STA_SUPPORT) || defined(UAP_SUPPORT)
@@ -3815,38 +3846,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			priv->report_scan_result = MFALSE;
 #ifdef STA_CFG80211
 			if (IS_STA_CFG80211(cfg80211_wext)) {
-				spin_lock_irqsave(&priv->phandle->scan_req_lock,
-						  flags);
-				if (priv->phandle->scan_request) {
-					PRINTM(MINFO,
-					       "Reporting scan results\n");
-					woal_inform_bss_from_scan_result(
-						priv, NULL, MOAL_NO_WAIT);
-					if (!priv->phandle->first_scan_done) {
-						priv->phandle->first_scan_done =
-							MTRUE;
-						if (!priv->phandle
-							     ->user_scan_cfg)
-							woal_set_scan_time(
-								priv,
-								ACTIVE_SCAN_CHAN_TIME,
-								PASSIVE_SCAN_CHAN_TIME,
-								SPECIFIC_SCAN_CHAN_TIME);
-					}
-					if (priv->phandle->scan_request) {
-						cancel_delayed_work(
-							&priv->phandle
-								 ->scan_timeout_work);
-						woal_cfg80211_scan_done(
-							priv->phandle
-								->scan_request,
-							MFALSE);
-						priv->phandle->scan_request =
-							NULL;
-					}
-				}
-				spin_unlock_irqrestore(
-					&priv->phandle->scan_req_lock, flags);
+				woal_send_bss_scan_result_event(priv);
 			}
 #endif /* STA_CFG80211 */
 
@@ -4193,27 +4193,6 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 		if (IS_STA_CFG80211(cfg80211_wext)) {
-			struct cfg80211_bss *bss = NULL;
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-			bss = cfg80211_get_bss(priv->wdev->wiphy, NULL,
-					       priv->cfg_bssid, NULL, 0,
-					       IEEE80211_BSS_TYPE_ESS,
-					       IEEE80211_PRIVACY_ANY);
-
-#else
-			bss = cfg80211_get_bss(priv->wdev->wiphy, NULL,
-					       priv->cfg_bssid, NULL, 0,
-					       WLAN_CAPABILITY_ESS,
-					       WLAN_CAPABILITY_ESS);
-#endif
-			if (bss) {
-				cfg80211_unlink_bss(priv->wdev->wiphy, bss);
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
-				cfg80211_put_bss(priv->wdev->wiphy, bss);
-#else
-				cfg80211_put_bss(bss);
-#endif
-			}
 			if (!hw_test && priv->roaming_enabled)
 				woal_config_bgscan_and_rssi(priv, MFALSE);
 			else {
@@ -5746,7 +5725,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			roam_info->req_ie_len = ie_len;
 			roam_info->resp_ie = pinfo->rsp_ie;
 			roam_info->resp_ie_len = pinfo->header.len;
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0) ||                      \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
 			if (priv->wdev->u.client.ssid_len)
 #else
 			if (priv->wdev->ssid_len)

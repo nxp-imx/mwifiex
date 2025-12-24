@@ -2185,8 +2185,27 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				   &pget_info->param.fw_info.mac_addr,
 				   pmpriv->curr_addr, MLAN_MAC_ADDR_LENGTH,
 				   MLAN_MAC_ADDR_LENGTH);
-			pget_info->param.fw_info.fw_ver =
-				pmadapter->fw_release_number;
+			memcpy_ext(pmadapter, &pget_info->param.fw_info.fw_ver,
+				   &pmadapter->fw_release_number,
+				   sizeof(pget_info->param.fw_info.fw_ver),
+				   sizeof(pmadapter->fw_release_number));
+			memcpy_ext(pmadapter,
+				   pget_info->param.fw_info.fw_ver_milestone,
+				   pmadapter->fw_ver_milestone,
+				   sizeof(pget_info->param.fw_info
+						  .fw_ver_milestone),
+				   sizeof(pmadapter->fw_ver_milestone));
+			memcpy_ext(pmadapter,
+				   pget_info->param.fw_info.fw_ver_buildtype,
+				   pmadapter->fw_ver_buildtype,
+				   sizeof(pget_info->param.fw_info
+						  .fw_ver_buildtype),
+				   sizeof(pmadapter->fw_ver_buildtype));
+			memcpy_ext(pmadapter,
+				   pget_info->param.fw_info.fw_ver_data,
+				   pmadapter->fw_ver_data,
+				   sizeof(pget_info->param.fw_info.fw_ver_data),
+				   sizeof(pmadapter->fw_ver_data));
 			pget_info->param.fw_info.hotfix_version =
 				pmadapter->fw_hotfix_ver;
 			pget_info->param.fw_info.tx_buf_size =
@@ -2358,6 +2377,7 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (misc->sub_command == MLAN_OID_MISC_FOUNDRY_TYPE)
 			status = wlan_misc_ioctl_foundry_type(pmadapter,
 							      pioctl_req);
+
 		else if (misc->sub_command == MLAN_OID_MISC_GET_TSF)
 			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_CROSS_CHIP_SYNCH)

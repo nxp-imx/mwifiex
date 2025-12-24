@@ -7082,7 +7082,8 @@ static int woal_cfg80211_dump_survey(struct wiphy *wiphy,
 			if (stats.cca_cnt_us != 0) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-				survey->filled |= SURVEY_INFO_TIME |
+				survey->filled |= SURVEY_INFO_IN_USE |
+						  SURVEY_INFO_TIME |
 						  SURVEY_INFO_TIME_BUSY |
 						  SURVEY_INFO_TIME_RX |
 						  SURVEY_INFO_TIME_TX;

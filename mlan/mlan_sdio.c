@@ -182,11 +182,10 @@ static const struct _mlan_card_info mlan_card_info_sd8897 = {
 };
 #endif
 
-#if defined(SD8977) || defined(SD8997) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
-	defined(SDAW693) || defined(SD8978) || defined(SD9177) ||              \
-	defined(SDIW610)
-static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
+#if defined(SD8977) || defined(SD8987) || defined(SD9098) ||                   \
+	defined(SD9097) || defined(SDIW624) || defined(SDAW693) ||             \
+	defined(SD8978) || defined(SD9177) || defined(SDIW610)
+static const struct _mlan_sdio_card_reg mlan_reg_sd8977 = {
 	.start_rd_port = 0,
 	.start_wr_port = 0,
 	.base_0_reg = 0xf8,
@@ -255,16 +254,6 @@ static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
 	.fw_heart_beat_1_reg = 0xEA,
 	.fw_heart_beat_2_reg = 0xEC,
 	.fw_sleep_state_reg = 0xF0,
-};
-#endif
-
-#ifdef SD8997
-static const struct _mlan_card_info mlan_card_info_sd8997 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 1,
-	.supp_ps_handshake = 0,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-	.support_11mc = 1,
 };
 #endif
 
@@ -2311,55 +2300,49 @@ mlan_status wlan_get_sdio_device(pmlan_adapter pmadapter)
 #if defined(SD8977) || defined(SD8978)
 	case CARD_TYPE_SD8977:
 	case CARD_TYPE_SD8978:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sd8977;
-		break;
-#endif
-#ifdef SD8997
-	case CARD_TYPE_SD8997:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
-		pmadapter->pcard_info = &mlan_card_info_sd8997;
 		break;
 #endif
 #ifdef SD8987
 	case CARD_TYPE_SD8987:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sd8987;
 		break;
 #endif
 #ifdef SD9098
 	case CARD_TYPE_SD9098:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sd9098;
 		break;
 #endif
 #ifdef SD9097
 	case CARD_TYPE_SD9097:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sd9097;
 		break;
 #endif
 #ifdef SDIW624
 	case CARD_TYPE_SDIW624:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sdiw624;
 		break;
 #endif
 #ifdef SDAW693
 	case CARD_TYPE_SDAW693:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sdaw693;
 		break;
 #endif
 #ifdef SDIW610
 	case CARD_TYPE_SDIW610:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sdiw610;
 		break;
 #endif
 #ifdef SD9177
 	case CARD_TYPE_SD9177:
-		pmadapter->pcard_sd->reg = &mlan_reg_sd8977_sd8997;
+		pmadapter->pcard_sd->reg = &mlan_reg_sd8977;
 		pmadapter->pcard_info = &mlan_card_info_sd9177;
 		break;
 #endif
@@ -2971,8 +2954,8 @@ exit:
 }
 
 #if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
-	defined(SDAW693) || defined(SD9177) || defined(SD8997) ||              \
-	defined(SD8987) || defined(SD8978) || defined(SDIW610)
+	defined(SDAW693) || defined(SD9177) || defined(SD8987) ||              \
+	defined(SD8978) || defined(SDIW610)
 /**
  *  @brief This function sends vdll data to the card.
  *
@@ -3036,8 +3019,8 @@ static mlan_status wlan_sdio_host_to_card_ext(pmlan_private pmpriv, t_u8 type,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 
 #if defined(SD9098) || defined(SD9097) || defined(SDIW624) ||                  \
-	defined(SDAW693) || defined(SD9177) || defined(SD8997) ||              \
-	defined(SD8987) || defined(SD8978) || defined(SDIW610)
+	defined(SDAW693) || defined(SD9177) || defined(SD8987) ||              \
+	defined(SD8978) || defined(SDIW610)
 	if (type == MLAN_TYPE_VDLL)
 		return wlan_sdio_send_vdll(pmadapter, pmbuf);
 #endif
@@ -3097,10 +3080,9 @@ void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
 			break;
 		}
 		if (pkt_len > SDIO_INTF_HEADER_LEN) {
-			/* mbuf_deaggr is freed in moal_recv_complete(),
-			 * therefore Overwriting mbuf_deaggr is not harmful.
-			 */
-			// coverity[overwrite_var:SUPPRESS]
+			// mbuf_deaggr is already initialized as NULL
+			// coverity[RESOURCE_LEAK:SUPPRESS]
+			// coverity[misra_c_2012_rule_22_1_violation:SUPPRESS]
 			mbuf_deaggr = wlan_alloc_mlan_buffer(
 				pmadapter, pkt_len - SDIO_INTF_HEADER_LEN,
 				MLAN_RX_HEADER_LEN, MOAL_ALLOC_MLAN_BUFFER);
@@ -3118,7 +3100,10 @@ void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
 			   pkt_len - SDIO_INTF_HEADER_LEN,
 			   pkt_len - SDIO_INTF_HEADER_LEN);
 		mbuf_deaggr->data_len = pkt_len - SDIO_INTF_HEADER_LEN;
+		// Buffer mbuf_deaggr will be free in Kernel API.
+		// coverity[leaked_storage:SUPPRESS]
 		wlan_handle_rx_packet(pmadapter, mbuf_deaggr);
+
 		data += block_size;
 		total_pkt_len -= block_size;
 		if (total_pkt_len < pmadapter->pcard_sd->sdio_rx_block_size)
@@ -3126,10 +3111,8 @@ void wlan_decode_spa_buffer(mlan_adapter *pmadapter, t_u8 *buf, t_u32 len)
 	}
 done:
 	LEAVE();
-	/* mbuf_deaggr is freed in moal_recv_complete(), therefore
-	 * Overwriting mbuf_deaggr is not harmful.
-	 */
-	// coverity[overwrite_var:SUPPRESS]
+	// Buffer mbuf_deaggr will be free in Kernel API.
+	// coverity[misra_c_2012_rule_22_1_violation:SUPPRESS]
 	return;
 }
 
@@ -3638,14 +3621,10 @@ mlan_status wlan_reset_fw(pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-#if defined(SD8997) || defined(SD8977) || defined(SD8987) ||                   \
-	defined(SD9098) || defined(SD9097) || defined(SDIW624) ||              \
-	defined(SDAW693) || defined(SD8978) || defined(SD9177) ||              \
-	defined(SDIW610)
+#if defined(SD8977) || defined(SD8987) || defined(SD9098) ||                   \
+	defined(SD9097) || defined(SDIW624) || defined(SDAW693) ||             \
+	defined(SD8978) || defined(SD9177) || defined(SDIW610)
 	if (MFALSE
-#ifdef SD8997
-	    || IS_SD8997(pmadapter->card_type)
-#endif
 #ifdef SD8977
 	    || IS_SD8977(pmadapter->card_type)
 #endif

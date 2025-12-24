@@ -355,6 +355,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	ENUM_ELEMENT(HostCmd_CMD_FW_DUMP_EVENT, 0x0125),
 
+	ENUM_ELEMENT(HostCmd_CMD_LTE_COEX_BAND_CONFIG, 0x0126),
+
 	ENUM_ELEMENT(HostCmd_CMD_CONFIG_LOW_POWER_MODE, 0x0128),
 
 	/** Host Command ID : Target device access */
@@ -490,6 +492,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 #endif
 
 	ENUM_ELEMENT(HostCmd_CMD_NAV_MITIGATION_HW_CFG, 0x0294),
+
+#ifdef SECURE_HOST
+	ENUM_ELEMENT(HostCmd_CMD_SECURE_HOST, 0x0295),
+#endif
 
 	/** Host Command ID : To enable/disable/force-enable PPB feature */
 	ENUM_ELEMENT(HostCmd_CMD_PREAMBLE_PWR_BOOST, 0x0296),

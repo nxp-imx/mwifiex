@@ -1314,6 +1314,14 @@ typedef MLAN_PACK_START struct _IEEEtypes_OverlapBSSScanParam_t {
 } MLAN_PACK_END IEEEtypes_OverlapBSSScanParam_t,
 	*pIEEEtypes_OverlapBSSScanParam_t;
 
+/** MrvlIEtypes_rsnx_ie_t */
+typedef MLAN_PACK_START struct _IEEEtypes_rsnx_ie_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** data (3 octets) */
+	t_u8 data[3];
+} MLAN_PACK_END IEEEtypes_rsnx_ie_t, *pIEEEtypes_rsnx_ie_t;
+
 /** VHT MCS rate set field, refer to 802.11ac */
 typedef MLAN_PACK_START struct _VHT_MCS_set {
 	t_u16 rx_mcs_map;

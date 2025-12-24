@@ -376,8 +376,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_8897 0x02
 /** 8977 card type */
 #define CARD_TYPE_8977 0x03
-/** 8997 card type */
-#define CARD_TYPE_8997 0x04
 /** 8987 card type */
 #define CARD_TYPE_8987 0x05
 /** 9098 card type */
@@ -418,8 +416,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_SD8977 (CARD_TYPE_8977 | (INTF_SD << 8))
 /** SD8978 card type */
 #define CARD_TYPE_SD8978 (CARD_TYPE_8978 | (INTF_SD << 8))
-/** SD8997 card type */
-#define CARD_TYPE_SD8997 (CARD_TYPE_8997 | (INTF_SD << 8))
 /** SD8987 card type */
 #define CARD_TYPE_SD8987 (CARD_TYPE_8987 | (INTF_SD << 8))
 /** SD9097 card type */
@@ -441,7 +437,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_SD8897(ct) (CARD_TYPE_SD8897 == (ct))
 #define IS_SD8977(ct) (CARD_TYPE_SD8977 == (ct))
 #define IS_SD8978(ct) (CARD_TYPE_SD8978 == (ct))
-#define IS_SD8997(ct) (CARD_TYPE_SD8997 == (ct))
 #define IS_SD8987(ct) (CARD_TYPE_SD8987 == (ct))
 #define IS_SD9097(ct) (CARD_TYPE_SD9097 == (ct))
 #define IS_SD9098(ct) (CARD_TYPE_SD9098 == (ct))
@@ -459,8 +454,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD8977 "SD8977"
 /** SD8978 Card */
 #define CARD_SD8978 "SDIW416"
-/** SD8997 Card */
-#define CARD_SD8997 "SD8997"
 /** SD8987 Card */
 #define CARD_SD8987 "SD8987"
 /** SD9097 Card */
@@ -484,8 +477,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #ifdef PCIE
 /** PCIE8897 card type */
 #define CARD_TYPE_PCIE8897 (CARD_TYPE_8897 | (INTF_PCIE << 8))
-/** PCIE8997 card type */
-#define CARD_TYPE_PCIE8997 (CARD_TYPE_8997 | (INTF_PCIE << 8))
 /** PCIE9097 card type */
 #define CARD_TYPE_PCIE9097 (CARD_TYPE_9097 | (INTF_PCIE << 8))
 /** PCIE9098 card type */
@@ -496,7 +487,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_PCIEAW693 (CARD_TYPE_AW693 | (INTF_PCIE << 8))
 
 #define IS_PCIE8897(ct) (CARD_TYPE_PCIE8897 == (ct))
-#define IS_PCIE8997(ct) (CARD_TYPE_PCIE8997 == (ct))
 #define IS_PCIE9097(ct) (CARD_TYPE_PCIE9097 == (ct))
 #define IS_PCIE9098(ct) (CARD_TYPE_PCIE9098 == (ct))
 #define IS_PCIEIW624(ct) (CARD_TYPE_PCIEIW624 == (ct))
@@ -504,8 +494,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 
 /** PCIE8897 Card */
 #define CARD_PCIE8897 "PCIE8897"
-/** PCIE8997 Card */
-#define CARD_PCIE8997 "PCIE8997"
 /** PCIE9097 Card */
 #define CARD_PCIE9097 "PCIEIW620"
 /** PCIE9000S Card */
@@ -533,8 +521,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_TYPE_USB8801 (CARD_TYPE_8801 | (INTF_USB << 8))
 /** USB8897 card type */
 #define CARD_TYPE_USB8897 (CARD_TYPE_8897 | (INTF_USB << 8))
-/** USB8997 card type */
-#define CARD_TYPE_USB8997 (CARD_TYPE_8997 | (INTF_USB << 8))
 /** USB8978 card type */
 #define CARD_TYPE_USB8978 (CARD_TYPE_8978 | (INTF_USB << 8))
 /** USB9098 card type */
@@ -548,7 +534,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 
 #define IS_USB8801(ct) (CARD_TYPE_USB8801 == (ct))
 #define IS_USB8897(ct) (CARD_TYPE_USB8897 == (ct))
-#define IS_USB8997(ct) (CARD_TYPE_USB8997 == (ct))
 #define IS_USB8978(ct) (CARD_TYPE_USB8978 == (ct))
 #define IS_USB9098(ct) (CARD_TYPE_USB9098 == (ct))
 #define IS_USB9097(ct) (CARD_TYPE_USB9097 == (ct))
@@ -559,8 +544,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_USB8801 "USB8801"
 /** USB8897 Card */
 #define CARD_USB8897 "USB8897"
-/** USB8997 Card */
-#define CARD_USB8997 "USB8997"
 /** USB8978 Card */
 #define CARD_USB8978 "USBIW416"
 /** USB9098 Card */
@@ -578,7 +561,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define IS_CARD8897(ct) (CARD_TYPE_8897 == ((ct)&0xf))
 #define IS_CARD8977(ct) (CARD_TYPE_8977 == ((ct)&0xf))
 #define IS_CARD8978(ct) (CARD_TYPE_8978 == ((ct)&0xf))
-#define IS_CARD8997(ct) (CARD_TYPE_8997 == ((ct)&0xf))
 #define IS_CARD8987(ct) (CARD_TYPE_8987 == ((ct)&0xf))
 #define IS_CARD9098(ct) (CARD_TYPE_9098 == ((ct)&0xf))
 #define IS_CARD9097(ct) (CARD_TYPE_9097 == ((ct)&0xf))
@@ -692,6 +674,9 @@ typedef enum {
 #define MFWDP_D MBIT(21)
 #endif /*FWDUMP_VIA_PRINT*/
 #define MSCH_D MBIT(22)
+#ifdef SECURE_HOST
+#define MSHC_D MBIT(23)
+#endif
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
 #define MINFO MBIT(30)
@@ -2814,7 +2799,27 @@ typedef struct _mlan_callbacks {
 		void (*moal_write_u16)(void *dest, t_u16 val);
 		void (*moal_write_u32)(void *dest, t_u32 val);
 	} moal_unaligned_access;
-
+#ifdef SECURE_HOST
+	t_u8 (*moal_secure_host_get_msg_id)(t_void *msg);
+	mlan_status (*moal_secure_host_init)(t_void *pmoal, const t_u8 key[64],
+					     const t_u8 uuid[16]);
+	void (*moal_secure_host_cleanup)(t_void *pmoal);
+	mlan_status (*moal_secure_host_do_hello)(t_void *pmoal, t_void **msg);
+	mlan_status (*moal_secure_host_device_hello_rcvd)(t_void *pmoal,
+							  t_void *msg);
+	mlan_status (*moal_secure_host_do_finished)(t_void *pmoal,
+						    t_void **msg);
+	mlan_status (*moal_secure_host_derive_traffic_keys)(t_void *pmoal);
+	mlan_status (*moal_secure_host_data_ctx_init)(t_void *pmoal);
+	mlan_status (*moal_secure_host_data_encrypt)(t_void *pmoal,
+						     t_void **enc_data,
+						     t_void **payload,
+						     t_u32 len);
+	mlan_status (*moal_secure_host_data_decrypt)(t_void *pmoal,
+						     t_void **dec_data,
+						     t_void **payload,
+						     t_u32 len);
+#endif
 	t_u32 (*moal_crc32_be)(t_u32 initial_crc, t_u8 const *data,
 			       unsigned long len);
 } mlan_callbacks, *pmlan_callbacks;
@@ -2998,6 +3003,9 @@ typedef struct _mlan_device {
 	t_u8 disable_11h_tpc;
 	t_u8 tpe_ie_ignore;
 	t_u32 amsdu_disable;
+#ifdef SECURE_HOST
+	t_u32 secure_host;
+#endif
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */
@@ -3113,11 +3121,11 @@ MLAN_API void mlan_process_pcie_interrupt_cb(t_void *pmadapter, int type);
 #endif
 
 #ifndef SINT32_MAX
-#define SINT32_MAX 0x7fffffff
+#define SINT32_MAX 2147483647
 #endif
 
 #ifndef SINT32_MIN
-#define SINT32_MIN 0x80000000
+#define SINT32_MIN (-2147483647 - 1)
 #endif
 
 #ifndef UINT32_MAX

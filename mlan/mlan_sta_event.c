@@ -1657,12 +1657,20 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			PRINTM(MEVENT,
 			       "Ignoring the Channel Switch Reg Info Event\n");
 		break;
+#ifdef SECURE_HOST
+	case EVENT_SECURE_HOST_COMM:
+		ret = wlan_process_secure_host_event(
+			pmpriv, pmbuf->pbuf + pmbuf->data_offset,
+			pmbuf->data_len);
+		break;
+#endif
 	case EVENT_WIFI_CHANNEL_AVOID_LIST:
 		PRINTM(MEVENT, "EVENT: EVENT_WIFI_CHANNEL_AVOID_LIST (%#x)\n",
 		       eventcause);
 		pevent->event_id = MLAN_EVENT_ID_FW_WIFI_CHANNEL_AVOID_LIST;
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_len = pmbuf->data_len;
+		// coverity[cert_arr30_c_violation:SUPPRESS]
 		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
 			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
 			   pevent->event_len);

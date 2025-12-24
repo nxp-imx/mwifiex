@@ -47,16 +47,6 @@ static const struct _mlan_card_info mlan_card_info_usb8897 = {
 };
 #endif
 
-#ifdef USB8997
-static const struct _mlan_card_info mlan_card_info_usb8997 = {
-	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
-	.v16_fw_api = 1,
-	.supp_ps_handshake = 1,
-	.default_11n_tx_bf_cap = DEFAULT_11N_TX_BF_CAP_2X2,
-	.support_11mc = 1,
-};
-#endif
-
 #ifdef USB8978
 static const struct _mlan_card_info mlan_card_info_usb8978 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
@@ -825,11 +815,6 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 		pmadapter->pcard_info = &mlan_card_info_usb8897;
 		break;
 #endif
-#ifdef USB8997
-	case CARD_TYPE_USB8997:
-		pmadapter->pcard_info = &mlan_card_info_usb8997;
-		break;
-#endif
 #ifdef USB8978
 	case CARD_TYPE_USB8978:
 		pmadapter->pcard_info = &mlan_card_info_usb8978;
@@ -970,6 +955,7 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		 * handling completed, Coverity is not able to trace callbacks
 		 * registered for and process_rx_packet and moal_recv_complete
 		 */
+		// coverity[overwrite_var:SUPPRESS]
 		// coverity[RESOURCE_LEAK]: SUPPRESS
 		/* send new packet to processing */
 		ret = wlan_handle_rx_packet(pmadapter, pdeaggr_buf);
@@ -1377,7 +1363,7 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 	}
 	if (type == MLAN_TYPE_CMD
 #if defined(USB9098) || defined(USB9097) || defined(USBIW624) ||               \
-	defined(USB8997) || defined(USB8978) || defined(USBIW610)
+	defined(USB8978) || defined(USBIW610)
 	    || type == MLAN_TYPE_VDLL
 #endif
 	) {

@@ -1207,6 +1207,11 @@ typedef enum _ENH_PS_MODES {
 	EN_AUTO_PS = 0xff,
 } ENH_PS_MODES;
 
+#ifdef SECURE_HOST
+/** Secure Host command, payload is encrypted*/
+#define HostCmd_Encrypted_BIT 0x4000
+#endif
+
 /** Command RET code, MSB is set to 1 */
 #define HostCmd_RET_BIT 0x8000
 
@@ -2393,6 +2398,22 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GTK_REKEY_PARAMS {
 	t_u32 replay_ctr_high;
 } MLAN_PACK_END HostCmd_DS_GTK_REKEY_PARAMS;
 
+#ifdef SECURE_HOST
+typedef MLAN_PACK_START struct _SECURE_HOST_MSG_HEADER {
+	t_u32 magic;
+	t_u16 len;
+	t_u8 id;
+	t_u8 version;
+} MLAN_PACK_END SECURE_HOST_MSG_HEADER;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_SECURE_HOST {
+	/** Action */
+	t_u16 action;
+	/** TLS handshake message data */
+	t_u8 tls_data[1024];
+} MLAN_PACK_END HostCmd_DS_SECURE_HOST;
+#endif
+
 /** Data structure of WMM QoS information */
 typedef MLAN_PACK_START struct _WmmQosInfo_t {
 #ifdef BIG_ENDIAN_SUPPORT
@@ -2808,7 +2829,21 @@ enum API_VER_ID {
 	UAP_FW_API_VER_ID = 3,
 	CHANRPT_API_VER_ID = 4,
 	FW_HOTFIX_VER_ID = 5,
+	FW_PL_VER_ID = 6,
+	FW_MILESTONE_VER_ID = 7,
+	FW_BUILDTYPE_VER_ID = 8,
+	FW_COMMIT_INFO_VER_ID = 9,
 };
+
+/** MrvlIEtypes_fw_ver_info_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_fw_ver_ie_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** API id */
+	t_u16 api_id;
+	/** fw version details */
+	t_u8 ver_ie_ptr[];
+} MLAN_PACK_END MrvlIEtypes_fw_ver_ie_t;
 
 /** FW AP V15 */
 #define HOST_API_VERSION_V15 15
@@ -4670,6 +4705,7 @@ typedef MLAN_PACK_START struct _hostcmd_twt_report {
 typedef MLAN_PACK_START struct _HostCmd_DS_GET_FOUNDRY_TYPE {
 	t_u8 foundry_type;
 } MLAN_PACK_END HostCmd_DS_GET_FOUNDRY_TYPE;
+
 /** Type definition of hostcmd_twt_information */
 typedef struct MLAN_PACK_START _hostcmd_twt_information {
 	/** TWT Flow Identifier. Range: [0-7] */
@@ -5236,6 +5272,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_SAE_PWE_Mode_t {
 
 /** SAE H2E capability bit in RSNX */
 #define SAE_H2E_BIT 5
+/** SSID Protection capability bit in RSNX */
+#define SSID_PROTECTION_BIT 21
+#define SSID_PROTECTION_OCTET3_BIT 5
 
 /* rsnMode -
  *      Bit 0    : No RSN
@@ -6555,6 +6594,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PACKET_AGGR_OVER_HOST_INTERFACE {
 } MLAN_PACK_END HostCmd_DS_PACKET_AGGR_OVER_HOST_INTERFACE;
 #endif /* USB */
 
+/** HostCmd_DS_LTE_COEX_BAND_PARAMS_CONFIG */
+typedef MLAN_PACK_START struct _HostCmd_DS_LTE_COEX_BAND_PARAMS_CONFIG {
+	/** ACT_GET/ACT_SET */
+	t_u16 action;
+	/** LTE COEX BAND */
+	t_u8 band;
+} MLAN_PACK_END HostCmd_DS_LTE_COEX_BAND_PARAMS_CONFIG;
+
 /** HostCmd_CONFIG_LOW_PWR_MODE */
 typedef MLAN_PACK_START struct _HostCmd_CONFIG_LOW_PWR_MODE {
 	/** Enable LPM */
@@ -6977,7 +7024,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PCIE_ADMA_INIT {
 	t_u8 reserved;
 } HostCmd_DS_PCIE_ADMA_INIT;
 
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 /** PCIE ring buffer description for DATA */
 typedef MLAN_PACK_START struct _mlan_pcie_data_buf {
 	/** Buffer descriptor flags */
@@ -7838,7 +7885,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_802_11_NET_MONITOR net_mon;
 		HostCmd_DS_CMD_TX_DATA_PAUSE tx_data_pause;
 #if defined(PCIE)
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 		HostCmd_DS_PCIE_HOST_BUF_DETAILS pcie_host_spec;
 #endif
 #endif
@@ -7861,6 +7908,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
 		HostCmd_DS_DRCS_CFG drcs_cfg;
+		HostCmd_DS_LTE_COEX_BAND_PARAMS_CONFIG lte_coex_cfg;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
 		HostCmd_DS_TSF tsf;
 		HostCmd_DS_DFS_REPEATER_MODE dfs_repeater;
@@ -7924,6 +7972,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		mfg_Cmd_IEEEtypes_CtlBasicTrigHdr_t mfg_tx_trigger_config;
 		mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 		mfg_cmd_otp_cal_data_rd_wr_t mfg_otp_cal_data_rd_wr;
+		mfg_CmdDebugTemperature_Cfg_t mfg_debug_temp;
 		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
 		HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG dot11mc_unassoc_ftm_cfg;
 		HostCmd_DS_HAL_PHY_CFG hal_phy_cfg_params;
@@ -7941,6 +7990,10 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_CMD_802_11_STA_TX_RATE sta_rx_rate;
 		HostCmd_MCLIENT_SCHEDULE_CFG mclient_cfg;
 
+#ifdef SECURE_HOST
+		HostCmd_DS_SECURE_HOST shc;
+#endif
+
 		/** WMM HOST ADDTS */
 		HostCmd_DS_WMM_HOST_ADDTS_REQ host_add_ts;
 		/** WMM HOST DELTS */
@@ -7949,6 +8002,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_AUTH_ASSOC_TIMEOUT_CFG auth_assoc_cfg;
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
 		HostCmd_DS_GET_FOUNDRY_TYPE foundry_type;
+
 #ifdef UAP_SUPPORT
 		/** Agiled channel switch configuration */
 		HostCmd_DS_AGCS_CFG agcs_cfg;
@@ -8090,5 +8144,22 @@ typedef MLAN_PACK_START struct _Event_DPD_CAL_t {
 	t_u8 radio_id;
 	t_u8 sub_band;
 } MLAN_PACK_END Event_DPD_CAL_t;
+
+#ifdef SECURE_HOST
+typedef MLAN_PACK_START struct _SECURE_HOST_EVENT_HEADER {
+	/** Type ID */
+	t_u16 type_id;
+	t_u16 bbs;
+	/** Action */
+	t_u16 tls_action;
+} MLAN_PACK_END SECURE_HOST_EVENT_HEADER;
+
+typedef MLAN_PACK_START struct SECURE_HOST_EVENT {
+	/** TLS handshake message header */
+	SECURE_HOST_EVENT_HEADER tls_header;
+	/** TLS handshake message data */
+	t_u8 tls_data[];
+} MLAN_PACK_END SECURE_HOST_EVENT;
+#endif
 
 #endif /* !_MLAN_FW_H_ */

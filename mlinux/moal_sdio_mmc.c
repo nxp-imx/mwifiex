@@ -78,10 +78,6 @@ static moal_if_ops sdiommc_ops;
 /** Device ID for SD8978 */
 #define SD_DEVICE_ID_8978 (0x9159)
 #endif
-#ifdef SD8997
-/** Device ID for SD8997 */
-#define SD_DEVICE_ID_8997 (0x9141)
-#endif
 #ifdef SD8987
 /** Device ID for SD8987 */
 #define SD_DEVICE_ID_8987 (0x9149)
@@ -128,9 +124,6 @@ static const struct sdio_device_id wlan_ids[] = {
 #endif
 #ifdef SD8978
 	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8978)},
-#endif
-#ifdef SD8997
-	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8997)},
 #endif
 #ifdef SD8987
 	{SDIO_DEVICE(MRVL_VENDOR_ID, SD_DEVICE_ID_8987)},
@@ -651,20 +644,6 @@ static t_u16 woal_update_card_type(t_void *card)
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
-#ifdef SD8997
-	if (cardp_sd->func->device == SD_DEVICE_ID_8997) {
-		card_type = CARD_TYPE_SD8997;
-		moal_memcpy_ext(NULL, driver_version, CARD_SD8997,
-				strlen(CARD_SD8997), strlen(driver_version));
-		moal_memcpy_ext(
-			NULL,
-			driver_version + strlen(INTF_CARDTYPE) +
-				strlen(KERN_VERSION),
-			V16, strlen(V16),
-			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
-				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
-	}
-#endif
 #ifdef SD8987
 	if (cardp_sd->func->device == SD_DEVICE_ID_8987) {
 		card_type = CARD_TYPE_SD8987;
@@ -765,6 +744,7 @@ static t_u16 woal_update_card_type(t_void *card)
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
 #endif
+	driver_version[MLAN_MAX_VER_STR_LEN - 1] = '\0';
 	return card_type;
 }
 
@@ -811,6 +791,24 @@ int woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id)
 	if (!func->enable_timeout)
 		func->enable_timeout = 200;
 #endif
+
+#if defined(SDAW693) || defined(SD9098)
+#ifdef SDIO_SUSPEND_RESUME
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#ifdef SDAW693
+	if (func->device == SD_DEVICE_ID_AW693_FN1 ||
+	    func->device == SD_DEVICE_ID_AW693_FN2)
+		device_disable_async_suspend(&func->dev);
+#endif
+#ifdef SD9098
+	if (func->device == SD_DEVICE_ID_9098_FN1 ||
+	    func->device == SD_DEVICE_ID_9098_FN2)
+		device_disable_async_suspend(&func->dev);
+#endif
+#endif
+#endif
+#endif
+
 	sdio_claim_host(func);
 	ret = sdio_enable_func(func);
 	if (ret) {
@@ -1858,9 +1856,9 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	t_u32 revision_id = 0;
 	t_u32 rev_id_reg = handle->card_info->rev_id_reg;
 
-#if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SDIW624) || defined(SDAW693) ||             \
-	defined(SD8978) || defined(SD9177) || defined(SDIW610)
+#if defined(SD8987) || defined(SD9098) || defined(SD9097) ||                   \
+	defined(SDIW624) || defined(SDAW693) || defined(SD8978) ||             \
+	defined(SD9177) || defined(SDIW610)
 	t_u32 magic_reg = handle->card_info->magic_reg;
 	t_u32 magic = 0;
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
@@ -1881,9 +1879,9 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	PRINTM(MCMND, "revision_id=0x%x sdio_blk_size=%d\n", revision_id,
 	       handle->sdio_blk_size);
 
-#if defined(SD8987) || defined(SD8997) || defined(SD9098) ||                   \
-	defined(SD9097) || defined(SDIW624) || defined(SDAW693) ||             \
-	defined(SD8978) || defined(SD9177) || defined(SDIW610)
+#if defined(SD8987) || defined(SD9098) || defined(SD9097) ||                   \
+	defined(SDIW624) || defined(SDAW693) || defined(SD8978) ||             \
+	defined(SD9177) || defined(SDIW610)
 	/** Revision ID register */
 	woal_sdiommc_read_reg(handle, magic_reg, &magic);
 	/** Revision ID register */
@@ -1940,21 +1938,6 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			break;
 		default:
 			break;
-		}
-	}
-#endif
-
-#ifdef SD8997
-	if (IS_SD8997(handle->card_type)) {
-		if (magic == CHIP_MAGIC_VALUE) {
-			if (strap == CARD_TYPE_SD_UART)
-				strncpy(handle->card_info->fw_name,
-					SDUART8997_DEFAULT_COMBO_FW_NAME,
-					FW_NAMW_MAX_LEN);
-			else
-				strncpy(handle->card_info->fw_name,
-					SDSD8997_DEFAULT_COMBO_FW_NAME,
-					FW_NAMW_MAX_LEN);
 		}
 	}
 #endif
@@ -2294,8 +2277,8 @@ static memory_type_mapping mem_type_mapping_tbl[] = {
 	{"EXT13", NULL, NULL, 0xFD, 0},
 	{"EXTLAST", NULL, NULL, 0xFE, 0},
 };
-static memory_type_mapping mem_type_mapping_tbl_8977_8997 = {"DUMP", NULL, NULL,
-							     0xDD, 0};
+static memory_type_mapping mem_type_mapping_tbl_8977 = {"DUMP", NULL, NULL,
+							0xDD, 0};
 /**
  *  @brief This function read/write firmware via cmd52
  *
@@ -2633,8 +2616,7 @@ void woal_dump_firmware_info_v3(moal_handle *phandle)
 	t_u8 *end_ptr = NULL;
 	t_u8 dbg_dump_start_reg = 0;
 	t_u8 dbg_dump_end_reg = 0;
-	memory_type_mapping *pmem_type_mapping_tbl =
-		&mem_type_mapping_tbl_8977_8997;
+	memory_type_mapping *pmem_type_mapping_tbl = &mem_type_mapping_tbl_8977;
 
 	if (!phandle) {
 		PRINTM(MERROR, "Could not dump firmwware info\n");
@@ -2945,10 +2927,18 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 		phandle->fw_dump_len = 0;
 	}
 #endif
+
+	if (!(phandle->pmlan_adapter)) {
+		PRINTM(MERROR, "phandle->pmlan_adapter is NULL\n");
+		return;
+	}
+
 	/** cancel all pending commands */
 	mlan_ioctl(phandle->pmlan_adapter, NULL);
+	queue_work(phandle->workqueue, &phandle->main_work);
 
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
+
 	msleep(5);
 	phandle->fw_dump = MTRUE;
 	if (phandle->card_info->dump_fw_info == DUMP_FW_SDIO_V2) {
@@ -3303,7 +3293,6 @@ static mlan_status woal_do_sdiommc_flr(moal_handle *handle, bool prepare,
 	mlan_disable_host_int(handle->pmlan_adapter);
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
 	woal_clean_up(handle);
-	mlan_ioctl(handle->pmlan_adapter, NULL);
 
 	/* Shutdown firmware */
 	handle->init_wait_q_woken = MFALSE;
@@ -3497,11 +3486,8 @@ static void woal_sdiommc_work(struct work_struct *work)
 		} else {
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
-		if (ref_handle) {
+		if (ref_handle)
 			ref_handle->surprise_removed = MTRUE;
-			woal_clean_up(ref_handle);
-			mlan_ioctl(ref_handle->pmlan_adapter, NULL);
-		}
 	}
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;

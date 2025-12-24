@@ -373,7 +373,7 @@ typedef struct _uap_fw_info {
 	/** Get */
 	t_u32 action;
 	/** Firmware release number */
-	t_u32 fw_release_number;
+	fw_release_version_t fw_release_number;
 	/** Device support for MIMO abstraction of MCSs */
 	t_u8 hw_dev_mcs_support;
 	/** fw_bands*/

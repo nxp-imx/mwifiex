@@ -1216,7 +1216,42 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		pos += sizeof(pauth_tlv->header) + pauth_tlv->header.len;
 		pauth_tlv->header.len = wlan_cpu_to_le16(pauth_tlv->header.len);
 	}
-
+	/* insert RSNX IE TLV */
+	if (pbss_desc->prsnx_ie != MNULL && pbss_desc->prsnx_ie->ieee_hdr.len) {
+		IEEEtypes_rsnx_ie_t *rsnx_tlv;
+		t_u16 len = 0;
+		rsnx_tlv = (IEEEtypes_rsnx_ie_t *)pos;
+		rsnx_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_RSNX);
+		rsnx_tlv->data[0] = rsnx_tlv->data[1] = rsnx_tlv->data[2] = 0;
+		if (pauth_tlv != MNULL &&
+		    (pauth_tlv->auth_type ==
+		     wlan_cpu_to_le16(AssocAgentAuth_Wpa3Sae)) &&
+		    (pbss_desc->prsnx_ie->data[0] & (0x1 << SAE_H2E_BIT))) {
+			/* Set SAE H2E bit in the first octet */
+			rsnx_tlv->data[0] |= (0x1 << SAE_H2E_BIT);
+			len = 1;
+		}
+		if (pmpriv->ssid_protection &&
+		    (pbss_desc->prsnx_ie->ieee_hdr.len > 2) &&
+		    (pbss_desc->prsnx_ie->data[2] &
+		     (0x1 << SSID_PROTECTION_OCTET3_BIT))) {
+			/* Set SSID Protection capability bit in the third
+			 * octet, set bit 1 in the first octet and increment the
+			 * len to 3
+			 */
+			rsnx_tlv->data[0] |= 2;
+			rsnx_tlv->data[2] |=
+				(0x1 << SSID_PROTECTION_OCTET3_BIT);
+			len = 3;
+		}
+		if (len) {
+			rsnx_tlv->header.len = wlan_cpu_to_le16(len);
+			pos += sizeof(rsnx_tlv->header) + len;
+		}
+	}
+	/* attach PWE TLV for backwards compatibility with the FW versions
+	 * which doesn't support RSNX IE or ssid protection capability
+	 */
 	if ((pauth_tlv != MNULL) &&
 	    (pauth_tlv->auth_type ==
 	     wlan_cpu_to_le16(AssocAgentAuth_Wpa3Sae))) {
@@ -1237,7 +1272,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			       sizeof(psae_pwe_mode_tlv->pwe);
 		}
 	}
-
 	if (IS_SUPPORT_MULTI_BANDS(pmadapter) &&
 	    (pbss_desc->bss_band & pmpriv->config_bands) &&
 	    !(ISSUPP_11NENABLED(pmadapter->fw_cap_info) &&

@@ -28,20 +28,6 @@ Change Log:
 #ifndef _MOAL_USB_H
 #define _MOAL_USB_H
 
-#ifdef USB8997
-/** USB VID 1 */
-#define USB8997_VID_1 0x1286
-/** USB PID 1 */
-#define USB8997_PID_1 0x204D
-/** USB PID 2 */
-#define USB8997_PID_2 0x204E
-#define USB8997_PID_3 0x2047
-#define USB8997_PID_4 0x2048
-#define USB8997_PID_5 0x2050
-#define USB8997_PID_6 0x2051
-#define USB8997V2_PID_1 0x2052
-#endif /* USB8997 */
-
 #ifdef USB8978
 /** USB VID 1 */
 #define USB8978_VID_1 0x1286
@@ -110,8 +96,8 @@ Change Log:
 /** Number of Rx data URB */
 #define MVUSB_RX_DATA_URB 6
 
-#if defined(USB8997) || defined(USB9098) || defined(USB9097) ||                \
-	defined(USB8978) || defined(USBIW624) || defined(USBIW610)
+#if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
+	defined(USBIW624) || defined(USBIW610)
 /* Transmit buffer size for chip revision check */
 #define CHIP_REV_TX_BUF_SIZE 16
 /* Receive buffer size for chip revision check */
@@ -126,14 +112,6 @@ Change Log:
 #endif
 
 /** Default firmaware name */
-#ifdef USB8997
-#define USB8997_DEFAULT_COMBO_FW_NAME "nxp/usbusb8997_combo_v4.bin"
-#define USB8997_DEFAULT_WLAN_FW_NAME "nxp/usb8997_wlan_v4.bin"
-#define USBUART8997_DEFAULT_COMBO_FW_NAME "nxp/usbuart8997_combo_v4.bin"
-#define USBUSB8997_DEFAULT_COMBO_FW_NAME "nxp/usbusb8997_combo_v4.bin"
-
-#endif /* USB8997 */
-
 #ifdef USB8978
 #define USB8978_DEFAULT_COMBO_FW_NAME "nxp/usbusbiw416_combo.bin"
 #define USB8978_DEFAULT_WLAN_FW_NAME "nxp/usbiw416_wlan.bin"

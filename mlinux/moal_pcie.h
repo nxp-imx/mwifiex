@@ -33,10 +33,6 @@ Change log:
 #define PCIE_VENDOR_ID_V2_MRVL (0x1b4b)
 #define PCIE_VENDOR_ID_NXP (0x1131)
 
-#ifdef PCIE8997
-/** PCIE device ID for 8997 card */
-#define PCIE_DEVICE_ID_88W8997P (0x2b42)
-#endif
 #ifdef PCIE8897
 /** PCIE device ID for 8897 card */
 #define PCIE_DEVICE_ID_88W8897P (0x2b38)
@@ -76,15 +72,6 @@ Change log:
 #include "moal_main.h"
 
 /** Default firmware name */
-#ifdef PCIE8997
-#define PCIE8997_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8997_combo_v4.bin"
-#define PCIEUART8997_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8997_combo_v4.bin"
-#define PCIEUSB8997_DEFAULT_COMBO_FW_NAME "nxp/pcieusb8997_combo_v4.bin"
-#define PCIE8997_DEFAULT_WLAN_FW_NAME "nxp/pcie8997_wlan_v4.bin"
-/** PCIE8997 chip revision ID */
-#define PCIE8997_A0 0x10
-#define PCIE8997_A1 0x11
-#endif /* PCIE8997 */
 
 #ifdef PCIE8897
 #define PCIE8897_DEFAULT_COMBO_FW_NAME "nxp/pcieuart8897_combo.bin"

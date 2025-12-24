@@ -222,6 +222,16 @@ Change log:
  * 802.1 Local Experimental 1.
  */
 
+#ifndef fallthrough
+#if defined(__GNUC__) && __GNUC__ >= 7
+#define fallthrough __attribute__((fallthrough))
+#elif defined(__clang__) && __clang_major__ >= 10
+#define fallthrough __attribute__((fallthrough))
+#else
+#define fallthrough /* fall through */
+#endif
+#endif
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 #define REFDATA __refdata
 #else
@@ -296,7 +306,8 @@ Change log:
 /** Define BOOLEAN */
 typedef t_u8 BOOLEAN;
 
-#define INTF_CARDTYPE "----------%s-MM"
+#define INTF_CARDTYPE "----------%s-%s-MM"
+#define DRV_BUILDTYPE "MM"
 
 #define KERN_VERSION "6X"
 
@@ -1329,10 +1340,13 @@ enum woal_event_type {
 	WOAL_EVENT_RGPWR_KEY_MISMATCH,
 	WOAL_EVENT_RESET_WIFI,
 	WOAL_EVENT_PRINT_LINKSTATS,
+	WOAL_EVENT_SURVEY_DUMP_RESET,
 #ifdef UAP_SUPPORT
 	WOAL_EVENT_AGCS,
 #endif /* UAP_SUPPORT */
-	WOAL_EVENT_SURVEY_DUMP_RESET,
+#ifdef STA_CFG80211
+	WOAL_EVENT_CFG80211_INFORM_BSS,
+#endif
 };
 
 /** chan_rpt_info */
@@ -1529,6 +1543,7 @@ struct rf_test_mode_data {
 	mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 	/* OTP CAL data */
 	mfg_cmd_otp_cal_data_rd_wr_t mfg_otp_cal_data_rd_wr;
+	mfg_CmdDebugTemperature_Cfg_t mfg_debug_temp;
 };
 
 /** Number of samples in histogram (/proc/mwlan/adapterX/mlan0/histogram).*/
@@ -2255,9 +2270,6 @@ struct _moal_private {
 	t_u64 rx_airtime_base;
 	/*TX airtime count*/
 	t_u64 tx_airtime_base;
-
-	t_u32 band_ctrl;
-
 #ifdef XDP_SUPPORT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 	/** xdp */
@@ -2265,6 +2277,8 @@ struct _moal_private {
 	struct xdp_rxq_info xdp_rxq;
 #endif
 #endif
+
+	t_u32 band_ctrl;
 };
 
 #ifdef SDIO
@@ -2976,10 +2990,13 @@ typedef struct _moal_mod_para {
 	int tpe_ie_ignore;
 	/* make_before_break during roam */
 	int make_before_break;
-	int bandctrl;
-
 	/** plinkstats_cfg setting */
 	char *plinkstats;
+#ifdef SECURE_HOST
+	int secure_host;
+#endif
+	int bandctrl;
+
 } moal_mod_para;
 
 void woal_tp_acnt_timer_func(void *context);
@@ -3052,6 +3069,18 @@ typedef struct _moal_tp_acnt_t {
 	/* periodic timer */
 	moal_drv_timer timer;
 } moal_tp_acnt_t;
+
+/** firmware complete version number */
+typedef struct _fw_release_version {
+	/** FW release number */
+	t_u8 releaseNum;
+	/** minor version */
+	t_u8 minorRevNum;
+	/** major version */
+	t_u8 majorRevNum;
+	/** patch level version */
+	t_u16 patchLevel;
+} fw_release_version;
 
 #ifdef UAP_SUPPORT
 typedef MLAN_PACK_START struct {
@@ -3152,7 +3181,7 @@ struct _moal_handle {
 	/** POWER MANAGEMENT AND PnP SUPPORT */
 	BOOLEAN surprise_removed;
 	/** Firmware release number */
-	t_u32 fw_release_number;
+	fw_release_version fw_release_number;
 	/** Firmware Hotfix version */
 	t_u8 fw_hotfix_version;
 	/** Firmware support bands */
@@ -3586,7 +3615,19 @@ struct _moal_handle {
 	t_u32 ips_ctrl;
 	BOOLEAN is_edmac_enabled;
 	bool driver_init;
+	/** firmware version milestone */
+	char fw_ver_milestone[10];
+	/** firmware version buildtype */
+	char fw_ver_buildtype[10];
+	/** firmware version data */
+	char fw_ver_data[30];
 
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	struct page *page;
+	t_u32 xdp_rd;
+#endif
+#endif
 #ifdef UAP_SUPPORT
 	/** agiled channel switch state */
 	t_u32 agcs_state;
@@ -3599,6 +3640,9 @@ struct _moal_handle {
 	/* agcs scan event */
 	agcs_stats agcs_scan_event;
 #endif /* UAP_SUPPORT */
+#ifdef SECURE_HOST
+	void *secure;
+#endif
 
 #ifdef DUMP_TO_PROC
 #if defined(PCIE)
@@ -3606,12 +3650,6 @@ struct _moal_handle {
 	t_u64 ssu_dump_len;
 	/** Pointer of ssu dump buffer */
 	t_u8 *ssu_dump_buf;
-#endif
-#endif
-#ifdef XDP_SUPPORT
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-	struct page *page;
-	t_u32 xdp_rd;
 #endif
 #endif
 };
@@ -4951,6 +4989,7 @@ t_bool woal_secure_sub(t_void *datain, t_s32 sub, t_void *dataout,
 mlan_status woal_edmac_cfg(moal_private *priv, t_u8 *country_code);
 void woal_print_linkstats_event(void *context);
 void woal_print_linkstats_info(moal_private *priv, bool is_reset);
+void woal_survey_dump_reset(moal_private *priv);
 mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration);
 mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
 				     t_s16 *noise);

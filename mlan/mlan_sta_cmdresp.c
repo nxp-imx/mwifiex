@@ -37,6 +37,9 @@
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
 #include "mlan_meas.h"
+#ifdef SECURE_HOST
+#include "mlan_shc.h"
+#endif
 
 /********************************************************
  *			Local Variables
@@ -2484,6 +2487,38 @@ wlan_ret_packet_aggr_over_host_interface(pmlan_private pmpriv,
 
 /**
  *  @brief This function handles the command response of
+ *  LTE coexistence configuration
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_ret_lte_coex_band_cfg(pmlan_private pmpriv,
+					      HostCmd_DS_COMMAND *resp,
+					      mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_LTE_COEX_BAND_PARAMS_CONFIG *cmd_lte_cfg =
+		&resp->params.lte_coex_cfg;
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_ds_misc_lte_coex_band_cfg *lte_cfg = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_GET)) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		lte_cfg =
+			(mlan_ds_misc_lte_coex_band_cfg *)&misc->param.lte_cfg;
+		lte_cfg->band = wlan_le16_to_cpu(cmd_lte_cfg->band);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of
  *  DFS Repeater mode configuration
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3039,6 +3074,45 @@ static mlan_status wlan_ret_mfg_config_trigger_frame(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function handles the command response of debug temperature
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_mfg_debug_temperature(pmlan_private pmpriv,
+					   HostCmd_DS_COMMAND *resp,
+					   mlan_ioctl_req *pioctl_buf)
+{
+	mfg_CmdDebugTemperature_Cfg_t *temp_config =
+		(mfg_CmdDebugTemperature_Cfg_t *)&resp->params.mfg_debug_temp;
+	mlan_ds_misc_cfg *misc = MNULL;
+	mfg_CmdDebugTemperature_Cfg_t *cfg = MNULL;
+	t_u8 rfu = 0;
+	t_u8 rpath = 0;
+	ENTER();
+	if (!pioctl_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+	cfg = (mfg_CmdDebugTemperature_Cfg_t *)&misc->param.mfg_debug_temp;
+	cfg->simulation_enable =
+		wlan_le32_to_cpu(temp_config->simulation_enable);
+	cfg->cau_temperature = wlan_le32_to_cpu(temp_config->cau_temperature);
+	for (rfu = 0; rfu < MAX_RFUS; rfu++) {
+		for (rpath = 0; rpath < MAX_PATHS; rpath++)
+			cfg->rfu_temperature[rfu][rpath] = wlan_le32_to_cpu(
+				temp_config->rfu_temperature[rfu][rpath]);
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command resp of MFG HE TB Tx
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3187,6 +3261,9 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		goto cmd_mfg_done;
 	case MFG_CMD_OTP_CAL_DATA:
 		ret = wlan_ret_mfg_otp_cal_data_rw(pmpriv, resp, pioctl_buf);
+		goto cmd_mfg_done;
+	case MFG_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_ret_mfg_debug_temperature(pmpriv, resp, pioctl_buf);
 		goto cmd_mfg_done;
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:
@@ -3475,6 +3552,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_FUNC_INIT:
 	case HostCmd_CMD_FUNC_SHUTDOWN:
 		break;
+#ifdef SECURE_HOST
+	case HostCmd_CMD_SECURE_HOST:
+		break;
+#endif
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		ret = wlan_ret_802_11_key_material(pmpriv, resp, pioctl_buf);
 		break;
@@ -3483,6 +3564,7 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
+
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_ret_802_11_supplicant_pmk(pmpriv, resp, pioctl_buf);
 		break;
@@ -3648,7 +3730,7 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_ret_net_monitor(pmpriv, resp, pioctl_buf);
 		break;
 #if defined(PCIE)
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 	case HostCmd_CMD_PCIE_HOST_BUF_DETAILS:
 		PRINTM(MINFO, "PCIE host buffer configuration successful.\n");
 		break;
@@ -3700,6 +3782,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_DRCS_CONFIG:
 		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_LTE_COEX_BAND_CONFIG:
+		ret = wlan_ret_lte_coex_band_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_CONFIG_LOW_POWER_MODE:
 		break;

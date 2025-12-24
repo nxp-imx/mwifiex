@@ -4,7 +4,7 @@
  *  driver.
  *
  *
- *  Copyright 2008-2021, 2024 NXP
+ *  Copyright 2008-2021, 2025 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -326,7 +326,7 @@ Change log:
 	 PCIE9098_HOST_INTR_CMD_DONE | PCIE9098_HOST_INTR_EVENT_RDY)
 #endif
 
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 /* PCIE INTERNAL REGISTERS */
 /** PCIE data exchange register 0 */
 #define PCIE_SCRATCH_0_REG 0x0C10
@@ -372,16 +372,6 @@ Change log:
 #define PCIE_SCRATCH_12_REG 0x0CF0
 #endif
 
-#ifdef PCIE8997
-/* PCIE read data pointer for queue 0 and 1 */
-#define PCIE8997_RD_DATA_PTR_Q0_Q1 0xC1A4 /* 0x8000C1A4 */
-/* PCIE read data pointer for queue 2 and 3 */
-#define PCIE8997_RD_DATA_PTR_Q2_Q3 0xC1A8 /* 0x8000C1A8 */
-/* PCIE write data pointer for queue 0 and 1 */
-#define PCIE8997_WR_DATA_PTR_Q0_Q1 0xC174 /* 0x8000C174 */
-/* PCIE write data pointer for queue 2 and 3 */
-#define PCIE8997_WR_DATA_PTR_Q2_Q3 0xC178 /* 0x8000C178 */
-#endif
 #ifdef PCIE8897
 /* PCIE read data pointer for queue 0 and 1 */
 #define PCIE8897_RD_DATA_PTR_Q0_Q1 0xC08C /* 0x8000C08C */
@@ -405,7 +395,7 @@ Change log:
 /** Set Event Done interupt to the FW*/
 #define CPU_INTR_EVENT_DONE MBIT(5)
 
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 /** Data sent interrupt for host */
 #define HOST_INTR_DNLD_DONE MBIT(0)
 /** Data receive interrupt for host */
@@ -483,7 +473,7 @@ mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
 /** Set PCIE host buffer configurations */
 mlan_status wlan_set_pcie_buf_config(mlan_private *pmpriv);
 
-#if defined(PCIE8997) || defined(PCIE8897)
+#if defined(PCIE8897)
 /** Prepare command PCIE host buffer config */
 mlan_status wlan_cmd_pcie_host_buf_cfg(pmlan_private pmpriv,
 				       pHostCmd_DS_COMMAND cmd,

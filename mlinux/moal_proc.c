@@ -106,10 +106,6 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 #ifdef UAP_SUPPORT
 	mlan_ds_uap_stats ustats;
 #endif
-	union {
-		t_u32 l;
-		t_u8 c[4];
-	} ver;
 
 	fw_info.uuid_lo = fw_info.uuid_hi = 0x0ULL;
 
@@ -159,9 +155,12 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 #endif
 	seq_printf(sfp, "driver_version = %s", fmt);
 	seq_printf(sfp, "\ninterface_name=\"%s\"\n", netdev->name);
-	ver.l = handle->fw_release_number;
-	seq_printf(sfp, "firmware_major_version=%u.%u.%u\n", ver.c[2], ver.c[1],
-		   ver.c[0]);
+	seq_printf(sfp, "firmware_major_version=%s-%u.%u.%u, %s-%s\n",
+		   handle->fw_ver_milestone,
+		   handle->fw_release_number.majorRevNum,
+		   handle->fw_release_number.minorRevNum,
+		   handle->fw_release_number.releaseNum,
+		   priv->phandle->fw_ver_data, priv->phandle->fw_ver_buildtype);
 
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if (fw_info.uuid_lo || fw_info.uuid_hi)
@@ -867,6 +866,10 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		     "otp_cal_data_rd_wr=", strlen("otp_cal_data_rd_wr=")) &&
 	    count > strlen("otp_cal_data_rd_wr="))
 		cmd = MFG_CMD_OTP_CAL_DATA;
+	if (!strncmp(databuf, "set_debug_temperature=",
+		     strlen("set_debug_temperature=")) &&
+	    count > strlen("set_debug_temperature="))
+		cmd = MFG_CMD_SET_DEBUG_TEMPERATURE;
 
 	if (cmd && handle->rf_test_mode &&
 	    (woal_process_rf_test_mode_cmd(
@@ -883,7 +886,6 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		    MLAN_STATUS_SUCCESS)
 			PRINTM(MERROR, "Could not set Antenna Diversity!!\n");
 	}
-
 	MODULE_PUT;
 	kfree(databuf);
 	LEAVE();
@@ -1121,7 +1123,22 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[3],
 			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[4],
 			   handle->rf_data->mfg_otp_mac_addr_rd_wr.mac_addr[5]);
+
+		seq_printf(sfp, "\n");
+		seq_printf(sfp, "set_debug_temperature=%u,",
+			   handle->rf_data->mfg_debug_temp.simulation_enable);
+		seq_printf(sfp, "%d,",
+			   handle->rf_data->mfg_debug_temp.cau_temperature);
+		seq_printf(
+			sfp, "%d,%d,%d,%d\n",
+			handle->rf_data->mfg_debug_temp.rfu_temperature[0][0],
+			handle->rf_data->mfg_debug_temp.rfu_temperature[0][1],
+			handle->rf_data->mfg_debug_temp.rfu_temperature[1][0],
+			handle->rf_data->mfg_debug_temp.rfu_temperature[1][1]);
+
+		seq_printf(sfp, "\n");
 	}
+
 	// Read current antcfg configuration
 	woal_priv_get_tx_rx_ant(sfp, priv);
 
@@ -1320,6 +1337,7 @@ static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
 {
 	moal_handle *handle = (moal_handle *)sfp->private;
 	int ret = 0;
+	int format_result = 0;
 	t_u32 i;
 	t_u32 *tmpbuf;
 	unsigned char *sfpbuf;
@@ -1345,9 +1363,9 @@ static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
 
 	if (sfp->size < ((handle->ssu_dump_len * 9) / 4)) {
 		PRINTM(MCMND,
-		       "ssu dump size too big, size=%d, ssu_dump_len=%ld\n",
-		       (int)sfp->size,
-		       (long int)((handle->ssu_dump_len * 9) / 4));
+		       "ssu dump size too big, size=%lu, ssu_dump_len=%lu\n",
+		       sfp->size,
+		       (unsigned long)((handle->ssu_dump_len * 9) / 4));
 		sfp->count = sfp->size;
 		ret = 0;
 		MODULE_PUT;
@@ -1357,15 +1375,23 @@ static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
 	tmpbuf = (t_u32 *)handle->ssu_dump_buf;
 	sfpbuf = sfp->buf;
 	for (i = 0; i < handle->ssu_dump_len / 4; i++) {
-		if ((i + 1) % 8 == 0)
-			snprintf(dw_string, sizeof(dw_string), "%08x\n",
-				 *tmpbuf);
-		else
-			snprintf(dw_string, sizeof(dw_string), "%08x ",
-				 *tmpbuf);
+		// Use array indexing instead of pointer arithmetic to avoid
+		// overflow
+		t_u32 current_word = tmpbuf[i];
+
+		if ((i + 1) % 8 == 0) {
+			format_result = snprintf(dw_string, sizeof(dw_string),
+						 "%08x\n", current_word);
+		} else {
+			format_result = snprintf(dw_string, sizeof(dw_string),
+						 "%08x ", current_word);
+		}
+		if (format_result <= 0 || format_result >= sizeof(dw_string)) {
+			PRINTM(MERROR, "String formatting failed at word %u\n",
+			       i);
+		}
 
 		moal_memcpy_ext(handle, sfpbuf, dw_string, 9, 9);
-		tmpbuf++;
 		sfpbuf += 9;
 	}
 

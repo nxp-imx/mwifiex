@@ -76,6 +76,7 @@ Change log:
 #define PRIV_CMD_GETLOG "getlog"
 #define PRIV_CMD_ESUPPMODE "esuppmode"
 #define PRIV_CMD_PASSPHRASE "passphrase"
+#define PRIV_CMD_SSID_PROTECTION "ssid_protection"
 #define PRIV_CMD_DEAUTH "deauth"
 #ifdef UAP_SUPPORT
 #define PRIV_CMD_AP_DEAUTH "apdeauth"
@@ -258,6 +259,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_TARGET_CHANNEL "targetchan"
 #define PRIV_CMD_BACKUP_CHANNEL "backupchan"
 
+#define PRIV_CMD_LTE_COEX_CFG "ltecoexcfg"
 #define PRIV_CMD_DFS_REPEATER_CFG "dfs_repeater"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -313,6 +315,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_ARB_CFG "arb"
 
 #define PRIV_CMD_FOUNDRY_TYPE "foundry_type"
+
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
 /**Private command to configure static OFDM DESENSE config */
