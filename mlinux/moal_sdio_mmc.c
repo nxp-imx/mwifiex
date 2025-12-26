@@ -2065,26 +2065,26 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SDAW693_A0:
 			if (strap == CARD_TYPE_SDAW693_UART)
 				strncpy(handle->card_info->fw_name,
-					SDUARTAW693_COMBO_FW_NAME,
+					SDUARTIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
 				strncpy(handle->card_info->fw_name,
-					SDSDAW693_COMBO_FW_NAME,
+					SDSDIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			strncpy(handle->card_info->fw_name_wlan,
-				SDAW693_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
+				SDIW693_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SDAW693_A1:
 			if (strap == CARD_TYPE_SDAW693_UART)
 				strncpy(handle->card_info->fw_name,
-					SDUARTAW693_COMBO_V1_FW_NAME,
+					SDUARTIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
 				strncpy(handle->card_info->fw_name,
-					SDSDAW693_COMBO_V1_FW_NAME,
+					SDSDIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			strncpy(handle->card_info->fw_name_wlan,
-				SDAW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
+				SDIW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			if (magic != 0x03) {
 				/* remove extension .se */
 				se_pos = strstr(handle->card_info->fw_name,
@@ -2945,10 +2945,18 @@ static void woal_sdiommc_dump_fw_info(moal_handle *phandle)
 		phandle->fw_dump_len = 0;
 	}
 #endif
+
+	if (!(phandle->pmlan_adapter)) {
+		PRINTM(MERROR, "phandle->pmlan_adapter is NULL\n");
+		return;
+	}
+
 	/** cancel all pending commands */
 	mlan_ioctl(phandle->pmlan_adapter, NULL);
+	queue_work(phandle->workqueue, &phandle->main_work);
 
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MTRUE);
+
 	msleep(5);
 	phandle->fw_dump = MTRUE;
 	if (phandle->card_info->dump_fw_info == DUMP_FW_SDIO_V2) {
@@ -3303,7 +3311,6 @@ static mlan_status woal_do_sdiommc_flr(moal_handle *handle, bool prepare,
 	mlan_disable_host_int(handle->pmlan_adapter);
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
 	woal_clean_up(handle);
-	mlan_ioctl(handle->pmlan_adapter, NULL);
 
 	/* Shutdown firmware */
 	handle->init_wait_q_woken = MFALSE;
@@ -3497,11 +3504,8 @@ static void woal_sdiommc_work(struct work_struct *work)
 		} else {
 			ref_handle = (moal_handle *)handle->pref_mac;
 		}
-		if (ref_handle) {
+		if (ref_handle)
 			ref_handle->surprise_removed = MTRUE;
-			woal_clean_up(ref_handle);
-			mlan_ioctl(ref_handle->pmlan_adapter, NULL);
-		}
 	}
 	handle->surprise_removed = MTRUE;
 	handle->fw_reseting = MTRUE;

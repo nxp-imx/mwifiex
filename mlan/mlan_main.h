@@ -5273,4 +5273,12 @@ static inline t_bool wlan_copy_on_rx_enabled(const mlan_adapter *adapter)
 	return adapter->init_para.copy_on_rx;
 }
 
+mlan_status wlan_cmd_mfg_set_debug_temperature(pmlan_private pmpriv,
+					       HostCmd_DS_COMMAND *cmd,
+					       t_u16 cmd_action,
+					       t_void *pdata_buf);
+mlan_status wlan_ret_mfg_debug_temperature(pmlan_private pmpriv,
+					   HostCmd_DS_COMMAND *resp,
+					   mlan_ioctl_req *pioctl_buf);
+
 #endif /* !_MLAN_MAIN_H_ */

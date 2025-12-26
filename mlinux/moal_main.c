@@ -514,8 +514,8 @@ static struct _card_info card_info_SDAW693 = {
 	.rev_id_reg = 0xc8,
 	.host_strap_reg = 0xf4,
 	.magic_reg = 0xf0,
-	.fw_name = SDAW693_DEFAULT_COMBO_FW_NAME,
-	.fw_name_wlan = SDAW693_DEFAULT_WLAN_FW_NAME,
+	.fw_name = SDIW693_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SDIW693_DEFAULT_WLAN_FW_NAME,
 #ifdef SDIO
 	.dump_fw_info = DUMP_FW_SDIO_V3,
 	.dump_fw_ctrl_reg = 0xf9,
@@ -945,8 +945,7 @@ static struct _card_info card_info_SD8987 = {
 
 /** Driver version */
 char driver_version[MLAN_MAX_VER_STR_LEN] =
-	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-GPL"
-				   "-("
+	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-("
 				   "FP" FPNUM ")"
 #ifdef DEBUG_LEVEL2
 				   "-dbg"
@@ -1299,6 +1298,12 @@ void woal_clean_up(moal_handle *handle)
 	}
 
 	woal_flush_evt_queue(handle);
+	// Cancel pending ioctl
+	if (handle->pmlan_adapter) {
+		mlan_ioctl(handle->pmlan_adapter, NULL);
+		queue_work(handle->workqueue, &handle->main_work);
+		woal_sched_timeout(10);
+	}
 	return;
 }
 
@@ -1485,93 +1490,23 @@ static void woal_get_timestamp(char *tstamp)
  */
 static void woal_hang_work_queue(struct work_struct *work)
 {
-	int i;
 	moal_private *priv;
 	int cfg80211_wext = 0;
 	int ret = 0;
 	t_u8 reload_mode = 0;
+	moal_handle *ref_handle = NULL;
 	ENTER();
 	if (!reset_handle) {
 		LEAVE();
 		return;
 	}
-
-	mlan_ioctl(reset_handle->pmlan_adapter, NULL);
 	cfg80211_wext = reset_handle->params.cfg80211_wext;
-	// stop pending scan
-#ifdef STA_CFG80211
-	if (IS_STA_CFG80211(cfg80211_wext) && reset_handle->scan_request &&
-	    reset_handle->scan_priv) {
-		moal_private *scan_priv = reset_handle->scan_priv;
-		/** some supplicant can not handle SCAN abort event */
-		if (scan_priv->bss_type == MLAN_BSS_TYPE_STA)
-			woal_cfg80211_scan_done(reset_handle->scan_request,
-						MTRUE);
-		else
-			woal_cfg80211_scan_done(reset_handle->scan_request,
-						MFALSE);
-		reset_handle->scan_request = NULL;
-		reset_handle->scan_priv = NULL;
-		cancel_delayed_work_sync(&reset_handle->scan_timeout_work);
-		reset_handle->scan_pending_on_block = MFALSE;
-		MOAL_REL_SEMAPHORE(&reset_handle->async_sem);
+	if (reset_handle->pref_mac) {
+		ref_handle = reset_handle->pref_mac;
+		woal_clean_up(ref_handle);
+		woal_flush_workqueue(ref_handle);
 	}
-#endif
-
-	for (i = 0; i < reset_handle->priv_num; i++) {
-		if (reset_handle->priv[i]) {
-			priv = reset_handle->priv[i];
-			woal_stop_queue(priv->netdev);
-			if (netif_carrier_ok(priv->netdev))
-				netif_carrier_off(priv->netdev);
-			priv->media_connected = MFALSE;
-			// disconnect
-			moal_connection_status_check_pmqos(priv->phandle);
-#ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-			if (IS_STA_CFG80211(cfg80211_wext) && priv->wdev &&
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
-     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
-			    priv->wdev->connected) {
-#else
-			    priv->wdev->current_bss) {
-#endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-				if (priv->host_mlme)
-					woal_deauth_event(
-						priv,
-						MLAN_REASON_DEAUTH_LEAVING,
-						priv->cfg_bssid);
-				else
-#endif
-					cfg80211_disconnected(priv->netdev, 0,
-							      NULL, 0,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
-							      true,
-#endif
-							      GFP_KERNEL);
-			}
-#endif
-#endif
-			// stop bgscan
-#ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
-			if (IS_STA_CFG80211(cfg80211_wext) &&
-			    priv->sched_scanning && priv->wdev) {
-				priv->bg_scan_start = MFALSE;
-				priv->bg_scan_reported = MFALSE;
-				cfg80211_sched_scan_stopped(priv->wdev->wiphy
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-							    ,
-							    priv->bg_scan_reqid
-#endif
-				);
-				priv->sched_scanning = MFALSE;
-			}
-#endif
-#endif
-		}
-	}
+	woal_clean_up(reset_handle);
 	woal_flush_workqueue(reset_handle);
 	if (reset_handle->params.auto_fw_reload) {
 		if (IS_SD(reset_handle->card_type)) {
@@ -6931,7 +6866,22 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 		if (IS_STA_OR_UAP_CFG80211(handle->params.cfg80211_wext) &&
 		    priv->bss_type != MLAN_BSS_TYPE_DFS) {
 			rtnl_lock();
+			/*
+			 * Close the netdev first, else
+			 * netdev notifiers will need to acquire the wiphy lock
+			 * again in cfg80211_unregister_netdevice() causing
+			 * deadlock.
+			 */
+
+			if (priv->wdev->netdev)
+				dev_close(priv->wdev->netdev);
+			/*
+			 * cfg80211_unregister_netdevice() requires both the
+			 * RTNL and wiphy mutex to be held
+			 * */
+			mutex_lock(&handle->wiphy->mtx);
 			cfg80211_unregister_netdevice(dev);
+			mutex_unlock(&handle->wiphy->mtx);
 			rtnl_unlock();
 		} else
 #endif
@@ -6980,8 +6930,27 @@ void woal_remove_interface(moal_handle *handle, t_u8 bss_index)
 			if (priv->vlan_sta_list[count]->is_valid) {
 				priv->vlan_sta_list[count]->is_valid = MFALSE;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+				/*
+				 * cfg80211_unregister_netdevice() requires both
+				 * the RTNL and wiphy mutex to be held
+				 * */
+				rtnl_lock();
+				/*
+				 * Close the netdev first, else
+				 * netdev notifiers will need to acquire the
+				 * wiphy lock again in
+				 * cfg80211_unregister_netdevice() causing
+				 * deadlock.
+				 * */
+
+				if (priv->vlan_sta_list[count]->netdev)
+					dev_close(priv->vlan_sta_list[count]
+							  ->netdev);
+				mutex_lock(&handle->wiphy->mtx);
 				cfg80211_unregister_netdevice(
 					priv->vlan_sta_list[count]->netdev);
+				mutex_unlock(&handle->wiphy->mtx);
+				rtnl_unlock();
 #else
 				unregister_netdevice(
 					priv->vlan_sta_list[count]->netdev);
@@ -13766,6 +13735,39 @@ static void woal_survey_dump_reset(moal_private *priv)
 	moal_get_host_time_ns(&priv->bss_active_time);
 }
 
+#ifdef STA_CFG80211
+/**
+ * @brief               This function sends scan report to cfg80211
+ *
+ * @param priv          a pointer to moal_private structure
+ *
+ * @return              N/A
+ *
+ */
+static void woal_send_bss_scan_result(moal_private *priv)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
+	if (priv->phandle->scan_request) {
+		PRINTM(MINFO, "Reporting scan results\n");
+		woal_inform_bss_from_scan_result(priv, NULL, MOAL_NO_WAIT);
+		if (!priv->phandle->first_scan_done) {
+			priv->phandle->first_scan_done = MTRUE;
+			if (!priv->phandle->user_scan_cfg)
+				woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
+						   PASSIVE_SCAN_CHAN_TIME,
+						   SPECIFIC_SCAN_CHAN_TIME);
+		}
+		if (priv->phandle->scan_request) {
+			cancel_delayed_work(&priv->phandle->scan_timeout_work);
+			woal_cfg80211_scan_done(priv->phandle->scan_request,
+						MFALSE);
+			priv->phandle->scan_request = NULL;
+		}
+	}
+	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
+}
+#endif
 /**
  *  @brief This workqueue function handles woal event queue
  *
@@ -13942,6 +13944,11 @@ t_void woal_evt_work_queue(struct work_struct *work)
 		case WOAL_EVENT_SURVEY_DUMP_RESET:
 			woal_survey_dump_reset((moal_private *)evt->priv);
 			break;
+#ifdef STA_CFG80211
+		case WOAL_EVENT_CFG80211_INFORM_BSS:
+			woal_send_bss_scan_result((moal_private *)evt->priv);
+			break;
+#endif
 		default:
 			break;
 		}
@@ -15006,12 +15013,9 @@ mlan_status woal_remove_card(void *card)
 #endif
 	if (handle->rf_test_mode)
 		woal_process_rf_test_mode(handle, MFG_CMD_UNSET_TEST_MODE);
-	handle->surprise_removed = MTRUE;
 	woal_clean_up(handle);
-	mlan_ioctl(handle->pmlan_adapter, NULL);
-
+	handle->surprise_removed = MTRUE;
 	woal_flush_workqueue(handle);
-
 	if (moal_extflg_isset(handle, EXT_NAPI)) {
 		napi_disable(&handle->napi_rx);
 		netif_napi_del(&handle->napi_rx);
@@ -15407,8 +15411,6 @@ static void woal_pre_reset(moal_handle *handle)
 	woal_clean_up(handle);
 	/** mask host interrupt from firmware */
 	mlan_disable_host_int(handle->pmlan_adapter);
-	/** cancel all pending commands */
-	mlan_ioctl(handle->pmlan_adapter, NULL);
 	woal_flush_workqueue(handle);
 
 	handle->fw_reload = MTRUE;

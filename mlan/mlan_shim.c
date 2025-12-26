@@ -1946,6 +1946,11 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
+	if (pmadapter == MNULL) {
+		LEAVE();
+		return ret;
+	}
+
 	if (pioctl_req == MNULL) {
 		PRINTM(MMSG, "set pending clean\n");
 		pmadapter->pending_clean = MTRUE;
