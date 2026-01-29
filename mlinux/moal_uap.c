@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2025, NXP
+ * Copyright 2008-2026, NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -3849,6 +3849,7 @@ int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 band,
 	} else {
 		cfg_11ac->param.vht_cfg.vht_cap_info =
 			fw_info.usr_dot_11ac_dev_cap_a;
+		cfg_11ac->param.vht_cfg.vht_cap_info &= ~(MBIT(0) | MBIT(1));
 	}
 	if (action == MLAN_ACT_DISABLE) {
 		cfg_11ac->param.vht_cfg.bwcfg = MFALSE;
@@ -5021,7 +5022,7 @@ void woal_uap_get_version(moal_private *priv, char *version, int max_len)
 		PRINTM(MINFO, "MOAL UAP VERSION: %s\n",
 		       info->param.ver_ext.version_str);
 		snprintf(version, max_len, priv->phandle->driver_version,
-			 info->param.ver_ext.version_str);
+			 info->param.ver_ext.version_str, REL_MILESTONE);
 	}
 
 	if (status != MLAN_STATUS_PENDING)

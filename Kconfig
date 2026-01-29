@@ -32,4 +32,3 @@ config NXP_WLAN_DRIVER
 	  WLAN chipsets.
 
 	  Say Y here to add support for NXP WLAN driver into the kernel,
-	  or say M here to compile as a module (mlan.ko and moal.ko)

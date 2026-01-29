@@ -406,6 +406,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_PREAMBLE_PWR_BOOST = 0x0020009D,
 	MLAN_OID_MISC_PER_BAND_TXPWR_CAP = 0x0020009E,
 
+	MLAN_OID_MISC_DEBUG_TEMPERATURE = 0X0020009F,
+
 #ifdef UAP_SUPPORT
 	MLAN_OID_MISC_AGCS_CONFIG = 0x002000A0,
 #endif /* UAP_SUPPORT */
@@ -6619,6 +6621,18 @@ typedef struct _mlan_ds_tsp_cfg {
 	t_s32 reg_rfu_temp[MAX_RFUS][MAX_PATHS];
 } MLAN_PACK_END mlan_ds_tsp_cfg;
 
+/**thermal simulation parameters */
+typedef struct _mlan_ds_set_debug_temperature {
+	/** Action */
+	t_u16 action;
+	/** enable/disable debug thermal simulation */
+	t_u16 simulation_enable;
+	/** CAU temperature to set */
+	t_s32 cau_temp;
+	/** RFU temperature to set */
+	t_s32 rf_temp[MAX_RFUS][MAX_PATHS];
+} mlan_ds_set_debug_temperature;
+
 typedef struct _mlan_ds_reorder_flush_time {
 	/** AC BK/BE_flush time*/
 	t_u16 flush_time_ac_be_bk;
@@ -6907,6 +6921,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_foundry_type soc_foundry_type;
 
 		mlan_ds_misc_per_band_txpwr_cap per_band_txpwr_cap;
+		mlan_ds_set_debug_temperature temp_cfg;
 
 #ifdef UAP_SUPPORT
 		/** config AGCS for MLAN_OID_MISC_AGCS_CONFIG */

@@ -3,7 +3,7 @@
  * @brief This file contains the functions for STA CFG80211.
  *
  *
- * Copyright 2011-2025 NXP
+ * Copyright 2011-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -97,7 +97,7 @@ static const u32 cfg80211_akm_suites[] = {
  */
 mode_psd_t mode_psd_sta_FCC_6G[] = {
 	{"indoor_", "minus1"},
-	{"sp_", ""},
+	{"sp_", "plus17"},
 	{"vlp_", "minus5"},
 };
 
@@ -105,6 +105,15 @@ mode_psd_t mode_psd_sta_FCC_6G[] = {
  * @brief Band: 6G, Region: EU STA-Mode-PSD Table
  */
 mode_psd_t mode_psd_sta_EU_6G[] = {
+	{"indoor_", "plus10"},
+	{"sp_", ""},
+	{"vlp_", "plus1"},
+};
+
+/**
+ * @brief Band: 6G, Region: JP STA-Mode-PSD Table
+ */
+mode_psd_t mode_psd_sta_JP_6G[] = {
 	{"indoor_", "plus10"},
 	{"sp_", ""},
 	{"vlp_", "plus1"},
@@ -121,6 +130,10 @@ rmp_table_t rmp_table_sta_6G[] = {
 	{
 		0x30, /* ETSI region */
 		mode_psd_sta_EU_6G,
+	},
+	{
+		0x40, /* JP region */
+		mode_psd_sta_JP_6G,
 	},
 };
 
@@ -4624,7 +4637,12 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 		if (priv->sinfo)
 			moal_memcpy_ext(priv->phandle, sinfo, priv->sinfo,
 					sizeof(struct station_info),
+#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 0) ||                      \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 36))
+					offsetof(struct station_info, pertid));
+#else
 					sizeof(struct station_info));
+#endif
 		LEAVE();
 		return ret;
 	}
@@ -4720,7 +4738,12 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 	if (priv->sinfo)
 		moal_memcpy_ext(priv->phandle, priv->sinfo, sinfo,
 				sizeof(struct station_info),
+#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 0) ||                      \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 36))
+				offsetof(struct station_info, pertid));
+#else
 				sizeof(struct station_info));
+#endif
 
 done:
 	LEAVE();
@@ -12462,6 +12485,10 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_ETSI - 1].mp_ptr;
 			break;
 		}
+		case NXP_DFS_JP: {
+			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_JP - 1].mp_ptr;
+			break;
+		}
 		default:
 			PRINTM(MERROR, "Unsupported DFS Region selected\n");
 			goto done;
@@ -12504,6 +12531,10 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_ETSI - 1].mp_ptr;
 			break;
 		}
+		case NXP_DFS_JP: {
+			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_JP - 1].mp_ptr;
+			break;
+		}
 		default:
 			PRINTM(MERROR, "Unsupported DFS Region selected\n");
 			goto done;
@@ -12544,6 +12575,10 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 		}
 		case NXP_DFS_ETSI: {
 			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_ETSI - 1].mp_ptr;
+			break;
+		}
+		case NXP_DFS_JP: {
+			mode_psd_6G = rmp_table_sta_6G[NXP_DFS_JP - 1].mp_ptr;
 			break;
 		}
 		default:

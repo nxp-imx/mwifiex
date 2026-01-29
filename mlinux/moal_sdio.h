@@ -148,13 +148,13 @@ Change log:
 #ifdef SDAW693
 #define SDAW693_A0 0x00
 #define SDAW693_A1 0x01
-#define SDAW693_DEFAULT_COMBO_FW_NAME "nxp/sduartaw693_combo.bin"
-#define SDUARTAW693_COMBO_FW_NAME "nxp/sduartaw693_combo.bin"
-#define SDSDAW693_COMBO_FW_NAME "sdsdaw693_combo.bin"
-#define SDUARTAW693_COMBO_V1_FW_NAME "nxp/sduartaw693_combo_v1.bin.se"
-#define SDSDAW693_COMBO_V1_FW_NAME "sdsdaw693_combo_v1.bin.se"
-#define SDAW693_DEFAULT_WLAN_FW_NAME "nxp/sdaw693_wlan.bin"
-#define SDAW693_WLAN_V1_FW_NAME "nxp/sdaw693_wlan_v1.bin.se"
+#define SDIW693_DEFAULT_COMBO_FW_NAME "nxp/sduartiw693_combo.bin"
+#define SDUARTIW693_COMBO_FW_NAME "nxp/sduartiw693_combo.bin"
+#define SDSDIW693_COMBO_FW_NAME "sdsdiw693_combo.bin"
+#define SDUARTIW693_COMBO_V1_FW_NAME "nxp/sduartiw693_combo_v1.bin.se"
+#define SDSDIW693_COMBO_V1_FW_NAME "sdsdiw693_combo_v1.bin.se"
+#define SDIW693_DEFAULT_WLAN_FW_NAME "nxp/sdiw693_wlan.bin"
+#define SDIW693_WLAN_V1_FW_NAME "nxp/sdiw693_wlan_v1.bin.se"
 #endif /* SDAW693 */
 
 #ifdef SD9177

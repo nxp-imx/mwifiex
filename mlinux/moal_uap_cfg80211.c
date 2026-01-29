@@ -3,7 +3,7 @@
  * @brief This file contains the functions for uAP CFG80211.
  *
  *
- * Copyright 2011-2025 NXP
+ * Copyright 2011-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -58,6 +58,15 @@ static mode_psd_t mode_psd_uap_EU_6G[] = {
 };
 
 /**
+ * @brief Band: 6G, Region: JP UAP-Mode-PSD Table
+ */
+static mode_psd_t mode_psd_uap_JP_6G[] = {
+	{"indoor_", "plus10"},
+	{"sp_", ""},
+	{"vlp_", "plus1"},
+};
+
+/**
  * @brief The 6GHz UAP Region-Mode-PSD Table
  */
 static rmp_table_t rmp_table_uap_6G[] = {
@@ -68,6 +77,10 @@ static rmp_table_t rmp_table_uap_6G[] = {
 	{
 		0x30, /* ETSI region */
 		mode_psd_uap_EU_6G,
+	},
+	{
+		0x40, /* JP region */
+		mode_psd_uap_JP_6G,
 	},
 };
 
@@ -1405,6 +1418,11 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 						      .mp_ptr;
 				break;
 			}
+			case NXP_DFS_JP: {
+				mode_psd_6G =
+					rmp_table_uap_6G[NXP_DFS_JP - 1].mp_ptr;
+				break;
+			}
 			default:
 				PRINTM(MCMND, "Downloading deafult 6E table\n");
 				if (MLAN_STATUS_SUCCESS !=
@@ -1453,6 +1471,11 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 						      .mp_ptr;
 				break;
 			}
+			case NXP_DFS_JP: {
+				mode_psd_6G =
+					rmp_table_uap_6G[NXP_DFS_JP - 1].mp_ptr;
+				break;
+			}
 			default:
 				PRINTM(MCMND, "Downloading deafult 6E table\n");
 				if (MLAN_STATUS_SUCCESS !=
@@ -1499,6 +1522,11 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 			case NXP_DFS_ETSI: {
 				mode_psd_6G = rmp_table_uap_6G[NXP_DFS_ETSI - 1]
 						      .mp_ptr;
+				break;
+			}
+			case NXP_DFS_JP: {
+				mode_psd_6G =
+					rmp_table_uap_6G[NXP_DFS_JP - 1].mp_ptr;
 				break;
 			}
 			default:
@@ -1909,14 +1937,14 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 					(ht_cap &
 					 (wiphy->bands[IEEE80211_BAND_2GHZ]
 						  ->ht_cap.cap &
-					  0x13ff)) |
+					  0x1bff)) |
 					0x0c;
 			else if (wiphy->bands[IEEE80211_BAND_5GHZ]) {
 				sys_config->ht_cap_info =
 					(ht_cap &
 					 (wiphy->bands[IEEE80211_BAND_5GHZ]
 						  ->ht_cap.cap &
-					  0x13ff)) |
+					  0x1bff)) |
 					0x0c;
 			}
 		}

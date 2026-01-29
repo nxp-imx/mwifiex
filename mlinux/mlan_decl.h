@@ -3,7 +3,7 @@
  *  @brief This file declares the generic data structures and APIs.
  *
  *
- *  Copyright 2008-2022, 2024-2025 NXP
+ *  Copyright 2008-2022, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -237,8 +237,10 @@ typedef t_s32 t_sval;
 /** MU beamformer */
 #define DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK (MBIT(19))
 
-/** Size of rx data buffer 3839+256 */
-#define MLAN_RX_DATA_BUF_SIZE 4096
+#define MLAN_RX_DATA_BUF_SIZE_4K 4096
+#define MLAN_RX_DATA_BUF_SIZE_8K (8 * 1024)
+
+#define MLAN_RX_DATA_BUF_SIZE MLAN_RX_DATA_BUF_SIZE_8K
 
 /** Size of command buffer */
 /** because cal_data_size 2.4 k */
@@ -345,8 +347,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 /* We support up to 480-byte block size due to FW buffer limitation. */
 #define MLAN_SDIO_BLOCK_SIZE 256
 
-/** define allocated buffer size */
-#define ALLOC_BUF_SIZE MLAN_RX_DATA_BUF_SIZE
 /** SDIO MP aggr pkt limit */
 #define SDIO_MP_AGGR_DEF_PKT_LIMIT (16)
 /** SDIO MP aggr pkt limit 8 */
@@ -3003,6 +3003,7 @@ typedef struct _mlan_device {
 	t_u8 disable_11h_tpc;
 	t_u8 tpe_ie_ignore;
 	t_u32 amsdu_disable;
+	t_u16 amsdu_rx_size;
 #ifdef SECURE_HOST
 	t_u32 secure_host;
 #endif

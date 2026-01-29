@@ -3,7 +3,7 @@
  *  @brief This file contains SDIO specific code
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -2654,7 +2654,7 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
 				    pmadapter->pcard_sd->sdio_blk_size;
 			if (rx_len <= SDIO_INTF_HEADER_LEN ||
 			    (rx_blocks * pmadapter->pcard_sd->sdio_blk_size) >
-				    ALLOC_BUF_SIZE) {
+				    pmadapter->rx_buf_size) {
 				PRINTM(MERROR, "invalid rx_len=%d\n", rx_len);
 				ret = MLAN_STATUS_FAILURE;
 				goto done;

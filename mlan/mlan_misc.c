@@ -4,7 +4,7 @@
  *  @brief This file include miscellaneous functions for MLAN module
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -3539,7 +3539,15 @@ mlan_status wlan_process_802dot11_mgmt_pkt(mlan_private *priv, t_u8 *payload,
 				    !memcmp(pmadapter, pieee_pkt_hdr->addr3,
 					    (t_u8 *)priv->curr_bss_params
 						    .prev_bssid,
-					    MLAN_MAC_ADDR_LENGTH)) {
+					    MLAN_MAC_ADDR_LENGTH) ||
+				    (pmadapter->enable_net_mon && unicast &&
+				     !memcmp(pmadapter, pieee_pkt_hdr->addr3,
+					     (t_u8 *)priv->curr_bss_params
+						     .bss_descriptor.mac_address,
+					     MLAN_MAC_ADDR_LENGTH) &&
+				     memcmp(pmadapter, pieee_pkt_hdr->addr1,
+					    (t_u8 *)priv->curr_addr,
+					    MLAN_MAC_ADDR_LENGTH))) {
 					PRINTM(MCMND,
 					       "Dropping Deauth frame from other bssid: type=%d " MACSTR
 					       "\n",
@@ -7350,6 +7358,42 @@ mlan_status wlan_misc_ioctl_foundry_type(pmlan_adapter pmadapter,
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DS_GET_FOUNDRY_TYPE,
 			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief  Get/Set thermal simulation temperature
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+
+mlan_status wlan_misc_ioctl_debug_temperature(pmlan_adapter pmadapter,
+					      pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+	misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_SET_DEBUG_TEMPERATURE,
+			       cmd_action, 0, (t_void *)pioctl_req,
+			       (t_void *)&misc_cfg->param.temp_cfg);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;

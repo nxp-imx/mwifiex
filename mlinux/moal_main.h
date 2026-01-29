@@ -3,7 +3,7 @@
  * @brief This file contains wlan driver specific defines etc.
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -3000,6 +3000,8 @@ typedef struct _moal_mod_para {
 	int secure_host;
 #endif
 	int bandctrl;
+
+	t_u16 amsdu_rx_size;
 
 } moal_mod_para;
 

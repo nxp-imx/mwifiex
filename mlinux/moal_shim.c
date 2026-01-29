@@ -3,7 +3,7 @@
  * @brief This file contains the callback functions registered to MLAN
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -2790,7 +2790,7 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 	struct sk_buff *skb = NULL;
 	moal_handle *handle = (moal_handle *)pmoal;
 #if defined(USB) || defined(PCIE)
-	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
+	t_u32 max_rx_data_size = handle->params.amsdu_rx_size;
 #endif
 	dot11_rxcontrol rxcontrol;
 	t_u8 rx_info_flag = MFALSE;
@@ -2819,9 +2819,9 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 						MAX(MLAN_USB_MAX_PKT_SIZE,
 						    cardp->rx_deaggr_ctrl
 							    .aggr_align);
-					max_rx_data_size =
-						MAX(max_rx_data_size,
-						    MLAN_RX_DATA_BUF_SIZE);
+					max_rx_data_size = MAX(
+						max_rx_data_size,
+						handle->params.amsdu_rx_size);
 				}
 			}
 		}
@@ -3116,6 +3116,8 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 					woal_get_monotonic_time(&t);
 					pmbuf->out_ts_sec = t.time_sec;
 					pmbuf->out_ts_usec = t.time_usec;
+					moal_tp_accounting(handle, pmbuf,
+							   RX_TIME_PKT);
 				}
 			}
 			if (priv->phandle->tp_acnt.drop_point == RX_DROP_P4) {
@@ -3141,18 +3143,15 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 					}
 				}
 			}
-			if (priv->phandle->tp_acnt.on) {
-				if (pmbuf && pmbuf->in_ts_sec)
-					moal_tp_accounting(handle, pmbuf,
-							   RX_TIME_PKT);
-			}
 		}
 	}
 done:
-	if (status != MLAN_STATUS_PENDING && pmbuf && !pmbuf->pdesc && skb)
-		dev_kfree_skb(skb);
-	if (pmbuf && !pmbuf->pbuf)
-		status = MLAN_STATUS_PENDING;
+	if (status == MLAN_STATUS_FAILURE) {
+		if (pmbuf && !pmbuf->pbuf)
+			status = MLAN_STATUS_PENDING;
+		if (pmbuf && !pmbuf->pdesc && skb)
+			dev_kfree_skb(skb);
+	}
 	LEAVE();
 	return status;
 }

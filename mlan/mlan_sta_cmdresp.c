@@ -3564,6 +3564,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_ret_debug_temperature(pmpriv, resp, pioctl_buf);
+		break;
 
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_ret_802_11_supplicant_pmk(pmpriv, resp, pioctl_buf);

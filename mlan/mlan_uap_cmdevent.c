@@ -5809,6 +5809,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_cmd_get_foundry_type(pmpriv, cmd_ptr, cmd_action);
 		break;
+	case HostCmd_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_cmd_set_debug_temperature(pmpriv, cmd_ptr,
+						     cmd_action, pdata_buf);
+		break;
 #ifdef STA_SUPPORT
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		ret = wlan_cmd_802_11_scan_ext(pmpriv, cmd_ptr, pdata_buf);
@@ -6290,6 +6294,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_DS_GET_FOUNDRY_TYPE:
 		ret = wlan_ret_foundry_type(pmpriv, resp, pioctl_buf);
+		break;
+
+	case HostCmd_CMD_SET_DEBUG_TEMPERATURE:
+		ret = wlan_ret_debug_temperature(pmpriv, resp, pioctl_buf);
 		break;
 
 #ifdef STA_SUPPORT

@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n handling.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -215,14 +215,25 @@ static mlan_status wlan_11n_ioctl_httxcfg(pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_11n_cfg *cfg = MNULL;
 	t_u16 cmd_action = 0;
+	t_u32 cfg_value = 0;
+	t_u32 hw_value = 0;
 
 	ENTER();
 
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_SET)
+	if (pioctl_req->action == MLAN_ACT_SET) {
+		RESETHT_MAXAMSDU(cfg->param.tx_cfg.httxcap);
+		cfg_value = GETHT_MAXAMSDU(cfg->param.tx_cfg.httxcap);
+		hw_value = ISSUPP_MAXAMSDU(pmadapter->hw_dot_11n_dev_cap);
+		if (cfg_value && hw_value &&
+		    (pmpriv->adapter->rx_buf_size >=
+		     MLAN_RX_DATA_BUF_SIZE_8K)) {
+			SETHT_MAXAMSDU(cfg->param.tx_cfg.httxcap);
+		}
 		cmd_action = HostCmd_ACT_GEN_SET;
-	else
+	} else {
 		cmd_action = HostCmd_ACT_GEN_GET;
+	}
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_11N_CFG, cmd_action, 0,
@@ -1294,6 +1305,7 @@ static TxBAStreamTbl *wlan_11n_get_txbastream_status(mlan_private *priv,
 static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u16 bands)
 {
 	t_u32 usr_dot_11n_dev_cap;
+	t_u32 cfg_value = 0;
 
 	ENTER();
 
@@ -1355,6 +1367,11 @@ static void wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u16 bands)
 
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
+	cfg_value = ISSUPP_MAXAMSDU(usr_dot_11n_dev_cap);
+	if (cfg_value &&
+	    (priv->adapter->rx_buf_size >= MLAN_RX_DATA_BUF_SIZE_8K)) {
+		SETHT_MAXAMSDU(ht_cap->ht_cap_info);
+	}
 
 	/* SM power save */
 	RESETHT_SM_POWERSAVE(ht_cap->ht_cap_info); /* Clear to HT SMPS static
@@ -1428,7 +1445,8 @@ static void wlan_reset_cap_info(mlan_private *priv, HTCap_t *ht_cap,
 	RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
 
 	/* Need change to support 8k AMSDU receive */
-	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
+	if (!ISSUPP_MAXAMSDU(usr_dot_11n_dev_cap))
+		RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
 	/* SM power save */
 	if (!ISSUPP_MIMOPS(usr_dot_11n_dev_cap))
 		SETHT_SMPS_DISABLE(ht_cap->ht_cap_info); /* Disable HT SMPS */

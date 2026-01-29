@@ -486,6 +486,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : Get foundry type */
 	ENUM_ELEMENT(HostCmd_CMD_DS_GET_FOUNDRY_TYPE, 0X028c),
 
+	/** Host Command ID : Set CAU, RFU temperature to run thermal
+	   simulations */
+	ENUM_ELEMENT(HostCmd_CMD_SET_DEBUG_TEMPERATURE, 0x028d),
+
 #ifdef UAP_SUPPORT
 	/** Host Command ID : Agiled channel switch configuration */
 	ENUM_ELEMENT(HostCmd_CMD_APCMD_AGCS_CFG, 0x0293),

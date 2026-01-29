@@ -3,7 +3,7 @@
  *  @brief This file contains TLV ID definitions.
  *
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -513,5 +513,5 @@
 	(PROPRIETARY_TLV_BASE_ID + 364) /* 0x026c */
 #define TLV_TYPE_PER_BAND_TXPWR_CAP (PROPRIETARY_TLV_BASE_ID + 365) /* 0x026d  \
 								     */
-
+#define TLV_HOST_MAX_RX_BUF_SIZE (PROPRIETARY_TLV_BASE_ID + 366) /* 0x026e */
 #endif /* !MLAN_TLV_IDS_H_ */

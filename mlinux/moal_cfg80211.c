@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211.
  *
  *
- * Copyright 2011-2025 NXP
+ * Copyright 2011-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -4315,6 +4315,12 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
 				if ((out_len + length + 2) < (int)ie_out_len) {
+					/* Filter out VHT CAPA IE for P2P GO */
+					if ((id == VHT_CAPABILITY) &&
+					    (priv->bss_type ==
+					     MLAN_BSS_TYPE_WIFIDIRECT)) {
+						break;
+					}
 					moal_memcpy_ext(priv->phandle,
 							ie_out + out_len, pos,
 							length + 2,
@@ -6552,66 +6558,75 @@ void process_wifi_channel_avoid_list_event(
 	struct ieee80211_supported_band *sband = NULL;
 	struct ieee80211_channel *channel = NULL;
 	int index = 0, i = 0, j = 0;
+	t_u8 ieee_band = 0;
 
 	if (!pwifi_chan_info)
 		return;
 
 	/* Process the event */
 	if (pwifi_chan_info->bandcfg.chanBand == BAND_2GHZ) {
+		ieee_band = IEEE80211_BAND_2GHZ;
 		PRINTM(MEVENT, "WiFi Channel Avoidance List band=%d len=%d\n",
-		       pwifi_chan_info->bandcfg.chanBand,
-		       pwifi_chan_info->length);
-
-		for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
-			/* Reinitialize the sband for every adapter */
-			sband = NULL;
-
-			if (m_handle[index] && m_handle[index]->wiphy) {
-				sband = m_handle[index]
-						->wiphy
-						->bands[IEEE80211_BAND_2GHZ];
-
-				/* Move to next adapter with supporting band */
-				if (!sband)
-					continue;
-
-				PRINTM(MINFO,
-				       "====== Iteration=%d ======", index);
-				/* Clearing NO-IR flags for all channels */
-				for (i = 0; i < sband->n_channels; i++) {
-					channel = &sband->channels[i];
-					channel->flags &= ~IEEE80211_CHAN_NO_IR;
-				}
-
-				/* Setting NO-IR flags as per the channel list
-				 */
-				for (j = 0; j < pwifi_chan_info->length; j++) {
-					for (i = 0; i < sband->n_channels;
-					     i++) {
-						channel = &sband->channels[i];
-						if (channel->hw_value ==
-						    pwifi_chan_info
-							    ->chanList[j]) {
-							PRINTM(MMSG,
-							       "Marking channel = %d as NO-IR\n",
-							       pwifi_chan_info->chanList
-								       [j]);
-							channel->flags |=
-								IEEE80211_CHAN_NO_IR;
-							break;
-						}
-					}
-				}
-				/* Disabling beacon hints to avoid re-enabling
-				 * of channels marked as NO-IR */
-				m_handle[index]->wiphy->regulatory_flags =
-					m_handle[index]
-						->wiphy->regulatory_flags |
-					REGULATORY_DISABLE_BEACON_HINTS;
-			}
-		}
-	} else
+		       ieee_band, pwifi_chan_info->length);
+	} else if (pwifi_chan_info->bandcfg.chanBand == BAND_5GHZ) {
+		ieee_band = IEEE80211_BAND_5GHZ;
+		PRINTM(MEVENT, "WiFi Channel Avoidance List band=%d len=%d\n",
+		       ieee_band, pwifi_chan_info->length);
+	}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+	else if (pwifi_chan_info->bandcfg.chanBand == BAND_6GHZ) {
+		ieee_band = IEEE80211_BAND_6GHZ;
+		PRINTM(MEVENT, "WiFi Channel Avoidance List band=%d len=%d\n",
+		       ieee_band, pwifi_chan_info->length);
+	}
+#endif
+	else {
 		PRINTM(MEVENT,
 		       "Ignoring the WiFi Channel Avoidance List Event\n");
+		return;
+	}
+
+	for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
+		/* Reinitialize the sband for every adapter */
+		sband = NULL;
+
+		if (m_handle[index] && m_handle[index]->wiphy) {
+			sband = m_handle[index]->wiphy->bands[ieee_band];
+
+			/* Move to next adapter with supporting band */
+			if (!sband)
+				continue;
+
+			PRINTM(MINFO, "====== Iteration=%d ======", index);
+			/* Clearing NO-IR flags for all channels */
+			for (i = 0; i < sband->n_channels; i++) {
+				channel = &sband->channels[i];
+				channel->flags &= ~IEEE80211_CHAN_NO_IR;
+			}
+
+			/* Setting NO-IR flags as per the channel list */
+			for (j = 0; j < pwifi_chan_info->length; j++) {
+				for (i = 0; i < sband->n_channels; i++) {
+					channel = &sband->channels[i];
+					if (channel->hw_value ==
+					    pwifi_chan_info->chanList[j]) {
+						PRINTM(MMSG,
+						       "Marking channel = %d as NO-IR\n",
+						       pwifi_chan_info
+							       ->chanList[j]);
+						channel->flags |=
+							IEEE80211_CHAN_NO_IR;
+						break;
+					}
+				}
+			}
+
+			/* Disabling beacon hints to avoid re-enabling of
+			 * channels marked as NO-IR */
+			m_handle[index]->wiphy->regulatory_flags =
+				m_handle[index]->wiphy->regulatory_flags |
+				REGULATORY_DISABLE_BEACON_HINTS;
+		}
+	}
 	return;
 }
