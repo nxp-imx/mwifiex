@@ -5,7 +5,7 @@
  *  in MLAN module.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -2614,6 +2614,8 @@ struct _mlan_adapter {
 	t_u16 max_tx_buf_size;
 	/** Tx buf size */
 	t_u16 tx_buf_size;
+	/** Rx buf size */
+	t_u16 rx_buf_size;
 	/** current tx buf size in fw */
 	t_u16 curr_tx_buf_size;
 	/** flush data flag */
@@ -4762,6 +4764,17 @@ mlan_status wlan_ret_foundry_type(pmlan_private pmpriv,
 
 mlan_status wlan_misc_ioctl_foundry_type(pmlan_adapter pmadapter,
 					 mlan_ioctl_req *pioctl_req);
+
+mlan_status wlan_cmd_set_debug_temperature(pmlan_private pmpriv,
+					   HostCmd_DS_COMMAND *cmd,
+					   t_u16 cmd_action,
+					   t_void *pioctl_req);
+mlan_status wlan_ret_debug_temperature(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_misc_ioctl_debug_temperature(pmlan_adapter pmadapter,
+					      mlan_ioctl_req *pioctl_req);
 
 mlan_status wlan_misc_ioctl_get_tsf(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);

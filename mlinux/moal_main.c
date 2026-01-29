@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -473,8 +473,8 @@ static struct _card_info card_info_SDAW693 = {
 	.rev_id_reg = 0xc8,
 	.host_strap_reg = 0xf4,
 	.magic_reg = 0xf0,
-	.fw_name = SDAW693_DEFAULT_COMBO_FW_NAME,
-	.fw_name_wlan = SDAW693_DEFAULT_WLAN_FW_NAME,
+	.fw_name = SDIW693_DEFAULT_COMBO_FW_NAME,
+	.fw_name_wlan = SDIW693_DEFAULT_WLAN_FW_NAME,
 #ifdef SDIO
 	.dump_fw_info = DUMP_FW_SDIO_V3,
 	.dump_fw_ctrl_reg = 0xf9,
@@ -2786,6 +2786,7 @@ mlan_status woal_init_sw(moal_handle *handle)
 	device->disable_11h_tpc = (t_u32)handle->params.disable_11h_tpc;
 	device->tpe_ie_ignore = (t_u32)handle->params.tpe_ie_ignore;
 	device->amsdu_disable = handle->params.amsdu_disable;
+	device->amsdu_rx_size = handle->params.amsdu_rx_size;
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device->bss_attr[i].bss_type =

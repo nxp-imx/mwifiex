@@ -3,7 +3,7 @@
  *  @brief This file contains AP mode transmit and receive functions
  *
  *
- *  Copyright 2009-2021, 2025 NXP
+ *  Copyright 2009-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -409,7 +409,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 			 * meant for monitor iface
 			 */
 			pmbuf2 = wlan_alloc_mlan_buffer(pmadapter,
-							MLAN_RX_DATA_BUF_SIZE,
+							pmadapter->rx_buf_size,
 							MLAN_RX_HEADER_LEN,
 							MOAL_ALLOC_MLAN_BUFFER);
 			if (!pmbuf2) {

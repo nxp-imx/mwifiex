@@ -3,7 +3,7 @@
  * @brief This file contains functions for proc file.
  *
  *
- * Copyright 2008-2022, 2025 NXP
+ * Copyright 2008-2022, 2025-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -1364,7 +1364,7 @@ static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
 	if (sfp->size < ((handle->ssu_dump_len * 9) / 4)) {
 		PRINTM(MCMND,
 		       "ssu dump size too big, size=%lu, ssu_dump_len=%lu\n",
-		       sfp->size,
+		       (unsigned long)sfp->size,
 		       (unsigned long)((handle->ssu_dump_len * 9) / 4));
 		sfp->count = sfp->size;
 		ret = 0;

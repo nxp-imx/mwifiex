@@ -316,6 +316,8 @@ typedef struct _chan_stats {
 
 #define PRIV_CMD_FOUNDRY_TYPE "foundry_type"
 
+#define PRIV_CMD_DEBUG_TEMPERATURE "set_debug_temperature"
+
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
 /**Private command to configure static OFDM DESENSE config */

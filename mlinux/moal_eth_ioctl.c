@@ -4,7 +4,7 @@
   * @brief This file contains private ioctl functions
 
   *
-  * Copyright 2014-2025 NXP
+  * Copyright 2014-2026 NXP
   *
   * This software file (the File) is distributed by NXP
   * under the terms of the GNU General Public License Version 2, June 1991
@@ -15003,6 +15003,110 @@ done:
 }
 
 /**
+ * @brief               Set/Get thermal simulation debug temperatures
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ * @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_set_debug_temperature(moal_private *priv, t_u8 *respbuf,
+					   t_u32 respbuflen)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0, header_len = 0, user_data_len = 0;
+	int data[8];
+
+	t_u8 rfu = 0, i = 2;
+	t_u8 rpath = 0;
+
+	ENTER();
+	memset(data, 0, sizeof(data));
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_DEBUG_TEMPERATURE);
+	if (strlen(respbuf) == (header_len)) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/*set operation*/
+		memset((char *)data, 0, sizeof(data));
+
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len != 5) {
+			PRINTM(MERROR,
+			       "set_debug_temperature: invalid numder of arguments provided\n");
+			LEAVE();
+			return -EINVAL;
+		}
+	}
+
+	/* Allocate an IOCTL request buffer */
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_DEBUG_TEMPERATURE;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (user_data_len) {
+		// set operation
+		if (data[0] < 0 || data[0] > 1) {
+			PRINTM(MERROR,
+			       "err: Invalid temperature simulation enable value\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		misc->param.temp_cfg.simulation_enable = (t_u16)data[0];
+		if (misc->param.temp_cfg.simulation_enable) {
+			misc->param.temp_cfg.cau_temp = (t_s32)data[1];
+			for (rfu = 0; rfu < MAX_RFUS; rfu++) {
+				for (rpath = 0; rpath < MAX_PATHS; rpath++) {
+					misc->param.temp_cfg
+						.rf_temp[rfu][rpath] =
+						(t_s32)data[i++];
+				}
+			}
+		}
+		ioctl_req->action = MLAN_ACT_SET;
+	} else
+		ioctl_req->action = MLAN_ACT_GET;
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.temp_cfg.simulation_enable;
+	data[1] = misc->param.temp_cfg.cau_temp;
+	i = 2;
+	for (rfu = 0; rfu < MAX_RFUS; rfu++) {
+		for (rpath = 0; rpath < MAX_PATHS; rpath++) {
+			data[i] = misc->param.temp_cfg.rf_temp[rfu][rpath];
+			i++;
+		}
+	}
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief               Set/Get Tx/Rx antenna
  *
  * @param priv          Pointer to moal_private structure
@@ -21648,12 +21752,15 @@ static int woal_priv_preamble_pwr_boost(moal_private *priv, t_u8 *respbuf,
 			ret = -EINVAL;
 			goto done;
 		}
-		if (data[0] == MTRUE) {
-			if (data[1] && data[1] > 0x7f) {
-				PRINTM(MERROR, "Invalid threshold value\n");
-				ret = -EINVAL;
-				goto done;
-			}
+		if ((data[0] < 0) || (data[0] > 2)) {
+			PRINTM(MERROR, "Invalid enable mode value\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data[1] > 0) || (data[1] < -80)) {
+			PRINTM(MERROR, "Invalid threshold value\n");
+			ret = -EINVAL;
+			goto done;
 		}
 
 		misc->param.preamble_pwr_boost.enable_mode = (t_u8)data[0];
@@ -22674,7 +22781,9 @@ static int woal_priv_per_band_txpwr_cap(moal_private *priv, t_u8 *respbuf,
 	}
 	/* tx power capping cannot be negative or above 25 dBm */
 	if (data[1] < 0 || data[1] > 25) {
-		if (data[1] == 0xff && data[0] == BAND_6GHZ) {
+		if (data[1] == 0xff && data[0] == BAND_5GHZ) {
+			/* rssi based tpc */
+		} else if (data[1] == 0xff && data[0] == BAND_6GHZ) {
 			/* rssi based tpc */
 		} else {
 			PRINTM(MERROR,
@@ -22683,7 +22792,8 @@ static int woal_priv_per_band_txpwr_cap(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 	}
-	if (data[0] == BAND_6GHZ && data[1] == 0xff) {
+	if ((data[0] == BAND_5GHZ && data[1] == 0xff) ||
+	    (data[0] == BAND_6GHZ && data[1] == 0xff)) {
 		if ((data[2] == 0 || data[3] == 0) && (data[2] != data[3])) {
 			/* both thresholds must be 0 for dynamic TPC */
 			PRINTM(MERROR,
@@ -22702,6 +22812,7 @@ static int woal_priv_per_band_txpwr_cap(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 	}
+
 	misc->param.per_band_txpwr_cap.band = (t_u8)data[0];
 	misc->param.per_band_txpwr_cap.power = (t_u8)data[1];
 	misc->param.per_band_txpwr_cap.strong_rssi_thresh = (t_s8)data[2];
@@ -23792,6 +23903,14 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* mc_aggr_cfg*/
 			len = woal_priv_get_foundry_type(priv, buf,
 							 priv_cmd.total_len);
+			goto handled;
+
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_DEBUG_TEMPERATURE,
+				    strlen(PRIV_CMD_DEBUG_TEMPERATURE)) == 0) {
+			/* mc_aggr_cfg*/
+			len = woal_priv_set_debug_temperature(
+				priv, buf, priv_cmd.total_len);
 			goto handled;
 
 		} else if (strnicmp(buf + strlen(CMD_NXP),

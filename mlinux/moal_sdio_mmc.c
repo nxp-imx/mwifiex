@@ -4,7 +4,7 @@
  *  related functions.
  *
  *
- * Copyright 2008-2022, 2024-2025 NXP
+ * Copyright 2008-2022, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -682,7 +682,7 @@ static t_u16 woal_update_card_type(t_void *card)
 			NULL,
 			driver_version + strlen(INTF_CARDTYPE) +
 				strlen(KERN_VERSION),
-			V17, strlen(V17),
+			V18, strlen(V18),
 			strnlen(driver_version, MLAN_MAX_VER_STR_LEN - 1) -
 				(strlen(INTF_CARDTYPE) + strlen(KERN_VERSION)));
 	}
@@ -2048,26 +2048,26 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SDAW693_A0:
 			if (strap == CARD_TYPE_SDAW693_UART)
 				strncpy(handle->card_info->fw_name,
-					SDUARTAW693_COMBO_FW_NAME,
+					SDUARTIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
 				strncpy(handle->card_info->fw_name,
-					SDSDAW693_COMBO_FW_NAME,
+					SDSDIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			strncpy(handle->card_info->fw_name_wlan,
-				SDAW693_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
+				SDIW693_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SDAW693_A1:
 			if (strap == CARD_TYPE_SDAW693_UART)
 				strncpy(handle->card_info->fw_name,
-					SDUARTAW693_COMBO_V1_FW_NAME,
+					SDUARTIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
 				strncpy(handle->card_info->fw_name,
-					SDSDAW693_COMBO_V1_FW_NAME,
+					SDSDIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			strncpy(handle->card_info->fw_name_wlan,
-				SDAW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
+				SDIW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			if (magic != 0x03) {
 				/* remove extension .se */
 				se_pos = strstr(handle->card_info->fw_name,

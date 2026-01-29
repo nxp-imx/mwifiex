@@ -4,7 +4,7 @@
  * driver.
  *
  *
- * Copyright 2008-2021, 2024-2025 NXP
+ * Copyright 2008-2021, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -323,10 +323,10 @@ setup_for_next:
 			    MLAN_USB_AGGR_MODE_NUM) {
 				size *= MAX(MLAN_USB_MAX_PKT_SIZE,
 					    cardp->rx_deaggr_ctrl.aggr_align);
-				size = MAX(size, MLAN_RX_DATA_BUF_SIZE);
+				size = MAX(size, handle->params.amsdu_rx_size);
 			}
 		} else
-			size = MLAN_RX_DATA_BUF_SIZE;
+			size = handle->params.amsdu_rx_size;
 	}
 	woal_usb_submit_rx_urb(context, size);
 
@@ -1513,7 +1513,7 @@ mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
 	int i;
 	mlan_status ret = MLAN_STATUS_FAILURE;
-	t_u32 buffer_len = MLAN_RX_DATA_BUF_SIZE;
+	t_u32 buffer_len = handle->params.amsdu_rx_size;
 
 	ENTER();
 
@@ -1522,7 +1522,8 @@ mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 		if (cardp->rx_deaggr_ctrl.aggr_mode == MLAN_USB_AGGR_MODE_NUM) {
 			buffer_len *= MAX(MLAN_USB_MAX_PKT_SIZE,
 					  cardp->rx_deaggr_ctrl.aggr_align);
-			buffer_len = MAX(buffer_len, MLAN_RX_DATA_BUF_SIZE);
+			buffer_len =
+				MAX(buffer_len, handle->params.amsdu_rx_size);
 		}
 	}
 

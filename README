@@ -3,7 +3,7 @@
 ================================================================================
 			U S E R  M A N U A L
 
- Copyright 2008-2025 NXP
+ Copyright 2008-2026 NXP
 
 
 1) FOR DRIVER BUILD
@@ -11,7 +11,7 @@
 	Goto source code directory.
 	make [clean] build
 	The driver and utility binaries can be found in bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.17.0.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.18.2.
 
 2) FOR INTEGRATING DRIVER INTO LINUX KERNEL (BUILT-IN SUPPORT)
 
@@ -145,6 +145,7 @@
 	(Note: This feature will be supported for IW416 and IW610x chipsets with host_mlme=1 case as of now.)
 	tpe_ie_ignore=0|1 <obey TPE IEs from ex-AP (default) | ignore TPE IEs from ex-AP>
 	make_before_break=0|1, <No make before break during roam (default) | make_before_break during roam)>
+    amsdu_8k_rx=0|1, <not support AMPDU 8K RX, just support 4K (default) | support AMPDU 8K RX>
 	dts_enable=0|1 <Disable DTS | Enable DTS (default)>
 	fw_name = <FW file name>
 		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin

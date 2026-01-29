@@ -3,7 +3,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2022, 2025 NXP
+ * Copyright 2015-2022, 2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -641,7 +641,6 @@ static int woal_cfg80211_subcmd_get_drv_version(struct wiphy *wiphy,
 	struct sk_buff *skb = NULL;
 	t_u32 reply_len = 0;
 	int ret = 0;
-	t_u32 drv_len = 0;
 	char drv_version[MLAN_MAX_VER_STR_LEN] = {0};
 	char *pos;
 
@@ -649,18 +648,13 @@ static int woal_cfg80211_subcmd_get_drv_version(struct wiphy *wiphy,
 	moal_memcpy_ext(priv->phandle, drv_version,
 			&priv->phandle->driver_version, MLAN_MAX_VER_STR_LEN,
 			MLAN_MAX_VER_STR_LEN);
+	/* Remove all "-%s" substrings */
 	// drv_version is already initialized to 0 and hence null terminated
 	// coverity[cert_str32_c_violation:SUPPRESS]
-	drv_len = strlen(drv_version);
-	pos = strstr(drv_version, "%s");
-	/* remove 3 char "-%s" in driver_version string */
-	if (pos != NULL)
-		moal_memcpy_ext(priv->phandle, pos, pos + 3, strlen(pos) - 3,
+	while ((pos = strstr(drv_version, "-%s")) != NULL)
+		moal_memcpy_ext(priv->phandle, pos, pos + 3, strlen(pos) - 2,
 				strlen(pos));
-
 	reply_len = strlen(drv_version) + 1;
-	drv_len -= 3;
-	drv_version[drv_len] = '\0';
 
 	/** Allocate skb for cmd reply*/
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, reply_len);
@@ -708,7 +702,7 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 	hotfix_ver = priv->phandle->fw_hotfix_version;
 	if (hotfix_ver) {
 		if (snprintf(fw_ver, sizeof(fw_ver),
-			     "%s-%u.%u.%u.p%u.%u, %s-%s%c",
+			     "%s %u.%u.%u.p%u.%u %s %s%c",
 			     priv->phandle->fw_ver_milestone,
 			     priv->phandle->fw_release_number.majorRevNum,
 			     priv->phandle->fw_release_number.minorRevNum,
@@ -718,7 +712,7 @@ static int woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 			     priv->phandle->fw_ver_data, end_c) <= 0)
 			PRINTM(MERROR, "Failed to write fw hotfix version\n");
 	} else {
-		if (snprintf(fw_ver, sizeof(fw_ver), "%s-%u.%u.%u.p%u, %s-%s%c",
+		if (snprintf(fw_ver, sizeof(fw_ver), "%s %u.%u.%u.p%u %s %s%c",
 			     priv->phandle->fw_ver_milestone,
 			     priv->phandle->fw_release_number.majorRevNum,
 			     priv->phandle->fw_release_number.minorRevNum,

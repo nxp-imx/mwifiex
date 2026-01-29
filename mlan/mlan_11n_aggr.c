@@ -3,7 +3,7 @@
  *  @brief This file contains functions for 11n Aggregation.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -423,7 +423,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 	int total_pkt_len;
 	t_u8 *data = MNULL;
 	mlan_adapter *pmadapter = priv->adapter;
-	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
+	t_u32 max_rx_data_size = pmadapter->rx_buf_size;
 	int pad;
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	RxPacketHdr_t *prx_pkt;
@@ -464,7 +464,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 				    pmadapter->pcard_usb->usb_rx_deaggr
 					    .aggr_ctrl.aggr_align);
 			max_rx_data_size =
-				MAX(max_rx_data_size, MLAN_RX_DATA_BUF_SIZE);
+				MAX(max_rx_data_size, pmadapter->rx_buf_size);
 		}
 	}
 #endif
@@ -510,7 +510,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 			goto done;
 		}
 	}
-	/* total_pkt_len is limited up to MLAN_RX_DATA_BUF_SIZE */
+	/* total_pkt_len is limited up to rx_buf_size */
 	// coverity[misra_c_2012_directive_4_14_violation:SUPPRESS]
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;

@@ -5447,6 +5447,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_per_band_txpwr_cap(pmadapter,
 							    pioctl_req);
 		break;
+	case MLAN_OID_MISC_DEBUG_TEMPERATURE:
+		status = wlan_misc_ioctl_debug_temperature(pmadapter,
+							   pioctl_req);
+		break;
 
 	default:
 		if (pioctl_req)

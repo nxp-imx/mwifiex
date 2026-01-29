@@ -4,7 +4,7 @@
  *  @brief This file contains the handling of CMD/EVENT in MLAN
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -5490,11 +5490,15 @@ mlan_status wlan_cmd_func_init(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd)
 	HostCmd_DS_FUNC_INIT *func_init = &cmd->params.func_init;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	MrvlIEtypes_boot_time_cfg_t *pboot_time_tlv = MNULL;
+	MrvlIEtypes_host_max_rx_buf_size_t *prx_buf_size_tlv = MNULL;
+	t_u8 *tlv_buf = MNULL;
+
 	ENTER();
 
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_FUNC_INIT);
 	cmd->size = S_DS_GEN + sizeof(MrvlIEtypes_boot_time_cfg_t);
-	pboot_time_tlv = (MrvlIEtypes_boot_time_cfg_t *)func_init->tlv_buf;
+	tlv_buf = func_init->tlv_buf;
+	pboot_time_tlv = (MrvlIEtypes_boot_time_cfg_t *)tlv_buf;
 	pboot_time_tlv->type = wlan_cpu_to_le16(TLV_TYPE_BOOT_TIME_CFG);
 	pboot_time_tlv->len =
 		wlan_cpu_to_le16(sizeof(MrvlIEtypes_boot_time_cfg_t) -
@@ -5504,6 +5508,16 @@ mlan_status wlan_cmd_func_init(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd)
 	} else {
 		pboot_time_tlv->enable = MFALSE;
 	}
+	tlv_buf += sizeof(MrvlIEtypes_boot_time_cfg_t);
+	prx_buf_size_tlv = (MrvlIEtypes_host_max_rx_buf_size_t *)tlv_buf;
+	prx_buf_size_tlv->type = wlan_cpu_to_le16(TLV_HOST_MAX_RX_BUF_SIZE);
+	prx_buf_size_tlv->len =
+		wlan_cpu_to_le16(sizeof(MrvlIEtypes_host_max_rx_buf_size_t) -
+				 sizeof(MrvlIEtypesHeader_t));
+	prx_buf_size_tlv->max_rx_buf_size =
+		wlan_cpu_to_le16(pmadapter->rx_buf_size);
+	prx_buf_size_tlv->reserved = 0;
+	cmd->size += sizeof(MrvlIEtypes_host_max_rx_buf_size_t);
 	cmd->size = wlan_cpu_to_le16(cmd->size);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -7031,6 +7045,7 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	t_u16 fw_pl_ver = 0;
 	MrvlIEtypes_fw_ver_info_t *api_rev = MNULL;
 	t_u16 api_id = 0;
+	t_u16 dev_max_amsdu_size;
 	MrvlIEtypesHeader_t *tlv = MNULL;
 	pmlan_ioctl_req pioctl_req = (mlan_ioctl_req *)pioctl_buf;
 	MrvlIEtypes_Max_Conn_t *tlv_max_conn = MNULL;
@@ -7131,6 +7146,18 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		MLAN_MAC_ADDR_LENGTH);
 	pmadapter->hw_dot_11n_dev_cap =
 		wlan_le32_to_cpu(hw_spec->dot_11n_dev_cap);
+
+	dev_max_amsdu_size = ISSUPP_MAXAMSDU(hw_spec->dot_11n_dev_cap) ?
+				     MLAN_RX_DATA_BUF_SIZE_8K :
+				     MLAN_RX_DATA_BUF_SIZE_4K;
+	pmadapter->rx_buf_size =
+		MIN(pmadapter->rx_buf_size, dev_max_amsdu_size);
+
+	if (ISSUPP_MAXAMSDU(hw_spec->dot_11n_dev_cap))
+		SETSUPP_MAXAMSDU(pmadapter->hw_dot_11n_dev_cap);
+	else
+		RESETSUPP_MAXAMSDU(pmadapter->hw_dot_11n_dev_cap);
+
 	pmadapter->hw_dev_mcs_support = hw_spec->dev_mcs_support;
 	pmadapter->hw_mpdu_density = GET_MPDU_DENSITY(hw_spec->hw_dev_cap);
 	PRINTM(MCMND, "GET_HW_SPEC: hw_mpdu_density=%d dev_mcs_support=0x%x\n",
@@ -7165,6 +7192,17 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	}
 	pmadapter->hw_dot_11ac_dev_cap =
 		wlan_le32_to_cpu(hw_spec->Dot11acDevCap);
+	dev_max_amsdu_size = ISSUPP_MAXAMSDU(hw_spec->Dot11acDevCap) ?
+				     MLAN_RX_DATA_BUF_SIZE_8K :
+				     MLAN_RX_DATA_BUF_SIZE_4K;
+	pmadapter->rx_buf_size =
+		MIN(pmadapter->rx_buf_size, dev_max_amsdu_size);
+
+	if (ISSUPP_MAXAMSDU(hw_spec->Dot11acDevCap))
+		SETSUPP_MAXAMSDU(pmadapter->hw_dot_11ac_dev_cap);
+	else
+		RESETSUPP_MAXAMSDU(pmadapter->hw_dot_11ac_dev_cap);
+
 	pmadapter->hw_dot_11ac_mcs_support =
 		wlan_le32_to_cpu(hw_spec->Dot11acMcsSupport);
 	for (i = 0; i < pmadapter->priv_num; i++) {
@@ -11886,6 +11924,88 @@ mlan_status wlan_ret_foundry_type(pmlan_private pmpriv,
 			wlan_le16_to_cpu(fab_cmd->foundry_type);
 		PRINTM(MCMND, "get SOC foundry_type %d \n",
 		       fab_cmd->foundry_type);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command to set debug temperature
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_cmd_set_debug_temperature(pmlan_private pmpriv,
+					   HostCmd_DS_COMMAND *cmd,
+					   t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_SET_DEBUG_TEMPERATURE *temp_config = &cmd->params.temp_cfg;
+	mlan_ds_set_debug_temperature *cfg =
+		(mlan_ds_set_debug_temperature *)pdata_buf;
+	t_u8 rfu = 0;
+	t_u8 rpath = 0;
+
+	ENTER();
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SET_DEBUG_TEMPERATURE);
+	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_SET_DEBUG_TEMPERATURE) +
+				     S_DS_GEN);
+	temp_config->action = wlan_cpu_to_le16(cmd_action);
+	temp_config->simulation_enable =
+		wlan_cpu_to_le16(cfg->simulation_enable);
+	if (temp_config->simulation_enable == 0) {
+		cmd->size = wlan_cpu_to_le16(
+			sizeof(temp_config->action) +
+			sizeof(temp_config->simulation_enable) + S_DS_GEN);
+	} else {
+		temp_config->cau_temp = wlan_cpu_to_le32(cfg->cau_temp);
+		for (rfu = 0; rfu < MAX_RFUS; rfu++) {
+			for (rpath = 0; rpath < MAX_PATHS; rpath++) {
+				temp_config->rf_temp[rfu][rpath] =
+					wlan_cpu_to_le32(
+						cfg->rf_temp[rfu][rpath]);
+			}
+		}
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of debug temperature
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_debug_temperature(pmlan_private pmpriv,
+				       HostCmd_DS_COMMAND *resp,
+				       mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_SET_DEBUG_TEMPERATURE *temp_config =
+		(HostCmd_DS_SET_DEBUG_TEMPERATURE *)&resp->params.temp_cfg;
+	mlan_ds_misc_cfg *cfg = MNULL;
+	t_u8 rfu = 0;
+	t_u8 rpath = 0;
+	ENTER();
+	if (pioctl_buf) {
+		cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		cfg->param.temp_cfg.simulation_enable =
+			wlan_le16_to_cpu(temp_config->simulation_enable);
+		cfg->param.temp_cfg.cau_temp =
+			wlan_le32_to_cpu(temp_config->cau_temp);
+		for (rfu = 0; rfu < MAX_RFUS; rfu++) {
+			for (rpath = 0; rpath < MAX_PATHS; rpath++) {
+				cfg->param.temp_cfg
+					.rf_temp[rfu][rpath] = wlan_le32_to_cpu(
+					temp_config->rf_temp[rfu][rpath]);
+			}
+		}
 	}
 
 	LEAVE();

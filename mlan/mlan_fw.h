@@ -5,7 +5,7 @@
  *  in MLAN module.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -424,6 +424,10 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 
 /** HW_SPEC Dot11nDevCap : MAX AMSDU supported */
 #define ISSUPP_MAXAMSDU(Dot11nDevCap) (Dot11nDevCap & MBIT(31))
+/** HW_SPEC Dot11nDevCap : Reset MAX AMSDU supported */
+#define RESETSUPP_MAXAMSDU(Dot11nDevCap) (Dot11nDevCap &= ~MBIT(31))
+/** HW_SPEC Dot11nDevCap : Set MAX AMSDU supported */
+#define SETSUPP_MAXAMSDU(Dot11nDevCap) (Dot11nDevCap |= MBIT(31))
 /** HW_SPEC Dot11nDevCap : Beamforming support */
 #define ISSUPP_BEAMFORMING(Dot11nDevCap) (Dot11nDevCap & MBIT(30))
 /** HW_SPEC Dot11nDevCap : Green field support */
@@ -3915,6 +3919,19 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_boot_time_cfg_t {
 	t_u8 reserve[3];
 } MLAN_PACK_END MrvlIEtypes_boot_time_cfg_t, *pMrvlIEtypes_boot_time_cfg_t;
 
+/** Host Max RX Buffer Size TLV */
+typedef MLAN_PACK_START struct _MrvlIEtypes_host_max_rx_buf_size_t {
+	/** Header type */
+	t_u16 type;
+	/** Header length */
+	t_u16 len;
+	/** Max RX buffer size */
+	t_u16 max_rx_buf_size;
+	/** Reserved */
+	t_u16 reserved;
+} MLAN_PACK_END MrvlIEtypes_host_max_rx_buf_size_t,
+	*pMrvlIEtypes_host_max_rx_buf_size_t;
+
 /** Power_Group_t */
 typedef MLAN_PACK_START struct _Power_Group_t {
 	/** Modulation Class */
@@ -4706,6 +4723,17 @@ typedef MLAN_PACK_START struct _HostCmd_DS_GET_FOUNDRY_TYPE {
 	t_u8 foundry_type;
 } MLAN_PACK_END HostCmd_DS_GET_FOUNDRY_TYPE;
 
+/** Type definition of HostCmd_DS_SET_DEBUG_TEMPERATURE */
+typedef MLAN_PACK_START struct _HostCmd_DS_SET_DEBUG_TEMPERATURE {
+	/** Action */
+	t_u16 action;
+	/** enable/disable debug thermal simulation */
+	t_u16 simulation_enable;
+	/** CAU temperature to set */
+	t_s32 cau_temp;
+	/** RFU temperature to set */
+	t_s32 rf_temp[MAX_RFUS][MAX_PATHS];
+} MLAN_PACK_END HostCmd_DS_SET_DEBUG_TEMPERATURE;
 /** Type definition of hostcmd_twt_information */
 typedef struct MLAN_PACK_START _hostcmd_twt_information {
 	/** TWT Flow Identifier. Range: [0-7] */
@@ -8003,6 +8031,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		t_u8 assoc_rsp_buf[ASSOC_RSP_BUF_SIZE];
 		HostCmd_DS_GET_FOUNDRY_TYPE foundry_type;
 
+		HostCmd_DS_SET_DEBUG_TEMPERATURE temp_cfg;
 #ifdef UAP_SUPPORT
 		/** Agiled channel switch configuration */
 		HostCmd_DS_AGCS_CFG agcs_cfg;
