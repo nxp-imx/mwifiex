@@ -25,7 +25,9 @@ ANDROID_MWIFIEX_COPTS = [
     # Base flags
     "-DLINUX",
     "-DMLAN_64BIT", #CONFIG_64BIT
-    "-DMLAN_RELEASE_VERSION=\"540\"",
+    "-DMLAN_RELEASE_VERSION=\"542.p8\"",
+    "-DMLAN_EXT_RELEASE_VERSION=\"542.p8\"",
+    "-DREL_MILESTONE=\"\"",
     "-DFPNUM=\"92\"",
     "-DDEBUG_LEVEL1", # from CONFIG_DEBUG=1
     # Android specific flags from mxmwifi.mk and Makefile logic
