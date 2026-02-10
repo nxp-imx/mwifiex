@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode command and event
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -6781,8 +6781,13 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 						pchan_info->bandcfg.chanBand,
 						pchan_info->channel,
 						CHANNEL_BW_80MHZ);
+			/* Channel 14 (Japan) does not support 802.11n. */
+			/* TODO: Update is_11n_enabled after the channel switch.
+			 */
 			pchan_band_info->is_11n_enabled =
-				pmpriv->is_11n_enabled;
+				(pchan_info->channel == 14) ?
+					0 :
+					pmpriv->is_11n_enabled;
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE,
 					pevent);

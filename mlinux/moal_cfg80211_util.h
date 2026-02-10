@@ -3,7 +3,7 @@
  * @brief This file contains the CFG80211 vendor specific defines.
  *
  *
- * Copyright 2015-2021, 2024-2025 NXP
+ * Copyright 2015-2021, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -544,12 +544,36 @@ struct woal_apf_ctx {
 	u8 *ram; /* shadow APF RAM */
 	u32 ram_len; /* capability: max length (e.g., 2048) */
 	u32 prog_size; /* last installed program length */
+	u32 gen; /* increments on every install */
+
+	/* Pre-allocated buffers for performance */
+	u8 *tmp_ram; /* temp buffer for packet processing */
+	u8 *shim_buf; /* pre-allocated L2 header shim buffer */
+	u32 shim_buf_len; /* size of shim buffer */
+
 	ktime_t installed_at; /* for FILTER_AGE_SECONDS */
 	u32 pkts_since_install; /* NEW: counts packets after install */
 	/* simple mode flags for CTS: */
 	bool drop_icmp6_echo_reply_any; /* enable driver-drop for Echo Reply */
 
 	struct woal_apf_counters ctr;
+};
+
+struct apf_v6_ctx {
+	t_u8 *prog_u8;
+	t_u32 prog_len;
+	t_u32 ram_len;
+	const t_u8 *pkt;
+	t_u32 pkt_len;
+	t_u32 pc;
+	t_u32 R[2];
+	t_u32 mem[V6_MEMORY_ITEMS];
+	bool v6_jmpdata_seen;
+	void *caller_ctx;
+	t_u8 *tx_buf; // allocated TX buffer
+	t_u32 tx_cap; // capacity
+	t_u32 tx_wp; // write pointer (also mirrored in
+		     // mem[V6_SLOT_TXBUF_OFFSET])
 };
 
 /** =========== Define Copied from apf_interpreter.h END =========== */
@@ -569,7 +593,7 @@ struct woal_apf_ctx {
 
 /** depend on the format of skb->data */
 #define APF_FRAME_HEADER_SIZE 14
-#define PACKET_FILTER_MAX_LEN 2048
+#define PACKET_FILTER_MAX_LEN 4096
 
 #ifndef APF_TEST_MIRROR_BASE
 #define APF_TEST_MIRROR_BASE 500

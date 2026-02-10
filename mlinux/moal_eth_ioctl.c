@@ -18043,6 +18043,7 @@ static int woal_priv_lte_coex_band_cfg(moal_private *priv, t_u8 *respbuf,
 		req->action = MLAN_ACT_GET;
 	} else {
 		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
 		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 				&user_data_len);
 		pos = respbuf + header_len;

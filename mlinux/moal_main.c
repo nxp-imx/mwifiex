@@ -1006,7 +1006,13 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb,
 u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb);
 #endif
 #endif
-
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static int woal_xdp_xmit(struct net_device *dev, int num_frames,
+			 struct xdp_frame **frames, t_u32 flags);
+static int woal_bpf(struct net_device *dev, struct netdev_bpf *xdp);
+#endif
+#endif
 static moal_handle *reset_handle;
 /** Hang workqueue */
 static struct workqueue_struct *hang_workqueue;
@@ -5732,6 +5738,12 @@ const struct net_device_ops woal_netdev_ops = {
 #endif
 	.ndo_select_queue = woal_select_queue,
 	.ndo_validate_addr = eth_validate_addr,
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	.ndo_bpf = woal_bpf,
+	.ndo_xdp_xmit = woal_xdp_xmit,
+#endif
+#endif
 };
 #endif
 
@@ -5792,6 +5804,13 @@ mlan_status woal_init_sta_dev(struct net_device *dev, moal_private *priv)
 #else
 	dev->hard_header_len += MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
 				priv->extra_tx_head_len;
+#endif
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	dev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
+			    NETDEV_XDP_ACT_NDO_XMIT |
+			    NETDEV_XDP_ACT_NDO_XMIT_SG;
+#endif
 #endif
 #ifdef STA_WEXT
 	if (IS_STA_WEXT(priv->phandle->params.cfg80211_wext)) {
@@ -6443,6 +6462,13 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 	    || bss_type == MLAN_BSS_TYPE_WIFIDIRECT
 #endif
 	    || bss_type == MLAN_BSS_TYPE_NAN) {
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+		dev->xdp_features = NETDEV_XDP_ACT_BASIC |
+				    NETDEV_XDP_ACT_REDIRECT |
+				    NETDEV_XDP_ACT_NDO_XMIT;
+#endif
+#endif
 		if (MLAN_STATUS_SUCCESS != woal_init_sta_dev(dev, priv)) {
 			PRINTM(MERROR, "Failed to initialize station mode\n");
 			goto error;

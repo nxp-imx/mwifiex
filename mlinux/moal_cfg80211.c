@@ -4316,11 +4316,13 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
 				if ((out_len + length + 2) < (int)ie_out_len) {
 					/* Filter out VHT CAPA IE for P2P GO */
+#ifdef WIFI_DIRECT_SUPPORT
 					if ((id == VHT_CAPABILITY) &&
 					    (priv->bss_type ==
 					     MLAN_BSS_TYPE_WIFIDIRECT)) {
 						break;
 					}
+#endif
 					moal_memcpy_ext(priv->phandle,
 							ie_out + out_len, pos,
 							length + 2,

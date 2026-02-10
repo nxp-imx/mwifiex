@@ -400,7 +400,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 
 /** Default 11n capability mask for 2.4GHz */
 #define DEFAULT_11N_CAP_MASK_BG                                                \
-	(HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
+	(HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP |       \
+	 HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI40_SUPP)
 /** Default 11n capability mask for 5GHz */
 #define DEFAULT_11N_CAP_MASK_A                                                 \
 	(HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI20_SUPP |                        \
@@ -656,6 +657,13 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** ExtCap : Reset support TDLS wider bandwidth */
 #define RESET_EXTCAP_TDLS_WIDER_BANDWIDTH(ext_cap)                             \
 	(ext_cap.TDLSWildBandwidth = 0)
+
+/** ExtCap : Check 20/40 BSS Coexistence support */
+#define ISSUPP_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport)
+/** ExtCap : Set 20/40 BSS Coexistence support */
+#define SET_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport = 1)
+/** ExtCap: Reset 20/40 BSS Coexistence support */
+#define RESET_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport = 0)
 
 /** ExtCap : Support for extend channel switch */
 #define ISSUPP_EXTCAP_EXT_CHANNEL_SWITCH(ext_cap) (ext_cap.ExtChanSwitching)
