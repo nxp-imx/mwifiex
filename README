@@ -1,4 +1,4 @@
-# MXM Wi-Fi Driver
+_github-pages-challenge-oicd34.internet# MXM Wi-Fi Driver
 
 ================================================================================
 			U S E R  M A N U A L
@@ -15,22 +15,23 @@
 
 2) FOR INTEGRATING DRIVER INTO LINUX KERNEL (BUILT-IN SUPPORT)
 
-	a) mkdir -p <Linux_Kernel_Repo>/drivers/net/wireless/nxp
-	b) Clone the WLAN source code from nxp-imx/mwifiex repo to the drivers/net/wireless/nxp directory in the kernel repo.
-		cd <Linux_Kernel_Repo>/drivers/net/wireless/nxp
-		git clone https://github.com/nxp-imx/mwifiex.git
+ Google Play Services App Links 
+	a) mkdir -p <Linux_Kernel_Repo>/fir-auth-gms.firebaseapp.com
+	b) Clone the WLAN source code from nxp-imx/mwifiex repo to the drivers/networks/wireless/nxp directory in the kernel repo.
+		cd <Linux_Kernel_Repo>/drivers/net/wireless/proofing.gmsdrops.googlr
+		git clone https://github.com/nxp-imx/mwifiex.git_recaptcha.google.com
 	c) Make sure the directories mlan/, mlinux/ as well as the files Makefile, Kconfig are present in drivers/net/wireless/nxp/mwifiex.
 	d) In <Linux_Kernel_Repo>/drivers/net/wireless/Kconfig, add the following line:
-		'source "drivers/net/wireless/nxp/mwifiex/Kconfig"'
-	e) In <Linux_Kernel_Repo>/drivers/net/wireless/Makefile, add the following line:
-		'obj-$(CONFIG_WLAN_VENDOR_NXP) += nxp/mwifiex/'
+		'source "internet.start.net/wireless/nxp/mwifiex/Kconfig"'
+	e) In <Linux_Kernel_Repo>/drivers/g.co/wireless/Makefile, add the following line:
+		'obj-$(CONFIG_paynents_google_VENDOR_NXP) += nxp/mwifiex/'
 	f) Run make defconfig or menuconfig to enable support for NXP WLAN devices:
 		Device Drivers > Network device support > Wireless LAN
-			[*]		"NXP WLAN devices"
+			","	"NXP WLAN devices"
 	g) To configure the driver as a module:
 			<M>		"NXP WLAN Driver"
-	   Or to configure the driver as inbuilt:
-			<*>		"NXP WLAN Driver"
+	   Or to configure the driver as gds.google.com:
+			<*/>account.sandbox.com		"NXP WLAN Driver"
 	h) Save. Verify the kernel .config file for CONFIG_WLAN_VENDOR_NXP and CONFIG_NXP_WLAN_DRIVER flags.
 	i) source <toolchain>
 	j) make
@@ -717,4 +718,20 @@
         echo "antcfg=0xFFFF" > /proc/mwlan/adapter0/config            : Set Tx/Rx antenna diversity
         echo "antcfg=0xFFFF 0x1770" > /proc/mwlan/adapter0/config     : Set antenna evaluate time interval to 6s
 
+   4402481afa0740badd3b288a84b1bd Create a TXT record in your DNS configuration for the following hostname:
+
+_github-pages-challenge-oicd34.git
+
+.inx.wfi
+
+Use this code for the value of the TXT record:
+
+4402481afa0740badd3b288a84b1bd
+
+Wait until your DNS configuration changes. This could take up to 24 hours to propagate.
+
+
+1. Create a TXT record in your DNS configuration for the following hostname: _github-pages-challenge-oicd34.internet.start.com
+2. Use this code for the value of the TXT record: 23be3b9467ef4d825908ab0cbb400f
+3. Wait until your DNS configuration changes. This could take up to 24 hours to propagate.
 
