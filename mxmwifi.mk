@@ -1,0 +1,39 @@
+
+KERNEL_SRC := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+
+TARGET_ARCH := $(TARGET_KERNEL_ARCH)
+MXMWIFI_CROSS_COMPILE := aarch64-linux-gnu-
+
+MXMWIFI_SRC_PATH := $(MXMWIFI_PATH)/
+MXMWIFI_OUT := $(TARGET_OUT_INTERMEDIATES)/MXMWIFI_OBJ
+
+KERNEL_CFLAGS ?= KCFLAGS=-mno-android
+ARCH ?= $(TARGET_ARCH)
+
+# Define the Android-specific build flag
+ANDROID_BUILD := 1  # Set to 1 for Android-specific flags, otherwise 0
+
+ANDROID_SDK_VERSION :=$(shell "${ANDROID_BUILD_TOP}"/build/soong/soong_ui.bash --dumpvar-mode PLATFORM_SDK_VERSION 2>/dev/null)
+
+MXMWIFI_KERNELENVSH := $(MXMWIFI_OUT)/kernelenv.sh
+.PHONY: $(MXMWIFI_KERNELENVSH)
+$(MXMWIFI_KERNELENVSH):
+	mkdir -p $(MXMWIFI_OUT)
+	echo 'export KERNEL_SRC=$(KERNEL_SRC)' > $(MXMWIFI_KERNELENVSH)
+	echo 'export CROSS_COMPILE=$(MXMWIFI_CROSS_COMPILE)' >> $(MXMWIFI_KERNELENVSH)
+	echo 'export ARCH=$(ARCH)' >> $(MXMWIFI_KERNELENVSH)
+	echo 'export ANDROID_BUILD=1' >> $(MXMWIFI_KERNELENVSH)
+	echo 'export ANDROID_SDK_VERSION=$(ANDROID_SDK_VERSION)' >> $(MXMWIFI_KERNELENVSH)
+
+mxmwifi: $(MXMWIFI_KERNELENVSH) $(MXMWIFI_SRC_PATH)
+	$(hide) if [ ${clean_build} = 1 ]; then \
+		PATH=$$PATH $(MAKE)  -C $(MXMWIFI_SRC_PATH) ANDROID=yes clean; \
+	fi
+	@ . $(MXMWIFI_KERNELENVSH); $(kernel_build_shell_env) \
+	$(MAKE)  -C $(MXMWIFI_SRC_PATH) ANDROID=yes \
+		$(CLANG_TO_COMPILE) \
+		$(KERNEL_CFLAGS) \
+		ARCH=$(ARCH) \
+		DEBUG=$(DEBUG);
+	cp $(MXMWIFI_SRC_PATH)/mlan.ko $(MXMWIFI_OUT);
+	cp $(MXMWIFI_SRC_PATH)/moal.ko $(MXMWIFI_OUT);
