@@ -1,0 +1,26 @@
+NXP Software Content Register
+Release Date: April 2024
+
+
+Package:                   PCIE-WIFI-U16-X86-17.68.1.p149.42-MXM5X17405_P35_V0V1-app-src
+Outgoing License:          GNU General Public License v2.0 only
+License File:              gpl-2.0.txt
+Type of content:           Source Code
+Description and comments:  Wi-Fi Linux applications for W9098
+Origin:                    NXP (proprietary)
+
+
+Package:                   PCIE-WIFI-U16-X86-17.68.1.p149.42-MXM5X17405_P35_V0V1-mlan-src
+Outgoing License:          GNU General Public License v2.0 only
+License File:              gpl-2.0.txt
+Type of content:           Source Code
+Description and comments:  Wi-Fi Linux driver MLAN module for W9098
+Origin:                    NXP (proprietary)
+
+
+Package:                   PCIE-WIFI-U16-X86-17.68.1.p149.42-MXM5X17405_P35_V0V1-MGPL-src
+Outgoing License:          GNU General Public License v2.0 only
+License File:              gpl-2.0.txt
+Type of content:           Source Code
+Description and comments:  Wi-Fi Linux driver MOAL module for W9098
+Origin:                    NXP (proprietary)
