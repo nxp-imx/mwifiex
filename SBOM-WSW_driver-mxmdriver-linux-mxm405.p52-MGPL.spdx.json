@@ -1,0 +1,35 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "spdxVersion": "SPDX-2.3",
+  "creationInfo": {
+    "created": "2025-04-14T07:12:03Z",
+    "creators": [
+      "Organization: NXP"
+    ],
+    "licenseListVersion": "3.20"
+  },
+  "name": "WSW driver-mxmdriver-linux-mxm405.p52-MGPL",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://nxp.com/spdx/d1650127-b285-4675-90c8-8ae8d487b7dc",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-package-d1650127-b285-4675-90c8-8ae8d487b7dc",
+      "name": "WSW driver",
+      "versionInfo": "mxmdriver-linux-mxm405.p52-MGPL",
+      "licenseConcluded": "(GPL-2.0-only)",
+      "licenseDeclared": "(GPL-2.0-only)",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [],
+      "filesAnalyzed": false,
+      "originator": "Organization: NXP",
+      "supplier": "NOASSERTION"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-package-d1650127-b285-4675-90c8-8ae8d487b7dc"
+    }
+  ]
+}
