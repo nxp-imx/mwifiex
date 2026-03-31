@@ -4,7 +4,7 @@
 
 This document includes information about the supported features, driver and firmware release versions, fixed/known issues, and the performance of the Wi-Fi, Bluetooth and coexistence.
 
-The release has been tested for the wireless products listed below with Linux BSP version v.6.12.49\_2.2.0.
+The release has been tested for the wireless products listed below with Linux BSP version v.6.18.2\_1.0.0.
 
 ## Supported products
 
@@ -14,10 +14,6 @@ The release has been tested for the wireless products listed below with Linux BS
 88W9098
 -   PCIE-Wi-Fi-UART-BT-FP92-88W9098
 -   SD-Wi-Fi-UART-BT-FP92-88W9098
-
-88W8997
--   PCIE-Wi-Fi-UART-BT-FP92-88W8997
--   SD-Wi-Fi-UART-BT-FP92-88W8997
 
 IW416
 -   SD-Wi-Fi-UART-BT-FP92-IW416

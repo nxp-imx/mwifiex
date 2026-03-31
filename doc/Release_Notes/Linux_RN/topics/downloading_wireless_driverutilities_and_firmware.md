@@ -9,7 +9,7 @@ The Linux BSP image includes wireless firmware and pre-compiled drivers.
 - Path to the firmware binary: `/lib/firmware/nxp/`
 
 ## Wi-Fi utilities
-The mlan uutility (mlanutl) is not part of the Linux BSP image version v.6.12.34_2.1.0 nor the GitHub source release tag: `lf-6.12.49\_2.2.0`.
+The mlan uutility (mlanutl) is not part of the Linux BSP image version v.6.12.34_2.1.0 nor the GitHub source release tag: `lf-6.18.2\_1.0.0`.
 
 To get the source, see [GitHub – mlan utility](references.md).
 

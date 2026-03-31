@@ -105,3 +105,17 @@ None.
 
 **coexistence**
 - Resolved issue where simultaneous operation of uAP and BLE scan in coexistence scenarios led to Wi-Fi data stalls and reduced BLE advertising report frequency.
+
+## Firmware version 16.92.21.p153.7 to 16.92.21.p155.1
+
+**Wi-Fi**
+- Fixed P2P_FIND stopping prematurely when receiving connection requests from peer devices
+- Fixed enhanced scan timeout occurring during extended idle periods in STA mode
+- Corrected uAP deauth reason code to comply with IEEE standards for STA age-out scenarios
+- Resolved connection failure in noisy conditions when antenna diversity is enabled with single antenna connected
+
+**Bluetooth**
+•	Fixed BLE duty cycle variation (16-65%) when using coded PHY with S=8 coding scheme in TX test mode
+
+**Coex**
+- Resolved Wi-Fi data stall and reduced BLE advertising reports in uAP+BLE scan coexistence scenarios

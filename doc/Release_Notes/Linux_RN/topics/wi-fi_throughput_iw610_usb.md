@@ -15,6 +15,9 @@
 - Environment: Shield room – Over the air
 - External access point: Asus RT AX88U
 - DUT: IW610-Murata M.2 module LBES0ZZ2LL with i.MX 91 EVK platform
+    - Driver Load Parameters:
+      cal_data_cfg=none, cfg80211_wext=0xf, host_mlme=1, amsdu_deaggr=1, net_rx=1, tx_skb_clone=1, tx_work=1
+      
     - iPerf commands:
 
         - TCP server
@@ -52,45 +55,45 @@ STA Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz (HT)
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|57|61|62|63|
-|WPA2-AES|55|60|62|62|
-|WPA3-SAE|55|60|62|62|
+|Open Security|58|63|64|63|
+|WPA2-AES|56|62|64|63|
+|WPA3-SAE|59|62|64|62|
 
 STA Mode Throughput - AN Mode|5 GHz Band|20 MHz (HT)
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|58|63|64|66|
-|WPA2-AES|56|62|64|65|
-|WPA3-SAE|56|62|64|65|
+|Open Security|56|63|63|66|
+|WPA2-AES|55|62|63|65|
+|WPA3-SAE|55|62|63|65|
 
 STA Mode Throughput - AC Mode|5 GHz Band|20 MHz (VHT)
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|67|75|77|78|
-|WPA2-AES|67|75|77|78|
-|WPA3-SAE|67|75|77|78|
+|Open Security|72|76|78|79|
+|WPA2-AES|72|72|78|78|
+|WPA3-SAE|72|75|78|78|
 
 STA Mode Throughput - AX Mode|2.5 GHz Band|20 MHz (HE)
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|92|96|98|101|
-|WPA2-AES|90|96|98|100|
-|WPA3-SAE|89|96|99|100|
+|Open Security|88|96|98|101|
+|WPA2-AES|86|96|97|100|
+|WPA3-SAE|86|96|99|100|
 
 STA Mode Throughput - AX Mode|5 GHz Band|20 MHz (HE)
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|91|100|102|104|
-|WPA2-AES|88|100|101|103|
-|WPA3-SAE|88|99|98|103|
+|Open Security|90|100|103|104|
+|WPA2-AES|89|99|101|103|
+|WPA3-SAE|89|99|101|103|
 
 <a name="p2pgo-throughput"></a>
 ## P2P-GO throughput
@@ -100,28 +103,28 @@ P2P - GO Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|59|55|61|61|
+|WPA2-AES|57|58|63|63|
 
 P2P - GO Mode Throughput - BGN Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|57|57|64|63|
+|WPA2-AES|58|58|64|63|
 
 P2P - GO Mode Throughput - HE Mode|2.4 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|92|90|97|95|
+|WPA2-AES|96|93|100|98|
 
 P2P - GO Mode Throughput - HE Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|96|93|100|98|
+|WPA2-AES|97|94|101|99|
 
 <a name="p2pgc-throughput"></a>
 ## P2P-GC throughput
@@ -131,28 +134,28 @@ P2P - GC Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|56|56|61|61|
+|WPA2-AES|57|58|64|63|
 
 P2P - GC Mode Throughput - BGN Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|57|57|64|63|
+|WPA2-AES|57|59|59|64|
 
 P2P - GC Mode Throughput - HE Mode|2.4 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|93|90|98|96|
+|WPA2-AES|96|93|101|100|
 
 P2P - GC Mode Throughput - HE Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|94|92|99|99|
+|WPA2-AES|98|93|102|100|
 
 <a name="mobile-ap-throughput"></a>
 ## Mobile AP throughput
@@ -164,45 +167,45 @@ Mobile AP Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|58|55|61|60|
-|WPA2-AES|54|55|61|60|
-|WPA3-SAE|54|55|61|60|
+|Open Security|60|57|63|62|
+|WPA2-AES|57|57|63|62|
+|WPA3-SAE|57|57|63|62|
 
 Mobile AP Mode Throughput - AN Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|61|39|64|63|
-|WPA2-AES|57|57|64|63|
-|WPA3-SAE|57|57|64|63|
+|Open Security|61|58|64|64|
+|WPA2-AES|58|58|64|64|
+|WPA3-SAE|58|58|64|64|
 
 Mobile AP Mode Throughput - AC Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|73|70|77|73|
-|WPA2-AES|69|70|77|73|
-|WPA3-SAE|69|70|77|73|
+|Open Security|72|71|75|74|
+|WPA2-AES|70|70|75|74|
+|WPA3-SAE|70|71|75|74|
 
 Mobile AP Mode Throughput - AX Mode|2.4 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|90|89|95|93|
-|WPA2-AES|90|88|95|94|
-|WPA3-SAE|90|88|95|93|
+|Open Security|95|92|99|98|
+|WPA2-AES|95|92|99|97|
+|WPA3-SAE|95|92|99|97|
 
 Mobile AP Mode Throughput - AX Mode|5 GHz Band|20 MHz
 
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|96|93|101|99|
-|WPA2-AES|96|92|101|98|
-|WPA3-SAE|96|93|101|99|
+|Open Security|97|93|101|99|
+|WPA2-AES|97|93|101|99|
+|WPA3-SAE|97|93|101|99|
 
 <a name="open-thread-throughput-test"></a>
 ## OpenThread throughput test
@@ -216,8 +219,8 @@ Mobile AP Mode Throughput - AX Mode|5 GHz Band|20 MHz
 |Protocol|TCP \(kbit/s\)|UDP \(kbit/s\)|||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Thread leader|83|82|90|93|
-|Thread child|83|85|89|92|
+|Thread leader|84|84|92|92|
+|Thread child|84|84|92|92|
 
 
 

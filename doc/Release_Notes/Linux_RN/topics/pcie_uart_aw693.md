@@ -4,28 +4,28 @@
 
 ## Package information
 
-- BSP version: Linux 6.12.49\_2.2.0
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.2.p145.147
-- Driver version: MM6X18540.p33-GPL
+- BSP version: Linux 6.18.2\_1.0.0
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.2.p145.172
+- Driver version: MM6X18542.p8-GPL
 
 ## Version information
 
 - Wireless SoC: AW693
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.2.p145.147
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.2.p145.172
     - 18 - Major revision
     - 99 - Feature pack
     - 2 - Release version
-    - p145.147 - Patch number
-- Driver Version: MM6X18540.p33-GPL
+    - p145.172 - Patch number
+- Driver Version: MM6X18542.p8-GPL
     - 6X - Linux 6.x Kernel
-    - 18540 - Release version
-    - p33 - Patch number
+    - 18542 - Release version
+    - p8 - Patch number
     - GPL - General Public License V2
 
 ## Host platform
 
 - MCIMX8M-EVK platform running Linux
-- Supported Linux kernel versions: From 2.6.32 to 6.15.0
+- Supported Linux kernel versions: From 2.6.32 to 6.18.2
 - Interface used
     - Wi-Fi over PCIe Interface
     - Bluetooth/Bluetooth LE over UART Interface

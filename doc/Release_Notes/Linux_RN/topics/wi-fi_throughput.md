@@ -17,7 +17,10 @@
 -   Environment: Shield Room - Over the Air
 -   External Access Point: Netgear RAX120 \(FW\-1.0.1.122\)
 -   DUT: Murata 88Q9098 M.2 \(Module: LBEE6ZZ1\) with MCIMX8M-EVK platform
-    -   iPerf commands:
+    - Driver Load Parameters:
+      cal_data_cfg=none, cfg80211_wext=0xf, host_mlme=1, amsdu_deaggr=1, net_rx=1, tx_skb_clone=1, tx_work=1
+
+    - iPerf commands:
 
         -   TCP server
         ```

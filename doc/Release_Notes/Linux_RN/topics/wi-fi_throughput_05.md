@@ -14,6 +14,9 @@
 - Environment: Shield Room - Over the Air
 - Access Point: NXP IW620
 - DUT: 88W8987-Murata M.2 module: LBEE5QD1ZM with MCIMX8M-EVK platform
+    - Driver Load Parameters:
+      cal_data_cfg=none, cfg80211_wext=0xf, host_mlme=1, amsdu_deaggr=1, net_rx=1, tx_skb_clone=1, tx_work=1
+      
     - iPerf commands:
 
         - TCP server

@@ -4,22 +4,22 @@
 
 ## Package information
 
-- BSP version: Linux 6.12.49\_2.2.0
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.3.p27.6
-- Driver version: MM6X18540.p33-GPL
+- BSP version: Linux 6.18.2\_1.0.0
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.8.p3
+- Driver version: MM6X18542.p8-GPL
 
 ## Version information
 
 - Wireless SoC: IW611/IW612
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.3.p27.6
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version 18.99.8.p3
     - 18 - Major revision
     - 99 - Feature pack
-    - 3 - Release version
-    - p27.6 - Patch number
-- Driver Version: MM6X18540.p33-GPL
+    - 8 - Release version
+    - p3 - Patch number
+- Driver Version: MM6X18542.p8-GPL
     - 6X - Linux 6.x Kernel
-    - 18540 - Release version
-    - p33 - Patch number
+    - 18542 - Release version
+    - p8 - Patch number
     - GPL - General Public License v2
 
 ## software release content
@@ -29,14 +29,16 @@
 
 |Firmware|IW611/IW612 A1 with secure boot enabled|
 |--------|---------------------------------------|
-|Combo firmware|sduart\_nw61x\_v1.bin.se|
+|Combo firmware without Zigbee|sduart\_nw61x\_v1.bin.se|
+|Combo firmware with Zigbee|sduart\_nw61x\_v1\_zb\_dual\_pan.bin.se|
 |Wi-Fi only|sd\_w61x\_v1.bin.se|
-|Bluetooth and 802.15.4 only|uartspi\_n61x\_v1.bin.se|
+|Bluetooth & 802.15.4 only without Zigbee|uartspi\_n61x\_v1.bin.se|
+|Bluetooth, Zigbee & dual PAN without LE audio|uartspi\_n61x\_v1\_zb\_dual\_pan.bin.se
 
 ## Host platform
 
 - MCIMX8M-EVK platform running Linux
-- Supported Linux kernel versions: From 2.6.32 to 6.15.0
+- Supported Linux kernel versions: From 2.6.32 to 6.18.2
 - Interface used
     - Wi-Fi over SDIO \(SDIO 3.0 support, Clock speed: 200 MHz\)
     - Bluetooth/Bluetooth LE over UART

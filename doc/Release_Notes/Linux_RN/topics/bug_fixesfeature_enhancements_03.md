@@ -111,3 +111,23 @@ None.
 - In DUT STA mode, STA was sending probe request frames on disabled channels.
 - Integrated tx_retries and fcs_err_count into kernel station_info for enhancement and diagnostics.
 - Introduced driver load parameter for plinkstats to support Wi-Fi performance metrics.
+
+# Firmware version 17.92.1.p149.81 to 17.92.1.p149.84
+
+**Wi-Fi**
+- Resolved kernel crash during Wi-Fi power on/off recovery cycle in suspend-to-RAM (STR) tests
+- Fixed kernel crash during Wi-Fi reset triggered by EAPOL timeout by adding driver status checks
+- Fixed kernel panic during module removal (rmmod) after interface deletion
+- Fixed cross-compilation issues on customer platforms by resolving __aeabi_uldivmod dependency
+- Fixed EAPOL Key Handshake failure during roaming caused by missing M2 key transmission
+- Resolved uAP/GO interface abnormal behavior after channel switch when STA connected to 40MHz AP
+- Fixed firmware crash triggered during RF test mode TX operations
+- Added support for new Bluetooth qualification test cases introduced by TCRL package 100
+- Fixed missing probe request transmission from STA during roaming leading to roaming failure
+- Resolved firmware watchdog exceptions occurring in roaming scenarios
+- Implemented mitigation for Aruba unicast 0xf frames to prevent CarPlay disconnections
+- Corrected uAP deauth reason code to comply with IEEE standards for STA age-out scenarios
+
+**Bletooth**
+- After establishing a connection with the mobile device, the controller stops sending NOCP events to the host.
+- BT host stuck on BT pairing process because of the missing HCI_Simple_Pairing_Complete event from the controller.

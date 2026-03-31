@@ -3,9 +3,7 @@
 # Release notes for the supported SoCs
 
 -   [PCIe-UART 88W9098](pcie-uart_9098.md)
--   [PCIe-UART 88W8997](pcie-uart_8997.md)
 -   [PCIe-UART AW693](pcie_uart_aw693.md)
--   [SDIO-UART 88W8997](sd-uart_8997.md)
 -   [SDIO-UART 88W9098](sd-uart_9098.md)
 -   [SDIO-UART IW611/IW612](sd-uart_iw611_iw612.md)
 -   [SDIO-UART IW610](sd-uart_iw610.md)

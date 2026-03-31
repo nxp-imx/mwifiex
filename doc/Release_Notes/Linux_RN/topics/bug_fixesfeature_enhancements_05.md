@@ -65,3 +65,14 @@ None.
 
 **Wi-Fi**
 - STAUT reported association failure with status code 1 and reason code 0 when an incorrect password was used for WPA3 Ex-AP.
+
+## Firmware version 16.92.21.p153.7 to 16.92.21.p155.1
+
+**Wi-Fi**
+- Resolved 0xa4 command timeout occurring during long-term STA connection to specific access points
+- Fixed 802_11_LINK_STATS command timeout during 5 GHz roaming with WPA3 security
+- Resolved data transmission blocking issue during 5 GHz band roaming
+
+**Coex**
+- Fixed command timeouts occurring during Wi-Fi/BT on/off stress testing
+- Fixed a connectivity issue in which the DUT failed to establish further connections after extended execution of the LMP_au_rand flooding attack test

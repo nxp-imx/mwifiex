@@ -206,3 +206,42 @@ Command credit is lost for the Create Connection command.
 - Max Tx power value is not updated via the HCI_CMD_UPDATE_TX_MAX_PWR_LVL command during RF testing.
 Crash occurs during execution of Bluetooth Classic TX/RX test.
 - BLE link disconnects with a Connection Timeout error following the Data Length Update procedure.
+
+## Firmware version 18.99.3.p27.6 to 18.99.3.p27.10
+
+**Wi-Fi**
+- Fixed nested deadlock occurring in cfg80211_netdev_notifier_call() during system suspend.
+- Improved driver lock handling within cfg80211_inform_bss() to prevent potential deadlocks.
+- FW stuck in uAP aging tests with ping/iperf running between uAP and Ex-client.
+- FW hang in stress tests of STA and uAP enabling/disabling
+
+**Bluetooth**
+- Max TX power value fails to update via HCI_CMD_UPDATE_TX_MAX_PWR_LVL command during RF testing.
+- TX output power set via VSC command(OCF:0xEE) does not persist after reset, as verified using Read Transmit Power Level (OCF:0x2D).
+
+**Zigbee**
+- Improved Zigbee LNT stability.
+
+## Firmware version 18.99.3.p27.10 to 18.99.8.p3
+
+**Wi-Fi**
+- Fixed kernel warning during netdevice unregistration for VLAN interfaces by adding proper mutex locking.
+- Fixed kernel crash in EasyMesh agent during bridge interface DHCP operations.
+- Fixed spectrum mask failure after channel switch from 36 to 100 (5GHz) when using rgpower.bin
+- Resolved random scan command timeout issues with specific access points
+- Improved power save mode handling to resolve ping latency and throughput degradation with legacy Wi-Fi 4 access points.
+- Fixed driver crash (woal_sdiommc_work) during WoWLAN suspend/resume testing.
+- Resolved firmware crash when establishing two CIS (Connected Isochronous Stream) connections.
+- Fixed ping packet loss in power save mode when connected to MBSSID (Multiple BSSID) access points.
+
+**Bluetooth**
+- Fixed a low probability defect causing audio loss on the PCM NBS SCO transmit path.
+- Addressed a defect causing the DUT to become non‑responsive after receiving the HCI_LE_Create_CIS command.
+- Resolved intermittent scan command timeouts observed during operation.
+- Fixed an issue where the maximum TX power value was not updated when using the HCI_CMD_UPDATE_TX_MAX_PWR_LVL command during RF testing.
+- Resolved a problem in which the DUT failed to provide a response to remote‑initiated data length request procedures.
+- Resolved a problem in which BLE connections were terminated with a connection‑timeout event following the data length update sequence
+- Resolved a problem in which the DUT did not acknowledge LE packets from the Central device, resulting in a connection‑timeout event.
+
+**OT Wi-Fi Coex**
+- Fixed Wi-Fi/OpenThread coex duty cycle when Wi-Fi driver is loaded before Thread network starts

@@ -33,3 +33,21 @@
 - BT Crash After S2R Due to Corrupted UART Packet from Controller
 - BLE Link Loss Observed During SCO Connection with HV3 Packet Type
 - Role switch from Central to Peripheral fails as DUT does not transmit an ID packet in response to the FHS from Ref1, resulting in role switch fail
+
+
+## Firmware version 18.99.2.p145.147 to 18.99.2.p145.172
+
+**WI-Fi**
+- Fixed kernel crash in woal_inform_bss_from_scan_result during scan result reporting and channel switching stress tests
+- Fixed 6GHz PSD (Power Spectral Density) table download for Standard Power mode
+- Fixed uninitialized ARP lock in woal_flush_arp_request_entry() function
+- Fixed spectrum mask failure occurring after channel switch from 5GHz channel 36 to channel 100
+- Fixed scan event timeout occurring during 2.4GHz HT40 operation under noisy conditions with EU adaptivity testing
+- Prevented STA from switching to disabled 5GHz channels when receiving Extended Channel Switch Announcement from AP
+- Fixed external coexistence WiFi channel avoidance configuration where second message in more-bit configuration failed to block expected channels
+
+**Bluetooth**
+- Resolved firmware hang when Out-of-Band deep sleep command is issued after Wake-on-BT/BLE command
+- Resolved BLE connection timeout occurring after data length update procedure with specific smartphone models
+- Fixed missing LL_CIS_REQ transmission during CIS connection establishment with certain Bluetooth devices
+- Resolved firmware crash occurring when establishing two concurrent CIS connections in LE Audio scenarios
