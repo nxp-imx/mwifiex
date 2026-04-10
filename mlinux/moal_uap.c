@@ -4874,6 +4874,9 @@ int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		}
 		woal_flush_tx_stat_queue(priv);
 		woal_flush_tcp_sess_queue(priv);
+		if (moal_agcs_get_state(priv) != AGCS_STATE_IDLE) {
+			moal_agcs_trans_state(priv, AGCS_STATE_START);
+		}
 	} else if (data == UAP_BSS_START) {
 		/* Due to the influence of DMCS, the configurations using FW cmd
 		 * must wait until BSS START. */

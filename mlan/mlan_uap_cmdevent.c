@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode command and event
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -5349,6 +5349,69 @@ done:
 	return status;
 }
 
+static mlan_status wlan_ret_chan_switch_cnt_config(pmlan_private pmpriv,
+						   HostCmd_DS_COMMAND *resp,
+						   mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CHAN_SWITCH_CNT_CFG *pchan_switch_cnt_cfg =
+		(HostCmd_DS_CHAN_SWITCH_CNT_CFG *)&resp->params
+			.chan_switch_cnt_cfg;
+	mlan_ds_misc_cfg *misc = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc->param.ecsa_cfg.chan_switch_cnt =
+			(t_u8)pchan_switch_cnt_cfg->chan_switch_cnt;
+		PRINTM(MIOCTL, "Received SWITCH CNT = %d",
+		       misc->param.ecsa_cfg.chan_switch_cnt);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+static mlan_status wlan_cmd_chan_switch_cnt_config(pmlan_private pmpriv,
+						   HostCmd_DS_COMMAND *cmd,
+						   t_u16 cmd_action,
+						   t_void *pdata_buf)
+{
+	HostCmd_DS_CHAN_SWITCH_CNT_CFG *pchan_switch_cnt_cfg =
+		(HostCmd_DS_CHAN_SWITCH_CNT_CFG *)&cmd->params
+			.chan_switch_cnt_cfg;
+	mlan_ds_ecsa_cfg *ecsa_cfg = MNULL;
+
+	ENTER();
+
+	if (!pdata_buf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	ecsa_cfg = (mlan_ds_ecsa_cfg *)pdata_buf;
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG);
+	cmd->size = wlan_cpu_to_le16(
+		sizeof(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG) + S_DS_GEN +
+		sizeof(HostCmd_DS_CHAN_SWITCH_CNT_CFG));
+
+	pchan_switch_cnt_cfg->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		if (!ecsa_cfg) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+		pchan_switch_cnt_cfg->chan_switch_cnt =
+			(ecsa_cfg->chan_switch_cnt);
+	}
+	PRINTM(MIOCTL, "CHAN SWITCH CNT = %d",
+	       pchan_switch_cnt_cfg->chan_switch_cnt);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -5844,6 +5907,11 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 					      pdata_buf);
 		break;
 
+	case HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG:
+		ret = wlan_cmd_chan_switch_cnt_config(pmpriv, cmd_ptr,
+						      cmd_action, pdata_buf);
+		break;
+
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -6332,6 +6400,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		ret = wlan_uap_ret_agcs_cfg(pmpriv, resp, pioctl_buf);
 		break;
 
+	case HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG:
+		ret = wlan_ret_chan_switch_cnt_config(pmpriv, resp, pioctl_buf);
+		break;
+
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -6781,8 +6853,13 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 						pchan_info->bandcfg.chanBand,
 						pchan_info->channel,
 						CHANNEL_BW_80MHZ);
+			/* Channel 14 (Japan) does not support 802.11n. */
+			/* TODO: Update is_11n_enabled after the channel switch.
+			 */
 			pchan_band_info->is_11n_enabled =
-				pmpriv->is_11n_enabled;
+				(pchan_info->channel == 14) ?
+					0 :
+					pmpriv->is_11n_enabled;
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE,
 					pevent);

@@ -6,7 +6,7 @@
  *  for sending scan commands to the firmware.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -8668,12 +8668,19 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 				       .chan_scan_mode.passive_scan,
 			       scan_dur);
 
-			if (tlv_chan_list->chan_scan_param[chan_num]
-				    .chan_scan_mode.passive_scan)
-				tlv_chan_list->chan_scan_param[chan_num]
-					.chan_scan_mode.passive_to_active_scan =
-					MTRUE;
-
+			/* Do passive to active scanning only a radar controlled
+			 * channels */
+			if (radio_type == BAND_5GHZ) {
+				if (wlan_11h_radar_detect_required(
+					    pmpriv,
+					    tlv_chan_list
+						    ->chan_scan_param[chan_num]
+						    .chan_number)) {
+					tlv_chan_list->chan_scan_param[chan_num]
+						.chan_scan_mode
+						.passive_to_active_scan = MTRUE;
+				}
+			}
 			tlv_chan_list->chan_scan_param[chan_num].min_scan_time =
 				wlan_cpu_to_le16(scan_dur);
 			tlv_chan_list->chan_scan_param[chan_num].max_scan_time =

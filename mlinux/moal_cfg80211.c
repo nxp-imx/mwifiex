@@ -2992,6 +2992,7 @@ static int woal_mgmt_tx(moal_private *priv, const u8 *buf, size_t len,
 	t_u8 new_ie_len = 0;
 	t_u16 fc, type, stype;
 	t_u8 skipped_len = 0;
+	struct tx_status_info *prev_tx_info = NULL;
 
 	ENTER();
 
@@ -3142,9 +3143,23 @@ static int woal_mgmt_tx(moal_private *priv, const u8 *buf, size_t len,
 				    (priv->phandle->remain_on_channel && !wait))
 					tx_info->cancel_remain_on_channel =
 						MTRUE;
+				prev_tx_info = woal_get_tx_info(
+					priv, tx_info->tx_seq_num);
+				if (prev_tx_info) {
+					/* Found and drop outdated node with
+					 * same tx_seq_num */
+					struct sk_buff *prev_skb =
+						(struct sk_buff *)
+							prev_tx_info->tx_skb;
+					list_del(&prev_tx_info->link);
+					priv->tx_stat_queue_size--;
+					dev_kfree_skb_any(prev_skb);
+					kfree(prev_tx_info);
+				}
 				INIT_LIST_HEAD(&tx_info->link);
 				list_add_tail(&tx_info->link,
 					      &priv->tx_stat_queue);
+				priv->tx_stat_queue_size++;
 				spin_unlock_irqrestore(&priv->tx_stat_lock,
 						       flags);
 			} else {
@@ -4316,11 +4331,13 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie,
 			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
 				if ((out_len + length + 2) < (int)ie_out_len) {
 					/* Filter out VHT CAPA IE for P2P GO */
+#ifdef WIFI_DIRECT_SUPPORT
 					if ((id == VHT_CAPABILITY) &&
 					    (priv->bss_type ==
 					     MLAN_BSS_TYPE_WIFIDIRECT)) {
 						break;
 					}
+#endif
 					moal_memcpy_ext(priv->phandle,
 							ie_out + out_len, pos,
 							length + 2,
@@ -6598,10 +6615,13 @@ void process_wifi_channel_avoid_list_event(
 				continue;
 
 			PRINTM(MINFO, "====== Iteration=%d ======", index);
-			/* Clearing NO-IR flags for all channels */
+			/* Clearing NO-IR flags for all channels,
+			 * except for the channels marked as INDOOR-ONLY */
 			for (i = 0; i < sband->n_channels; i++) {
 				channel = &sband->channels[i];
-				channel->flags &= ~IEEE80211_CHAN_NO_IR;
+				if (!(channel->flags &
+				      IEEE80211_CHAN_INDOOR_ONLY))
+					channel->flags &= ~IEEE80211_CHAN_NO_IR;
 			}
 
 			/* Setting NO-IR flags as per the channel list */

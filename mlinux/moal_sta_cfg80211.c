@@ -1512,7 +1512,7 @@ static mlan_status woal_send_domain_info_cmd_fw(moal_private *priv,
 			cfg_11d->param.domain_info.sub_band[no_of_sub_band]
 				.no_of_chan = no_of_parsed_chan;
 			cfg_11d->param.domain_info.sub_band[no_of_sub_band]
-				.max_tx_pwr = pwr;
+				.max_tx_pwr = max_pwr;
 			no_of_sub_band++;
 			next_chan = first_chan = (t_u32)channel->hw_value;
 			max_pwr = pwr;
@@ -4634,7 +4634,14 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 	ENTER();
 
 	if (priv->phandle->scan_pending_on_block) {
-		if (priv->sinfo)
+		if (priv->sinfo) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+			struct link_station_info
+				*saved_links[IEEE80211_MLD_MAX_NUM_LINKS];
+			for (int i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+				saved_links[i] = sinfo->links[i];
+			}
+#endif
 			moal_memcpy_ext(priv->phandle, sinfo, priv->sinfo,
 					sizeof(struct station_info),
 #if (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 0) ||                      \
@@ -4643,6 +4650,12 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 #else
 					sizeof(struct station_info));
 #endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+			for (int i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+				sinfo->links[i] = saved_links[i];
+			}
+#endif
+		}
 		LEAVE();
 		return ret;
 	}

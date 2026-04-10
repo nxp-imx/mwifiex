@@ -1373,7 +1373,7 @@ static mlan_status wlan_pcie_delete_txbd_ring(mlan_adapter *pmadapter)
 			if (pmadapter->pcard_pcie->tx_coherent_buf_list[i]) {
 				pmbuf = pmadapter->pcard_pcie
 						->tx_coherent_buf_list[i];
-				if (pmbuf->pbuf)
+				if (pmbuf && pmbuf->pbuf)
 					pcb->moal_mfree_cached(
 						pmadapter->pmoal_handle,
 						pmbuf->total_pcie_buf_len,
@@ -1646,7 +1646,7 @@ static mlan_status wlan_pcie_delete_rxbd_ring(mlan_adapter *pmadapter)
 		/* release rx coherent buf */
 		if (pmadapter->pcard_pcie->rx_coherent_buf_list[i]) {
 			pmbuf = pmadapter->pcard_pcie->rx_coherent_buf_list[i];
-			if (pmbuf->pbuf)
+			if (pmbuf && pmbuf->pbuf)
 				pcb->moal_mfree_cached(
 					pmadapter->pmoal_handle,
 					pmbuf->total_pcie_buf_len, pmbuf->pbuf,

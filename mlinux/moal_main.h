@@ -2207,6 +2207,8 @@ struct _moal_private {
 	spinlock_t tx_stat_lock;
 	/** tx_seq_num */
 	t_u8 tx_seq_num;
+	/** tx status queue size */
+	t_u16 tx_stat_queue_size;
 	/** tx status queue */
 	struct list_head tx_stat_queue;
 	/** rx hgm data */
@@ -3189,7 +3191,7 @@ struct _moal_handle {
 	/** Firmware release number */
 	fw_release_version fw_release_number;
 	/** Firmware Hotfix version */
-	t_u8 fw_hotfix_version;
+	t_u16 fw_hotfix_version;
 	/** Firmware support bands */
 	t_u16 fw_bands;
 	/** ECSA support */
@@ -5053,6 +5055,7 @@ extern void woal_process_ch_sel_and_switch(moal_private *priv,
 extern mlan_status moal_agcs_trans_state(moal_private *priv,
 					 agcs_state next_state);
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
+extern agcs_state moal_agcs_get_state(moal_private *priv);
 #endif /* UAP_SUPPORT */
 
 #if defined(USB)

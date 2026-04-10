@@ -6966,7 +6966,19 @@ static int woal_priv_get_ap(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	if (bss_info.media_connected == MTRUE) {
 		moal_memcpy_ext(priv->phandle, mwr->u.ap_addr.sa_data,
 				&bss_info.bssid, MLAN_MAC_ADDR_LENGTH,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 211) && /* Backported         \
+							    from 6.1.80        \
+							    to 5.10 LTS */     \
+     LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)) ||                         \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 150) && /* Backported     \
+								from 6.1.80    \
+								to 5.15 LTS */ \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)) ||                     \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80) && /* Original change  \
+							      introduced here  \
+							      in mainline */   \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)) /* Reverted here in    \
+							   mainline */
 				sizeof(mwr->u.ap_addr.sa_data_min));
 #else
 				sizeof(mwr->u.ap_addr.sa_data));
@@ -13765,7 +13777,8 @@ mlan_status moal_agcs_trans_state(moal_private *priv, agcs_state next_state)
 		break;
 	case AGCS_STATE_START:
 		if ((phandle->agcs_state <= AGCS_STATE_TRIGGERED) ||
-		    (phandle->agcs_state >= AGCS_STATE_COMPLETE)) {
+		    (phandle->agcs_state >= AGCS_STATE_COMPLETE) ||
+		    (priv->bss_started == MFALSE)) {
 			phandle->agcs_state = next_state;
 			ret = MLAN_STATUS_SUCCESS;
 		}
@@ -13829,6 +13842,26 @@ mlan_status moal_agcs_trans_state(moal_private *priv, agcs_state next_state)
 		       moal_agcs_print_state(cur_state),
 		       moal_agcs_print_state(next_state), ret);
 	return ret;
+}
+
+/**
+ * @brief               AGCS get state
+ *
+ * @param phandle       Pointer to moal_handle structure
+ *
+ *  @return             agcs_state
+ *
+ */
+agcs_state moal_agcs_get_state(moal_private *priv)
+{
+	moal_handle *phandle = NULL;
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		return AGCS_STATE_IDLE;
+	}
+	phandle = priv->phandle;
+	return phandle->agcs_state;
 }
 
 /**
@@ -13942,7 +13975,7 @@ void woal_process_agcs_event(moal_private *priv, pagcs_stats pstart_event)
 	moal_handle *phandle = NULL;
 	wlan_user_scan_cfg *scan_cfg = NULL;
 	wlan_user_scan_chan *pchan_list;
-	t_u8 scan_band_priority[3];
+	t_u8 scan_band_priority[4];
 	t_u8 band_count;
 	t_u8 current_band_idx = 0;
 	t_u8 swap_class = 0;
@@ -13963,7 +13996,7 @@ void woal_process_agcs_event(moal_private *priv, pagcs_stats pstart_event)
 		}
 		/* For the first channel select of this channel switch event,
 		 * record the scan event content. */
-		if (phandle->agcs_state == AGCS_STATE_START) {
+		if (moal_agcs_get_state(pmpriv) == AGCS_STATE_START) {
 			moal_memcpy_ext(phandle, &phandle->agcs_scan_event,
 					pstart_event, sizeof(agcs_stats),
 					sizeof(agcs_stats));
@@ -18043,6 +18076,7 @@ static int woal_priv_lte_coex_band_cfg(moal_private *priv, t_u8 *respbuf,
 		req->action = MLAN_ACT_GET;
 	} else {
 		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
 		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 				&user_data_len);
 		pos = respbuf + header_len;
@@ -22840,6 +22874,93 @@ done:
 }
 
 /**
+ *  @brief Set/Get Channel switch count config
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_ecsa_cnt_cfg(moal_private *priv, t_u8 *respbuf,
+				  t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	mlan_ds_ecsa_cfg *ecsa_cfg = NULL;
+	int ret = 0;
+	t_u8 *pos = NULL;
+	int data[1];
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "Response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_ECSA_CNT_CFG);
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG;
+	ecsa_cfg = &cfg->param.ecsa_cfg;
+
+	if ((int)strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		pos = respbuf + header_len;
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid number of args! %d\n",
+			       user_data_len);
+			ret = -EINVAL;
+			goto done;
+		}
+
+		if (user_data_len == 1) {
+			ecsa_cfg->chan_switch_cnt = data[0];
+			PRINTM(MMSG, "Channel switch count cfg: %u\n",
+			       ecsa_cfg->chan_switch_cnt);
+		}
+		req->action = MLAN_ACT_SET;
+	}
+
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!user_data_len) {
+		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)ecsa_cfg,
+				sizeof(mlan_ds_ecsa_cfg), respbuflen);
+		ret = sizeof(mlan_ds_ecsa_cfg);
+	}
+done:
+	if (ret != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -24364,6 +24485,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 				    strlen(PRIV_CMD_PER_BAND_TXPWR_CAP)) == 0) {
 			len = woal_priv_per_band_txpwr_cap(priv, buf,
 							   priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_ECSA_CNT_CFG,
+				    strlen(PRIV_CMD_ECSA_CNT_CFG)) == 0) {
+			/* Set the Channel switch count */
+			len = woal_priv_ecsa_cnt_cfg(priv, buf,
+						     priv_cmd.total_len);
 			goto handled;
 		} else {
 			PRINTM(MERROR,

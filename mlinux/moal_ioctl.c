@@ -3,7 +3,7 @@
  * @brief This file contains ioctl function to MLAN
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -48,6 +48,7 @@ Change log:
 			Local Variables
 ********************************************************/
 #define MRVL_TLV_HEADER_SIZE 4
+
 /* NXP Channel config TLV ID */
 #define MRVL_CHANNELCONFIG_TLV_ID (0x0100 + 0x2a) /* 0x012a */
 
@@ -4591,7 +4592,7 @@ done:
  */
 void woal_get_version(moal_handle *handle, char *version, int max_len)
 {
-	t_u8 hotfix_ver = 0, copied_len = 0;
+	t_u16 hotfix_ver = 0, copied_len = 0;
 	char fw_ver[100];
 
 	ENTER();
@@ -9579,9 +9580,8 @@ mlan_status woal_process_rf_test_mode(moal_handle *handle, t_u32 mode)
 			       "Couldn't allocate memory for RF test mode\n");
 		handle->rf_test_mode = MTRUE;
 		if (handle->rf_data) {
-			/* antenna is set to 1 by default */
-			handle->rf_data->tx_antenna = 1;
-			handle->rf_data->rx_antenna = 1;
+			/* default antenna configuration is set */
+			SELECT_ANT_CFG(0);
 		}
 	} else if (mode == MFG_CMD_UNSET_TEST_MODE) {
 		if (handle->rf_data) {
@@ -9944,6 +9944,8 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			misc->param.mfg_generic_cfg.data1;
 		handle->rf_data->radio_mode[1] =
 			misc->param.mfg_generic_cfg.data2;
+		SELECT_BAND(misc->param.mfg_generic_cfg.data1);
+		SELECT_ANT_CFG(misc->param.mfg_generic_cfg.data1);
 		break;
 	case MFG_CMD_RF_BAND_AG:
 		handle->rf_data->band = misc->param.mfg_generic_cfg.data1;

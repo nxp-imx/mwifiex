@@ -2649,7 +2649,7 @@ struct _mlan_adapter {
 	/** firmware minor version */
 	t_u8 fw_min_ver;
 	/** firmare hotfix version */
-	t_u8 fw_hotfix_ver;
+	t_u16 fw_hotfix_ver;
 	/** uap firmware version */
 	t_u8 uap_fw_ver;
 	/** mac address retrun from get_hw_spec */

@@ -3,7 +3,7 @@
  *  @brief This file declares the IOCTL data structures and APIs.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -412,7 +412,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_AGCS_CONFIG = 0x002000A0,
 #endif /* UAP_SUPPORT */
 	MLAN_OID_SEC_CFG_SSID_PROTECTION = 0x002000A1,
-	MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE = 0x002000A2
+	MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE = 0x002000A2,
+	MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG = 0x002000A3
 
 };
 
@@ -2038,7 +2039,7 @@ typedef struct _mlan_fw_info {
 	/** Firmware version */
 	fw_release_version_t fw_ver;
 	/** Firmware Hotfix version */
-	t_u8 hotfix_version;
+	t_u16 hotfix_version;
 	/** tx buf size */
 	t_u16 tx_buf_size;
 	/** MAC address */
@@ -6734,6 +6735,10 @@ typedef struct _mlan_ds_agcs_cfg {
 } mlan_ds_agcs_cfg;
 #endif /* UAP_SUPPORT */
 
+typedef struct _mlan_ds_ecsa_cfg {
+	t_u8 chan_switch_cnt;
+} mlan_ds_ecsa_cfg;
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
 	/** Sub-command */
@@ -6927,6 +6932,8 @@ typedef struct _mlan_ds_misc_cfg {
 		/** config AGCS for MLAN_OID_MISC_AGCS_CONFIG */
 		mlan_ds_agcs_cfg agcs_cfg;
 #endif /* UAP_SUPPORT */
+		/** Channel switch cnt cfg */
+		mlan_ds_ecsa_cfg ecsa_cfg;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

@@ -809,9 +809,18 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 			}
 		}
 	} else {
-		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) &&
-		    (wlan_get_station_entry(priv,
-					    prx_pkt->eth803_hdr.dest_addr))) {
+		sta_node *dest_sta = wlan_get_station_entry(
+			priv, prx_pkt->eth803_hdr.dest_addr);
+		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) && dest_sta) {
+			if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
+				/* This is a 4-address frame from backhaul */
+				if (dest_sta && !dest_sta->is_multi_ap) {
+					/* Destination is a fronthaul client
+					 * (3-address mode) Clear EASYMESH flag
+					 * to convert 4-addr to 3-addr */
+					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
+				}
+			}
 			/* Forwarding Intra-BSS packet */
 #ifdef USB
 			if (IS_USB(pmadapter->card_type)) {

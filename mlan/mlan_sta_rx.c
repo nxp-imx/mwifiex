@@ -4,7 +4,7 @@
  *  module.
  *
  *
- *  Copyright 2008-2022, 2024-2025 NXP
+ *  Copyright 2008-2022, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -357,6 +357,7 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	t_u8 ext_rate_info = 0;
 	t_u8 nss = 0;
 	t_u8 dcm = 0;
+	t_u8 preamble_type = 0;
 
 	memset(priv->adapter, &rt_info_tmp, 0x00, sizeof(rt_info_tmp));
 	rt_info_tmp.snr = prx_pd->snr;
@@ -379,6 +380,7 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 		gi_he = (rx_rate_info & 0x80) >> 7;
 		gi = gi | gi_he;
 		dcm = (prx_pd->rx_info & RXPD_DCM_MASK) >> 16;
+		preamble_type = (prx_pd->rx_info & RXPD_PREAMBLE_MASK) >> 14;
 	} else if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
 		/* VHT rate */
 		format = MLAN_RATE_FORMAT_VHT;
@@ -410,8 +412,9 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 	rt_info_tmp.rate_info.nss_index = nss;
 	rt_info_tmp.rate_info.dcm = dcm;
 	if (format == MLAN_RATE_FORMAT_HE) {
-		rt_info_tmp.rate_info.rate_info =
-			(ldpc << 5) | (format << 3) | (bw << 1) | (gi << 6);
+		rt_info_tmp.rate_info.rate_info = (preamble_type << 6) |
+						  (ldpc << 5) | (format << 3) |
+						  (bw << 1) | (gi << 6);
 	} else
 		rt_info_tmp.rate_info.rate_info =
 			(ldpc << 5) | (format << 3) | (bw << 1) | gi;

@@ -857,8 +857,7 @@ static struct _card_info card_info_SD8987 = {
 
 /** Driver version */
 char driver_version[MLAN_MAX_VER_STR_LEN] =
-	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-GPL"
-				   "-("
+	INTF_CARDTYPE KERN_VERSION "--" MLAN_RELEASE_VERSION "-("
 				   "FP" FPNUM ")"
 #ifdef DEBUG_LEVEL2
 				   "-dbg"
@@ -1006,7 +1005,13 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb,
 u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb);
 #endif
 #endif
-
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static int woal_xdp_xmit(struct net_device *dev, int num_frames,
+			 struct xdp_frame **frames, t_u32 flags);
+static int woal_bpf(struct net_device *dev, struct netdev_bpf *xdp);
+#endif
+#endif
 static moal_handle *reset_handle;
 /** Hang workqueue */
 static struct workqueue_struct *hang_workqueue;
@@ -5732,6 +5737,12 @@ const struct net_device_ops woal_netdev_ops = {
 #endif
 	.ndo_select_queue = woal_select_queue,
 	.ndo_validate_addr = eth_validate_addr,
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	.ndo_bpf = woal_bpf,
+	.ndo_xdp_xmit = woal_xdp_xmit,
+#endif
+#endif
 };
 #endif
 
@@ -5792,6 +5803,13 @@ mlan_status woal_init_sta_dev(struct net_device *dev, moal_private *priv)
 #else
 	dev->hard_header_len += MLAN_MIN_DATA_HEADER_LEN + sizeof(mlan_buffer) +
 				priv->extra_tx_head_len;
+#endif
+#if defined(XDP_SUPPORT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+	dev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
+			    NETDEV_XDP_ACT_NDO_XMIT |
+			    NETDEV_XDP_ACT_NDO_XMIT_SG;
+#endif
 #endif
 #ifdef STA_WEXT
 	if (IS_STA_WEXT(priv->phandle->params.cfg80211_wext)) {
@@ -6403,6 +6421,7 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
+	priv->tx_stat_queue_size = 0;
 	INIT_LIST_HEAD(&priv->mcast_list);
 	spin_lock_init(&priv->mcast_lock);
 
@@ -6443,6 +6462,13 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 	    || bss_type == MLAN_BSS_TYPE_WIFIDIRECT
 #endif
 	    || bss_type == MLAN_BSS_TYPE_NAN) {
+#ifdef XDP_SUPPORT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+		dev->xdp_features = NETDEV_XDP_ACT_BASIC |
+				    NETDEV_XDP_ACT_REDIRECT |
+				    NETDEV_XDP_ACT_NDO_XMIT;
+#endif
+#endif
 		if (MLAN_STATUS_SUCCESS != woal_init_sta_dev(dev, priv)) {
 			PRINTM(MERROR, "Failed to initialize station mode\n");
 			goto error;
@@ -13675,28 +13701,36 @@ void woal_survey_dump_reset(moal_private *priv)
  * @return              N/A
  *
  */
-static void woal_send_bss_scan_result(moal_private *priv)
+static void woal_send_cfg_bss_scan_result(moal_private *priv)
 {
 	unsigned long flags;
+	struct cfg80211_scan_request *scan_req = NULL;
+	t_u8 update_scan_time = MFALSE;
+
 	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
-	if (priv->phandle->scan_request) {
-		PRINTM(MINFO, "Reporting scan results\n");
-		woal_inform_bss_from_scan_result(priv, NULL, MOAL_NO_WAIT);
+	scan_req = priv->phandle->scan_request;
+	if (scan_req) {
+		priv->phandle->scan_request = NULL;
 		if (!priv->phandle->first_scan_done) {
 			priv->phandle->first_scan_done = MTRUE;
-			if (!priv->phandle->user_scan_cfg)
-				woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
-						   PASSIVE_SCAN_CHAN_TIME,
-						   SPECIFIC_SCAN_CHAN_TIME);
-		}
-		if (priv->phandle->scan_request) {
-			cancel_delayed_work(&priv->phandle->scan_timeout_work);
-			woal_cfg80211_scan_done(priv->phandle->scan_request,
-						MFALSE);
-			priv->phandle->scan_request = NULL;
+			update_scan_time = !priv->phandle->user_scan_cfg;
 		}
 	}
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
+
+	if (scan_req) {
+		PRINTM(MINFO, "Reporting scan results\n");
+		woal_inform_bss_from_scan_result(priv, NULL, MOAL_NO_WAIT);
+
+		if (update_scan_time) {
+			woal_set_scan_time(priv, ACTIVE_SCAN_CHAN_TIME,
+					   PASSIVE_SCAN_CHAN_TIME,
+					   SPECIFIC_SCAN_CHAN_TIME);
+		}
+
+		cancel_delayed_work(&priv->phandle->scan_timeout_work);
+		woal_cfg80211_scan_done(scan_req, MFALSE);
+	}
 }
 #endif
 /**
@@ -13877,7 +13911,8 @@ t_void woal_evt_work_queue(struct work_struct *work)
 #endif /* UAP_SUPPORT */
 #ifdef STA_CFG80211
 		case WOAL_EVENT_CFG80211_INFORM_BSS:
-			woal_send_bss_scan_result((moal_private *)evt->priv);
+			woal_send_cfg_bss_scan_result(
+				(moal_private *)evt->priv);
 			break;
 #endif
 		default:

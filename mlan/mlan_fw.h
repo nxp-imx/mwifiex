@@ -400,7 +400,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 
 /** Default 11n capability mask for 2.4GHz */
 #define DEFAULT_11N_CAP_MASK_BG                                                \
-	(HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
+	(HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP |       \
+	 HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI40_SUPP)
 /** Default 11n capability mask for 5GHz */
 #define DEFAULT_11N_CAP_MASK_A                                                 \
 	(HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI20_SUPP |                        \
@@ -656,6 +657,13 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** ExtCap : Reset support TDLS wider bandwidth */
 #define RESET_EXTCAP_TDLS_WIDER_BANDWIDTH(ext_cap)                             \
 	(ext_cap.TDLSWildBandwidth = 0)
+
+/** ExtCap : Check 20/40 BSS Coexistence support */
+#define ISSUPP_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport)
+/** ExtCap : Set 20/40 BSS Coexistence support */
+#define SET_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport = 1)
+/** ExtCap: Reset 20/40 BSS Coexistence support */
+#define RESET_EXTCAP_2040_BSS_COEXIST(ext_cap) (ext_cap.BSS_CoexistSupport = 0)
 
 /** ExtCap : Support for extend channel switch */
 #define ISSUPP_EXTCAP_EXT_CHANNEL_SWITCH(ext_cap) (ext_cap.ExtChanSwitching)
@@ -1560,6 +1568,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 #define RXPD_CHAN_MASK 0x3FE0
 /** Rate control mask  15-23 */
 #define TXPD_RATE_MASK 0xff8000
+/** Preamble type. bits 15-14 */
+#define RXPD_PREAMBLE_MASK 0xC000
 /** DCM at bit 16 */
 #define RXPD_DCM_MASK 0x10000
 /** enable bw ctrl in TxPD */
@@ -2825,6 +2835,16 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_fw_ver_info_t {
 	/** minor version */
 	t_u8 minor_ver;
 } MLAN_PACK_END MrvlIEtypes_fw_ver_info_t;
+
+/** MrvlIEtypes_fw_hotfix_ver_info_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_fw_hotfix_ver_info_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** API id */
+	t_u16 api_id;
+	/** hotfix version */
+	t_u16 hotfix_ver;
+} MLAN_PACK_END MrvlIEtypes_fw_hotfix_ver_info_t;
 
 /** API ID */
 enum API_VER_ID {
@@ -7722,6 +7742,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_AGCS_CFG {
 } MLAN_PACK_END HostCmd_DS_AGCS_CFG;
 #endif /* UAP_SUPPORT */
 
+typedef MLAN_PACK_START struct _HostCmd_DS_CHAN_SWITCH_CNT_CFG {
+	/** action - get/set */
+	t_u16 action;
+
+	/** Chan switch count */
+	t_u8 chan_switch_cnt;
+} MLAN_PACK_END HostCmd_DS_CHAN_SWITCH_CNT_CFG;
+
 /** HostCmd_DS_COMMAND */
 typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 	/** Command Header : Command */
@@ -8036,6 +8064,9 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		/** Agiled channel switch configuration */
 		HostCmd_DS_AGCS_CFG agcs_cfg;
 #endif /* UAP_SUPPORT */
+
+		/** Channel switch count configuration */
+		HostCmd_DS_CHAN_SWITCH_CNT_CFG chan_switch_cnt_cfg;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 

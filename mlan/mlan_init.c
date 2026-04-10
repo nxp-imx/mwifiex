@@ -4,7 +4,7 @@
  *  and HW.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -1596,18 +1596,19 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
-	}
 
-	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693
+		if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693
 #ifdef SECURE_HOST
-	    && (!pmadapter->shc_secure_host)
+		    && (!pmadapter->shc_secure_host)
 #endif
-	) {
-		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
+		) {
+			ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       MNULL);
+			if (ret) {
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
 		}
 	}
 #endif /* PCIE */

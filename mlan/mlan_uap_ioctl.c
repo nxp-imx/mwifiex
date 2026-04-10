@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of AP mode ioctls
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -2064,6 +2064,43 @@ static mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Handle channel switch cnt config
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status wlan_uap_chan_switch_cnt_cfg(pmlan_adapter pmadapter,
+						pmlan_ioctl_req pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else
+		cmd_action = HostCmd_ACT_GEN_SET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG,
+			       cmd_action, misc->sub_command,
+			       (t_void *)pioctl_req,
+			       (t_void *)&misc->param.ecsa_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief MLAN uap ioctl handler
  *
  *  @param adapter	A pointer to mlan_adapter structure
@@ -2506,6 +2543,10 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 								    pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_AGCS_CONFIG)
 			status = wlan_uap_agcs_cfg(pmadapter, pioctl_req);
+		else if (misc->sub_command ==
+			 MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG)
+			status = wlan_uap_chan_switch_cnt_cfg(pmadapter,
+							      pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

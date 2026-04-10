@@ -3252,6 +3252,10 @@ void wlan_update_11n_cap(mlan_private *pmpriv)
 	pmpriv->usr_dev_mcs_support = pmadapter->hw_dev_mcs_support;
 	pmpriv->usr_dot_11n_dev_cap_bg =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
+	if (ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg))
+		SET_EXTCAP_2040_BSS_COEXIST(pmpriv->ext_cap);
+	else
+		RESET_EXTCAP_2040_BSS_COEXIST(pmpriv->ext_cap);
 	pmpriv->usr_dot_11n_dev_cap_a =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
 }

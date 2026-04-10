@@ -7044,6 +7044,7 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	t_u16 tlv_len = 0;
 	t_u16 fw_pl_ver = 0;
 	MrvlIEtypes_fw_ver_info_t *api_rev = MNULL;
+	MrvlIEtypes_fw_hotfix_ver_info_t *api_hotfix_rev = MNULL;
 	t_u16 api_id = 0;
 	t_u16 dev_max_amsdu_size;
 	MrvlIEtypesHeader_t *tlv = MNULL;
@@ -7192,13 +7193,13 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	}
 	pmadapter->hw_dot_11ac_dev_cap =
 		wlan_le32_to_cpu(hw_spec->Dot11acDevCap);
-	dev_max_amsdu_size = ISSUPP_MAXAMSDU(hw_spec->Dot11acDevCap) ?
+	dev_max_amsdu_size = GET_VHTCAP_MAXMPDULEN(hw_spec->Dot11acDevCap) ?
 				     MLAN_RX_DATA_BUF_SIZE_8K :
 				     MLAN_RX_DATA_BUF_SIZE_4K;
 	pmadapter->rx_buf_size =
 		MIN(pmadapter->rx_buf_size, dev_max_amsdu_size);
 
-	if (ISSUPP_MAXAMSDU(hw_spec->Dot11acDevCap))
+	if (GET_VHTCAP_MAXMPDULEN(hw_spec->Dot11acDevCap))
 		SETSUPP_MAXAMSDU(pmadapter->hw_dot_11ac_dev_cap);
 	else
 		RESETSUPP_MAXAMSDU(pmadapter->hw_dot_11ac_dev_cap);
@@ -7350,9 +7351,12 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				       api_rev->major_ver, api_rev->minor_ver);
 				break;
 			case FW_HOTFIX_VER_ID:
-				pmadapter->fw_hotfix_ver = api_rev->major_ver;
+				api_hotfix_rev =
+					(MrvlIEtypes_fw_hotfix_ver_info_t *)tlv;
+				pmadapter->fw_hotfix_ver =
+					api_hotfix_rev->hotfix_ver;
 				PRINTM(MCMND, "fw hotfix ver=%d\n",
-				       api_rev->major_ver);
+				       api_hotfix_rev->hotfix_ver);
 				break;
 			case FW_PL_VER_ID:
 				fw_pl_ver = ((api_rev->minor_ver << 8) |

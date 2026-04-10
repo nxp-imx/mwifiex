@@ -80,6 +80,8 @@ typedef struct _moal_lock {
 	spinlock_t lock;
 	/** Flags */
 	unsigned long flags;
+	/** unique lockdep key per instance */
+	struct lock_class_key key;
 } moal_lock;
 
 /********************************************************
@@ -795,7 +797,9 @@ mlan_status moal_init_lock(t_void *pmoal, t_void **pplock)
 	mlock = kmalloc(sizeof(moal_lock), GFP_ATOMIC);
 	if (!mlock)
 		return MLAN_STATUS_FAILURE;
+	lockdep_register_key(&mlock->key);
 	spin_lock_init(&mlock->lock);
+	lockdep_set_class(&mlock->lock, &mlock->key);
 	*pplock = (t_void *)mlock;
 
 	atomic_inc(&handle->lock_count);
@@ -816,9 +820,11 @@ mlan_status moal_free_lock(t_void *pmoal, t_void *plock)
 	moal_handle *handle = (moal_handle *)pmoal;
 	moal_lock *mlock = plock;
 
+	if (!mlock)
+		return MLAN_STATUS_FAILURE;
+	lockdep_unregister_key(&mlock->key);
+	atomic_dec(&handle->lock_count);
 	kfree(mlock);
-	if (mlock)
-		atomic_dec(&handle->lock_count);
 
 	return MLAN_STATUS_SUCCESS;
 }
@@ -1157,16 +1163,50 @@ mlan_status moal_get_hw_spec_complete(t_void *pmoal, mlan_status status,
 		}
 #endif
 #ifdef PCIEAW693
-		/**
-		 *  Special/Temporary handling to manage the driver version
-		 * string to identify AW693/IW623 based on fw_cap value set by
-		 * Fw
-		 */
-		if ((phw->fw_cap_ext & MBIT(23)) &&
-		    IS_PCIEAW693(handle->card_type)) {
-			moal_memcpy_ext(handle, driver_version, CARD_PCIEIW623,
-					strlen(CARD_PCIEIW623),
-					strlen(driver_version));
+		if (IS_PCIEAW693(handle->card_type)) {
+			if (phw->fw_cap_ext & MBIT(23)) {
+				/**
+				 *  Special/Temporary handling to manage the
+				 * driver version string to identify AW693/IW623
+				 * based on fw_cap value set by Fw
+				 */
+				if (strlen(CARD_PCIEIW623) <
+				    sizeof(driver_version)) {
+					// coverity[overrun-buffer-arg:SUPPRESS]
+					moal_memcpy_ext(handle, driver_version,
+							CARD_PCIEIW623,
+							strlen(CARD_PCIEIW623),
+							strlen(driver_version));
+				} else {
+					PRINTM(MERROR,
+					       "chip ID (%s) len(%zu) is > (%zu)",
+					       CARD_PCIEIW623,
+					       strlen(CARD_PCIEIW623),
+					       sizeof(driver_version));
+				}
+			} else if (!(phw->fw_cap_ext & MBIT(14))) {
+				/**
+				 *  Special/Temporary handling to manage the
+				 * driver version string to identify AW693/692
+				 * based on fw_cap value set by Fw. Note: 692 is
+				 * the same as 693 but w/o 6G support
+				 */
+				if (strlen(CARD_PCIEAW692) <
+				    sizeof(driver_version)) {
+					// coverity[overrun-buffer-arg:SUPPRESS]
+					moal_memcpy_ext(handle, driver_version,
+							CARD_PCIEAW692,
+							strlen(CARD_PCIEAW692),
+							strlen(driver_version));
+				} else {
+					PRINTM(MERROR,
+					       "chip ID (%s) len(%zu) is > (%zu)",
+					       CARD_PCIEAW692,
+					       strlen(CARD_PCIEAW692),
+					       sizeof(driver_version));
+				}
+			}
+
 			if (drv_ver_len >= MLAN_MAX_VER_STR_LEN - 1) {
 				drv_ver_len = MLAN_MAX_VER_STR_LEN - 1;
 			}
@@ -1782,6 +1822,7 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 	t_u32 radiotap_len = 0;
 	radiotap_info rt_info = {};
 	t_u8 format = 0;
+	t_u8 preamble_type = 0;
 	t_u8 mcs = 0;
 	t_u8 nss = 0;
 	t_u8 bw = 0;
@@ -1840,6 +1881,9 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 				       5;
 				format = (rt_info.rate_info.rate_info & 0x18) >>
 					 3;
+				preamble_type =
+					(rt_info.rate_info.rate_info & 0xC0) >>
+					6;
 				bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
 				dcm = rt_info.rate_info.dcm;
 				if (format == MLAN_RATE_FORMAT_HE)
@@ -2209,155 +2253,176 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 						he->data3 |=
 							HE_CODING_LDPC_USER0;
 					he->data1 |= (HE_BW_KNOWN);
-					if (he_sig1)
-						he->data1 |= (HE_MU_DATA);
-					if (bw == 1) {
-						he->data5 |= RX_HE_BW_40;
-						if (he_sig2) {
-							MLAN_DECODE_RU_SIGNALING_CH1(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-							if (!tone) {
-								MLAN_DECODE_RU_SIGNALING_CH3(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (tone != 0) {
-								he->data5 &=
-									~RX_HE_BW_40;
-								he->data5 |=
-									tone;
-							}
-						}
-					} else if (bw == 2) {
-						he->data5 |= RX_HE_BW_80;
-						if (he_sig2) {
-							MLAN_DECODE_RU_SIGNALING_CH1(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-							if (!tone) {
-								MLAN_DECODE_RU_SIGNALING_CH2(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (!tone) {
-								if ((he_sig2 &
-								     MLAN_80_CENTER_RU) &&
-								    !usr_idx) {
-									tone = RU_TONE_26;
-								} else {
-									usr_idx--;
-								}
-							}
-							if (!tone) {
-								MLAN_DECODE_RU_SIGNALING_CH3(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (!tone) {
-								MLAN_DECODE_RU_SIGNALING_CH4(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (tone != 0) {
-								he->data5 &=
-									~RX_HE_BW_80;
-								he->data5 |=
-									tone;
-							}
-						}
-					} else if (bw == 3) {
-						he->data5 |= RX_HE_BW_160;
-						if (he_sig2) {
-							MLAN_DECODE_RU_SIGNALING_CH1(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-							if (!tone) {
-								MLAN_DECODE_RU_SIGNALING_CH2(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (!tone) {
-								if ((he_sig2 &
-								     MLAN_160_CENTER_RU) &&
-								    !usr_idx) {
-									tone = RU_TONE_26;
-								} else {
-									usr_idx--;
-								}
-							}
-							if (!tone) {
-								MLAN_DECODING_160_RU_CH3(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (!tone) {
-								MLAN_DECODING_160_RU_CH3(
-									out,
-									he_sig1,
-									he_sig2);
-								MLAN_DECODE_RU_TONE(
-									out,
-									usr_idx,
-									tone);
-							}
-							if (tone != 0) {
-								he->data5 &=
-									~RX_HE_BW_160;
-								he->data5 |=
-									tone;
-							}
-						}
+					if (preamble_type == 1) { // HE_EXT_SU
+						he->data1 =
+							(he->data1 & (~0x3)) +
+							preamble_type;
+						he->data5 =
+							(he->data5 & (~0xF)) +
+							(bw ? 6 : 0);
 					} else {
-						if (he_sig2) {
-							MLAN_DECODE_RU_SIGNALING_CH1(
-								out, he_sig1,
-								he_sig2);
-							MLAN_DECODE_RU_TONE(
-								out, usr_idx,
-								tone);
-							if (tone) {
-								he->data5 |=
-									tone;
+						if (he_sig1)
+							he->data1 |=
+								(HE_MU_DATA);
+						if (bw == 1) {
+							he->data5 |=
+								RX_HE_BW_40;
+							if (he_sig2) {
+								MLAN_DECODE_RU_SIGNALING_CH1(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+								if (!tone) {
+									MLAN_DECODE_RU_SIGNALING_CH3(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (tone != 0) {
+									he->data5 &=
+										~RX_HE_BW_40;
+									he->data5 |=
+										tone;
+								}
+							}
+						} else if (bw == 2) {
+							he->data5 |=
+								RX_HE_BW_80;
+							if (he_sig2) {
+								MLAN_DECODE_RU_SIGNALING_CH1(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+								if (!tone) {
+									MLAN_DECODE_RU_SIGNALING_CH2(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (!tone) {
+									if ((he_sig2 &
+									     MLAN_80_CENTER_RU) &&
+									    !usr_idx) {
+										tone = RU_TONE_26;
+									} else {
+										usr_idx--;
+									}
+								}
+								if (!tone) {
+									MLAN_DECODE_RU_SIGNALING_CH3(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (!tone) {
+									MLAN_DECODE_RU_SIGNALING_CH4(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (tone != 0) {
+									he->data5 &=
+										~RX_HE_BW_80;
+									he->data5 |=
+										tone;
+								}
+							}
+						} else if (bw == 3) {
+							he->data5 |=
+								RX_HE_BW_160;
+							if (he_sig2) {
+								MLAN_DECODE_RU_SIGNALING_CH1(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+								if (!tone) {
+									MLAN_DECODE_RU_SIGNALING_CH2(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (!tone) {
+									if ((he_sig2 &
+									     MLAN_160_CENTER_RU) &&
+									    !usr_idx) {
+										tone = RU_TONE_26;
+									} else {
+										usr_idx--;
+									}
+								}
+								if (!tone) {
+									MLAN_DECODING_160_RU_CH3(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (!tone) {
+									MLAN_DECODING_160_RU_CH3(
+										out,
+										he_sig1,
+										he_sig2);
+									MLAN_DECODE_RU_TONE(
+										out,
+										usr_idx,
+										tone);
+								}
+								if (tone != 0) {
+									he->data5 &=
+										~RX_HE_BW_160;
+									he->data5 |=
+										tone;
+								}
+							}
+						} else {
+							if (he_sig2) {
+								MLAN_DECODE_RU_SIGNALING_CH1(
+									out,
+									he_sig1,
+									he_sig2);
+								MLAN_DECODE_RU_TONE(
+									out,
+									usr_idx,
+									tone);
+								if (tone) {
+									he->data5 |=
+										tone;
+								}
 							}
 						}
 					}
@@ -2367,10 +2432,10 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 					he->data1 |= (HE_MCS_KNOWN);
 
 					he->data3 |= (mcs << 8);
+					he->data3 |= (dcm << 12);
 					he->data6 |= nss;
 					he->data1 |= (HE_DCM_KNOWN);
 					he->data1 = cpu_to_le16(he->data1);
-					he->data5 |= (dcm << 12);
 					he->data5 = cpu_to_le16(he->data5);
 					he->data3 = cpu_to_le16(he->data3);
 
@@ -3783,7 +3848,19 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			memset(wrqu.ap_addr.sa_data, 0x00, ETH_ALEN);
 			moal_memcpy_ext(priv->phandle, wrqu.ap_addr.sa_data,
 					pmevent->event_buf, ETH_ALEN,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 211) && /* Backported         \
+							    from 6.1.80        \
+							    to 5.10 LTS */     \
+     LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)) ||                         \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 150) && /* Backported     \
+								from 6.1.80    \
+								to 5.15 LTS */ \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)) ||                     \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80) && /* Original change  \
+							      introduced here  \
+							      in mainline */   \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)) /* Reverted here in    \
+							   mainline */
 					sizeof(wrqu.ap_addr.sa_data_min));
 #else
 					sizeof(wrqu.ap_addr.sa_data));
@@ -5532,6 +5609,7 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			bool ack;
 			struct sk_buff *skb = (struct sk_buff *)tx_info->tx_skb;
 			list_del(&tx_info->link);
+			priv->tx_stat_queue_size--;
 			spin_unlock_irqrestore(&priv->tx_stat_lock, flag);
 			if (!tx_status->status)
 				ack = true;
@@ -5724,8 +5802,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			roam_info->req_ie_len = ie_len;
 			roam_info->resp_ie = pinfo->rsp_ie;
 			roam_info->resp_ie_len = pinfo->header.len;
-#if (CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 0) ||                      \
-     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 33))
+#if ((CFG80211_VERSION_CODE > KERNEL_VERSION(5, 19, 1)) ||                     \
+     (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 			if (priv->wdev->u.client.ssid_len)
 #else
 			if (priv->wdev->ssid_len)

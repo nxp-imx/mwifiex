@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2025 NXP
+#  Copyright 2008-2026 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -182,8 +182,8 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"542.p8"'
-	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"542.p8"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"542.p22"'
+	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"542.p22"'
 	ccflags-y += -DREL_MILESTONE='""'
 
 	ccflags-y += -DFPNUM='"92"'

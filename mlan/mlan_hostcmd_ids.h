@@ -3,7 +3,7 @@
  *  @brief This file contains host command ID definitions.
  *
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -503,5 +503,9 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : To enable/disable/force-enable PPB feature */
 	ENUM_ELEMENT(HostCmd_CMD_PREAMBLE_PWR_BOOST, 0x0296),
+
+	/** Host Command ID : Channel switch count configuration */
+	ENUM_ELEMENT(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG, 0x0298),
+
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)
