@@ -55,9 +55,9 @@ STA Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz (HT)
 |Protocol|TCP (Mbit/s)||UDP (Mbit/s)||
 |---------|--|--|--|--|
 |Direction|TX|RX|TX|RX|
-|Open Security|57|59|63|63|
-|WPA2-AES|57|57|63|63|
-|WPA3-SAE|56|58|63|62|
+|Open Security|56|57|63|62|
+|WPA2-AES|56|57|62|62|
+|WPA3-SAE|55|57|63|62|
 
 STA Mode Throughput - BGN Mode|2.4 GHz Band|40 MHz (HT)
 

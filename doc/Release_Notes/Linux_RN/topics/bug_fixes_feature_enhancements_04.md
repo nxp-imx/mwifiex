@@ -245,3 +245,26 @@ Crash occurs during execution of Bluetooth Classic TX/RX test.
 
 **OT Wi-Fi Coex**
 - Fixed Wi-Fi/OpenThread coex duty cycle when Wi-Fi driver is loaded before Thread network starts
+
+## Firmware version 18.99.8.p3 to 18.99.8.p16
+
+**Wi-Fi**
+- Updated configuration file to correctly set tx/rx antenna fields and remove redundant RF band parameter when radio_mode is specified.
+- Fixed association failure with iPhone 17 hotspot running iOS 26.3.1 on 5GHz channels.
+- Resolved spurious GPIO-19 (BT_WAKE_OUT) interrupts after deep sleep command with hciattach.
+- Fixed Labtool CMD18 Wi-Fi CW Tx mode failure with MFW Pre-QA release on ePA modules.
+- Fixed recurring Wi-Fi firmware crash and recovery failure in Google Nest mesh network environments.
+- Fixed firmware crash during power save state transitions with pre_asleep command blocking.
+- Resolved TX power drop on 5GHz channel 36 after scan abort in RF test mode
+- Fixed incorrect 5GHz power table information display in mlanutl cfginfo command
+
+**Bluetooth**
+- Resolved LMP Response Timeout (0x22) on second SCO connection when switching between different packet types.
+- Corrected BT Tx power values for Class 1 and Class 1.5 modes in EDR.
+- Resolved intermittent deep sleep mode entry failure after 3F 23 VSC command with hciattach
+- Corrected EDR power backoff behavior with ePA design for 20 dBm target
+- Fixed HCI_LE_Enable_Encryption "Command Disallowed" error during BLE pairing stress tests
+
+**Zigbee**
+- Added GPIO naming auto-detection support in zb_mux.sh script for Zigbee multiplexer initialization.
+

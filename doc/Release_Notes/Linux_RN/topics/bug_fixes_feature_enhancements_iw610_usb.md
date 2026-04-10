@@ -59,3 +59,15 @@
 - Fixed BLE connection rejection error "Limited Resources" when establishing second connection with 251-byte DLE configured on first connection
 - Added support for configuring TX power for LE Coded PHY mode
 - Improved Bluetooth stability and reliability when using SDIO interface
+
+## Firmware version 18.99.8.p3 to 18.99.8.p16
+
+**Wi-Fi**
+- Updated configuration file to correctly set tx/rx antenna fields and remove redundant RF band parameter when radio_mode is specified.
+- Fixed CSI (Channel State Information) capture failure when sniffer/monitor mode is enabled in unassociated state.
+- Fixed external STA connection failure to DUT AP during concurrent connect-disconnect and flood ping tests.
+- Resolved WiFi command timeout (0xa4) during Wi-Fi (uAP+STA) and Thread coexistence testing
+- Fixed command timeout (0x23f) in STA+uAP DRCS mode during external AP channel switching
+
+**Zigbee**
+- Added GPIO naming auto-detection support in zb_mux.sh script for Zigbee multiplexer initialization
