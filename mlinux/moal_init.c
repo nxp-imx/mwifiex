@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_init.c
  *
  * @brief This file contains the major functions in WLAN
@@ -80,10 +81,8 @@ static int host_mlme = 1;
 #endif
 
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(4, 12, 14)
-static int cfg80211_eapol_offload = 0;
+static int cfg80211_eapol_offload;
 #endif
-
-static int roamoffload_in_hs;
 
 static int drcs_chantime_mode;
 
@@ -102,16 +101,16 @@ static int wifi_reset_config = 5;
 static int tx_budget = 2600;
 static int mclient_scheduling = 1;
 
-static int copy_policy = 0;
+static int copy_policy;
 
 static int ext_scan;
 
 /** Boot Time config */
-static int bootup_cal_ctrl = 0;
+static int bootup_cal_ctrl;
 /** IEEE PS mode */
 static int ps_mode;
 /** plinkstats parameter */
-static char *plinkstats = NULL;
+static char *plinkstats;
 /** tcpackenh parameter */
 static int tcpackenh = 1;
 /** passive to active scan */
@@ -143,14 +142,14 @@ static int wacp_mode = WACP_MODE_DEFAULT;
 #ifdef XDP_SUPPORT
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 /** XDP(express datapath) mode */
-static int xdp = 0;
+static int xdp;
 #endif
 #endif
 
 #endif
 
 /** Fw cutom data config */
-static unsigned int fw_data_cfg = 0;
+static unsigned int fw_data_cfg;
 
 #ifdef WIFI_DIRECT_SUPPORT
 /** Max WIFIDIRECT interfaces */
@@ -182,7 +181,7 @@ static int slew_rate = 3;
 #ifdef IMX_SUPPORT
 static int tx_work = 1;
 #else
-static int tx_work = 0;
+static int tx_work;
 #endif
 
 #if defined(CONFIG_RPS)
@@ -207,19 +206,19 @@ static int rps = 0x0F;
  * EDMAC for EU adaptivity
  * Default value of 0 keeps edmac disabled by default
  */
-static int edmac_ctrl = 0;
+static int edmac_ctrl;
 static int tx_skb_clone = 1;
 
 #ifdef IMX_SUPPORT
 static int pmqos = 1;
 #else
-static int pmqos = 0;
+static int pmqos;
 #endif
 
-static int chan_track = 0;
+static int chan_track;
 static int mcs32 = 1;
 /** hs_auto_arp setting */
-static int hs_auto_arp = 0;
+static int hs_auto_arp;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -352,11 +351,11 @@ static t_u16 inact_tmo;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /* default filter flag 0x27 Stands for
-  (MLAN_NETMON_NON_BSS_BCN | \
+   (MLAN_NETMON_NON_BSS_BCN | \
    MLAN_NETMON_DATA | \
    MLAN_NETMON_CONTROL | \
    MLAN_NETMON_MANAGEMENT)
-*/
+ */
 #define DEFAULT_NETMON_FILTER 0x27
 static int mon_filter = DEFAULT_NETMON_FILTER;
 #endif
@@ -365,12 +364,12 @@ static int mon_filter = DEFAULT_NETMON_FILTER;
 int dual_nb = 1;
 
 /** disable 802.11h tpc configuration */
-static int disable_11h_tpc = 0;
+static int disable_11h_tpc;
 
 /** ignore TPE IE configuration from ex-AP*/
-static int tpe_ie_ignore = 0;
+static int tpe_ie_ignore;
 
-static int amsdu_8k_rx = 0;
+static int amsdu_8k_rx;
 
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
@@ -455,12 +454,12 @@ static card_type_entry card_type_map_tbl[] = {
 static int dfs53cfg = DFS_W53_DEFAULT_FW;
 
 static int keep_previous_scan = 1;
-static int make_before_break = 0;
+static int make_before_break;
 static int auto_11ax = 1;
-static int reject_addba_req = 0;
+static int reject_addba_req;
 
 /** bandctrl */
-static int bandctrl = 0;
+static int bandctrl;
 
 #if defined(USB)
 /**
@@ -556,6 +555,7 @@ static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos,
 static void woal_dup_string(char **dst, char *src)
 {
 	size_t len = 0;
+
 	if (src) {
 		len = strlen(src);
 		if (len != 0) {
@@ -689,7 +689,7 @@ static mlan_status parse_line_read_card_info(t_u8 *line, char **type,
 	if (p != NULL) {
 		*p = '\0';
 		if (!woal_secure_add(&p, 1, &p, TYPE_PTR))
-			PRINTM(MERROR, "%s:ERR:pointer overflow \n", __func__);
+			PRINTM(MERROR, "%s:ERR:pointer overflow\n", __func__);
 		*if_id = p;
 	} else {
 		*if_id = NULL;
@@ -775,7 +775,7 @@ static mlan_status parse_cfg_slot_id_info(t_u8 *data, t_u32 size, t_s32 cur_pos,
 		pos++;
 		*dest = '\0';
 
-		PRINTM(MINFO, "get line %s \n", line);
+		PRINTM(MINFO, "get line %s\n", line);
 
 		if (line[0] == '#' || strstr(line, "={")) {
 			memset(line, 0, MAX_LINE_LEN);
@@ -801,19 +801,19 @@ static mlan_status parse_cfg_slot_id_info(t_u8 *data, t_u32 size, t_s32 cur_pos,
 					    card_info->func->card->host->index) {
 						ret = MLAN_STATUS_FAILURE;
 						PRINTM(MINFO,
-						       "incorrect conf slot id %d, device slot id %d \n",
+						       "incorrect conf slot id %d, device slot id %d\n",
 						       out_data,
 						       card_info->func->card
 							       ->host->index);
 					} else {
 						PRINTM(MINFO,
-						       "correct conf slot id %d \n",
+						       "correct conf slot id %d\n",
 						       out_data);
 					}
 					break;
 				} else {
 					ret = MLAN_STATUS_FAILURE;
-					PRINTM(MERROR, "negative value \n");
+					PRINTM(MERROR, "negative value\n");
 					break;
 				}
 			} else {
@@ -1723,21 +1723,6 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			params->drcs_chantime_mode = out_data;
 			PRINTM(MMSG, "drcs_chantime_mode=%d\n",
 			       params->drcs_chantime_mode);
-		} else if (strncmp(line, "roamoffload_in_hs",
-				   strlen("roamoffload_in_hs")) == 0) {
-			if (parse_line_read_int(line, &out_data) !=
-			    MLAN_STATUS_SUCCESS)
-				goto err;
-			if (out_data)
-				moal_extflg_set(handle, EXT_ROAMOFFLOAD_IN_HS);
-			else
-				moal_extflg_clear(handle,
-						  EXT_ROAMOFFLOAD_IN_HS);
-			PRINTM(MMSG, "roamoffload_in_hs %s\n",
-			       moal_extflg_isset(handle,
-						 EXT_ROAMOFFLOAD_IN_HS) ?
-				       "on" :
-				       "off");
 		}
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		else if (strncmp(line, "disable_regd_by_driver",
@@ -2003,6 +1988,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 {
 	t_u8 addr[ETH_ALEN];
 	bool is_valid_mac_addr = false;
+
 	if (hw_test)
 		moal_extflg_set(handle, EXT_HW_TEST);
 #ifdef CONFIG_OF
@@ -2389,8 +2375,6 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (dfs_offload)
 		moal_extflg_set(handle, EXT_DFS_OFFLOAD);
 #endif
-	if (roamoffload_in_hs)
-		moal_extflg_set(handle, EXT_ROAMOFFLOAD_IN_HS);
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (host_mlme)
@@ -2493,6 +2477,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 void woal_free_module_param(moal_handle *handle)
 {
 	moal_mod_para *params = &handle->params;
+
 	PRINTM(MMSG, "Free module params\n");
 	if (params->fw_name) {
 		kfree(params->fw_name);
@@ -2988,15 +2973,8 @@ void woal_init_from_dev_tree(void)
 			}
 		}
 #endif
-		else if (!strncmp(prop->name, "roamoffload_in_hs",
-				  strlen("roamoffload_in_hs"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				roamoffload_in_hs = data;
-				PRINTM(MIOCTL, "roamoffload_in_hs=%d\n",
-				       roamoffload_in_hs);
-			}
-		} else if (!strncmp(prop->name, "gtk_rekey_offload",
-				    strlen("gtk_rekey_offload"))) {
+		else if (!strncmp(prop->name, "gtk_rekey_offload",
+				  strlen("gtk_rekey_offload"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				gtk_rekey_offload = data;
 				PRINTM(MIOCTL, "gtk_rekey_offload=%d\n",
@@ -3160,6 +3138,7 @@ static mlan_status woal_validate_cfg_id(moal_handle *handle)
 {
 	int i;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	for (i = 0; i < MAX_MLAN_ADAPTER; i++) {
 		if (m_handle[i] == NULL || m_handle[i] == handle)
 			continue;
@@ -3184,6 +3163,7 @@ static mlan_status parse_skip_cfg_block(t_u8 *data, t_u32 size)
 {
 	int end = 0;
 	t_u8 line[MAX_LINE_LEN];
+
 	while ((int)parse_cfg_get_line(data, size, line, NULL) != -1) {
 		if (strncmp(line, "}", strlen("}")) == 0) {
 			end = 1;
@@ -3207,6 +3187,7 @@ static mlan_status woal_cfg_fallback_process(moal_handle *handle)
 {
 	int i, blk_id = 0x7fffffff, idx = -1;
 	mlan_status ret = MLAN_STATUS_FAILURE;
+
 	PRINTM(MMSG, "Configuration block, fallback processing\n");
 	for (i = 0; i < MAX_MLAN_ADAPTER; i++) {
 		if (m_handle[i] == NULL || m_handle[i] == handle ||
@@ -3372,7 +3353,6 @@ mlan_status woal_get_c_vidpid(char **c_vidpid)
 	t_u8 line[MAX_LINE_LEN], *data = NULL;
 	t_u32 size, i, tbl_size;
 	char *card_type = NULL, *blk_id = NULL, *out_str = NULL;
-	;
 
 	if (mod_para == NULL) {
 		PRINTM(MMSG, "No module param cfg file specified\n");
@@ -3453,7 +3433,8 @@ err:
 
 /* Register module parameter 'plinkstats' for runtime configuration.
  * Accepts string input via sysfs or kernel command line.
- * Format: "0" to disable, "1" to enable, "2" to reset. */
+ * Format: "0" to disable, "1" to enable, "2" to reset.
+ */
 module_param(plinkstats, charp, 0);
 MODULE_PARM_DESC(plinkstats, "0: Disable; 1: Enable; 2: Reset");
 module_param(mod_para, charp, 0);
@@ -3827,11 +3808,6 @@ module_param(pref_dbc, int, 0);
 MODULE_PARM_DESC(
 	pref_dbc,
 	"0: Firmware Default (default); 1: Enable prefer DBC; 2:Disable prefer DBC");
-
-module_param(roamoffload_in_hs, int, 0);
-MODULE_PARM_DESC(
-	roamoffload_in_hs,
-	"1: enable fw roaming only when host suspend; 0: always enable fw roaming.");
 
 #ifdef UAP_SUPPORT
 module_param(uap_max_sta, int, 0);

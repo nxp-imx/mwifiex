@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_sta_ioctl.c
  *
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -477,9 +478,6 @@ static mlan_status wlan_get_info_ioctl(pmlan_adapter pmadapter,
 		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
 		pget_info->param.fw_info.max_ap_assoc_sta =
 			pmadapter->max_sta_conn;
-		pget_info->param.fw_info.fw_roaming_support =
-			(pmadapter->fw_cap_info & FW_ROAMING_SUPPORT) ? 0x01 :
-									0x00;
 		pget_info->param.fw_info.fw_beacon_prot =
 			IS_FW_SUPPORT_BEACON_PROT(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.rtt_support =
@@ -966,6 +964,7 @@ static mlan_status wlan_bss_ioctl_mode(pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_bss *bss = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 
 	ENTER();
@@ -1028,7 +1027,8 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 	ENTER();
 
 	/* Before ASSOC REQ, If "port ctrl" mode is enabled,
-	 * move the port to CLOSED state */
+	 * move the port to CLOSED state
+	 */
 	if (pmpriv->port_ctrl_mode == MTRUE) {
 		PRINTM(MINFO, "bss_ioctl_start(): port_state=CLOSED\n");
 		pmpriv->prior_port_status = pmpriv->port_open;
@@ -1069,7 +1069,8 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 		}
 		if (i >= 0) {
 			/* block if upper-layer tries to reconnect before new
-			 * scan */
+			 * scan
+			 */
 			if (wlan_11h_get_csa_closed_channel(pmpriv) ==
 			    (t_u8)pmadapter->pscan_table[i].channel) {
 				PRINTM(MINFO,
@@ -1276,6 +1277,7 @@ static mlan_status wlan_sec_ioctl_ssid_protection(IN pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
@@ -2281,7 +2283,8 @@ static mlan_status wlan_pm_ioctl(pmlan_adapter pmadapter,
 		switch (pioctl_req->action) {
 		case MLAN_ACT_SET:
 			/**Block ieee power save disable command when bt coex
-			 * enable*/
+			 * enable
+			 */
 			if (pmadapter->coex_scan && !pm->param.ps_mode)
 				break;
 			if (pm->param.ps_mode)
@@ -2516,6 +2519,7 @@ static mlan_status wlan_sec_ioctl_wapi_enable(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
@@ -2546,6 +2550,7 @@ static mlan_status wlan_sec_ioctl_set_wapi_key(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
@@ -2615,6 +2620,7 @@ static mlan_status wlan_sec_ioctl_auth_mode(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
@@ -2648,6 +2654,7 @@ static mlan_status wlan_sec_ioctl_encrypt_mode(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
@@ -2697,6 +2704,7 @@ static mlan_status wlan_sec_ioctl_wpa_enable(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
@@ -2789,7 +2797,8 @@ static mlan_status wlan_sec_ioctl_set_wep_key(pmlan_adapter pmadapter,
 				PRINTM(MERROR, "Invalid wep key len=%d\n",
 				       sec->param.encrypt_key.key_len);
 				/* We will use random key to clear the key
-				 * buffer in FW */
+				 * buffer in FW
+				 */
 				if (sec->param.encrypt_key.key_len <
 				    WEP_40_BIT_LEN)
 					sec->param.encrypt_key.key_len =
@@ -2976,6 +2985,7 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
 	int index;
+
 	ENTER();
 
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
@@ -2999,7 +3009,8 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 				pmpriv->wep_key[index].key_index;
 			/* memcpy_ext enforces bounds checking and key_length is
 			 * validated to ensure safe copying within fixed-size
-			 * key_material buffer */
+			 * key_material buffer
+			 */
 			// coverity[cert_arr30_c_violation: SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
@@ -3033,7 +3044,8 @@ static mlan_status wlan_sec_ioctl_get_key(pmlan_adapter pmadapter,
 				pmpriv->wep_key[index].key_index;
 			/* memcpy_ext enforces bounds checking and key_length is
 			 * validated to ensure safe copying within fixed-size
-			 * key_material buffer */
+			 * key_material buffer
+			 */
 			// coverity[cert_arr30_c_violation: SUPPRESS]
 			// coverity[cert_str31_c_violation:SUPPRESS]
 			memcpy_ext(pmadapter,
@@ -3073,6 +3085,7 @@ static mlan_status wlan_sec_ioctl_encrypt_key(pmlan_adapter pmadapter,
 {
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if ((pioctl_req->action == MLAN_ACT_SET) ||
@@ -3143,6 +3156,7 @@ static mlan_status wlan_sec_ioctl_ewpa_enable(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
@@ -3415,7 +3429,8 @@ static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
 				if (ie_len < (sizeof(priv->gen_ie_buf) -
 					      priv->gen_ie_buf_len)) {
 					/* Test to see if it is a WPS IE, if so,
-					 * enable wps session flag */
+					 * enable wps session flag
+					 */
 					pvendor_ie =
 						(IEEEtypes_VendorHeader_t *)
 							ie_data_ptr;
@@ -3431,7 +3446,8 @@ static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
 					}
 
 					/* Append the passed data to the end of
-					 * the genIeBuffer */
+					 * the genIeBuffer
+					 */
 					memcpy_ext(
 						priv->adapter,
 						priv->gen_ie_buf +
@@ -3440,11 +3456,13 @@ static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
 						MRVDRV_GENIE_BUF_SIZE -
 							priv->gen_ie_buf_len);
 					/* Increment the stored buffer length by
-					 * the size passed */
+					 * the size passed
+					 */
 					priv->gen_ie_buf_len += ie_len;
 				} else {
 					/* Passed data does not fit in the
-					 * remaining buffer space */
+					 * remaining buffer space
+					 */
 					ret = MLAN_STATUS_FAILURE;
 				}
 			}
@@ -4585,8 +4603,7 @@ static mlan_status wlan_misc_ioctl_cfp_code_cfg(pmlan_adapter pmadapter,
 	if (pioctl_req->action == MLAN_ACT_SET) {
 		if (pmadapter->otp_region && pmadapter->otp_region->force_reg) {
 			PRINTM(MERROR,
-			       "ForceRegionRule is set in the on-chip OTP"
-			       "memory\n");
+			       "ForceRegionRule is set in the on-chip OTP memory\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -4829,106 +4846,6 @@ static mlan_status wlan_misc_ioctl_gtk_rekey_offload(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG,
 			       cmd_action, 0, (t_void *)pioctl_req,
 			       &misc_cfg->param.gtk_rekey);
-
-	if (ret == MLAN_STATUS_SUCCESS)
-		ret = MLAN_STATUS_PENDING;
-
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief enable/disable roam offload in firmware
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param pioctl_req   Pointer to the IOCTL request buffer
- *
- *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status wlan_misc_roam_offload(pmlan_adapter pmadapter,
-					  mlan_ioctl_req *pioctl_req)
-{
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = MNULL;
-	t_u16 cmd_action = 0;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-
-	if (!(pmadapter->fw_cap_info & FW_ROAMING_SUPPORT)) {
-		PRINTM(MERROR, "Firmware roaming not support\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	if (!IS_FW_SUPPORT_SUPPLICANT(pmadapter)) {
-		PRINTM(MERROR, "Embedded supplicant do not enable\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	if ((misc->param.roam_offload.config_mode == ROAM_OFFLOAD_ENABLE) &&
-	    misc->param.roam_offload.userset_passphrase) {
-		pmpriv->adapter->userset_passphrase =
-			misc->param.roam_offload.userset_passphrase;
-		if (!misc->param.roam_offload.enable) {
-			LEAVE();
-			return MLAN_STATUS_SUCCESS;
-		}
-	}
-
-	if (pioctl_req->action == MLAN_ACT_SET)
-		cmd_action = HostCmd_ACT_GEN_SET;
-	else {
-		PRINTM(MERROR, "Unsupported cmd_action\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Send request to firmware */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_ROAM_OFFLOAD, cmd_action, 0,
-			       (t_void *)pioctl_req, &misc->param.roam_offload);
-
-	if (ret == MLAN_STATUS_SUCCESS)
-		ret = MLAN_STATUS_PENDING;
-
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief set roam offload aplist to firmware
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param pioctl_req   Pointer to the IOCTL request buffer
- *
- *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status wlan_misc_roam_offload_aplist(pmlan_adapter pmadapter,
-						 mlan_ioctl_req *pioctl_req)
-{
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = MNULL;
-	t_u16 cmd_action = 0;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-
-	if (pioctl_req->action == MLAN_ACT_SET)
-		cmd_action = HostCmd_ACT_GEN_SET;
-	else {
-		PRINTM(MERROR, "Unsupported cmd_action\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Send request to firmware */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_ROAM_OFFLOAD, cmd_action, 0,
-			       (t_void *)pioctl_req, &misc->param.roam_offload);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -5283,12 +5200,6 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_TSP_CFG:
 		status = wlan_misc_ioctl_tsp_config(pmadapter, pioctl_req);
 		break;
-	case MLAN_OID_MISC_ROAM_OFFLOAD:
-		status = wlan_misc_roam_offload(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_MISC_ROAM_OFFLOAD_APLIST:
-		status = wlan_misc_roam_offload_aplist(pmadapter, pioctl_req);
-		break;
 	case MLAN_OID_MISC_GET_CHAN_REGION_CFG:
 		status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
 		break;
@@ -5408,6 +5319,7 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_OTP_MAC_RD_WR:
 	case MLAN_OID_MISC_RF_TEST_DEBUG_TEMPERATURE:
 	case MLAN_OID_MISC_OTP_CAL_DATA_RD_WR:
+	case MLAN_OID_MISC_GENERIC_CMD:
 		status = wlan_misc_ioctl_rf_test_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_MISC_ARB_CONFIG:
@@ -5545,8 +5457,8 @@ static mlan_status wlan_set_get_scan_6g_cfg(pmlan_adapter pmadapter,
 	ENTER();
 
 	if (!IS_FW_SUPPORT_6G(pmadapter)) {
-		PRINTM(MERROR, "Set/Get scan 6G configuration parameter failed "
-			       "(6 GHz band is not supported).\n");
+		PRINTM(MERROR,
+		       "Set/Get scan 6G configuration parameter failed (6 GHz band is not supported).\n");
 		pioctl_req->data_read_written = 0;
 		pioctl_req->buf_len_needed = sizeof(mlan_ds_scan);
 		pioctl_req->status_code = MLAN_ERROR_CMD_INVALID;

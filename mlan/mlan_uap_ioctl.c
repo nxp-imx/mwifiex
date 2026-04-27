@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_uap_ioctl.c
  *
  *  @brief This file contains the handling of AP mode ioctls
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -133,6 +134,7 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 		 */
 		if (pmpriv->adapter->dfs_repeater) {
 			pmlan_private tmpriv = MNULL;
+
 			tmpriv = wlan_get_priv(pmpriv->adapter,
 					       MLAN_BSS_ROLE_STA);
 
@@ -193,15 +195,13 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 				if (ret == MLAN_STATUS_SUCCESS) {
 					if (under_nop) {
 						PRINTM(MMSG,
-						       "Channel %d under NOP,"
-						       " switched to new channel %d successfully.\n",
+						       "Channel %d under NOP, switched to new channel %d successfully.\n",
 						       old_channel,
 						       puap_state_chan_cb
 							       ->channel);
 					} else {
 						PRINTM(MMSG,
-						       "Radar found on channel %d,"
-						       " switched to new channel %d successfully.\n",
+						       "Radar found on channel %d, switched to new channel %d successfully.\n",
 						       old_channel,
 						       puap_state_chan_cb
 							       ->channel);
@@ -209,15 +209,13 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 				} else {
 					if (under_nop) {
 						PRINTM(MMSG,
-						       "Channel %d under NOP,"
-						       " switch to new channel %d failed.\n",
+						       "Channel %d under NOP, switch to new channel %d failed.\n",
 						       old_channel,
 						       puap_state_chan_cb
 							       ->channel);
 					} else {
 						PRINTM(MMSG,
-						       "Radar found on channel %d,"
-						       " switch to new channel %d failed.\n",
+						       "Radar found on channel %d, switch to new channel %d failed.\n",
 						       old_channel,
 						       puap_state_chan_cb
 							       ->channel);
@@ -240,7 +238,8 @@ static mlan_status wlan_uap_callback_bss_ioctl_start(t_void *priv)
 					       old_channel);
 				}
 				/* No command sent with the ioctl, need manually
-				 * signal completion */
+				 * signal completion
+				 */
 				pcb->moal_ioctl_complete(
 					pmpriv->adapter->pmoal_handle,
 					puap_state_chan_cb->pioctl_req_curr,
@@ -297,7 +296,8 @@ static mlan_status wlan_uap_bss_ioctl_start(pmlan_adapter pmadapter,
 		/* First check channel report, defer BSS_START CMD to callback.
 		 */
 		/* store params, issue command to get UAP channel, whose
-		 * CMD_RESP will callback remainder of bss_start handling */
+		 * CMD_RESP will callback remainder of bss_start handling
+		 */
 		pmpriv->uap_state_chan_cb.pioctl_req_curr = pioctl_req;
 		pmpriv->uap_state_chan_cb.get_chan_callback =
 			wlan_uap_callback_bss_ioctl_start;
@@ -411,7 +411,7 @@ static mlan_status wlan_uap_bss_ioctl_fils_ip_cfg(pmlan_adapter pmadapter,
  *
  *  @param pioctl_req      A pointer to pioctl_req
  *
- *  @return            	  MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
+ *  @return		  MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
  */
 static mlan_status wlan_uap_bss_ioctl_add_station(pmlan_adapter pmadapter,
 						  pmlan_ioctl_req pioctl_req)
@@ -1051,6 +1051,7 @@ static mlan_status wlan_uap_sec_ioctl_wapi_enable(pmlan_adapter pmadapter,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_sec_cfg *sec = MNULL;
+
 	ENTER();
 	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
@@ -1465,7 +1466,8 @@ static mlan_status wlan_uap_domain_info(pmlan_adapter pmadapter,
 	}
 
 	/* store params, issue command to get UAP channel, whose CMD_RESP will
-	 * callback remainder of domain_info handling */
+	 * callback remainder of domain_info handling
+	 */
 	pmpriv->uap_state_chan_cb.pioctl_req_curr = pioctl_req;
 	pmpriv->uap_state_chan_cb.get_chan_callback =
 		wlan_uap_callback_domain_info;
@@ -1542,7 +1544,8 @@ static mlan_status wlan_uap_callback_11h_channel_check_req(t_void *priv)
 			ret = MLAN_STATUS_PENDING;
 	} else {
 		/* No command sent with the ioctl, need manually signal
-		 * completion */
+		 * completion
+		 */
 		pcb->moal_ioctl_complete(pmpriv->adapter->pmoal_handle, pioctl,
 					 MLAN_STATUS_COMPLETE);
 	}
@@ -1584,7 +1587,8 @@ static mlan_status wlan_uap_11h_channel_check_req(pmlan_adapter pmadapter,
 	    pmpriv->bss_type != MLAN_BSS_TYPE_DFS) {
 		/* store params, issue command to get UAP channel, whose
 		 * CMD_RESP will callback remainder of 11H channel check
-		 * handling */
+		 * handling
+		 */
 		pmpriv->uap_state_chan_cb.pioctl_req_curr = pioctl_req;
 		pmpriv->uap_state_chan_cb.get_chan_callback =
 			wlan_uap_callback_11h_channel_check_req;
@@ -1630,8 +1634,7 @@ static mlan_status wlan_uap_11h_channel_check_req(pmlan_adapter pmadapter,
 			}
 			if (p11h_cfg->param.chan_rpt_req.millisec_dwell_time)
 				PRINTM(MMSG,
-				       "11h: issuing DFS Radar check for channel=%d."
-				       "  Please wait for response...\n",
+				       "11h: issuing DFS Radar check for channel=%d.  Please wait for response...\n",
 				       p11h_cfg->param.chan_rpt_req.chanNum);
 
 			ret = wlan_prepare_cmd(
@@ -1746,7 +1749,8 @@ static mlan_status wlan_uap_snmp_mib_11h(pmlan_adapter pmadapter,
 	}
 
 	/* store params, issue command to get UAP channel, whose CMD_RESP will
-	 * callback remainder of 11H handling (and radar detect if DFS chan) */
+	 * callback remainder of 11H handling (and radar detect if DFS chan)
+	 */
 	pmpriv->uap_state_chan_cb.pioctl_req_curr = pioctl_req;
 	pmpriv->uap_state_chan_cb.get_chan_callback =
 		wlan_uap_callback_snmp_mib_11h;
@@ -2055,6 +2059,43 @@ static mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_AGCS_CFG, cmd_action,
 			       0, (t_void *)pioctl_req,
 			       (t_void *)&misc->param.agcs_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Handle channel switch cnt config
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status wlan_uap_chan_switch_cnt_cfg(pmlan_adapter pmadapter,
+						pmlan_ioctl_req pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else
+		cmd_action = HostCmd_ACT_GEN_SET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG,
+			       cmd_action, misc->sub_command,
+			       (t_void *)pioctl_req,
+			       (t_void *)&misc->param.ecsa_cfg);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -2506,6 +2547,10 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 								    pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_AGCS_CONFIG)
 			status = wlan_uap_agcs_cfg(pmadapter, pioctl_req);
+		else if (misc->sub_command ==
+			 MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG)
+			status = wlan_uap_chan_switch_cnt_cfg(pmadapter,
+							      pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

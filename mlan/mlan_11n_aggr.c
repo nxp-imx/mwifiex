@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11n_aggr.c
  *
  *  @brief This file contains functions for 11n Aggregation.
@@ -185,6 +186,7 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	t_u32 data_len = pmbuf->data_len;
 	t_u16 len = 0;
 	t_s32 offset = 0;
+
 	ENTER();
 
 	head_ptr = pmbuf->pbuf + pmbuf->data_offset - Tx_PD_SIZEOF(pmadapter) -
@@ -316,6 +318,7 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 						     pmlan_buffer mbuf)
 {
 	TxPD *ptx_pd;
+
 	ENTER();
 
 	ptx_pd = (TxPD *)mbuf->pbuf;
@@ -327,7 +330,7 @@ static INLINE void wlan_11n_update_pktlen_amsdu_txpd(mlan_private *priv,
 #ifdef STA_SUPPORT
 	if ((GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) &&
 	    (priv->adapter->pps_uapsd_mode)) {
-		if (MTRUE == wlan_check_last_packet_indication(priv)) {
+		if (wlan_check_last_packet_indication(priv) == MTRUE) {
 			priv->adapter->tx_lock_flag = MTRUE;
 			ptx_pd->flags |= MRVDRV_TxPD_POWER_MGMT_LAST_PACKET;
 		}
@@ -470,8 +473,7 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 #endif
 	if (total_pkt_len > (int)max_rx_data_size) {
 		PRINTM(MERROR,
-		       "Total packet length greater than tx buffer"
-		       " size %d\n",
+		       "Total packet length greater than tx buffer size %d\n",
 		       total_pkt_len);
 		goto done;
 	}
@@ -709,6 +711,7 @@ static int wlan_send_amsdu_subframe_list(mlan_private *priv,
 	t_u32 max_amsdu_size = MIN(pra_list->max_amsdu, pmadapter->tx_buf_size);
 	t_u32 max_msdu_count = 0;
 	t_u32 msdu_in_tx_amsdu_cnt = 0;
+
 	ENTER();
 
 	if (ptrindex < 0) {
@@ -798,6 +801,7 @@ static int wlan_send_amsdu_subframe_list(mlan_private *priv,
 	/* Collects TP statistics */
 	if (pmadapter->tp_state_on) {
 		mlan_buffer mbuf;
+
 		mbuf.data_len = pkt_size;
 		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
 							&mbuf, 4);
@@ -864,6 +868,7 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 #endif
 	t_u32 max_amsdu_size = MIN(pra_list->max_amsdu, pmadapter->tx_buf_size);
 	t_u32 msdu_in_tx_amsdu_cnt = 0;
+
 	ENTER();
 
 	if (ptrindex < 0) {

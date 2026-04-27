@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_main.h
  *
  * @brief This file contains wlan driver specific defines etc.
@@ -22,7 +23,7 @@
 
 /********************************************************
 Change log:
-    10/21/2008: initial version
+10/21/2008: initial version
 ********************************************************/
 
 #ifndef _MOAL_MAIN_H
@@ -801,6 +802,7 @@ static inline int in4_pton(const char *src, int srclen, u8 *dst, int delim,
 	i = 0;
 	while (1) {
 		int c;
+
 		c = xdigit2bin(srclen > 0 ? *s : '\0', delim);
 		if (!(c & (IN6PTON_DIGIT | IN6PTON_DOT | IN6PTON_DELIM |
 			   IN6PTON_COLON_MASK))) {
@@ -882,10 +884,10 @@ out:
 
 #ifdef UAP_SUPPORT
 /** Default watchdog timeout
-    Increase the value to avoid kernel Tx timeout message in case
-    station in PS mode or left.
-    The default value of PS station ageout timer is 40 seconds.
-    Hence, the watchdog timer is set to a value higher than it.
+  Increase the value to avoid kernel Tx timeout message in case
+  station in PS mode or left.
+  The default value of PS station ageout timer is 40 seconds.
+  Hence, the watchdog timer is set to a value higher than it.
 */
 #define MRVDRV_DEFAULT_UAP_WATCHDOG_TIMEOUT (41 * HZ)
 #endif
@@ -1548,6 +1550,8 @@ struct rf_test_mode_data {
 	/* OTP CAL data */
 	mfg_cmd_otp_cal_data_rd_wr_t mfg_otp_cal_data_rd_wr;
 	mfg_CmdDebugTemperature_Cfg_t mfg_debug_temp;
+	/*Generic CMD*/
+	mfg_Cmd_InternalTest_t mfg_InternalTest_t;
 };
 
 /** Number of samples in histogram (/proc/mwlan/adapterX/mlan0/histogram).*/
@@ -1984,6 +1988,7 @@ struct _moal_private {
 	struct cfg80211_bss *assoc_bss;
 #endif
 	t_u8 wait_target_ap_pmkid;
+
 	wait_queue_head_t okc_wait_q __ATTRIB_ALIGN__;
 	struct list_head pmksa_cache_list;
 	spinlock_t pmksa_list_lock;
@@ -2012,10 +2017,6 @@ struct _moal_private {
 	/** cipher */
 	t_u32 cipher;
 #endif
-	/** pmk saved flag */
-	t_u8 pmk_saved;
-	/** pmk */
-	mlan_pmk_t pmk;
 	/** beacon ie index */
 	t_u16 beacon_index;
 	/** proberesp ie index */
@@ -2207,6 +2208,8 @@ struct _moal_private {
 	spinlock_t tx_stat_lock;
 	/** tx_seq_num */
 	t_u8 tx_seq_num;
+	/** tx status queue size */
+	t_u16 tx_stat_queue_size;
 	/** tx status queue */
 	struct list_head tx_stat_queue;
 	/** rx hgm data */
@@ -2632,7 +2635,8 @@ struct radiotap_body {
 	t_u8 flags; /* 8th byte */
 	/** rate for LG pkt, RATE flag will be present, it shows datarate in
 	 * 500Kbps. For HT/VHT pkt, RATE flag will not be present, it is not
-	 * used. */
+	 * used.
+	 */
 	t_u8 rate; /* 9th byte */
 	/** channel */
 	struct channel_field channel; /* 10~13 bytes */
@@ -2652,66 +2656,6 @@ struct radiotap_header {
 	struct ieee80211_radiotap_header hdr;
 	struct radiotap_body body;
 } __packed;
-
-/** Roam offload config parameters */
-typedef struct woal_priv_fw_roam_offload_cfg {
-	/* User set passphrase*/
-	t_u8 userset_passphrase;
-	/* BSSID for fw roaming/auto_reconnect*/
-	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
-	/* Retry_count for fw roaming/auto_reconnect*/
-	t_u8 retry_count;
-	/* Condition to trigger roaming
-	 * Bit0 : RSSI low trigger
-	 * Bit1 : Pre-beacon lost trigger
-	 * Bit2 : Link Lost trigger
-	 * Bit3 : Deauth by ext-AP trigger
-	 * Bit4 ~ Bit15 : Reserved
-	 * value 0 : no trigger
-	 * value 0xff : invalid
-	 */
-	t_u16 trigger_condition;
-	/* SSID List(White list)*/
-	mlan_ds_misc_ssid_list ssid_list;
-	/* Black list(BSSID list)*/
-	mlan_ds_misc_roam_offload_aplist black_list;
-
-	/* RSSI paramters set flag*/
-	t_u8 rssi_param_set_flag;
-	/* MAX_RSSI for fw roaming*/
-	t_u8 max_rssi;
-	/*  MIN_RSSI for fw roaming*/
-	t_u8 min_rssi;
-	/*  Step_RSSI for fw roaming*/
-	t_u8 step_rssi;
-
-	/* BAND and RSSI_HYSTERESIS set flag*/
-	t_u8 band_rssi_flag;
-	mlan_ds_misc_band_rssi band_rssi;
-
-	/* BGSCAN params set flag*/
-	t_u8 bgscan_set_flag;
-	mlan_ds_misc_bgscan_cfg bgscan_cfg;
-
-	/* EES mode params set flag*/
-	t_u8 ees_param_set_flag;
-	mlan_ds_misc_ees_cfg ees_cfg;
-
-	/* Beacon miss threshold*/
-	t_u8 bcn_miss_threshold;
-
-	/* Beacon miss threshold*/
-	t_u8 pre_bcn_miss_threshold;
-
-	/* scan repeat count*/
-	t_u16 repeat_count;
-} woal_roam_offload_cfg;
-#ifdef STA_CFG80211
-int woal_set_clear_pmk(moal_private *priv, t_u8 action);
-#endif
-int woal_config_fw_roaming(moal_private *priv, t_u8 cfg_mode,
-			   woal_roam_offload_cfg *roam_offload_cfg);
-int woal_enable_fw_roaming(moal_private *priv, int data);
 
 #define GTK_REKEY_OFFLOAD_DISABLE 0
 #define GTK_REKEY_OFFLOAD_ENABLE 1
@@ -2836,7 +2780,6 @@ enum ext_mod_params {
 	EXT_COUNTRY_IE_IGNORE,
 	EXT_BEACON_HINTS,
 #endif
-	EXT_ROAMOFFLOAD_IN_HS,
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	EXT_HOST_MLME,
@@ -3174,10 +3117,11 @@ struct _moal_handle {
 	const struct firmware *txpwr_data;
 	/** Operation Mode PSD String */
 	char mode_psd_string[64];
-	/** Operation Mode PSD RU String */
-	char mode_psd_ru_string[64];
 	/** Load time file name */
 	char mode_psd_file[64];
+	/** RU String */
+	char ru_string[64];
+	char pwr_offset_string[64];
 	/** Hotplug device */
 	struct device *hotplug_device;
 	/** STATUS variables */
@@ -3189,7 +3133,7 @@ struct _moal_handle {
 	/** Firmware release number */
 	fw_release_version fw_release_number;
 	/** Firmware Hotfix version */
-	t_u8 fw_hotfix_version;
+	t_u16 fw_hotfix_version;
 	/** Firmware support bands */
 	t_u16 fw_bands;
 	/** ECSA support */
@@ -3198,21 +3142,6 @@ struct _moal_handle {
 	t_u8 cmd_tx_data;
 	/** FW support security key for rgpower table */
 	t_u8 sec_rgpower;
-	/** FW ROAMING support */
-	t_u8 fw_roam_enable;
-	/** FW ROAMING capability in fw */
-	t_u8 fw_roaming_support;
-	/** Retry count for auto reconnect based on FW ROAMING*/
-	t_u16 auto_reconnect_retry_count;
-	/** The SSID for auto reconnect FW ROAMING*/
-	mlan_802_11_ssid auto_reconnect_ssid;
-	/** The BSSID for auto reconnect FW ROAMING*/
-	mlan_802_11_mac_addr auto_reconnect_bssid;
-	/** The parameters for FW  ROAMING*/
-	woal_roam_offload_cfg fw_roam_params;
-	/** The keys for FW  ROAMING*/
-	mlan_ds_passphrase ssid_passphrase[MAX_SEC_SSID_NUM];
-
 	/** Getlog support */
 	t_u8 fw_getlog_enable;
 	/** Init wait queue token */
@@ -3670,6 +3599,7 @@ struct _moal_handle {
 static inline void moal_extflg_set(moal_handle *handle, enum ext_mod_params idx)
 {
 	t_u8 *ext_fbyte;
+
 	ext_fbyte = &handle->params.ext_flgs[idx / 8];
 	*ext_fbyte |= MBIT(idx % 8);
 }
@@ -3685,6 +3615,7 @@ static inline void moal_extflg_clear(moal_handle *handle,
 				     enum ext_mod_params idx)
 {
 	t_u8 *ext_fbyte;
+
 	ext_fbyte = &handle->params.ext_flgs[idx / 8];
 	*ext_fbyte &= ~MBIT(idx % 8);
 }
@@ -3700,6 +3631,7 @@ static inline t_u8 moal_extflg_isset(moal_handle *handle,
 				     enum ext_mod_params idx)
 {
 	t_u8 ext_fbyte;
+
 	ext_fbyte = handle->params.ext_flgs[idx / 8];
 	return (ext_fbyte & MBIT(idx % 8)) != 0;
 }
@@ -3715,6 +3647,7 @@ static inline void woal_set_trans_start(struct net_device *dev)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 	unsigned int i;
+
 	for (i = 0; i < dev->num_tx_queues; i++)
 		netdev_get_tx_queue(dev, i)->trans_start = jiffies;
 #endif
@@ -3756,6 +3689,7 @@ static inline void woal_stop_queue(struct net_device *dev)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	unsigned long flags;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+
 	spin_lock_irqsave(&priv->phandle->queue_lock, flags);
 	woal_set_trans_start(dev);
 	if (!netif_queue_stopped(dev))
@@ -3780,6 +3714,7 @@ static inline void woal_wake_queue(struct net_device *dev)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	unsigned long flags;
 	moal_private *priv = (moal_private *)netdev_priv(dev);
+
 	spin_lock_irqsave(&priv->phandle->queue_lock, flags);
 	if (netif_queue_stopped(dev))
 		netif_tx_wake_all_queues(dev);
@@ -4010,6 +3945,9 @@ static inline void hexdump(t_u32 level, char *prompt, const t_u8 *buf, int len)
 	} while (0)
 #define DBG_HEXDUMP(level, x, y, z) DBG_HEXDUMP_##level(x, y, z)
 
+/** Override flag for drvdbg bit 19 (MFW_D) protection */
+#define DRVDBG_OVERRIDE_FLAG 0xFFFFFFFF
+
 #else
 /** Do nothing since debugging is not turned on */
 #define DBG_HEXDUMP(level, x, y, z)                                            \
@@ -4071,6 +4009,7 @@ static inline moal_private *woal_get_priv(moal_handle *handle,
 					  mlan_bss_role bss_role)
 {
 	int i;
+
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 		if (handle->priv[i]) {
 			if (bss_role == MLAN_BSS_ROLE_ANY ||
@@ -4125,6 +4064,7 @@ static inline moal_private *woal_get_vir_priv_bss_type(moal_handle *handle,
 static inline moal_private *woal_get_priv_with_wdev(moal_handle *handle)
 {
 	int i;
+
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 		if (handle->priv[i]) {
 			if (handle->priv[i]->wdev)
@@ -4867,6 +4807,10 @@ t_u8 woal_find_mcast_node_tx(moal_private *priv, struct sk_buff *skb);
 
 mlan_status woal_request_country_power_table(moal_private *priv, char *region,
 					     t_u8 wait_option, t_u8 psd_mode);
+mlan_status woal_dnld_tx_pwr_offset_table(moal_private *priv, char *country,
+					  t_u8 wait_option);
+mlan_status woal_dnld_ru_power_table(moal_private *priv, char *country,
+				     t_u8 wait_option);
 mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
 			       t_u8 wait_option, t_u8 action);
 #ifdef UAP_SUPPORT
@@ -5053,6 +4997,7 @@ extern void woal_process_ch_sel_and_switch(moal_private *priv,
 extern mlan_status moal_agcs_trans_state(moal_private *priv,
 					 agcs_state next_state);
 extern void woal_agcs_event(moal_private *priv, pagcs_event pacs_start_event);
+extern agcs_state moal_agcs_get_state(moal_private *priv);
 #endif /* UAP_SUPPORT */
 
 #if defined(USB)

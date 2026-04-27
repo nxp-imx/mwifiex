@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file  moal_uap_wext.c
  *
  * @brief This file contains wireless extension standard ioctl functions
  *
  *
- * Copyright 2010-2021, 2025 NXP
+ * Copyright 2010-2021, 2025-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,7 +23,7 @@
 
 /************************************************************************
 Change log:
-    08/06/2010: initial version
+08/06/2010: initial version
 ************************************************************************/
 
 #include "moal_main.h"
@@ -215,6 +216,7 @@ static int woal_get_name(struct net_device *dev, struct iw_request_info *info,
 			 union iwreq_data *wrqu, char *extra)
 {
 	char *cwrq = wrqu->name;
+
 	ENTER();
 	strncpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
 	LEAVE();
@@ -243,11 +245,34 @@ static int woal_get_wap(struct net_device *dev, struct iw_request_info *info,
 	if (priv->bss_started)
 		moal_memcpy_ext(priv->phandle, awrq->sa_data,
 				priv->current_addr, MLAN_MAC_ADDR_LENGTH,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80)
+#ifndef ANDROID_KERNEL
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 211) && /* Backported         \
+							    from 6.1.80        \
+							    to 5.10 LTS */     \
+     LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)) ||                         \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 150) && /* Backported     \
+								from 6.1.80    \
+								to 5.15 LTS */ \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)) ||                     \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 80) && /* Original change  \
+							      introduced here  \
+							      in mainline */   \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)) /* Reverted here in    \
+							   mainline */
 				sizeof(awrq->sa_data_min));
 #else
 				sizeof(awrq->sa_data));
 #endif
+#else // ANDROID_KERNEL
+/* In Android kernel change available from 6.6 to 6.18 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0) &&                          \
+     LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0))
+				sizeof(awrq->sa_data_min));
+#else
+				sizeof(awrq->sa_data));
+#endif
+#endif // ANDROID_KERNEL
+
 	else
 		memset(awrq->sa_data, 0, MLAN_MAC_ADDR_LENGTH);
 	awrq->sa_family = ARPHRD_ETHER;
@@ -340,9 +365,8 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -350,7 +374,8 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 	i = ap_cfg->num_of_chan;
 
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 
 	/* If setting by frequency, convert to a channel */
@@ -373,9 +398,8 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error setting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -415,9 +439,8 @@ static int woal_get_freq(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		kfree(ap_cfg);
 		LEAVE();
@@ -452,6 +475,7 @@ static int woal_set_bss_mode(struct net_device *dev,
 {
 	int ret = 0;
 	t_u32 *uwrq = &wrqu->mode;
+
 	ENTER();
 
 	switch (*uwrq) {
@@ -483,6 +507,7 @@ static int woal_get_bss_mode(struct net_device *dev,
 			     union iwreq_data *wrqu, char *extra)
 {
 	t_u32 *uwrq = &wrqu->mode;
+
 	ENTER();
 
 	*uwrq = IW_MODE_MASTER;
@@ -533,16 +558,16 @@ static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
 	}
 
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 	sys_cfg->wep_cfg.key0.key_index = 0;
 	sys_cfg->wep_cfg.key1.key_index = 1;
@@ -660,9 +685,8 @@ static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
 		}
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error setting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -708,9 +732,8 @@ static int woal_get_encode(struct net_device *dev, struct iw_request_info *info,
 		goto done;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -834,7 +857,8 @@ static int woal_set_gen_ie(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 
 	tlv_buf_left = dwrq->length;
@@ -906,9 +930,8 @@ static int woal_set_gen_ie(struct net_device *dev, struct iw_request_info *info,
 		sys_cfg->key_mgmt_operation |= 0x03;
 
 	if (sys_cfg->protocol) {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
-					    sys_cfg)) {
+		if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+					    sys_cfg) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Error setting AP configuration\n");
 			ret = -EFAULT;
 			goto done;
@@ -926,9 +949,9 @@ static int woal_set_gen_ie(struct net_device *dev, struct iw_request_info *info,
 		}
 	} else if (dwrq->length == 0) {
 		/* custom IE command to re-set priv->bcn_ie_buf */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_custom_ie(priv, 0, priv->bcn_ie_buf,
-					   priv->bcn_ie_len)) {
+		if (woal_set_get_custom_ie(priv, 0, priv->bcn_ie_buf,
+					   priv->bcn_ie_len) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Error resetting wpa-rsn IE\n");
 			ret = -EFAULT;
 		}
@@ -986,7 +1009,8 @@ static int woal_set_encode_ext(struct net_device *dev,
 	}
 
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 
 	pkey_material = (t_u8 *)(ext + 1);
@@ -1075,9 +1099,8 @@ static int woal_set_encode_ext(struct net_device *dev,
 		priv->group_cipher = ext->alg;
 		goto done; /* No AP configuration */
 	}
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error setting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -1257,7 +1280,8 @@ static int woal_set_auth(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 
 	switch (vwrq->flags & IW_AUTH_INDEX) {
@@ -1394,9 +1418,8 @@ static int woal_set_auth(struct net_device *dev, struct iw_request_info *info,
 		sys_cfg->protocol = priv->uap_protocol;
 
 	/* Set AP configuration */
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error setting AP confiruration\n");
 		goto done;
 	}
@@ -1433,9 +1456,8 @@ static int woal_get_auth(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		kfree(ap_cfg);
 		LEAVE();
@@ -1540,9 +1562,8 @@ static int woal_get_range(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		kfree(ap_cfg);
 		LEAVE();
@@ -1706,7 +1727,8 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 	}
 
 	/* Initialize the invalid values so that the correct values
-	 * below are downloaded to firmware */
+	 * below are downloaded to firmware
+	 */
 	woal_set_sys_config_invalid_data(sys_cfg);
 
 	/* Set the SSID */
@@ -1728,9 +1750,8 @@ static int woal_set_essid(struct net_device *dev, struct iw_request_info *info,
 					      "NULL");
 
 	/* Set AP configuration */
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error setting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
@@ -1767,9 +1788,8 @@ static int woal_get_essid(struct net_device *dev, struct iw_request_info *info,
 		return -EFAULT;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   ap_cfg)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    ap_cfg) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		kfree(ap_cfg);
 		LEAVE();
@@ -1886,6 +1906,7 @@ static const iw_handler woal_private_handler[] = {
 			Global Functions
 ********************************************************/
 
+#ifdef CONFIG_WIRELESS_EXT
 // clang-format off
 /** wlan_handler_def */
 struct iw_handler_def woal_uap_handler_def = {
@@ -1900,6 +1921,7 @@ struct iw_handler_def woal_uap_handler_def = {
 #endif
 };
 // clang-format on
+#endif
 
 /**
  *  @brief Get wireless statistics

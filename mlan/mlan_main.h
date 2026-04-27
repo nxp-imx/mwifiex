@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_main.h
  *
  *  @brief This file defines the private and adapter data
@@ -885,7 +886,6 @@ struct wmm_sta_table {
 
 typedef struct mlan_wmm_param {
 	t_u8 ecwmin;
-	;
 	t_u8 ecwmax;
 	t_u8 aifsn;
 } mlan_wmm_param;
@@ -1405,6 +1405,8 @@ typedef struct _mlan_private {
 	t_u8 assoc_req_buf[ASSOC_RSP_BUF_SIZE];
 	/** Length of the data stored in assoc_rsp_buf */
 	t_u32 assoc_req_size;
+	/** Assoc request capability */
+	t_u16 assoc_req_cap;
 	/** delay link lost flag */
 	t_u8 delay_link_lost;
 	/** prev_bssid */
@@ -2649,7 +2651,7 @@ struct _mlan_adapter {
 	/** firmware minor version */
 	t_u8 fw_min_ver;
 	/** firmare hotfix version */
-	t_u8 fw_hotfix_ver;
+	t_u16 fw_hotfix_ver;
 	/** uap firmware version */
 	t_u8 uap_fw_ver;
 	/** mac address retrun from get_hw_spec */
@@ -2667,7 +2669,8 @@ struct _mlan_adapter {
 	defined(SDAW693) || defined(SDIW624) || defined(PCIEAW693) ||          \
 	defined(PCIEIW624) || defined(USBIW624)
 	/** High byte for 5G, low byte for 2G, like 0x2211 0x22 for 5G, 0x11 for
-	 * 2G */
+	 * 2G
+	 */
 	t_u16 user_htstream;
 #endif
 	/** vdll ctrl */
@@ -2774,10 +2777,6 @@ struct _mlan_adapter {
 	t_u32 scan_processing;
 	/** scan state */
 	t_u32 scan_state;
-	/** firmware support for roaming*/
-	t_u8 fw_roaming;
-	/** User set passphrase*/
-	t_u8 userset_passphrase;
 	/** ext_scan enh support flag */
 	t_u8 ext_scan_enh;
 	/** scan type: 0 legacy, 1: enhance scan*/
@@ -3526,12 +3525,13 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf);
  *
  *  @param pmadapter	A pointer to mlan_adapter
  *
- *  @return 	N/A
+ *  @return	N/A
  */
 static INLINE t_void wlan_reset_usb_tx_aggr(pmlan_adapter pmadapter)
 {
 	t_s32 i = 0;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	ENTER();
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 		pcb->moal_spin_lock(
@@ -3573,6 +3573,7 @@ static INLINE usb_tx_aggr_params *
 wlan_get_usb_tx_aggr_params(pmlan_adapter pmadapter, t_u32 port)
 {
 	int i;
+
 	ENTER();
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 		if (pmadapter->pcard_usb->usb_tx_aggr[i].aggr_ctrl.enable &&
@@ -3859,6 +3860,7 @@ static INLINE void wlan_update_port_status(pmlan_adapter pmadapter, t_u32 port,
 					   t_u8 status)
 {
 	int i;
+
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 		if (port == pmadapter->usb_tx_ports[i]) {
 			pmadapter->pcard_usb->usb_port_status[i] = status;
@@ -3882,6 +3884,7 @@ void wlan_resync_usb_port(pmlan_adapter pmadapter);
 static INLINE t_u8 wlan_get_port_index(pmlan_adapter pmadapter, t_u32 port)
 {
 	t_u8 i;
+
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 		if (port == pmadapter->usb_tx_ports[i]) {
 			return i;
@@ -3996,6 +3999,10 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 				      HostCmd_DS_COMMAND *resp,
 				      t_void *pioctl_buf);
+
+/* Prepapre assoc request TX frame with ack status and send drv event to moal */
+void prepare_and_send_tx_assoc_req_frame(mlan_private *pmpriv,
+					 t_u16 status_code);
 
 /** Reset connected state */
 t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect);
@@ -4328,6 +4335,7 @@ static INLINE tdlsStatus_e wlan_get_tdls_link_status(mlan_private *priv,
 						     t_u8 *mac)
 {
 	sta_node *sta_ptr = MNULL;
+
 	sta_ptr = wlan_get_station_entry(priv, mac);
 	if (sta_ptr)
 		return sta_ptr->status;
@@ -4354,6 +4362,7 @@ static INLINE int wlan_is_tdls_link_chan_switching(tdlsStatus_e status)
 static INLINE int wlan_is_send_cmd_allowed(tdlsStatus_e status)
 {
 	int ret = MTRUE;
+
 	switch (status) {
 	case TDLS_SWITCHING_CHANNEL:
 	case TDLS_IN_OFF_CHANNEL:
@@ -4374,6 +4383,7 @@ static INLINE int wlan_is_send_cmd_allowed(tdlsStatus_e status)
 static INLINE int wlan_is_tdls_link_setup(tdlsStatus_e status)
 {
 	int ret = MFALSE;
+
 	switch (status) {
 	case TDLS_SWITCHING_CHANNEL:
 	case TDLS_IN_OFF_CHANNEL:
@@ -4422,6 +4432,7 @@ static INLINE t_bool is_mcast_addr(t_u8 *addr)
 static INLINE int wlan_is_tx_pause(mlan_private *priv, t_u8 *ra)
 {
 	sta_node *sta_ptr = MNULL;
+
 	sta_ptr = wlan_get_station_entry(priv, ra);
 	if (sta_ptr)
 		return sta_ptr->tx_pause;
@@ -4799,8 +4810,6 @@ mlan_status wlan_ret_get_tsf(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 
 t_u8 wlan_ft_akm_is_used(mlan_private *pmpriv, t_u8 *rsn_ie);
 
-mlan_status wlan_clear_fw_roaming_pmk(pmlan_private pmpriv);
-
 mlan_status wlan_get_rgchnpwr_cfg(pmlan_adapter pmadapter,
 				  mlan_ioctl_req *pioctl_req);
 mlan_status wlan_get_chan_trpc_cfg(pmlan_adapter pmadapter,
@@ -5040,6 +5049,7 @@ static INLINE int wlan_is_cmd_pending(mlan_adapter *pmadapter)
 {
 	int ret;
 	cmd_ctrl_node *pcmd_node = MNULL;
+
 	wlan_request_cmd_lock(pmadapter);
 	pcmd_node = (cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						    &pmadapter->cmd_pending_q,

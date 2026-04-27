@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_sta_tx.c
  *
  *  @brief This file contains the handling of data packet
  *  transmission in MLAN module.
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -23,7 +24,7 @@
 
 /********************************************************
 Change log:
-    10/21/2008: initial version
+10/21/2008: initial version
 ********************************************************/
 
 #include "mlan.h"
@@ -122,7 +123,7 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		plocal_tx_pd->tx_control =
 			pmpriv->wmm.user_pri_pkt_tx_ctrl[plocal_tx_pd->priority];
 	if (pmadapter->pps_uapsd_mode) {
-		if (MTRUE == wlan_check_last_packet_indication(pmpriv)) {
+		if (wlan_check_last_packet_indication(pmpriv) == MTRUE) {
 			pmadapter->tx_lock_flag = MTRUE;
 			plocal_tx_pd->flags =
 				MRVDRV_TxPD_POWER_MGMT_LAST_PACKET;
@@ -181,6 +182,7 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
 		mc_tx_ctrl *mc_ctrl =
 			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+
 		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
 		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
 			ctrl->mc_cycle_start = MTRUE;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * @file mlan_cfp.c
  *
@@ -5,7 +6,7 @@
  *  related code
  *
  *
- *  Copyright 2009-2025 NXP
+ *  Copyright 2009-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -2075,7 +2076,7 @@ t_u32 wlan_get_active_data_rates(mlan_private *pmpriv, t_u32 bss_mode,
  *            present in all the regions.
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param band      	band.
+ *  @param band	band.
  *  @param channel      Channel number.
  *
  *  @return             The Tx power
@@ -2198,7 +2199,7 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u16 band,
 			case BAND_AN:
 			case BAND_A | BAND_AN:
 			case BAND_A | BAND_AN | BAND_AAC:
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_A: /* Matching BAND_A */
 				break;
 
@@ -2216,11 +2217,11 @@ wlan_get_cfp_by_band_and_channel(pmlan_adapter pmadapter, t_u16 band,
 			case BAND_B | BAND_G | BAND_GN | BAND_GAC:
 			case BAND_G | BAND_GN | BAND_GAC:
 			case BAND_B | BAND_G:
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_B: /* Matching BAND_B/G */
-			/* Fall Through */
+				/* Fall Through */
 			case BAND_G:
-			/* Fall Through */
+				/* Fall Through */
 			case 0:
 				break;
 			default:
@@ -4466,7 +4467,7 @@ static mlan_status wlan_get_6g_cfpinfo(pmlan_adapter pmadapter,
 		c.is6g_present = 1;
 		c.rows_6g = cfp_no_6g;
 		c.cols_6g = pmadapter->tx_power_table_6g_cols;
-		size += pmadapter->tx_power_table_6g_size;
+		size += (c.rows_6g * c.cols_6g);
 	}
 	/* Check information buffer length of MLAN IOCTL */
 	if (pioctl_req->buf_len < size) {
@@ -4494,9 +4495,8 @@ static mlan_status wlan_get_6g_cfpinfo(pmlan_adapter pmadapter,
 	if (pmadapter->tx_power_table_6g) {
 		memcpy_ext(pmadapter, req_buf + len,
 			   pmadapter->tx_power_table_6g,
-			   pmadapter->tx_power_table_6g_size,
-			   pmadapter->tx_power_table_6g_size);
-		len += pmadapter->tx_power_table_6g_size;
+			   (c.rows_6g * c.cols_6g), (c.rows_6g * c.cols_6g));
+		len += (c.rows_6g * c.cols_6g);
 	}
 out:
 	if (pioctl_req)
@@ -4566,7 +4566,7 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 		c.is2g_present = 1;
 		c.rows_2g = cfp_no_bg;
 		c.cols_2g = pmadapter->tx_power_table_bg_cols;
-		size += pmadapter->tx_power_table_bg_size;
+		size += (c.rows_2g * c.cols_2g);
 	}
 	if (pmadapter->fw_bands & BAND_A) {
 		if (pmadapter->cfp_code_a)
@@ -4577,7 +4577,7 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 		c.is5g_present = 1;
 		c.rows_5g = cfp_no_a;
 		c.cols_5g = pmadapter->tx_power_table_a_cols;
-		size += pmadapter->tx_power_table_a_size;
+		size += (c.rows_5g * c.cols_5g);
 	}
 	/* Check information buffer length of MLAN IOCTL */
 	if (pioctl_req->buf_len < size) {
@@ -4623,16 +4623,14 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 	if (pmadapter->tx_power_table_bg) {
 		memcpy_ext(pmadapter, req_buf + len,
 			   pmadapter->tx_power_table_bg,
-			   pmadapter->tx_power_table_bg_size,
-			   pmadapter->tx_power_table_bg_size);
-		len += pmadapter->tx_power_table_bg_size;
+			   (c.rows_2g * c.cols_2g), (c.rows_2g * c.cols_2g));
+		len += (c.rows_2g * c.cols_2g);
 	}
 	if (pmadapter->tx_power_table_a) {
 		memcpy_ext(pmadapter, req_buf + len,
-			   pmadapter->tx_power_table_a,
-			   pmadapter->tx_power_table_a_size,
-			   pmadapter->tx_power_table_a_size);
-		len += pmadapter->tx_power_table_a_size;
+			   pmadapter->tx_power_table_a, (c.rows_5g * c.cols_5g),
+			   (c.rows_5g * c.cols_5g));
+		len += (c.rows_5g * c.cols_5g);
 	}
 out:
 	if (pioctl_req)

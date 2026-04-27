@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11n.c
  *
  *  @brief This file contains functions for 11n handling.
@@ -655,6 +656,7 @@ wlan_11n_ioctl_min_ba_threshold_cfg(pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_11n_cfg *cfg = MNULL;
+
 	ENTER();
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET)
@@ -997,7 +999,7 @@ static void wlan_send_delba_txbastream_tbl(pmlan_private priv, t_u8 tid)
 /**
  *  @brief update station list for the new aggr_prio_tbl setting
  *
- *  @param priv 	A pointer to mlan_private structure
+ *  @param priv	A pointer to mlan_private structure
  *
  *
  *  @return		N/A
@@ -1520,7 +1522,8 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
 	/* if current channel only support 20MHz, we should not set 40Mz
-	 * supprot*/
+	 * supprot
+	 */
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
 	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
@@ -1599,7 +1602,8 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
 	/* if current channel only support 20MHz, we should not set 40Mz
-	 * supprot*/
+	 * supprot
+	 */
 	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
 	      priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) &&
@@ -1855,6 +1859,7 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 			mlan_event *pevent = (mlan_event *)event_buf;
 			addba_timeout_event *evtbuf =
 				(addba_timeout_event *)pevent->event_buf;
+
 			if (ra_list) {
 				ra_list->packet_count = 0;
 				ra_list->ba_packet_threshold =
@@ -1891,6 +1896,7 @@ void wlan_set_tx_pause_flag(mlan_private *priv, t_u8 flag)
 {
 	mlan_private *pmpriv = MNULL;
 	t_u8 i;
+
 	for (i = 0; i < priv->adapter->priv_num; i++) {
 		pmpriv = priv->adapter->priv[i];
 		if (pmpriv)
@@ -2575,7 +2581,8 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		pchan_list->chan_scan_param[0].bandcfg.chanBand =
 			wlan_band_to_radio_type(pbss_desc->bss_band);
 		/* support the VHT if the network to be join has the VHT
-		 * operation */
+		 * operation
+		 */
 		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
 		    (usr_dot_11ac_bw == BW_FOLLOW_VHTCAP) &&
 		    (!(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_80MHZ)) &&
@@ -3112,6 +3119,7 @@ int wlan_get_rxreorder_tbl(mlan_private *priv, rx_reorder_tbl *buf)
 	rx_reorder_tbl *ptbl = buf;
 	RxReorderTbl *rx_reorder_tbl_ptr;
 	int count = 0;
+
 	ENTER();
 	priv->adapter->callbacks.moal_spin_lock(priv->adapter->pmoal_handle,
 						priv->rx_reorder_tbl_ptr.plock);
@@ -3232,6 +3240,7 @@ void wlan_11n_cleanup_txbastream_tbl(mlan_private *priv, t_u8 *ra)
 {
 	TxBAStreamTbl *ptx_tbl = MNULL;
 	t_u8 i;
+
 	ENTER();
 
 	wlan_request_ralist_lock(priv);
@@ -3252,10 +3261,6 @@ void wlan_update_11n_cap(mlan_private *pmpriv)
 	pmpriv->usr_dev_mcs_support = pmadapter->hw_dev_mcs_support;
 	pmpriv->usr_dot_11n_dev_cap_bg =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
-	if (ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg))
-		SET_EXTCAP_2040_BSS_COEXIST(pmpriv->ext_cap);
-	else
-		RESET_EXTCAP_2040_BSS_COEXIST(pmpriv->ext_cap);
 	pmpriv->usr_dot_11n_dev_cap_a =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
 }

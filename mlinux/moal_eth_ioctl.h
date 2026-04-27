@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 
 /** @file moal_eth_ioctl.h
  *
  * @brief This file contains definition for private IOCTL call.
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -395,7 +396,8 @@ typedef struct _ssu_params_cfg {
 	/* 0-1: Enable spectral packet rate reduction in DB output format */
 	t_u32 rate_deduction;
 	/* 0-7: Number of spectral packets over which spectral data is to be
-	 * averaged. */
+	 * averaged.
+	 */
 	t_u32 n_pkt_avg;
 } __attribute__((packed)) ssu_params_cfg;
 #endif
@@ -533,6 +535,112 @@ typedef struct _android_wifi_priv_cmd {
 #define MW_AUTH_ALG_OPEN_SYSTEM 0x00000001
 #define MW_AUTH_ALG_SHARED_KEY 0x00000002
 #define MW_AUTH_ALG_LEAP 0x00000004
+
+#define RMODE_PWR_DOWN 0
+#define RMODE_2x2_5G_BCA1 1
+#define RMODE_1x2_5G_BCA1 2
+#define RMODE_1x1A_5G_BCA1 3
+#define RMODE_1x1B_5G_BCA1 4
+#define RMODE_2x2_5G_8080_BCA1 5
+#define RMODE_1x1_5G_0DFS_BCA1 6
+#define RMODE_1x1A_5G_BCA2 7
+#define RMODE_1x1B_5G_BCA2 8
+#define RMODE_2x2_2G_BCA1 9
+#define RMODE_1x2_2G_BCA1 10
+#define RMODE_2x2_2G_BCA2 9
+#define RMODE_1x2_2G_BCA2 10
+#define RMODE_1x1A_2G_BCA1 11
+#define RMODE_1x1A_2G_BCA2 11
+#define RMODE_1x1B_5G_11P_BCA1 12
+#define RMODE_2x2_5G_11P_BCA1 13
+#define RMODE_1x1B_2G_BCA1 14
+#define RMODE_1x1B_2G_BCA2 14
+#define RMODE_1x1_2G_0DFS_BCA1 15
+#define RMODE_2x2_6G_BCA1 16
+#define RMODE_1x2_6G_BCA1 17
+#define RMODE_1x1A_6G_BCA1 18
+#define RMODE_1x1B_6G_BCA1 19
+#define RMODE_1x1_6G_0DFS_BCA1 20
+#define RMODE_1x1C_2G_BCA2 21
+#define RMODE_1x1_2G_ANYBAND_BCA1 22
+#define RMODE_1x1_5G_ANYBAND_BCA1 23
+#define RMODE_1x1_6G_ANYBAND_BCA1 24
+
+#define SELECT_BAND(data1)                                                     \
+	do {                                                                   \
+		if ((data1) == RMODE_2x2_2G_BCA1 ||                            \
+		    (data1) == RMODE_1x2_2G_BCA1 ||                            \
+		    (data1) == RMODE_2x2_2G_BCA2 ||                            \
+		    (data1) == RMODE_1x2_2G_BCA2 ||                            \
+		    (data1) == RMODE_1x1A_2G_BCA1 ||                           \
+		    (data1) == RMODE_1x1A_2G_BCA2 ||                           \
+		    (data1) == RMODE_1x1B_2G_BCA1 ||                           \
+		    (data1) == RMODE_1x1B_2G_BCA2 ||                           \
+		    (data1) == RMODE_1x1_2G_0DFS_BCA1 ||                       \
+		    (data1) == RMODE_1x1C_2G_BCA2 ||                           \
+		    (data1) == RMODE_1x1_2G_ANYBAND_BCA1) {                    \
+			handle->rf_data->band = BAND_2GHZ;                     \
+		} else if ((data1) == RMODE_2x2_5G_BCA1 ||                     \
+			   (data1) == RMODE_1x2_5G_BCA1 ||                     \
+			   (data1) == RMODE_1x1A_5G_BCA1 ||                    \
+			   (data1) == RMODE_1x1B_5G_BCA1 ||                    \
+			   (data1) == RMODE_2x2_5G_8080_BCA1 ||                \
+			   (data1) == RMODE_1x1_5G_0DFS_BCA1 ||                \
+			   (data1) == RMODE_1x1A_5G_BCA2 ||                    \
+			   (data1) == RMODE_1x1B_5G_BCA2 ||                    \
+			   (data1) == RMODE_1x1B_5G_11P_BCA1 ||                \
+			   (data1) == RMODE_2x2_5G_11P_BCA1 ||                 \
+			   (data1) == RMODE_1x1_5G_ANYBAND_BCA1) {             \
+			handle->rf_data->band = BAND_5GHZ;                     \
+		} else if ((data1) == RMODE_2x2_6G_BCA1 ||                     \
+			   (data1) == RMODE_1x2_6G_BCA1 ||                     \
+			   (data1) == RMODE_1x1A_6G_BCA1 ||                    \
+			   (data1) == RMODE_1x1B_6G_BCA1 ||                    \
+			   (data1) == RMODE_1x1_6G_0DFS_BCA1 ||                \
+			   (data1) == RMODE_1x1_6G_ANYBAND_BCA1) {             \
+			handle->rf_data->band = BAND_6GHZ;                     \
+		}                                                              \
+	} while (0)
+
+#define SELECT_ANT_CFG(data1)                                                  \
+	do {                                                                   \
+		if ((data1) == RMODE_2x2_5G_BCA1 ||                            \
+		    (data1) == RMODE_2x2_5G_8080_BCA1 ||                       \
+		    (data1) == RMODE_2x2_2G_BCA1 ||                            \
+		    (data1) == RMODE_2x2_2G_BCA2 ||                            \
+		    (data1) == RMODE_2x2_5G_11P_BCA1 ||                        \
+		    (data1) == RMODE_2x2_6G_BCA1) {                            \
+			handle->rf_data->tx_antenna = 3;                       \
+			handle->rf_data->rx_antenna = 3;                       \
+		} else if ((data1) == RMODE_1x1A_5G_BCA1 ||                    \
+			   (data1) == RMODE_1x1A_5G_BCA2 ||                    \
+			   (data1) == RMODE_1x1A_2G_BCA1 ||                    \
+			   (data1) == RMODE_1x1A_2G_BCA2 ||                    \
+			   (data1) == RMODE_1x1A_6G_BCA1) {                    \
+			handle->rf_data->tx_antenna = 1;                       \
+			handle->rf_data->rx_antenna = 1;                       \
+		} else if ((data1) == RMODE_1x1B_5G_BCA1 ||                    \
+			   (data1) == RMODE_1x1B_5G_BCA2 ||                    \
+			   (data1) == RMODE_1x1B_5G_11P_BCA1 ||                \
+			   (data1) == RMODE_1x1B_2G_BCA1 ||                    \
+			   (data1) == RMODE_1x1B_2G_BCA2 ||                    \
+			   (data1) == RMODE_1x1B_6G_BCA1) {                    \
+			handle->rf_data->tx_antenna = 2;                       \
+			handle->rf_data->rx_antenna = 2;                       \
+		} else if ((data1) == RMODE_1x2_2G_BCA1 ||                     \
+			   (data1) == RMODE_1x2_5G_BCA1 ||                     \
+			   (data1) == RMODE_1x2_2G_BCA2 ||                     \
+			   (data1) == RMODE_1x2_6G_BCA1 ||                     \
+			   (data1) == RMODE_1x1_5G_0DFS_BCA1 ||                \
+			   (data1) == RMODE_1x1_2G_0DFS_BCA1 ||                \
+			   (data1) == RMODE_1x1_6G_0DFS_BCA1) {                \
+			handle->rf_data->tx_antenna = 1;                       \
+			handle->rf_data->rx_antenna = 2;                       \
+		} else {                                                       \
+			handle->rf_data->tx_antenna = 1;                       \
+			handle->rf_data->rx_antenna = 1;                       \
+		}                                                              \
+	} while (0)
 
 /* Generic format for most parameters that fit in an int */
 struct mw_param {
@@ -678,10 +786,10 @@ typedef struct _txrate_setting {
 	t_u16 dcm : 1; // BIT8, 0: no DCM; 1: DCM used.
 	t_u16 adv_coding : 1; // BIT9, 0: BCC; 1: LDPC.
 	t_u16 doppler : 2; /* BIT11-BIT10,
-			      00: Doppler0
-			      01: Doppler 1 with Mma =10
-			      10: Doppler 1 with Mma =20
-			   */
+00: Doppler0
+01: Doppler 1 with Mma =10
+10: Doppler 1 with Mma =20
+			    */
 	t_u16 max_pktext : 2; /*BIT12-BIT13:
 			       * Max packet extension
 			       *  0 - 0 usec
@@ -810,5 +918,7 @@ typedef struct {
 #ifdef UAP_SUPPORT
 #define PRIV_CMD_AGCS "agcs"
 #endif
+
+#define PRIV_CMD_ECSA_CNT_CFG "ecsacntcfg"
 
 #endif /* _WOAL_ETH_PRIV_H_ */

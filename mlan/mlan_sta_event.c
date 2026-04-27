@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_sta_event.c
  *
  *  @brief This file contains MLAN event handling.
  *
  *
- *  Copyright 2008-2022, 2024-2025 NXP
+ *  Copyright 2008-2022, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -160,7 +161,7 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 		if (sta_ptr)
 			wlan_delete_station_entry(priv,
 						  tdls_event->peer_mac_addr);
-		if (MTRUE == wlan_is_station_list_empty(priv))
+		if (wlan_is_station_list_empty(priv) == MTRUE)
 			pmadapter->tdls_status = TDLS_NOT_SETUP;
 		else
 			pmadapter->tdls_status = TDLS_IN_BASE_CHANNEL;
@@ -169,6 +170,7 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 		if (sta_ptr) {
 			if (sta_ptr->external_tdls) {
 				mlan_status ret = MLAN_STATUS_SUCCESS;
+
 				PRINTM(MMSG,
 				       "Receive TDLS TEAR DOWN event, Disable TDLS LINK\n");
 				pmadapter->tdls_status = TDLS_TEAR_DOWN;
@@ -180,7 +182,8 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 					   MLAN_MAC_ADDR_LENGTH,
 					   MLAN_MAC_ADDR_LENGTH);
 				/* Send command to firmware to delete tdls
-				 * link*/
+				 * link
+				 */
 				ret = wlan_prepare_cmd(
 					priv, HostCmd_CMD_TDLS_OPERATION,
 					HostCmd_ACT_GEN_SET, 0, (t_void *)MNULL,
@@ -223,7 +226,7 @@ static void wlan_parse_tdls_event(pmlan_private priv, pmlan_buffer pevent)
 			}
 			wlan_delete_station_entry(priv,
 						  tdls_event->peer_mac_addr);
-			if (MTRUE == wlan_is_station_list_empty(priv))
+			if (wlan_is_station_list_empty(priv) == MTRUE)
 				pmadapter->tdls_status = TDLS_NOT_SETUP;
 			else
 				pmadapter->tdls_status = TDLS_IN_BASE_CHANNEL;
@@ -598,6 +601,7 @@ static void wlan_process_sta_tx_pause_event(pmlan_private priv,
 	sta_node *sta_ptr = MNULL;
 	tdlsStatus_e status;
 	t_u8 *bssid = MNULL;
+
 	ENTER();
 	if (priv->media_connected)
 		bssid = priv->curr_bss_params.bss_descriptor.mac_address;
@@ -618,7 +622,7 @@ static void wlan_process_sta_tx_pause_event(pmlan_private priv,
 			status = wlan_get_tdls_link_status(
 				priv, tx_pause_tlv->peermac);
 			if (status != TDLS_NOT_SETUP) {
-				if (MTRUE == wlan_is_tdls_link_setup(status)) {
+				if (wlan_is_tdls_link_setup(status) == MTRUE) {
 					sta_ptr = wlan_get_station_entry(
 						priv, tx_pause_tlv->peermac);
 					if (sta_ptr) {
@@ -677,8 +681,7 @@ static void wlan_print_disconnect_reason(t_u16 reason_code)
 		       "wlan: REASON: (Deauth) Sending STA is leaving (or has left) IBSS or ESS\n");
 		break;
 	case MLAN_REASON_DISASSOC_DUE_TO_INACTIVITY:
-		PRINTM(MMSG,
-		       "wlan: REASON: Disassociated due to inactivity \n");
+		PRINTM(MMSG, "wlan: REASON: Disassociated due to inactivity\n");
 		break;
 	case MLAN_REASON_DISASSOC_AP_BUSY:
 		PRINTM(MMSG,
@@ -727,12 +730,11 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	t_u16 reason_code;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_event *pevent = MNULL;
-	t_u8 addr[MLAN_MAC_ADDR_LENGTH];
 	Event_WLS_FTM_t *event_ftm = MNULL;
 	chan_band_info *pchan_band_info = MNULL;
 	t_u8 radar_chan;
 	t_u8 bandwidth;
-	chan_band_reginfo_t *psta_info = MNULL;
+	MrvlIEtypes_chan_band_reginfo_t *psta_info = MNULL;
 	chan_band_reginfo_t *psta_reg_info = MNULL;
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
@@ -913,8 +915,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			break;
 		pmadapter->tx_lock_flag = MFALSE;
 		if (pmadapter->pps_uapsd_mode && pmadapter->gen_null_pkt) {
-			if (MTRUE ==
-			    wlan_check_last_packet_indication(pmpriv)) {
+			if (wlan_check_last_packet_indication(pmpriv) ==
+			    MTRUE) {
 				if (!pmadapter->data_sent
 #if defined(USB)
 				    && wlan_is_port_ready(pmadapter,
@@ -1027,6 +1029,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 					 *)(pmadapter->event_body);
 			t_u8 channel = pchan_info->channel;
 			chan_freq_power_t *cfp = MNULL;
+
 			DBG_HEXDUMP(MCMD_D, "chan band config",
 				    (t_u8 *)pchan_info,
 				    sizeof(MrvlIEtypes_channel_band_t));
@@ -1105,8 +1108,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 			pmadapter->state_rdh.stage = RDH_CHK_INTFS;
 			wlan_11h_radar_detected_handling(pmadapter, pmpriv);
 		} else {
-			PRINTM(MEVENT, "Ignore Event Radar Detected - handling"
-				       " already in progress.\n");
+			PRINTM(MEVENT,
+			       "Ignore Event Radar Detected - handling already in progress.\n");
 		}
 
 		break;
@@ -1484,47 +1487,6 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_MANAGEMENT_FRAME_WAKEUP:
 		PRINTM(MEVENT, "EVENT: EVENT_MANAGEMENT_FRAME_WAKEUP HOST\n");
 		break;
-	case EVENT_ROAM_OFFLOAD:
-		memcpy_ext(pmadapter, addr,
-			   pmpriv->curr_bss_params.bss_descriptor.mac_address,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-		memcpy_ext(pmadapter,
-			   pmpriv->curr_bss_params.bss_descriptor.mac_address,
-			   (t_u8 *)(pmadapter->event_body + 2),
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-		/** replace ralist's mac address with new mac address */
-		if (0 ==
-		    wlan_ralist_update(
-			    pmpriv, addr,
-			    pmpriv->curr_bss_params.bss_descriptor.mac_address))
-			wlan_ralist_add(pmpriv,
-					pmpriv->curr_bss_params.bss_descriptor
-						.mac_address);
-		wlan_11n_cleanup_reorder_tbl(pmpriv);
-		wlan_11n_deleteall_txbastream_tbl(pmpriv);
-		/*Update the BSS for inform kernel, otherwise kernel will give
-		 * warning for not find BSS*/
-		memcpy_ext(pmadapter, (t_u8 *)&pmadapter->pscan_table[0],
-			   (t_u8 *)&pmpriv->curr_bss_params.bss_descriptor,
-			   sizeof(BSSDescriptor_t), sizeof(BSSDescriptor_t));
-		if (!pmadapter->num_in_scan_table)
-			pmadapter->num_in_scan_table = 1;
-		PRINTM(MEVENT, "EVENT: ROAM OFFLOAD IN FW SUCCESS\n");
-		pevent->bss_index = pmpriv->bss_index;
-		pevent->event_id = MLAN_EVENT_ID_FW_ROAM_OFFLOAD_RESULT;
-		/** Drop event id length and 2 bytes reverved length*/
-		if ((pmbuf->data_len - sizeof(eventcause)) > 2) {
-			pevent->event_len =
-				pmbuf->data_len - sizeof(eventcause) - 2;
-			memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-				   pmadapter->event_body + 2, pevent->event_len,
-				   pevent->event_len);
-			wlan_recv_event(pmpriv, pevent->event_id, pevent);
-		} else {
-			PRINTM(MERROR,
-			       "EVENT: ERR:: ROAM OFFLOAD IN FW has invalid length\n");
-		}
-		break;
 	case EVENT_CLOUD_KEEP_ALIVE_RETRY_FAIL:
 		break;
 	case EVENT_WLS_FTM_COMPLETE:
@@ -1616,6 +1578,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_CHAN_LOAD: {
 		t_u8 *ptr = MNULL;
 		HostCmd_DS_GET_CH_LOAD *cfg_cmd = MNULL;
+
 		ptr = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset);
 		ptr += 4; /* data start */
 		cfg_cmd = (HostCmd_DS_GET_CH_LOAD *)ptr;
@@ -1634,16 +1597,17 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_CHANNEL_SWITCH_REGINFO:
 		PRINTM(MEVENT, "EVENT: Channel Switch Reginfo (%#x)\n",
 		       eventcause);
-		psta_info = (chan_band_reginfo_t *)(pmadapter->event_body);
+		psta_info = (MrvlIEtypes_chan_band_reginfo_t
+				     *)(pmadapter->event_body);
 		DBG_HEXDUMP(MCMD_D, "chan band reginfo", (t_u8 *)psta_info,
-			    sizeof(chan_band_reginfo_t));
+			    sizeof(MrvlIEtypes_chan_band_reginfo_t));
 		/* Setup event buffer */
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_CHAN_SWITCH_REGINFO;
 		pevent->event_len = sizeof(chan_band_reginfo_t);
 		psta_reg_info = (chan_band_reginfo_t *)pevent->event_buf;
 		/* Copy event data */
-		if (psta_reg_info->bandcfg.chanBand == BAND_6GHZ) {
+		if (psta_info->bandcfg.chanBand == BAND_6GHZ) {
 			memcpy_ext(pmadapter, (t_u8 *)&psta_reg_info->bandcfg,
 				   (t_u8 *)&psta_info->bandcfg,
 				   sizeof(psta_info->bandcfg),

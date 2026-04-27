@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11n_aggr.h
  *
  *  @brief This file contains related macros, enum, and struct
  *  of 11n aggregation functionalities
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991

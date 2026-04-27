@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_cfg80211.h
  *
  * @brief This file contains the CFG80211 specific defines.
  *
  *
- * Copyright 2011-2022, 2024-2025 NXP
+ * Copyright 2011-2022, 2024-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -199,7 +200,7 @@ int woal_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device *dev);
 #endif
 
 int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+#if ((KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE) ||                    \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 				   unsigned int link_id,
 #endif
@@ -514,7 +515,7 @@ int woal_cfg80211_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     struct beacon_parameters *params);
 #endif
 
-#if ((CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) ||                    \
+#if ((KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE) ||                    \
      (defined(ANDROID_SDK_VERSION) && ANDROID_SDK_VERSION >= 31))
 int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev,
 			     unsigned int link_id);
@@ -647,7 +648,7 @@ int woal_get_wiphy_chan_dfs_state(struct wiphy *wiphy,
 				  mlan_ds_11h_chan_dfs_state *ch_dfs_state);
 #endif
 
-mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason);
+mlan_status woal_reset_wifi(moal_private *priv, t_u8 cnt, char *reason);
 
 /* Handling for 6E Indoor/Outdoor Mode */
 

@@ -3,7 +3,7 @@
  *  @brief This file contains the secure host interface functions.
  *
  *
- *  Copyright 2025 NXP
+ *  Copyright 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -68,17 +68,31 @@ static mlan_status mlan_shc_data_decrypt(pmlan_adapter pmadapter, t_u8 *buf,
 					 t_u32 len)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_void *enc_data = MNULL;
+
+	if (!len || len < SECURE_HOST_TAG_LEN)
+		return MLAN_STATUS_FAILURE;
 
 	ret = pcb->moal_malloc(pmadapter->pmoal_handle, len, MLAN_MEM_DEF,
 			       (t_u8 **)&enc_data);
 	if (ret != MLAN_STATUS_SUCCESS)
 		return ret;
 
+	/* OVERRUN & cert_arr30_c_violation:
+	 * len=16 (tag-only, no payload) is valid for APCMD_BSS_STOP command.
+	 * The decrypt function handles this case correctly.
+	 *
+	 * cert_str31_c_violation:
+	 * This handles binary encrypted WiFi data, NOT C strings.
+	 * No null termination needed for binary data.
+	 */
+	// coverity[OVERRUN:SUPPRESS]
+	// coverity[cert_arr30_c_violation:SUPPRESS]
+	// coverity[cert_str31_c_violation:SUPPRESS]
 	ret = pcb->moal_secure_host_data_decrypt(pmadapter->pmoal_handle,
 						 &enc_data, (void *)&buf, len);
+	// coverity[misra_c_2012_rule_17_7_violation:SUPPRESS]
 	pcb->moal_mfree(pmadapter->pmoal_handle, enc_data);
 
 	return ret;
@@ -342,5 +356,6 @@ mlan_status mlan_shc_handshake(pmlan_adapter pmadapter, t_u8 type, t_void *msg)
 		break;
 	}
 
+	// coverity[leaked_storage:SUPPRESS]
 	return ret;
 }

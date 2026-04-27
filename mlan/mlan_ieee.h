@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_ieee.h
  *
  *  @brief This file contains IEEE information element related
  *  definitions used in MLAN and MOAL module.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -23,7 +24,7 @@
 
 /******************************************************
 Change log:
-    11/03/2008: initial version
+11/03/2008: initial version
 ******************************************************/
 
 #ifndef _MLAN_IEEE_H_
@@ -445,6 +446,9 @@ typedef MLAN_PACK_START struct {
 	/** followed by SSID and Supported rates */
 	t_u8 variablep[];
 } MLAN_PACK_END IEEEtypes_assoc_req;
+
+/** Management Type*/
+#define FC_TYPE_MGMT 0
 
 /** Assoc Request */
 #define SUBTYPE_ASSOC_REQUEST 0
@@ -899,6 +903,7 @@ typedef MLAN_PACK_START struct {
 #ifdef BIG_ENDIAN_SUPPORT
 	t_u8 Reserved17_23 : 7; /* ! Reserved */
 	t_u8 Schedule : 1;
+
 	IEEEtypes_WMM_TSPEC_TS_Info_AckPolicy_e AckPolicy : 2;
 	t_u8 UserPri : 3; /* ! 802.1d User Priority */
 	// IEEEtypes_WMM_TSPEC_TS_Info_PSB_e PowerSaveBehavior : 1; /*
@@ -907,6 +912,7 @@ typedef MLAN_PACK_START struct {
 	t_u8 Aggregation : 1; /* ! Reserved */
 	t_u8 AccessPolicy2 : 1; /* ! */
 	t_u8 AccessPolicy1 : 1; /* ! */
+
 	IEEEtypes_WMM_TSPEC_TS_Info_Direction_e Direction : 2;
 	t_u8 TID : 4; /* ! Unique identifier */
 	// IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
@@ -915,6 +921,7 @@ typedef MLAN_PACK_START struct {
 	// IEEEtypes_WMM_TSPEC_TS_TRAFFIC_TYPE_e TrafficType : 1;
 	t_u8 TrafficType : 1;
 	t_u8 TID : 4; /* ! Unique identifier */
+
 	IEEEtypes_WMM_TSPEC_TS_Info_Direction_e Direction : 2;
 	t_u8 AccessPolicy1 : 1; /* ! */
 	t_u8 AccessPolicy2 : 1; /* ! */
@@ -923,6 +930,7 @@ typedef MLAN_PACK_START struct {
 	// Legacy/Trigg*/
 	t_u8 PowerSaveBehavior : 1;
 	t_u8 UserPri : 3; /* ! 802.1d User Priority */
+
 	IEEEtypes_WMM_TSPEC_TS_Info_AckPolicy_e AckPolicy : 2;
 	t_u8 Schedule : 1;
 	t_u8 Reserved17_23 : 7; /* ! Reserved */
@@ -1334,43 +1342,43 @@ typedef MLAN_PACK_START struct _VHT_MCS_set {
 typedef MLAN_PACK_START struct _VHT_capa {
 #if 0
 #ifdef BIG_ENDIAN_SUPPORT
-    t_u8 mpdu_max_len:2;
-    t_u8 chan_width:2;
-    t_u8 rx_LDPC:1;
-    t_u8 sgi_80:1;
-    t_u8 sgi_160:1;
-    t_u8 tx_STBC:1;
-    t_u8 rx_STBC:3;
-    t_u8 SU_beamformer_capa:1;
-    t_u8 SU_beamformee_capa:1;
-    t_u8 beamformer_ante_num:3;
-    t_u8 sounding_dim_num:3;
-    t_u8 MU_beamformer_capa:1;
-    t_u8 MU_beamformee_capa:1;
-    t_u8 VHT_TXOP_ps:1;
-    t_u8 HTC_VHT_capa:1;
-    t_u8 max_ampdu_len:3;
-    t_u8 link_apapt_capa:2;
-    t_u8 reserved_1:4;
+	t_u8 mpdu_max_len:2;
+	t_u8 chan_width:2;
+	t_u8 rx_LDPC:1;
+	t_u8 sgi_80:1;
+	t_u8 sgi_160:1;
+	t_u8 tx_STBC:1;
+	t_u8 rx_STBC:3;
+	t_u8 SU_beamformer_capa:1;
+	t_u8 SU_beamformee_capa:1;
+	t_u8 beamformer_ante_num:3;
+	t_u8 sounding_dim_num:3;
+	t_u8 MU_beamformer_capa:1;
+	t_u8 MU_beamformee_capa:1;
+	t_u8 VHT_TXOP_ps:1;
+	t_u8 HTC_VHT_capa:1;
+	t_u8 max_ampdu_len:3;
+	t_u8 link_apapt_capa:2;
+	t_u8 reserved_1:4;
 #else
-    t_u8 reserved_1:4;
-    t_u8 link_apapt_capa:2;
-    t_u8 max_ampdu_len:3;
-    t_u8 HTC_VHT_capa:1;
-    t_u8 VHT_TXOP_ps:1;
-    t_u8 MU_beamformee_capa:1;
-    t_u8 MU_beamformer_capa:1;
-    t_u8 sounding_dim_num:3;
-    t_u8 beamformer_ante_num:3;
-    t_u8 SU_beamformee_capa:1;
-    t_u8 SU_beamformer_capa:1;
-    t_u8 rx_STBC:3;
-    t_u8 tx_STBC:1;
-    t_u8 sgi_160:1;
-    t_u8 sgi_80:1;
-    t_u8 rx_LDPC:1;
-    t_u8 chan_width:2;
-    t_u8 mpdu_max_len:2;
+	t_u8 reserved_1:4;
+	t_u8 link_apapt_capa:2;
+	t_u8 max_ampdu_len:3;
+	t_u8 HTC_VHT_capa:1;
+	t_u8 VHT_TXOP_ps:1;
+	t_u8 MU_beamformee_capa:1;
+	t_u8 MU_beamformer_capa:1;
+	t_u8 sounding_dim_num:3;
+	t_u8 beamformer_ante_num:3;
+	t_u8 SU_beamformee_capa:1;
+	t_u8 SU_beamformer_capa:1;
+	t_u8 rx_STBC:3;
+	t_u8 tx_STBC:1;
+	t_u8 sgi_160:1;
+	t_u8 sgi_80:1;
+	t_u8 rx_LDPC:1;
+	t_u8 chan_width:2;
+	t_u8 mpdu_max_len:2;
 #endif /* BIG_ENDIAN_SUPPORT */
 #endif
 	t_u32 vht_cap_info;

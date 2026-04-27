@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_uap_txrx.c
  *
  *  @brief This file contains AP mode transmit and receive functions
@@ -22,7 +23,7 @@
 
 /********************************************************
 Change log:
-    02/05/2009: initial version
+02/05/2009: initial version
 ********************************************************/
 
 #include "mlan.h"
@@ -58,6 +59,7 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
 #endif
 	PRxPD prx_pd;
+
 	ENTER();
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
@@ -242,6 +244,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
 		mc_tx_ctrl *mc_ctrl =
 			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
+
 		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
 		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
 			ctrl->mc_cycle_start = MTRUE;
@@ -367,8 +370,7 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) !=
 	    (t_u16)pmbuf->data_len) {
 		PRINTM(MERROR,
-		       "Wrong rx packet: len=%d,rx_pkt_offset=%d,"
-		       " rx_pkt_length=%d\n",
+		       "Wrong rx packet: len=%d,rx_pkt_offset=%d, rx_pkt_length=%d\n",
 		       pmbuf->data_len, prx_pd->rx_pkt_offset,
 		       prx_pd->rx_pkt_length);
 		pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
@@ -809,9 +811,18 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 			}
 		}
 	} else {
-		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) &&
-		    (wlan_get_station_entry(priv,
-					    prx_pkt->eth803_hdr.dest_addr))) {
+		sta_node *dest_sta = wlan_get_station_entry(
+			priv, prx_pkt->eth803_hdr.dest_addr);
+		if ((!(priv->pkt_fwd & PKT_FWD_INTRA_UCAST)) && dest_sta) {
+			if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
+				/* This is a 4-address frame from backhaul */
+				if (dest_sta && !dest_sta->is_multi_ap) {
+					/* Destination is a fronthaul client
+					 * (3-address mode) Clear EASYMESH flag
+					 * to convert 4-addr to 3-addr */
+					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
+				}
+			}
 			/* Forwarding Intra-BSS packet */
 #ifdef USB
 			if (IS_USB(pmadapter->card_type)) {

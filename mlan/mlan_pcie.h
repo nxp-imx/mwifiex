@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_pcie.h
  *
  *  @brief This file contains definitions for PCIE interface.
  *  driver.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -85,7 +86,8 @@ Change log:
 /** destination rd/wr pointer */
 #define ADMA_DST_RW_PTR 0x0018
 /** interrupt direction mapping reg, for each virtual Q, used for
- * dual-descriptor only, only valid for Q0 */
+ * dual-descriptor only, only valid for Q0
+ */
 #define ADMA_INT_MAPPING 0x001C
 /** destination interrupt to device */
 #define DEST_INT_TO_DEVICE MBIT(0)
@@ -114,7 +116,8 @@ Change log:
 /** ADMA_MSI_LEGACY_SRC_DMA_DONE_INT_BYPASS_EN */
 #define ADMA_MSI_LEGACY_SRC_DMA_DONE_INT_BYPASS_EN MBIT(21)
 /* If this bit is set, MSIX trigger event will be from DST, other wise MSIX
- * trigger event will be from SRC */
+ * trigger event will be from SRC
+ */
 #define ADMA_MSIX_INT_SRC_DST_SEL MBIT(20)
 /** Enable MSI/Legacy for this Queue */
 #define ADMA_MSI_LEGACY_ENABLE MBIT(19)

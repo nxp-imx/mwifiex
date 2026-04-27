@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_init.c
  *
  *  @brief This file contains the initialization for FW
  *  and HW.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -23,7 +24,7 @@
 
 /********************************************************
 Change log:
-    10/13/2008: initial version
+10/13/2008: initial version
 ********************************************************/
 
 #include "mlan.h"
@@ -196,6 +197,7 @@ static mlan_status vdll_init(pmlan_adapter pmadapter)
 static t_void vdll_deinit(pmlan_adapter pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+
 	ENTER();
 	if (pmadapter->vdll_ctrl.vdll_mem != MNULL) {
 		if (pcb->moal_vmalloc && pcb->moal_vfree)
@@ -406,7 +408,7 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 	/* Initialize PCIE ring buffer */
 	if (IS_PCIE(pmadapter->card_type)) {
 		ret = wlan_alloc_pcie_ring_buf(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
+		if (ret != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR,
 			       "Failed to allocate PCIE host buffers\n");
 			LEAVE();
@@ -728,8 +730,6 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->last_init_cmd = 0;
 	pmadapter->pending_ioctl = MFALSE;
 	pmadapter->scan_processing = MFALSE;
-	pmadapter->fw_roaming = MFALSE;
-	pmadapter->userset_passphrase = MFALSE;
 	pmadapter->cmd_timer_is_set = MFALSE;
 	pmadapter->dnld_cmd_in_secs = 0;
 
@@ -1024,6 +1024,7 @@ mlan_status wlan_init_priv_lock_list(pmlan_adapter pmadapter, t_u8 start_index)
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	t_s32 i = 0;
 	t_u32 j = 0;
+
 	for (i = start_index; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
 			priv = pmadapter->priv[i];
@@ -1592,22 +1593,23 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 	}
 #ifdef PCIE
 	else if (IS_PCIE(pmadapter->card_type)) {
-		if (MLAN_STATUS_SUCCESS != wlan_set_pcie_buf_config(priv)) {
+		if (wlan_set_pcie_buf_config(priv) != MLAN_STATUS_SUCCESS) {
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
-	}
 
-	if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693
+		if (((pmadapter->card_type) & 0xff) == CARD_TYPE_AW693
 #ifdef SECURE_HOST
-	    && (!pmadapter->shc_secure_host)
+		    && (!pmadapter->shc_secure_host)
 #endif
-	) {
-		ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
+		) {
+			ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
+					       HostCmd_ACT_GEN_SET, 0, MNULL,
+					       MNULL);
+			if (ret) {
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
 		}
 	}
 #endif /* PCIE */
@@ -1648,7 +1650,8 @@ done:
 static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 {
 	t_u32 i;
-	MrvlIEtypes_He_cap_t *user_he_cap_tlv = MNULL;
+	MrvlIEtypes_He_cap_t *user_he_cap_2g_tlv = MNULL;
+	MrvlIEtypes_He_cap_t *user_he_cap_5g_tlv = MNULL;
 
 	ENTER();
 
@@ -1745,28 +1748,41 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 					pmadapter->hw_he_cap,
 					pmadapter->hw_hecap_len,
 					sizeof(pmadapter->priv[i]->user_he_cap));
-				user_he_cap_tlv =
+
+				user_he_cap_2g_tlv =
 					(MrvlIEtypes_He_cap_t *)&pmadapter
 						->priv[i]
 						->user_2g_he_cap;
-				if (pmadapter->priv[i]->bss_role ==
-				    MLAN_BSS_ROLE_STA)
-					user_he_cap_tlv->he_mac_cap[0] &=
-						~HE_MAC_CAP_TWT_RESP_SUPPORT;
-				else
-					user_he_cap_tlv->he_mac_cap[0] &=
-						~HE_MAC_CAP_TWT_REQ_SUPPORT;
-				user_he_cap_tlv =
+				user_he_cap_5g_tlv =
 					(MrvlIEtypes_He_cap_t *)&pmadapter
 						->priv[i]
 						->user_he_cap;
+
+				user_he_cap_2g_tlv->he_phy_cap[0] &=
+					~AX_2G_40MHZ_SUPPORT;
 				if (pmadapter->priv[i]->bss_role ==
 				    MLAN_BSS_ROLE_STA)
-					user_he_cap_tlv->he_mac_cap[0] &=
+					user_he_cap_2g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_RESP_SUPPORT;
 				else
-					user_he_cap_tlv->he_mac_cap[0] &=
+					user_he_cap_2g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
+				if (pmadapter->priv[i]->bss_role ==
+				    MLAN_BSS_ROLE_STA)
+					user_he_cap_5g_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_RESP_SUPPORT;
+				else
+					user_he_cap_5g_tlv->he_mac_cap[0] &=
+						~HE_MAC_CAP_TWT_REQ_SUPPORT;
+				PRINTM(MERROR,
+				       "LHX|hw_spec=%d, user_2g_he_cap=%08x\n",
+				       i,
+				       (t_u64)(&pmadapter->priv[i]
+							->user_2g_he_cap));
+				DBG_HEXDUMP(
+					MERROR, "LHX|hw_spec",
+					user_he_cap_2g_tlv->he_phy_cap,
+					sizeof(user_he_cap_2g_tlv->he_phy_cap));
 			}
 		}
 	}
@@ -2067,7 +2083,8 @@ static mlan_status wlan_init_interface(pmlan_adapter pmadapter)
 		if (pmadapter->bss_attr[i].active == MTRUE) {
 			if (!pmadapter->priv[i]) {
 				/* For valid bss_attr, allocate memory for
-				 * private structure */
+				 * private structure
+				 */
 				if (pcb->moal_vmalloc && pcb->moal_vfree)
 					ret = pcb->moal_vmalloc(
 						pmadapter->pmoal_handle,

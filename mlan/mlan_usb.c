@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_usb.c
  *
  *  @brief This file contains USB specific code
  *
  *
- *  Copyright 2008-2021, 2024-2025 NXP
+ *  Copyright 2008-2021, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -22,8 +23,8 @@
 
 /********************************************************
 Change log:
-    04/21/2009: initial version
-********************************************************/
+04/21/2009: initial version
+ ********************************************************/
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -35,8 +36,8 @@ Change log:
 #include "mlan_main.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+  Local Variables
+ ********************************************************/
 #ifdef USB8897
 static const struct _mlan_card_info mlan_card_info_usb8897 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
@@ -258,8 +259,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 		fw_data_param_num =
 			MIN(MAX_FW_DATA_BLOCK, bitcount(fw_data_param));
 		/** Get the custom Fw data */
-		if (MLAN_STATUS_SUCCESS !=
-		    wlan_get_custom_fw_data(pmadapter, (t_u8 *)fw_data_list))
+		if (wlan_get_custom_fw_data(pmadapter, (t_u8 *)fw_data_list) !=
+		    MLAN_STATUS_SUCCESS)
 			goto cleanup;
 	}
 
@@ -280,7 +281,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 			DataLength = 0;
 		} else {
 			/* reset length and Copy the header of the firmware data
-			 * to get the length */
+			 * to get the length
+			 */
 			fwdata->fw_header.data_length = 0;
 			if (firmware)
 				memcpy_ext(pmadapter, &fwdata->fw_header,
@@ -328,6 +330,7 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 		while (retries) {
 			mlan_buffer mbuf;
 			int length = FW_DATA_XMIT_SIZE;
+
 			retries--;
 
 			memset(pmadapter, &mbuf, 0, sizeof(mlan_buffer));
@@ -364,7 +367,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 				   sizeof(FWSyncHeader), sizeof(SyncFWHeader));
 			endian_convert_syncfwheader(&SyncFWHeader);
 			/* Check the first firmware block response for highest
-			 * bit set */
+			 * bit set
+			 */
 			if (check_winner) {
 				if (SyncFWHeader.cmd & 0x80000000) {
 					PRINTM(MMSG,
@@ -392,7 +396,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 			/* Check the firmware block response for CRC errors */
 			if (SyncFWHeader.cmd) {
 				/* Check firmware block response for CRC and MIC
-				 * errors */
+				 * errors
+				 */
 				if (check_fw_status) {
 					if (SyncFWHeader.status & MBIT(0)) {
 						PRINTM(MERROR,
@@ -435,7 +440,8 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 				firmware = fw_data_list[fw_data_index]
 						   .fw_data_buffer;
 				/** make TotalBytes as 0 as allocated custom Fw
-				 * data buffers are not contiguous */
+				 * data buffers are not contiguous
+				 */
 				TotalBytes = 0;
 				fw_data_index++;
 			}
@@ -558,7 +564,7 @@ wlan_usb_tx_copy_buf_to_aggr(pmlan_adapter pmadapter, pmlan_buffer pmbuf_aggr,
  *  @param pmadapter	Pointer to mlan_adapter structure
  *  @param pmbuf_aggr	Pointer to aggregation buffer
  *  @param pmbuf		Pointer to buffer to copy
- *	@param last 		last packet flag
+ *	@param last		last packet flag
  *  @param pusb_tx_aggr Pointer to usb_tx_aggr_params
  *
  *  @return   N/A
@@ -612,6 +618,7 @@ wlan_usb_copy_buf_to_aggr(pmlan_adapter pmadapter,
 	pmlan_buffer pmbuf_aggr = MNULL;
 	t_u8 i, use_count;
 	pmlan_buffer pmbuf_curr, pmbuf_next;
+
 	pmbuf_aggr = wlan_alloc_mlan_buffer(
 		pmadapter, pusb_tx_aggr->aggr_len, 0,
 		MOAL_MEM_FLAG_DIRTY | MOAL_MALLOC_BUFFER);
@@ -686,6 +693,7 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 {
 	mlan_status ret;
 	pmlan_buffer pmbuf_aggr = pusb_tx_aggr->pmbuf_aggr;
+
 	ENTER();
 	if (!pusb_tx_aggr->pmbuf_aggr) {
 		LEAVE();
@@ -717,6 +725,7 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 	} else if (pusb_tx_aggr->aggr_ctrl.aggr_mode ==
 		   MLAN_USB_AGGR_MODE_LEN_V2) {
 		t_u8 *payload = pmbuf_aggr->pbuf + pmbuf_aggr->data_offset;
+
 		write_u16_unaligned(pmadapter, &payload[0],
 				    wlan_cpu_to_le16(pmbuf_aggr->data_len));
 		write_u16_unaligned(pmadapter, &payload[2],
@@ -743,7 +752,8 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 			/* Shouldn't reach here due to next condition. */
 			/* TODO: (maybe) How to requeue the aggregate? */
 			/* It may occur when the pending tx urbs reach the high
-			 * mark */
+			 * mark
+			 */
 			/* Thus, block further pkts for a bit */
 			PRINTM(MERROR,
 			       "Error: moal_write_data_async failed: 0x%X\n",
@@ -790,7 +800,7 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
  *	@brief This function get pcie device from card type
  *
  *	@param pmadapter  A pointer to mlan_adapter structure
- *	@return 		  MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *	@return		  MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 {
@@ -841,7 +851,7 @@ mlan_status wlan_get_usb_device(pmlan_adapter pmadapter)
 		break;
 #endif
 	default:
-		PRINTM(MERROR, "can't get right USB card type \n");
+		PRINTM(MERROR, "can't get right USB card type\n");
 		ret = MLAN_STATUS_FAILURE;
 		break;
 	}
@@ -928,7 +938,8 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 
 		/* make new buffer and copy packet to it (including RxPD).
 		 * Also, reserve headroom so that there must have space
-		 * to change RxPD to TxPD for bridge packet in uAP mode */
+		 * to change RxPD to TxPD for bridge packet in uAP mode
+		 */
 		/* pdeaggr_buf is freed in moal_recv_complete(), therefore
 		 * Overwriting pdeaggr_buf is not harmful.
 		 */
@@ -1012,6 +1023,7 @@ static t_u8 wlan_is_port_tx_paused(pmlan_adapter pmadapter,
 	mlan_private *pmpriv = MNULL;
 	t_u8 i;
 	t_u8 ret = MFALSE;
+
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		pmpriv = pmadapter->priv[i];
 		if (pmpriv && pmpriv->tx_pause &&
@@ -1028,7 +1040,7 @@ static t_u8 wlan_is_port_tx_paused(pmlan_adapter pmadapter,
  *  It will send the aggregate buffer being held.
  *
  *  @param function_context   A pointer to function_context
- *  @return 	   N/A
+ *  @return	   N/A
  */
 t_void wlan_usb_tx_aggr_timeout_func(t_void *function_context)
 {
@@ -1056,7 +1068,7 @@ t_void wlan_usb_tx_aggr_timeout_func(t_void *function_context)
  *
  *  @param pmadapter	A pointer to mlan_adapter
  *  @param pmbuf		A pointer to the transmit buffer
- *  @param tx_param 	A pointer to mlan_tx_param
+ *  @param tx_param	A pointer to mlan_tx_param
  *  @param pusb_tx_aggr A pointer to usb_tx_aggr_params
  *
  *  @return		MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE
@@ -1104,7 +1116,8 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 				MLAN_USB_TX_MIN_AGGR_TIMEOUT;
 		} else {
 			/* Increase timeout in milisecond if pkts are
-			 * consecutive */
+			 * consecutive
+			 */
 			if (pusb_tx_aggr->hold_timeout_msec <
 			    MLAN_USB_TX_MAX_AGGR_TIMEOUT)
 				pusb_tx_aggr->hold_timeout_msec++;
@@ -1164,7 +1177,7 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 
 	/* PERFORM ACTIONS as decided */
 	if (f_precopy_cur_buf) {
-		PRINTM(MIF_D, "%s: Precopy current buffer.\n", __FUNCTION__);
+		PRINTM(MIF_D, "%s: Precopy current buffer.\n", __func__);
 		wlan_usb_tx_link_buf_to_aggr(pmbuf_aggr, pmbuf, pusb_tx_aggr);
 	}
 	if (pmbuf_aggr->use_count + 1 >= max_aggr_num)
@@ -1175,13 +1188,13 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 		f_send_aggr_buf = 1;
 
 	if (f_send_aggr_buf) {
-		PRINTM(MIF_D, "%s: Send aggregate buffer.\n", __FUNCTION__);
+		PRINTM(MIF_D, "%s: Send aggregate buffer.\n", __func__);
 		wlan_usb_tx_send_aggr(pmadapter, pusb_tx_aggr);
 		pmbuf_aggr = pusb_tx_aggr->pmbuf_aggr; /* update ptr */
 	}
 
 	if (f_postcopy_cur_buf) {
-		PRINTM(MIF_D, "%s: Postcopy current buffer.\n", __FUNCTION__);
+		PRINTM(MIF_D, "%s: Postcopy current buffer.\n", __func__);
 		if (!pmbuf_aggr) { /* this is possible if just sent (above) */
 			/* use this buf to start linked list */
 			pmbuf->pnext = pmbuf->pprev = pmbuf;
@@ -1219,6 +1232,7 @@ mlan_status wlan_usb_host_to_card_aggr(pmlan_adapter pmadapter,
 inline t_u8 wlan_usb_data_sent(pmlan_adapter pmadapter)
 {
 	int i;
+
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 		if (pmadapter->pcard_usb->usb_port_status[i] == MFALSE)
 			return MFALSE;
@@ -1358,7 +1372,7 @@ static mlan_status wlan_usb_host_to_card(pmlan_private pmpriv, t_u8 type,
 	ENTER();
 
 	if (!pmbuf) {
-		PRINTM(MERROR, "Passed NULL pmbuf to %s\n", __FUNCTION__);
+		PRINTM(MERROR, "Passed NULL pmbuf to %s\n", __func__);
 		return MLAN_STATUS_FAILURE;
 	}
 	if (type == MLAN_TYPE_CMD

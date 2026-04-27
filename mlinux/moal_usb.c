@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_usb.c
  *
  * @brief This file contains the interfaceing to USB bus
@@ -58,7 +59,7 @@ typedef struct {
 /** Name of the USB driver */
 static const char usbdriver_name[] = "usbxxx";
 
-static struct usb_device_id *woal_usb_table_ext = NULL;
+static struct usb_device_id *woal_usb_table_ext;
 static usb_config_t customer_usb_config = {0x0};
 
 /** This structure contains the device signature */
@@ -194,7 +195,7 @@ static moal_if_ops usb_ops;
  *  @param urb		Pointer to struct urb
  *  @param regs		Registers
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_receive(struct urb *urb, struct pt_regs *regs)
 #else
@@ -204,7 +205,7 @@ static void woal_usb_receive(struct urb *urb, struct pt_regs *regs)
  *
  *  @param urb		Pointer to struct urb
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_receive(struct urb *urb)
 #endif
@@ -268,9 +269,11 @@ static void woal_usb_receive(struct urb *urb)
 		if (status == MLAN_STATUS_PENDING) {
 			queue_work(handle->workqueue, &handle->main_work);
 			/* urb for data_ep is re-submitted now, unless we reach
-			 * USB_HIGH_RX_PENDING */
+			 * USB_HIGH_RX_PENDING
+			 */
 			/* urb for cmd_ep will be re-submitted in callback
-			 * moal_recv_complete */
+			 * moal_recv_complete
+			 */
 			if (cardp->rx_cmd_ep == context->ep)
 				goto rx_exit;
 			else if (atomic_read(&handle->rx_pending) >=
@@ -412,7 +415,7 @@ static void woal_usb_tx_complete(struct urb *urb)
  *  @param ctx		Pointer to urb_context structure
  *  @param size	        Skb size
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_submit_rx_urb(urb_context *ctx, int size)
 {
@@ -497,7 +500,7 @@ rx_ret:
  *  @param usb_strap     A pointer to usb_strap
  *  @param boot_mode     A pointer to boot_mode
  *
- *  @return 	   	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_check_chip_revision(moal_handle *handle,
 					    t_u32 *usb_chip_rev,
@@ -598,12 +601,13 @@ cleanup:
  *  @brief This function unlink urb
  *
  *  @param handle A pointer to moal_handle structure
- *  @return 	  N/A
+ *  @return	  N/A
  */
 static void woal_usb_unlink_urb(void *card_desc)
 {
 	struct usb_card_rec *cardp = (struct usb_card_rec *)card_desc;
 	int i;
+
 	ENTER();
 	if (cardp) {
 		/* Unlink Rx cmd URB */
@@ -646,7 +650,7 @@ static void woal_usb_unlink_urb(void *card_desc)
  *
  *  @param cardp	Pointer usb_card_rec
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_usb_free(struct usb_card_rec *cardp)
 {
@@ -868,7 +872,7 @@ static t_u16 woal_update_card_type(t_void *card)
  *  @param intf		Pointer to usb_interface
  *  @param id		Pointer to usb_device_id
  *
- *  @return 	   	Address of variable usb_cardp, error code otherwise
+ *  @return		Address of variable usb_cardp, error code otherwise
  */
 static int woal_usb_probe(struct usb_interface *intf,
 			  const struct usb_device_id *id)
@@ -933,7 +937,8 @@ static int woal_usb_probe(struct usb_interface *intf,
 #endif /* USBIW610 */
 
 				/* If skip FW is set, we must return error so
-				 * the next driver can download the FW */
+				 * the next driver can download the FW
+				 */
 				if (skip_fwdnld)
 					goto error;
 				else
@@ -982,8 +987,7 @@ static int woal_usb_probe(struct usb_interface *intf,
 		usb_cardp->intf = intf;
 
 		PRINTM(MINFO,
-		       "bcdUSB = 0x%X bDeviceClass = 0x%X"
-		       " bDeviceSubClass = 0x%X, bDeviceProtocol = 0x%X\n",
+		       "bcdUSB = 0x%X bDeviceClass = 0x%X bDeviceSubClass = 0x%X, bDeviceProtocol = 0x%X\n",
 		       woal_cpu_to_le16(udev->descriptor.bcdUSB),
 		       udev->descriptor.bDeviceClass,
 		       udev->descriptor.bDeviceSubClass,
@@ -1102,16 +1106,16 @@ static int woal_usb_probe(struct usb_interface *intf,
 			    !usb_cardp->rx_cmd_ep || !usb_cardp->rx_data_ep) {
 				PRINTM(MERROR,
 				       "%s: invalid endpoint assignment\n",
-				       __FUNCTION__);
+				       __func__);
 				goto error;
 			}
 			if (!usb_cardp->tx_data2_ep) {
 				PRINTM(MERROR,
 				       "%s: invalid endpoint assignment\n",
-				       __FUNCTION__);
+				       __func__);
 				PRINTM(MERROR,
 				       "%s: DATA2 endpoint is not enumarated\n",
-				       __FUNCTION__);
+				       __func__);
 			}
 		}
 
@@ -1140,8 +1144,7 @@ static int woal_usb_probe(struct usb_interface *intf,
 		/* At this point wlan_add_card() will be called */
 		if (!(woal_add_card(usb_cardp, &usb_cardp->udev->dev, &usb_ops,
 				    card_type))) {
-			PRINTM(MERROR, "%s: woal_add_card failed\n",
-			       __FUNCTION__);
+			PRINTM(MERROR, "%s: woal_add_card failed\n", __func__);
 			goto error;
 		}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
@@ -1181,12 +1184,13 @@ error:
  *
  *  @param intf		Pointer to usb_interface
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 static void woal_usb_disconnect(struct usb_interface *intf)
 {
 	struct usb_card_rec *cardp = usb_get_intfdata(intf);
 	moal_handle *phandle = NULL;
+
 	ENTER();
 	if (!cardp || !cardp->phandle) {
 		PRINTM(MERROR, "Card or phandle is not valid\n");
@@ -1218,7 +1222,7 @@ static void woal_usb_disconnect(struct usb_interface *intf)
  *  @param handle	  Pointer to moal_handle
  *
  *
- *  @return 	   	  N/A
+ *  @return		  N/A
  */
 void woal_kill_urbs(moal_handle *handle)
 {
@@ -1234,7 +1238,7 @@ void woal_kill_urbs(moal_handle *handle)
  *  @param handle	  Pointer to moal_handle
  *
  *
- *  @return 	   	  N/A
+ *  @return		  N/A
  */
 void woal_resubmit_urbs(moal_handle *handle)
 {
@@ -1264,7 +1268,7 @@ void woal_resubmit_urbs(moal_handle *handle)
  *  @param intf		  Pointer to usb_interface
  *  @param message	  Pointer to pm_message_t structure
  *
- *  @return 	   	  MLAN_STATUS_SUCCESS
+ *  @return		  MLAN_STATUS_SUCCESS
  */
 static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 {
@@ -1299,9 +1303,8 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	memset(&pm_info, 0, sizeof(pm_info));
 #define MAX_RETRY_USB 8
 	for (i = 0; i < MAX_RETRY_USB; i++) {
-		if (MLAN_STATUS_SUCCESS ==
-		    woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
-				     &pm_info)) {
+		if (woal_get_pm_info(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
+				     &pm_info) == MLAN_STATUS_SUCCESS) {
 			if (pm_info.is_suspend_allowed == MTRUE)
 				break;
 			else
@@ -1373,7 +1376,7 @@ done:
  *
  *  @param intf		  Pointer to usb_interface
  *
- *  @return 	   	  MLAN_STATUS_SUCCESS
+ *  @return		  MLAN_STATUS_SUCCESS
  */
 static int woal_usb_resume(struct usb_interface *intf)
 {
@@ -1397,7 +1400,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 
 	/* Indicate device resumed.
 	 * The netdev queue will be resumed only after the urbs
-	 * have been resubmitted */
+	 * have been resubmitted
+	 */
 	handle->is_suspended = MFALSE;
 
 	if (!atomic_read(&cardp->rx_data_urb_pending)) {
@@ -1452,9 +1456,9 @@ done:
 /**
  *  @brief This function initialize the tx URBs
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_tx_init(moal_handle *handle)
 {
@@ -1504,9 +1508,9 @@ init_exit:
 /**
  *  @brief This function submits the rx data URBs
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 {
@@ -1543,9 +1547,9 @@ mlan_status woal_usb_submit_rx_data_urbs(moal_handle *handle)
 /**
  *  @brief This function initialize the rx URBs and submit them
  *
- *  @param handle 	Pointer to moal_handle structure
+ *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_rx_init(moal_handle *handle)
 {
@@ -1603,9 +1607,9 @@ init_exit:
  *  @param handle	Pointer to moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to send
- *  @param timeout 	Timeout value in milliseconds (if 0 the wait is forever)
+ *  @param timeout	Timeout value in milliseconds (if 0 the wait is forever)
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_write_data_sync(moal_handle *handle,
 					    mlan_buffer *pmbuf, t_u32 endpoint,
@@ -1649,9 +1653,9 @@ static mlan_status woal_usb_write_data_sync(moal_handle *handle,
  *  @param handle	Pointer to moal_handle structure
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to receive
- *  @param timeout 	Timeout value in milliseconds (if 0 the wait is forever)
+ *  @param timeout	Timeout value in milliseconds (if 0 the wait is forever)
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_read_data_sync(moal_handle *handle,
 					   mlan_buffer *pmbuf, t_u32 endpoint,
@@ -1663,6 +1667,7 @@ static mlan_status woal_usb_read_data_sync(moal_handle *handle,
 	t_u32 buf_len = pmbuf->data_len;
 	int actual_length;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 	/* Receive the data response */
 	ret = usb_bulk_msg(cardp->udev, usb_rcvbulkpipe(cardp->udev, ep), data,
@@ -1684,7 +1689,7 @@ static mlan_status woal_usb_read_data_sync(moal_handle *handle,
  *  @param pmbuf	Pointer to mlan_buffer structure
  *  @param ep		Endpoint to send
  *
- *  @return 	   	MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE or
+ *  @return		MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE or
  * MLAN_STATUS_RESOURCE
  */
 mlan_status woal_write_data_async(moal_handle *handle, mlan_buffer *pmbuf,
@@ -1825,7 +1830,7 @@ tx_ret:
  *
  *  @param handle	Pointer to moal_handle structure
  *
- *  @return 	   	MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return		MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 static mlan_status woal_usb_register_dev(moal_handle *handle)
 {
@@ -1842,6 +1847,7 @@ static mlan_status woal_usb_register_dev(moal_handle *handle)
 static void woal_usb_unregister_dev(moal_handle *handle)
 {
 	struct usb_card_rec *cardp = (struct usb_card_rec *)handle->card;
+
 	PRINTM(MMSG, "USB: unregister device\n");
 	woal_usb_free(cardp);
 	cardp->phandle = NULL;
@@ -1851,11 +1857,12 @@ static void woal_usb_unregister_dev(moal_handle *handle)
 /**
  *  @brief This function registers driver.
  *
- *  @return 	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ *  @return	 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status woal_usb_bus_register(void)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 
 	if (skip_fwdnld) {
@@ -1870,7 +1877,7 @@ mlan_status woal_usb_bus_register(void)
 	 * to the USB system
 	 */
 	if (usb_register(&woal_usb_driver)) {
-		PRINTM(MFATAL, "USB Driver Registration Failed \n");
+		PRINTM(MFATAL, "USB Driver Registration Failed\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
 	LEAVE();
@@ -1880,7 +1887,7 @@ mlan_status woal_usb_bus_register(void)
 /**
  *  @brief This function removes usb driver.
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_usb_bus_unregister(void)
 {
@@ -2045,7 +2052,7 @@ int woal_exit_usb_suspend(moal_handle *handle)
  *  @param handle   Pointer to moal_handle
  *  @param ep       Endpoint to re-submit urb
  *
- *  @return 	   	N/A
+ *  @return		N/A
  */
 void woal_submit_rx_urb(moal_handle *handle, t_u8 ep)
 {
@@ -2276,7 +2283,7 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #endif
 
 done:
-	PRINTM(MCMND, "combo fw:%s wlan fw:%s \n", handle->card_info->fw_name,
+	PRINTM(MCMND, "combo fw:%s wlan fw:%s\n", handle->card_info->fw_name,
 	       handle->card_info->fw_name_wlan);
 	LEAVE();
 	return ret;
@@ -2294,7 +2301,7 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 			     t_u16 *current_entry_idx)
 {
 	char *token, *value;
-	static usb_config_entry_t *current_entry = NULL;
+	static usb_config_entry_t *current_entry;
 
 	/* Remove whitespace and newlines */
 	line = strim(line);
@@ -2420,6 +2427,7 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 static t_size parse_cfg_get_line(t_u8 *data, t_size size, t_u8 *line_pos)
 {
 	t_u8 *src, *dest;
+
 	static t_s32 pos;
 
 	ENTER();
@@ -2504,6 +2512,7 @@ static int parse_usb_config_file(const char *config_path, usb_config_t *config)
 
 	if (ret >= 0) {
 		int i, j;
+
 		config->total_entries = entry_idx;
 
 		/* Count total valid VID/PID pairs */
@@ -2658,6 +2667,7 @@ int woal_usb_init_extended_table(const char *config_path)
 
 	/* Count original table size */
 	struct usb_device_id *entry = woal_usb_table;
+
 	while (entry->idVendor != 0 || entry->idProduct != 0) {
 		original_size++;
 		entry++;
@@ -2687,7 +2697,6 @@ int woal_usb_init_extended_table(const char *config_path)
 
 	return 0;
 }
-
 /**
  * check_usb_ext_table_info - Check USB extended table for device information
  * @device_name: Buffer to store the device name (can be NULL)

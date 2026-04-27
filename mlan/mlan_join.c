@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_join.c
  *
  *  @brief Functions implementing wlan infrastructure and adhoc join routines
@@ -7,7 +8,7 @@
  *  to the firmware.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -103,7 +104,8 @@ static int wlan_cmd_append_generic_ie(mlan_private *priv, t_u8 **ppbuffer)
 		ret_len += sizeof(ie_header);
 
 		/* Copy the generic IE buffer to the output buffer, advance
-		 * pointer */
+		 * pointer
+		 */
 		memcpy_ext(priv->adapter, *ppbuffer, priv->gen_ie_buf,
 			   priv->gen_ie_buf_len, priv->gen_ie_buf_len);
 
@@ -167,7 +169,8 @@ static int wlan_cmd_append_pass_through_ie(mlan_private *priv,
 		ret_len += sizeof(ie_header);
 
 		/* Copy the generic IE buffer to the output buffer, advance
-		 * pointer */
+		 * pointer
+		 */
 		memcpy_ext(priv->adapter, *ppbuffer, ie,
 			   ie->ieee_hdr.len + sizeof(IEEEtypes_Header_t),
 			   ie->ieee_hdr.len + sizeof(IEEEtypes_Header_t));
@@ -299,7 +302,8 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 		// coverity[cert_exp33_c_violation:SUPPRESS]
 		for (j = 0; tmp[j] && j < rate1_size; j++) {
 			/* Check common rate, excluding the bit
-			 * for basic rate */
+			 * for basic rate
+			 */
 			if ((rate2[i] & 0x7F) == (tmp[j] & 0x7F)) {
 				/* i & j are restricted by rate2_size and
 				 * rate1_size resp */
@@ -317,7 +321,8 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 
 	if (!pmpriv->is_data_rate_auto) {
 		/* rate1_size is decremented in sync with ptr++ and loop exits
-		 * when rate1_size becomes 0 ensures no overflow */
+		 * when rate1_size becomes 0 ensures no overflow
+		 */
 		// coverity[integer_overflow:SUPPRESS]
 		while (rate1_size && *ptr) {
 			/* loop exits when rate1_size becomes 0 */
@@ -330,8 +335,7 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 			rate1_size--;
 		}
 		PRINTM(MMSG,
-		       "Previously set fixed data rate %#x is not "
-		       "compatible with the network\n",
+		       "Previously set fixed data rate %#x is not compatible with the network\n",
 		       pmpriv->data_rate);
 
 		ret = MLAN_STATUS_FAILURE;
@@ -366,6 +370,7 @@ static mlan_status wlan_setup_rates_from_bssdesc(mlan_private *pmpriv,
 {
 	t_u8 card_rates[WLAN_SUPPORTED_RATES] = {0};
 	t_u32 card_rates_size = 0;
+
 	ENTER();
 	/* Copy AP supported rates */
 	memcpy_ext(pmpriv->adapter, pout_rates, pbss_desc->supported_rates,
@@ -619,10 +624,10 @@ done:
 /**
  *  @brief This function check if we should enable 11w
  *
- *  @param pmpriv       	A pointer to mlan_private structure
+ *  @param pmpriv	A pointer to mlan_private structure
  *
  *  @param BSSDescriptor_t      A pointer to BSSDescriptor_t data structure
- *  @param return       	MTRUE/MFALSE
+ *  @param return	MTRUE/MFALSE
  */
 static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 {
@@ -859,7 +864,8 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	ap_mfpr = ((*prsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
 
 	/* Check for negative case
-	 * If WPA3SAE AP has PMF=0, block the association */
+	 * If WPA3SAE AP has PMF=0, block the association
+	 */
 	if ((*akm_type == AssocAgentAuth_Wpa3Sae) && (!ap_mfpc && !ap_mfpr)) {
 		PRINTM(MERROR,
 		       "RSNE: WPA3-SAE AP with incorrect PMF setting, can't associate to AP\n");
@@ -1220,6 +1226,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	if (pbss_desc->prsnx_ie != MNULL && pbss_desc->prsnx_ie->ieee_hdr.len) {
 		IEEEtypes_rsnx_ie_t *rsnx_tlv;
 		t_u16 len = 0;
+
 		rsnx_tlv = (IEEEtypes_rsnx_ie_t *)pos;
 		rsnx_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_RSNX);
 		rsnx_tlv->data[0] = rsnx_tlv->data[1] = rsnx_tlv->data[2] = 0;
@@ -1280,7 +1287,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	       pmpriv->config_bands & BAND_AN) &&
 	      (pbss_desc->pht_cap))) {
 		/* Append a channel TLV for the channel the attempted AP was
-		 * found on */
+		 * found on
+		 */
 		pchan_tlv = (MrvlIEtypes_ChanListParamSet_t *)pos;
 		pchan_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
 		pchan_tlv->header.len =
@@ -1515,13 +1523,12 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			wlan_find_ie(pmpriv->gen_ie_buf, pmpriv->gen_ie_buf_len,
 				     REGULATORY_CLASS);
 		if (!oper_class_flag) {
-			if (MLAN_STATUS_SUCCESS ==
-			    wlan_get_curr_oper_class(
+			if (wlan_get_curr_oper_class(
 				    pmpriv,
 				    pbss_desc->phy_param_set.ds_param_set
 					    .current_chan,
 				    pbss_desc->curr_bandwidth, &oper_class,
-				    &global_oper_class))
+				    &global_oper_class) == MLAN_STATUS_SUCCESS)
 				wlan_add_supported_oper_class_ie(pmpriv, &pos,
 								 oper_class);
 		}
@@ -1705,10 +1712,116 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	tmp_cap = wlan_cpu_to_le16(tmp_cap);
 	memcpy_ext(pmadapter, &passo->cap_info, &tmp_cap, sizeof(tmp_cap),
 		   sizeof(passo->cap_info));
+	// Store assoc request capability
+	pmpriv->assoc_req_cap = wlan_le16_to_cpu(tmp_cap);
 
 done:
 	LEAVE();
 	return ret;
+}
+
+/* @brief Prepapre assoc request TX frame with ack status.
+ * Format is
+ *   ----------------------------------------
+ *  | ack_status(t_u8) | 802.11 Assoc Frame |
+ *  ----------------------------------------
+ *
+ * @param pmpriv       A pointer to mlan_private structure
+ * @param status_code  association status code. wlan_ret_802_11_associate()
+ * comment documents  status_code details.
+ */
+void prepare_and_send_tx_assoc_req_frame(mlan_private *pmpriv,
+					 t_u16 status_code)
+
+{
+	IEEEtypes_MgmtHdr_t *mgmt = MNULL;
+	IEEEtypes_assoc_req *assoc_req = MNULL;
+	t_u8 *event_buf = MNULL;
+	mlan_event *pevent = MNULL;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_callbacks *pcb = (mlan_callbacks *)&pmpriv->adapter->callbacks;
+	t_u8 ack = 0;
+	int max_size;
+
+	ENTER();
+	max_size = sizeof(mlan_event) + sizeof(IEEEtypes_MgmtHdr_t) +
+		   sizeof(IEEEtypes_assoc_req) + ASSOC_RSP_BUF_SIZE;
+	/* Allocate memory for event buffer */
+	ret = pcb->moal_malloc(pmpriv->adapter->pmoal_handle, max_size,
+			       MLAN_MEM_DEF, &event_buf);
+	if ((ret != MLAN_STATUS_SUCCESS) || !event_buf) {
+		PRINTM(MERROR,
+		       "Could not allocate buffer for Tx assoc frame event buf\n");
+		LEAVE();
+		return;
+	}
+	_memset(pmpriv->adapter, event_buf, 0, max_size);
+	pevent = (pmlan_event)event_buf;
+
+	pevent->bss_index = pmpriv->bss_index;
+	pevent->event_id = MLAN_EVENT_ID_DRV_ASSOC_REQ_FRAME_WITH_ACK_STATUS;
+	if (status_code) {
+		ack = 0;
+	} else {
+		ack = 1;
+	}
+
+	memcpy_ext(pmpriv->adapter, pevent->event_buf, &ack, sizeof(ack),
+		   sizeof(ack));
+	pevent->event_len = sizeof(ack);
+
+	// Prepare assoc req frame header
+	mgmt = (IEEEtypes_MgmtHdr_t *)(pevent->event_buf + pevent->event_len);
+	// Association frame control
+	mgmt->FrmCtl = wlan_cpu_to_le16(FC_TYPE_MGMT | SUBTYPE_ASSOC_REQUEST);
+	pevent->event_len += sizeof(mgmt->FrmCtl);
+	// duration
+	mgmt->Duration = 0;
+	pevent->event_len += sizeof(mgmt->Duration);
+	// Destination Addr
+	memcpy_ext(pmpriv->adapter, mgmt->DestAddr,
+		   pmpriv->curr_bss_params.attemp_bssid, MLAN_MAC_ADDR_LENGTH,
+		   MLAN_MAC_ADDR_LENGTH);
+	pevent->event_len += sizeof(mgmt->DestAddr);
+	// Source Addr
+	memcpy_ext(pmpriv->adapter, mgmt->SrcAddr, pmpriv->curr_addr,
+		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+	pevent->event_len += sizeof(mgmt->SrcAddr);
+	// bssid
+	memcpy_ext(pmpriv->adapter, mgmt->BssId,
+		   pmpriv->curr_bss_params.attemp_bssid, MLAN_MAC_ADDR_LENGTH,
+		   MLAN_MAC_ADDR_LENGTH);
+	pevent->event_len += sizeof(mgmt->BssId);
+
+	mgmt->SeqCtl.SeqNum = 0;
+	mgmt->SeqCtl.FragNum = 0;
+	pevent->event_len += sizeof(mgmt->SeqCtl);
+
+	assoc_req =
+		(IEEEtypes_assoc_req *)(pevent->event_buf + pevent->event_len);
+	assoc_req->capab_info = wlan_cpu_to_le16(pmpriv->assoc_req_cap);
+	pevent->event_len += sizeof(assoc_req->capab_info);
+	assoc_req->listen_interval = wlan_cpu_to_le16(pmpriv->listen_interval);
+	pevent->event_len += sizeof(assoc_req->listen_interval);
+	// variable length IE
+	/* event_buf is allocated considering variablep of size
+	 * ASSOC_RSP_BUF_SIZE, hence supressed
+	 */
+	// coverity[cert_arr30_c_violation:SUPPRESS]
+	memcpy_ext(pmpriv->adapter, assoc_req->variablep, pmpriv->assoc_req_buf,
+		   pmpriv->assoc_req_size, ASSOC_RSP_BUF_SIZE);
+	pevent->event_len += pmpriv->assoc_req_size;
+
+	/* event_buf is allocated considering max assoc request frame size,
+	 * ensuring no overflow hence supressed
+	 */
+	// coverity[integer_overflow:SUPPRESS]
+	wlan_recv_event(pmpriv, pevent->event_id, pevent);
+
+	if (event_buf)
+		pcb->moal_mfree(pmpriv->adapter->pmoal_handle, event_buf);
+	LEAVE();
+	return;
 }
 
 /**
@@ -1826,6 +1939,15 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 	} else
 		passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
 	passoc_rsp->status_code = wlan_le16_to_cpu(passoc_rsp->status_code);
+	if (mlan_drvdbg & MDAT_D) {
+		/* Send assoc req frame to android packet fate monitor as at
+		 * this point driver knows TX assoc request frame ack status.
+		 * passoc_rsp->status_code 0 meaning assoc request is acked.
+		 */
+		prepare_and_send_tx_assoc_req_frame(pmpriv,
+						    passoc_rsp->status_code);
+	}
+
 	pmpriv->delay_link_lost = MFALSE;
 	if (pmpriv->media_connected == MTRUE)
 		memcpy_ext(pmpriv->adapter, cur_mac,
@@ -1901,8 +2023,7 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 		pmpriv->adapter->dbg.num_cmd_assoc_failure++;
 		pmpriv->adapter->dbg.num_cons_assoc_failure++;
 		PRINTM(MERROR,
-		       "ASSOC_RESP: Association Failed, "
-		       "status code = %d, error = 0x%x, a_id = 0x%x\n",
+		       "ASSOC_RESP: Association Failed, status code = %d, error = 0x%x, a_id = 0x%x\n",
 		       passoc_rsp->status_code,
 		       wlan_le16_to_cpu(read_u16_unaligned(
 			       pmpriv->adapter, &passoc_rsp->capability)),
@@ -2147,7 +2268,8 @@ mlan_status wlan_associate(mlan_private *pmpriv, t_void *pioctl_buf,
 	ENTER();
 
 	/* Return error if the pmadapter or table entry
-	 *  is not marked as infra */
+	 * is not marked as infra
+	 */
 	if ((pmpriv->bss_mode != MLAN_BSS_MODE_INFRA) ||
 	    (pbss_desc->bss_mode != MLAN_BSS_MODE_INFRA)) {
 		if (pioctl_req)
@@ -2191,34 +2313,30 @@ mlan_status wlan_disconnect(mlan_private *pmpriv, mlan_ioctl_req *pioctl_req,
 	if (deauth_param)
 		memcpy_ext(pmpriv->adapter, &local_param, deauth_param,
 			   sizeof(*deauth_param), sizeof(local_param));
-	if (pmpriv->media_connected == MTRUE) {
-		if (pmpriv->bss_mode == MLAN_BSS_MODE_INFRA) {
-			if (!deauth_param ||
-			    !memcmp(pmpriv->adapter, deauth_param->mac_addr,
-				    zero_mac, sizeof(zero_mac)))
-				memcpy_ext(pmpriv->adapter,
-					   local_param.mac_addr,
-					   (t_u8 *)&pmpriv->curr_bss_params
-						   .bss_descriptor.mac_address,
-					   MLAN_MAC_ADDR_LENGTH,
-					   MLAN_MAC_ADDR_LENGTH);
+	if (pmpriv->bss_mode == MLAN_BSS_MODE_INFRA) {
+		if (!deauth_param ||
+		    !memcmp(pmpriv->adapter, deauth_param->mac_addr, zero_mac,
+			    sizeof(zero_mac)))
+			memcpy_ext(pmpriv->adapter, local_param.mac_addr,
+				   (t_u8 *)&pmpriv->curr_bss_params
+					   .bss_descriptor.mac_address,
+				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 #ifdef WIFI_DIRECT_SUPPORT
-			if (pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
-				ret = wlan_prepare_cmd(
-					pmpriv, HostCmd_CMD_802_11_DISASSOCIATE,
-					HostCmd_ACT_GEN_SET, 0,
-					(t_void *)pioctl_req, &local_param);
-			else
+		if (pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_802_11_DISASSOCIATE,
+					       HostCmd_ACT_GEN_SET, 0,
+					       (t_void *)pioctl_req,
+					       &local_param);
+		else
 #endif
-				ret = wlan_prepare_cmd(
-					pmpriv,
-					HostCmd_CMD_802_11_DEAUTHENTICATE,
-					HostCmd_ACT_GEN_SET, 0,
-					(t_void *)pioctl_req, &local_param);
+			ret = wlan_prepare_cmd(
+				pmpriv, HostCmd_CMD_802_11_DEAUTHENTICATE,
+				HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
+				&local_param);
 
-			if (ret == MLAN_STATUS_SUCCESS && pioctl_req)
-				ret = MLAN_STATUS_PENDING;
-		}
+		if (ret == MLAN_STATUS_SUCCESS && pioctl_req)
+			ret = MLAN_STATUS_PENDING;
 	}
 
 	LEAVE();

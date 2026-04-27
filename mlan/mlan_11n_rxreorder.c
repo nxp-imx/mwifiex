@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11n_rxreorder.c
  *
  *  @brief This file contains the handling of RxReordering in wlan
  *  driver.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -59,6 +60,7 @@ static mlan_status wlan_11n_dispatch_amsdu_pkt(mlan_private *priv,
 					       pmlan_buffer pmbuf)
 {
 	RxPD *prx_pd;
+
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
 	ENTER();
@@ -98,9 +100,9 @@ static mlan_status wlan_11n_dispatch_pkt(t_void *priv, t_void *payload,
 
 #ifdef UAP_SUPPORT
 	if (GET_BSS_ROLE((mlan_private *)priv) == MLAN_BSS_ROLE_UAP) {
-		if (MLAN_STATUS_SUCCESS ==
-		    wlan_11n_dispatch_amsdu_pkt((mlan_private *)priv,
-						(pmlan_buffer)payload)) {
+		if (wlan_11n_dispatch_amsdu_pkt((mlan_private *)priv,
+						(pmlan_buffer)payload) ==
+		    MLAN_STATUS_SUCCESS) {
 			LEAVE();
 			return ret;
 		}
@@ -111,9 +113,9 @@ static mlan_status wlan_11n_dispatch_pkt(t_void *priv, t_void *payload,
 #endif /* UAP_SUPPORT */
 
 #ifdef STA_SUPPORT
-	if (MLAN_STATUS_SUCCESS ==
-	    wlan_11n_dispatch_amsdu_pkt((mlan_private *)priv,
-					(pmlan_buffer)payload)) {
+	if (wlan_11n_dispatch_amsdu_pkt((mlan_private *)priv,
+					(pmlan_buffer)payload) ==
+	    MLAN_STATUS_SUCCESS) {
 		LEAVE();
 		return ret;
 	}
@@ -136,6 +138,7 @@ static void mlan_11n_rxreorder_timer_restart(pmlan_adapter pmadapter,
 {
 	t_u16 min_flush_time = pmadapter->flush_time_ac_be_bk;
 	mlan_wmm_ac_e wmm_ac;
+
 	ENTER();
 
 	wmm_ac = wlan_wmm_convert_tos_to_ac(pmadapter, rx_reor_tbl_ptr->tid);
@@ -428,6 +431,7 @@ static t_void wlan_start_flush_data(mlan_private *priv,
 static t_void wlan_flush_data(t_void *context)
 {
 	reorder_tmr_cnxt_t *reorder_cnxt = (reorder_tmr_cnxt_t *)context;
+
 	ENTER();
 	/* Set the flag to flush data */
 	reorder_cnxt->priv->adapter->flush_data = MTRUE;
@@ -471,7 +475,7 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 
 	/*
 	 * If we get a TID, ta pair which is already present dispatch all the
-	 * the packets and move the window size until the ssn
+	 * packets and move the window size until the ssn
 	 */
 	rx_reor_tbl_ptr = wlan_11n_get_rxreorder_tbl(priv, tid, ta);
 	if (rx_reor_tbl_ptr) {
@@ -496,8 +500,7 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 	if (pmadapter->callbacks.moal_malloc(
 		    pmadapter->pmoal_handle, sizeof(pmlan_buffer) * win_size,
 		    MLAN_MEM_DEF, (t_u8 **)&new_node->rx_reorder_ptr)) {
-		PRINTM(MERROR, "Rx reorder table memory allocation"
-			       "failed\n");
+		PRINTM(MERROR, "Rx reorder table memory allocation failed\n");
 		pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
 						(t_u8 *)new_node);
 		mlan_block_rx_process(pmadapter, MFALSE);
@@ -1033,8 +1036,7 @@ mlan_status mlan_11n_rxreorder_pkt(void *priv, t_u16 seq_num, t_u16 tid,
 		}
 
 		PRINTM(MDAT_D,
-		       "3:seq_num %d start_win %d win_size %d"
-		       " end_win %d\n",
+		       "3:seq_num %d start_win %d win_size %d end_win %d\n",
 		       seq_num, start_win, win_size, end_win);
 		if (pkt_type != PKT_TYPE_BAR) {
 			if (seq_num >= start_win) {
@@ -1128,8 +1130,8 @@ void mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid, t_u8 *peer_mac,
 		cleanup_rx_reorder_tbl = (initiator) ? MFALSE : MTRUE;
 
 	PRINTM(MEVENT,
-	       "delete_bastream_tbl: " MACSTR " tid=%d, type=%d "
-	       "initiator=%d reason=%d\n",
+	       "delete_bastream_tbl: " MACSTR
+	       " tid=%d, type=%d initiator=%d reason=%d\n",
 	       MAC2STR(peer_mac), tid, type, initiator, reason_code);
 
 	if (cleanup_rx_reorder_tbl) {
@@ -1328,6 +1330,7 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	t_u8 i, j;
 	t_u16 seq_num = 0;
 	int tlv_buf_left = len;
+
 	ENTER();
 
 	DBG_HEXDUMP(MEVT_D, "RXBA_SYNC_EVT", event_buf, len);
@@ -1376,13 +1379,13 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 					       seq_num,
 					       rx_reor_tbl_ptr->start_win,
 					       rx_reor_tbl_ptr->win_size);
-					if (MLAN_STATUS_SUCCESS !=
-					    mlan_11n_rxreorder_pkt(
+					if (mlan_11n_rxreorder_pkt(
 						    priv, seq_num,
 						    tlv_rxba->tid,
 						    tlv_rxba->mac, 0,
 						    (t_void *)
-							    RX_PKT_DROPPED_IN_FW)) {
+							    RX_PKT_DROPPED_IN_FW) !=
+					    MLAN_STATUS_SUCCESS) {
 						PRINTM(MERROR,
 						       "Fail to handle dropped packet, seq=%d\n",
 						       seq_num);
@@ -1411,6 +1414,7 @@ void wlan_cleanup_reorder_tbl(mlan_private *priv, t_u8 *ta)
 {
 	RxReorderTbl *rx_reor_tbl_ptr = MNULL;
 	t_u8 i;
+
 	ENTER();
 	for (i = 0; i < MAX_NUM_TID; ++i) {
 		rx_reor_tbl_ptr = wlan_11n_get_rxreorder_tbl(priv, i, ta);
@@ -1465,6 +1469,7 @@ void wlan_update_rxreorder_tbl(pmlan_adapter pmadapter, t_u8 flag)
 {
 	t_u8 i;
 	pmlan_private priv = MNULL;
+
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
 			priv = pmadapter->priv[i];
@@ -1476,7 +1481,7 @@ void wlan_update_rxreorder_tbl(pmlan_adapter pmadapter, t_u8 flag)
 
 /**
  *  @brief This function will flush the data  in rxreorder_tbl.
- *  	   which has flush_data flag on.
+ *	   which has flush_data flag on.
  *
  *  @param priv    A pointer to mlan_private
  *
@@ -1519,6 +1524,7 @@ void wlan_flush_rxreorder_tbl(pmlan_adapter pmadapter)
 {
 	t_u8 i;
 	pmlan_private priv = MNULL;
+
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
 			priv = pmadapter->priv[i];
@@ -1611,6 +1617,7 @@ void wlan_coex_ampdu_rxwinsize(pmlan_adapter pmadapter)
 	t_u8 i;
 	pmlan_private priv = MNULL;
 	t_u8 count = 0;
+
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
 			priv = pmadapter->priv[i];

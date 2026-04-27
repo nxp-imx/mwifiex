@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11ax.c
  *
  *  @brief This file contains the functions for 11ax related features.
  *
  *
- *  Copyright 2018-2022, 2025 NXP
+ *  Copyright 2018-2022, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -597,22 +598,25 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 					pmadapter->hw_hecap_len,
 					sizeof(pmadapter->priv[i]->user_he_cap));
 			}
+			if (he_cap_2g) {
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_2g_he_cap;
+				user_he_cap_tlv->he_phy_cap[0] &=
+					~AX_2G_40MHZ_SUPPORT;
+			} else {
+				user_he_cap_tlv =
+					(MrvlIEtypes_He_cap_t *)&pmadapter
+						->priv[i]
+						->user_he_cap;
+			}
+
 			/**
 			 *  Clear TWT bits in he_mac_cap by bss role
 			 *  STA mode should clear TWT responder bit
 			 *  UAP mode should clear TWT request bit
 			 */
-			if (he_cap_2g)
-				user_he_cap_tlv =
-					(MrvlIEtypes_He_cap_t *)&pmadapter
-						->priv[i]
-						->user_2g_he_cap;
-			else
-				user_he_cap_tlv =
-					(MrvlIEtypes_He_cap_t *)&pmadapter
-						->priv[i]
-						->user_he_cap;
-
 			if (pmadapter->priv[i]->bss_role == MLAN_BSS_ROLE_STA)
 				user_he_cap_tlv->he_mac_cap[0] &=
 					~HE_MAC_CAP_TWT_RESP_SUPPORT;
@@ -640,6 +644,7 @@ t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
 	IEEEtypes_HeOp_t *phe_op_info;
 	IEEEtypes_He6GOpInfo_t *phe_6g_op_info;
 	t_u8 ie_len = HE_OP_INFO_IE_FIX_LEN;
+
 	if (!pbss_desc->phe_oprat)
 		return band_width;
 	phe_op_info = (IEEEtypes_HeOp_t *)pbss_desc->phe_oprat;
@@ -671,7 +676,8 @@ t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
 		}
 		break;
 	case BW_80MHZ:
-	/* TODO: Use CHAN_BW_80MHZ until the support for 160MHz gets added */
+		/* TODO: Use CHAN_BW_80MHZ until the support for 160MHz gets
+		 * added */
 	case BW_160MHZ:
 		band_width = CHAN_BW_80MHZ;
 		break;

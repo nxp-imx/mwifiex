@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_11n_rxreorder.h
  *
  *  @brief This file contains related macros, enum, and struct
  *  of 11n RxReordering functionalities
  *
  *
- *  Copyright 2008-2021 NXP
+ *  Copyright 2008-2021, 2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -49,7 +50,8 @@ Change log:
 /** Position of INITIATOR in DelBA Param set */
 #define DELBA_INITIATOR_POS 11
 /** Reason code: Requested from peer STA as it does not want to
- * use the mechanism */
+ * use the mechanism
+ */
 #define REASON_CODE_STA_DONT_WANT 37
 /** Reason code: Requested from peer STA due to timeout*/
 #define REASON_CODE_STA_TIMEOUT 39

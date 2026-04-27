@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_hostcmd_ids.h
  *
  *  @brief This file contains host command ID definitions.
  *
  *
- *  Copyright 2023-2025 NXP
+ *  Copyright 2023-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -88,7 +89,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_802_11D_DOMAIN_INFO, 0x005b),
 
 	/*This command gets/sets the Transmit Rate-based Power Control (TRPC)
-	 * channel configuration.*/
+	 * channel configuration.
+	 */
 	ENUM_ELEMENT(HostCmd_CMD_CHANNEL_TRPC_CONFIG, 0x00fb),
 
 	/** Host Command ID : 802.11 TPC information */
@@ -199,8 +201,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : 802.11 RSSI INFO EXT*/
 	ENUM_ELEMENT(HostCmd_CMD_RSSI_INFO_EXT, 0x0237),
-	/** Host Command ID : ROAMING OFFLOAD TO FW*/
-	ENUM_ELEMENT(HostCmd_CMD_ROAM_OFFLOAD, 0x0245),
 
 	/** Host Command ID: Multi chan config */
 	ENUM_ELEMENT(HostCmd_CMD_MULTI_CHAN_CONFIG, 0x011e),
@@ -503,5 +503,9 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : To enable/disable/force-enable PPB feature */
 	ENUM_ELEMENT(HostCmd_CMD_PREAMBLE_PWR_BOOST, 0x0296),
+
+	/** Host Command ID : Channel switch count configuration */
+	ENUM_ELEMENT(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG, 0x0298),
+
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)

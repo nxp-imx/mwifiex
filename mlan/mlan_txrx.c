@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * @file mlan_txrx.c
  *
  *  @brief This file contains the handling of TX/RX in MLAN
  *
  *
- *  Copyright 2009-2021, 2024-2025 NXP
+ *  Copyright 2009-2021, 2024-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -22,9 +23,9 @@
  */
 
 /*************************************************************
-Change Log:
-    05/11/2009: initial version
-************************************************************/
+  Change Log:
+  05/11/2009: initial version
+ ************************************************************/
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -36,20 +37,20 @@ Change Log:
 #include "mlan_wmm.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+  Local Variables
+ ********************************************************/
 
 /********************************************************
-			Global Variables
-********************************************************/
+  Global Variables
+ ********************************************************/
 
 /********************************************************
-			Local Functions
-********************************************************/
+  Local Functions
+ ********************************************************/
 
 /********************************************************
-			Global Functions
-********************************************************/
+  Global Functions
+ ********************************************************/
 /**
  *   @brief This function processes the received buffer
  *
@@ -113,8 +114,8 @@ t_u8 mcast_drv_update_allow_flag = MTRUE;
 static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 						  pmlan_buffer pmbuf)
 {
-	static t_u32 prev_mcast_sec = 0;
-	static t_u32 prev_mcast_usec = 0;
+	static t_u32 prev_mcast_sec;
+	static t_u32 prev_mcast_usec;
 	t_u32 curr_ts_sec = 0;
 	t_u32 curr_ts_usec = 0;
 	t_s64 cycle_delta = 0;
@@ -304,6 +305,7 @@ mlan_status wlan_write_data_complete(pmlan_adapter pmadapter,
 		    pmbuf->use_count) {
 			pmlan_buffer pmbuf_next;
 			t_u32 i, use_count = pmbuf->use_count;
+
 			for (i = 0; i <= use_count; i++) {
 				pmbuf_next = pmbuf->pnext;
 				if (pmbuf->flags & MLAN_BUF_FLAG_MOAL_TX_BUF)
@@ -379,6 +381,7 @@ mlan_status wlan_recv_packet_complete(pmlan_adapter pmadapter,
 t_void wlan_add_buf_bypass_txqueue(mlan_adapter *pmadapter, pmlan_buffer pmbuf)
 {
 	pmlan_private priv = pmadapter->priv[pmbuf->bss_index];
+
 	ENTER();
 
 	if (pmbuf->buf_type != MLAN_BUF_TYPE_RAW_DATA)
@@ -409,6 +412,7 @@ INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 		pmlan_callbacks pcb = &pmadapter->callbacks;
 		pmlan_private priv;
 		int j = 0;
+
 		for (j = 0; j < pmadapter->priv_num; ++j) {
 			priv = pmadapter->priv[j];
 			if (priv) {
@@ -444,6 +448,7 @@ t_void wlan_cleanup_bypass_txq(mlan_private *priv)
 {
 	pmlan_buffer pmbuf;
 	mlan_adapter *pmadapter = priv->adapter;
+
 	ENTER();
 	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
 					    priv->bypass_txq.plock);
@@ -477,6 +482,7 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	pmlan_private priv;
 	int j = 0;
+
 	ENTER();
 	do {
 		for (j = 0; j < pmadapter->priv_num; ++j) {
@@ -547,7 +553,7 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 
 /**
  *  @brief This function will convert 802.11 header to 802.3 header
-	   and save the backhaul station aid to pmbuf
+ *  and save the backhaul station aid to pmbuf
  *
  *  @param priv    A pointer to mlan_private
  *  @param pmbuf   A pointer to mlan_buffer

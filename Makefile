@@ -182,8 +182,8 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"542.p12"'
-	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"542.p12"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"543.p8"'
+	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"543.p8"'
 	ccflags-y += -DREL_MILESTONE='""'
 
 	ccflags-y += -DFPNUM='"92"'
@@ -387,6 +387,11 @@ ifeq ($(CONFIG_PCIE),y)
 	ccflags-y += -DPCIE
 endif
 
+
+ifeq ($(CONFIG_XDP_SUPPORT), y)
+	ccflags-y += -DXDP_SUPPORT
+endif
+
 ifeq ($(CONFIG_MAC80211_SUPPORT),y)
 	ccflags-y += -DMAC80211_SUPPORT
 endif
@@ -511,12 +516,6 @@ ifeq ($(CONFIG_UAP_CFG80211),n)
 endif
 endif
 endif
-
-ifeq ($(CONFIG_XDP_SUPPORT), y)
-	 ccflags-y += -DXDP_SUPPORT
-endif
-
-
 
 # Default for out-of-tree builds
 CONFIG_NXP_WLAN_DRIVER ?= m

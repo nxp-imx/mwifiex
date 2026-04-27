@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_shim.h
  *
  * @brief This file contains declaration referring to
  * functions defined in moal module
  *
  *
- * Copyright 2008-2021, 2025 NXP
+ * Copyright 2008-2021, 2025-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991

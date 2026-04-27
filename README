@@ -8,10 +8,10 @@
 
 1) FOR DRIVER BUILD
 
-	Goto source code directory.
+	Goto source code directory
 	make [clean] build
-	The driver and utility binaries can be found in bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.18.2.
+	The driver and utility binaries can be found in ../bin_wlan directory.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.19.0.
 
 2) FOR INTEGRATING DRIVER INTO LINUX KERNEL (BUILT-IN SUPPORT)
 
@@ -116,11 +116,23 @@
 
 	There are some other parameters for debugging purpose etc. Use modinfo to check details.
 	drvdbg=<bit mask of driver debug message control>
+
+	Note: Bit 19 (MFW_D = 0x00080000) has protection - once enabled, it is
+	automatically preserved to prevent accidental FW dump trigger disabling.
+	Use override: mlanutl mlan0 drvdbg 0x7 0xFFFFFFFF
+
 	dev_cap_mask=<Bit mask of the device capability>
 	This load parameter is uses to configure device features support
 	Usage:
 		dev_cap_mask=<value to be configured>
-		<BIT0-BIT15> : Represents features supported
+		<BIT0 ~ BIT7>: Mxmdriver does not refer these bits for now, please keep these bits as 1 because they may be used in future.
+		<BIT8>: Indicates support for 11B
+		<BIT9>: Indicates support for 11G
+		<BIT10>: Indicates support for 11A, if this bit is set to 0, BIT13 will also be clear automatically.
+		<BIT11>: Indicates support for 11N
+		<BIT12>: Indicates support for 11AC 2G
+		<BIT13>: Indicates support for 11AC 5G
+		<BIT14 ~ BIT15>: Mxmdriver does not refer these bits for now, please keep these bits as 1 because they may be used in future.
 		<BIT16>: Indicates support for 11AX
 		<BIT17>: Indicates support for 6G
 	Example:
@@ -238,15 +250,15 @@
 	  Bit23~Bit16:mode for channel index0; 0|1 <PM1 | Null2Self>
 	  Bit15~Bit8:Channel time for channel index1;
 	  Bit7~Bit0:mode for channel index1; 0|1 <PM1 | Null2Self>
-	roamoffload_in_hs=0|1 <always enable fw roaming (default) | enable fw roaming only when host suspend>
 	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max STA number for UAP/GO supported in FW)
 	wacp_mode=0|1|2 <disable WACP (default) | WACP mode 1 | WACP mode 2>
 	dfs_offload=0|1 <disable dfs offload (default) | enable dfs offload>
 	indrstcfg=x <high byte: GPIO pin number (255 default); low byte: IR mode (0: disable, 1: out-of-band, 2: in band)>
-	auto_fw_reload=0|1|3
+	auto_fw_reload=0|1|3|4
 	  0: disable auto recovery feature
 	  1: default for SDIO, use SDIO InBandReset in auto recovery
 	  3: default for PCIE, use PCIE InBandReset in auto recovery
+	  4: for PCIE, fw reload through PDn from userspace
 	dmcs=0|1|2 <firmware default (default) | enable dynamic mapping | disable dynamic mapping>
 	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
 		for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode

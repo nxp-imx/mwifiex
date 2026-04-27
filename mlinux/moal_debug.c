@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_debug.c
  *
  * @brief This file contains functions for debug proc file.
  *
  *
- * Copyright 2008-2025 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,7 +23,7 @@
 
 /********************************************************
 Change log:
-    11/03/2008: initial version
+11/03/2008: initial version
 ********************************************************/
 
 #include "moal_main.h"
@@ -469,7 +470,7 @@ static struct debug_data uap_items[] = {
 /**
  *  @brief This function reset histogram data
  *
- *  @param priv 		A pointer to moal_private
+ *  @param priv		A pointer to moal_private
  *
  *  @return   N/A
  */
@@ -502,6 +503,7 @@ void woal_hist_do_reset(moal_private *priv, void *data)
 void woal_hist_data_reset(moal_private *priv)
 {
 	int i = 0;
+
 	for (i = 0; i < priv->phandle->card_info->histogram_table_num; i++)
 		woal_hist_do_reset(priv, priv->hist_data[i]);
 }
@@ -527,7 +529,7 @@ void woal_hist_reset_table(moal_private *priv, t_u8 antenna)
 /**
  *  @brief This function set histogram data
  *
- *  @param priv 		A pointer to moal_private
+ *  @param priv		A pointer to moal_private
  *  @param rx_rate      rx rate
  *  @param snr			snr
  *  @param nflr			NF
@@ -552,7 +554,7 @@ static void woal_hist_data_set(moal_private *priv, t_u16 rx_rate, t_s8 snr,
 /**
  *  @brief This function add histogram data
  *
- *  @param priv 		A pointer to moal_private
+ *  @param priv		A pointer to moal_private
  *  @param rx_rate      rx rate
  *  @param snr			snr
  *  @param nflr			NF
@@ -604,11 +606,11 @@ static int woal_histogram_info(struct seq_file *sfp, void *data)
 		return -EFAULT;
 	}
 
-	seq_printf(sfp, "total samples = %d \n",
+	seq_printf(sfp, "total samples = %d\n",
 		   atomic_read(&(phist_data->num_samples)));
-	seq_printf(sfp, "rx rates (in Mbps):\n");
-	seq_printf(sfp, "\t0-3:     B-MCS  0-3\n");
-	seq_printf(sfp, "\t4-11:    G-MCS  0-7\n");
+	seq_puts(sfp, "rx rates (in Mbps):\n");
+	seq_puts(sfp, "\t0-3:     B-MCS  0-3\n");
+	seq_puts(sfp, "\t4-11:    G-MCS  0-7\n");
 	seq_printf(
 		sfp,
 		"\t12-27:   N-MCS  0-15(BW20)             28-43:   N-MCS  0-15(BW40)\n");
@@ -791,6 +793,7 @@ static ssize_t woal_histogram_write(struct file *f, const char __user *buf,
 	struct seq_file *sfp = f->private_data;
 	wlan_hist_proc_data *hist_data = (wlan_hist_proc_data *)sfp->private;
 	moal_private *priv = (moal_private *)hist_data->priv;
+
 	woal_hist_reset_table(priv, hist_data->ant_idx);
 	return count;
 }
@@ -808,6 +811,7 @@ static int woal_log_read(struct seq_file *sfp, void *data)
 	moal_private *priv = (moal_private *)sfp->private;
 	mlan_ds_get_stats stats;
 	int i = 0;
+
 	ENTER();
 	if (!priv) {
 		LEAVE();
@@ -819,8 +823,8 @@ static int woal_log_read(struct seq_file *sfp, void *data)
 	}
 
 	memset(&stats, 0x00, sizeof(stats));
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats)) {
+	if (woal_get_stats_info(priv, MOAL_IOCTL_WAIT, &stats) !=
+	    MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR,
 		       "woal_log_read: Get log: Failed to get stats info!");
 		MODULE_PUT;
@@ -861,55 +865,55 @@ static int woal_log_read(struct seq_file *sfp, void *data)
 	if (priv->phandle->fw_getlog_enable) {
 		seq_printf(sfp, "dot11TransmittedFragmentCount = %u\n",
 			   stats.tx_frag_cnt);
-		seq_printf(sfp, "dot11QosTransmittedFragmentCount = ");
+		seq_puts(sfp, "dot11QosTransmittedFragmentCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_tx_frag_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosFailedCount = ");
+		seq_puts(sfp, "\ndot11QosFailedCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_failed_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosRetryCount = ");
+		seq_puts(sfp, "\ndot11QosRetryCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_retry_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosMultipleRetryCount = ");
+		seq_puts(sfp, "\ndot11QosMultipleRetryCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_multi_retry_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosFrameDuplicateCount = ");
+		seq_puts(sfp, "\ndot11QosFrameDuplicateCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_frm_dup_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosRTSSuccessCount = ");
+		seq_puts(sfp, "\ndot11QosRTSSuccessCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_rts_suc_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosRTSFailureCount = ");
+		seq_puts(sfp, "\ndot11QosRTSFailureCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_rts_failure_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosACKFailureCount = ");
+		seq_puts(sfp, "\ndot11QosACKFailureCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_ack_failure_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosReceivedFragmentCount = ");
+		seq_puts(sfp, "\ndot11QosReceivedFragmentCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_rx_frag_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosTransmittedFrameCount = ");
+		seq_puts(sfp, "\ndot11QosTransmittedFrameCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_tx_frm_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosDiscardedFrameCount = ");
+		seq_puts(sfp, "\ndot11QosDiscardedFrameCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_discarded_frm_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosMPDUsReceivedCount = ");
+		seq_puts(sfp, "\ndot11QosMPDUsReceivedCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_mpdus_rx_cnt[i]);
 		}
-		seq_printf(sfp, "\ndot11QosRetriesReceivedCount = ");
+		seq_puts(sfp, "\ndot11QosRetriesReceivedCount = ");
 		for (i = 0; i < 8; i++) {
 			seq_printf(sfp, "%u ", stats.qos_retries_rx_cnt[i]);
 		}
@@ -1024,7 +1028,8 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 
 	for (i = 0; i < (unsigned int)items_priv->num_of_items; i++) {
 		/* If this item is interface specific but card interface is NOT
-		 * correspond type, we will not count it. */
+		 * correspond type, we will not count it.
+		 */
 		if ((d[i].attr & intf_mask) &&
 		    !((d[i].attr & intf_mask) &
 		      (priv->phandle->card_type & intf_mask)))
@@ -1042,7 +1047,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 				val = *(t_u16 *)(d[i].addr + j);
 				seq_printf(sfp, "0x%x ", val);
 			}
-			seq_printf(sfp, "\n");
+			seq_puts(sfp, "\n");
 			continue;
 		}
 		if (strstr(d[i].name, "id") || strstr(d[i].name, "bitmap")
@@ -1075,20 +1080,20 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 					   info->last_mp_wr_info
 						   [i * mp_aggr_pkt_limit + j]);
 			}
-			seq_printf(sfp, "\n");
+			seq_puts(sfp, "\n");
 		}
-		seq_printf(sfp, "SDIO MPA Tx: ");
+		seq_puts(sfp, "SDIO MPA Tx: ");
 		for (i = 0; i < mp_aggr_pkt_limit; i++)
 			seq_printf(sfp, "%d ", info->mpa_tx_count[i]);
-		seq_printf(sfp, "\n");
-		seq_printf(sfp, "SDIO MPA Rx: ");
+		seq_puts(sfp, "\n");
+		seq_puts(sfp, "SDIO MPA Rx: ");
 		for (i = 0; i < mp_aggr_pkt_limit; i++)
 			seq_printf(sfp, "%d ", info->mpa_rx_count[i]);
-		seq_printf(sfp, "\n");
-		seq_printf(sfp, "SDIO MP Update: ");
+		seq_puts(sfp, "\n");
+		seq_puts(sfp, "SDIO MP Update: ");
 		for (i = 0; i < (mp_aggr_pkt_limit * 2); i++)
 			seq_printf(sfp, "%d ", info->mp_update[i]);
-		seq_printf(sfp, "\n");
+		seq_puts(sfp, "\n");
 	}
 #endif
 #ifdef PCIE
@@ -1114,7 +1119,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			   atomic_read(&priv->wmm_tx_pending[i]));
 #endif
 	if (info->tx_tbl_num) {
-		seq_printf(sfp, "Tx BA stream table:\n");
+		seq_puts(sfp, "Tx BA stream table:\n");
 		for (i = 0; i < info->tx_tbl_num; i++) {
 			seq_printf(
 				sfp,
@@ -1127,12 +1132,11 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 		}
 	}
 	if (info->rx_tbl_num) {
-		seq_printf(sfp, "Rx reorder table:\n");
+		seq_puts(sfp, "Rx reorder table:\n");
 		for (i = 0; i < info->rx_tbl_num; i++) {
 			seq_printf(
 				sfp,
-				"tid = %d, ta =  %02x:%02x:%02x:%02x:%02x:%02x, start_win = %d, "
-				"win_size = %d, amsdu=%d",
+				"tid = %d, ta =  %02x:%02x:%02x:%02x:%02x:%02x, start_win = %d, win_size = %d, amsdu=%d",
 				(int)info->rx_tbl[i].tid, info->rx_tbl[i].ta[0],
 				info->rx_tbl[i].ta[1], info->rx_tbl[i].ta[2],
 				info->rx_tbl[i].ta[3], info->rx_tbl[i].ta[4],
@@ -1140,16 +1144,16 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 				(int)info->rx_tbl[i].start_win,
 				(int)info->rx_tbl[i].win_size,
 				(int)info->rx_tbl[i].amsdu);
-			seq_printf(sfp, "\n");
+			seq_puts(sfp, "\n");
 
-			seq_printf(sfp, "buffer: ");
+			seq_puts(sfp, "buffer: ");
 			for (j = 0; j < info->rx_tbl[i].win_size; j++) {
 				if (info->rx_tbl[i].buffer[j] == MTRUE)
-					seq_printf(sfp, "1 ");
+					seq_puts(sfp, "1 ");
 				else
-					seq_printf(sfp, "0 ");
+					seq_puts(sfp, "0 ");
 			}
-			seq_printf(sfp, "\n");
+			seq_puts(sfp, "\n");
 		}
 	}
 	for (i = 0; i < info->ralist_num; i++) {
@@ -1175,20 +1179,20 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			info->tdls_peer_list[i].mac_addr[5],
 			info->tdls_peer_list[i].snr,
 			-info->tdls_peer_list[i].nf);
-		seq_printf(sfp, "htcap: ");
+		seq_puts(sfp, "htcap: ");
 		for (j = 0; j < sizeof(IEEEtypes_HTCap_t); j++)
 			seq_printf(sfp, "%02x ",
 				   info->tdls_peer_list[i].ht_cap[j]);
-		seq_printf(sfp, "\nExtcap: ");
+		seq_puts(sfp, "\nExtcap: ");
 		for (j = 0; j < sizeof(IEEEtypes_ExtCap_t); j++)
 			seq_printf(sfp, "%02x ",
 				   info->tdls_peer_list[i].ext_cap[j]);
-		seq_printf(sfp, "\n");
-		seq_printf(sfp, "vhtcap: ");
+		seq_puts(sfp, "\n");
+		seq_puts(sfp, "vhtcap: ");
 		for (j = 0; j < sizeof(IEEEtypes_VHTCap_t); j++)
 			seq_printf(sfp, "%02x ",
 				   info->tdls_peer_list[i].vht_cap[j]);
-		seq_printf(sfp, "\n");
+		seq_puts(sfp, "\n");
 	}
 exit:
 	MODULE_PUT;
@@ -1236,7 +1240,7 @@ static ssize_t woal_debug_write(struct file *f, const char __user *buf,
 	flag = (in_atomic() || irqs_disabled()) ? GFP_ATOMIC : GFP_KERNEL;
 
 	if (!woal_secure_add(&count, 1, &temp_count, TYPE_UINT32))
-		PRINTM(MERROR, "%s:count param overflow \n", __func__);
+		PRINTM(MERROR, "%s:count param overflow\n", __func__);
 
 	pdata = kzalloc(temp_count, flag);
 	if (pdata == NULL) {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_sta_cmd.c
  *
  *  @brief This file contains the handling of command.
@@ -5,7 +6,7 @@
  *  it is ready.
  *
  *
- *  Copyright 2008-2025 NXP
+ *  Copyright 2008-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -703,6 +704,43 @@ static mlan_status wlan_cmd_mfg_otp_cal_data_rw(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function prepares command of MFG GENERIC CMD.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param action       The action: SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status wlan_cmd_mfg_generic_cmd(pmlan_private pmpriv,
+					    HostCmd_DS_COMMAND *cmd,
+					    t_u16 action, t_void *pdata_buf)
+{
+	mfg_Cmd_InternalTest_t *mcmd =
+		(mfg_Cmd_InternalTest_t *)&cmd->params.mfg_InternalTest_t;
+	mfg_Cmd_InternalTest_t *cfg = (mfg_Cmd_InternalTest_t *)pdata_buf;
+	t_u8 i;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_MFG_COMMAND);
+	cmd->size = wlan_cpu_to_le16(sizeof(mfg_Cmd_InternalTest_t) + S_DS_GEN);
+
+	mcmd->mfg_cmd = wlan_cpu_to_le32(cfg->mfg_cmd);
+	mcmd->action = wlan_cpu_to_le16(cfg->action);
+	mcmd->opcode = wlan_cpu_to_le32(cfg->opcode);
+
+	// Copy all data elements from the buffer
+	for (i = 0; i < GENERIC_CMD_BUFFER; i++) {
+		mcmd->data[i] = wlan_cpu_to_le32(cfg->data[i]);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command of MFG cmd.
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -753,6 +791,9 @@ mlan_status wlan_cmd_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 							 pdata_buf);
 		goto cmd_mfg_done;
 
+	case MFG_CMD_CONFIG_GENERIC_CMD:
+		ret = wlan_cmd_mfg_generic_cmd(pmpriv, cmd, action, pdata_buf);
+		goto cmd_mfg_done;
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:
 	case MFG_CMD_TX_ANT:
@@ -2398,9 +2439,9 @@ static mlan_status wlan_cmd_tdls_oper(pmlan_private pmpriv,
 				hecap_tlv->len =
 					wlan_cpu_to_le16(hecap_tlv->len);
 #if 0
-			    wlan_fill_he_cap_tlv(pmpriv,
-			            pmpriv->config_bands,
-			            hecap_tlv, MFALSE);
+					wlan_fill_he_cap_tlv(pmpriv,
+							pmpriv->config_bands,
+							hecap_tlv, MFALSE);
 #endif
 
 				travel_len += wlan_le16_to_cpu(hecap_tlv->len) +
@@ -3354,386 +3395,6 @@ static mlan_status wlan_cmd_sta_config(pmlan_private pmpriv,
 }
 
 /**
- *  @brief This function prepare the config tlvs of roam offload.
- *
- *  @param priv         A pointer to mlan_private structure
- *  @param tlv_no       TLV type
- *  @param value        Pointer to mlan_ds_misc_roam_offload structure
- *  @param pointer      Value of trigger_condition
- *  @param size         Pointer to the buffer of HostCmd_DS_ROAM_OFFLOAD
- *  @return             N/A
- */
-static t_u16 mlan_prepare_roam_offload_tlv(pmlan_private pmpriv, t_u32 type,
-					   mlan_ds_misc_roam_offload *roam,
-					   t_u8 trigger_condition, t_u8 *pos)
-{
-	MrvlIEtypes_fw_roam_enable_t *enable_tlv = MNULL;
-	MrvlIEtypes_fw_roam_trigger_condition_t *trigger_condition_tlv = MNULL;
-	MrvlIEtypes_Bssid_t *bssid_tlv = MNULL;
-	MrvlIEtypes_SsIdParamSet_t *ssid_tlv = MNULL;
-	MrvlIEtypes_fw_roam_retry_count_t *retry_count_tlv = MNULL;
-	MrvlIEtypes_para_rssi_t *rssi_para_tlv = MNULL;
-	MrvlIEtypes_fw_roam_bgscan_setting_t *bgscan_set_tlv = MNULL;
-	MrvlIEtypes_roam_blacklist_t *blacklist_tlv = MNULL;
-	MrvlIEtypes_ees_param_set_t *ees_param_tlv = MNULL;
-	MrvlIEtypes_band_rssi_t *band_rssi_tlv = MNULL;
-	MrvlIEtypes_beacon_miss_threshold_t *bcn_miss_threshold_tlv = MNULL;
-	MrvlIEtypes_pre_beacon_miss_threshold_t *pre_bcn_miss_threshold_tlv =
-		MNULL;
-	MrvlIEtypes_RepeatCount_t *tlv_repeat = MNULL;
-	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0}, *begin;
-	int i = 0;
-	t_s64 ret_len = 0;
-
-	ENTER();
-
-	begin = pos;
-	if (type & FW_ROAM_ENABLE) {
-		enable_tlv = (MrvlIEtypes_fw_roam_enable_t *)pos;
-		enable_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_ROAM);
-		enable_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(MrvlIEtypes_fw_roam_enable_t) -
-					 sizeof(MrvlIEtypesHeader_t));
-		if (roam->enable <= ROAM_OFFLOAD_WITHOUT_APLIST)
-			enable_tlv->roam_enable = roam->enable;
-		else
-			enable_tlv->roam_enable = ROAM_OFFLOAD_WITHOUT_APLIST;
-		pos += sizeof(MrvlIEtypes_fw_roam_enable_t);
-	}
-	if (type & FW_ROAM_TRIGGER_COND) {
-		trigger_condition_tlv =
-			(MrvlIEtypes_fw_roam_trigger_condition_t *)pos;
-		trigger_condition_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_ROM_TRIGGER);
-		trigger_condition_tlv->header.len = wlan_cpu_to_le16(
-			sizeof(trigger_condition_tlv->trigger_condition));
-		trigger_condition_tlv->trigger_condition =
-			wlan_cpu_to_le16(trigger_condition);
-		pos += sizeof(trigger_condition_tlv->header) +
-		       sizeof(trigger_condition_tlv->trigger_condition);
-	}
-	if (type & FW_ROAM_BSSID) {
-		bssid_tlv = (MrvlIEtypes_Bssid_t *)pos;
-		bssid_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_BSSID);
-		bssid_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(bssid_tlv->bssid));
-		if (memcmp(pmpriv->adapter, roam->bssid_reconnect, zero_mac,
-			   sizeof(zero_mac)) != 0)
-			memcpy_ext(pmpriv->adapter, bssid_tlv->bssid,
-				   roam->bssid_reconnect,
-				   sizeof(bssid_tlv->bssid),
-				   sizeof(bssid_tlv->bssid));
-		else {
-			if (roam->config_mode == ROAM_OFFLOAD_SUSPEND_CFG)
-				memcpy_ext(pmpriv->adapter, bssid_tlv->bssid,
-					   pmpriv->curr_bss_params
-						   .bss_descriptor.mac_address,
-					   sizeof(bssid_tlv->bssid),
-					   sizeof(bssid_tlv->bssid));
-			else if (roam->config_mode == ROAM_OFFLOAD_RESUME_CFG)
-				memcpy_ext(pmpriv->adapter, bssid_tlv->bssid,
-					   zero_mac, sizeof(bssid_tlv->bssid),
-					   sizeof(bssid_tlv->bssid));
-		}
-		pos += sizeof(bssid_tlv->header) + sizeof(bssid_tlv->bssid);
-	}
-	if (type & FW_ROAM_SSID) {
-		for (i = 0; i < roam->ssid_list.ssid_num; i++) {
-			ssid_tlv = (MrvlIEtypes_SsIdParamSet_t *)pos;
-			ssid_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_SSID);
-			memcpy_ext(pmpriv->adapter, ssid_tlv->ssid,
-				   roam->ssid_list.ssids[i].ssid,
-				   roam->ssid_list.ssids[i].ssid_len,
-				   roam->ssid_list.ssids[i].ssid_len);
-			pos += sizeof(ssid_tlv->header) +
-			       wlan_strlen(ssid_tlv->ssid);
-			ssid_tlv->header.len =
-				wlan_cpu_to_le16(wlan_strlen(ssid_tlv->ssid));
-		}
-		if (!roam->ssid_list.ssid_num) {
-			ssid_tlv = (MrvlIEtypes_SsIdParamSet_t *)pos;
-			ssid_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_SSID);
-			memcpy_ext(
-				pmpriv->adapter, ssid_tlv->ssid,
-				pmpriv->curr_bss_params.bss_descriptor.ssid.ssid,
-				pmpriv->curr_bss_params.bss_descriptor.ssid
-					.ssid_len,
-				pmpriv->curr_bss_params.bss_descriptor.ssid
-					.ssid_len);
-			ssid_tlv->header.len =
-				wlan_cpu_to_le16(wlan_strlen(ssid_tlv->ssid));
-			pos += sizeof(ssid_tlv->header) + ssid_tlv->header.len;
-		}
-	}
-	if (type & FW_ROAM_RETRY_COUNT) {
-		retry_count_tlv = (MrvlIEtypes_fw_roam_retry_count_t *)pos;
-		retry_count_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_ROM_RETRY_COUNT);
-		retry_count_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(retry_count_tlv->retry_count));
-		if (roam->retry_count)
-			retry_count_tlv->retry_count =
-				wlan_cpu_to_le16(roam->retry_count);
-		else
-			retry_count_tlv->retry_count =
-				wlan_cpu_to_le16(RETRY_UNLIMITED_TIME);
-		pos += sizeof(retry_count_tlv->header) +
-		       sizeof(retry_count_tlv->retry_count);
-	}
-	if (type & FW_ROAM_RSSI_PARA) {
-		rssi_para_tlv = (MrvlIEtypes_para_rssi_t *)pos;
-		rssi_para_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_ROM_PARA_RSSI);
-		rssi_para_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(rssi_para_tlv->max_rssi) +
-					 sizeof(rssi_para_tlv->min_rssi) +
-					 sizeof(rssi_para_tlv->step_rssi));
-		rssi_para_tlv->max_rssi = roam->para_rssi.max_rssi;
-		rssi_para_tlv->min_rssi = roam->para_rssi.min_rssi;
-		rssi_para_tlv->step_rssi = roam->para_rssi.step_rssi;
-		pos += sizeof(rssi_para_tlv->header) +
-		       sizeof(rssi_para_tlv->max_rssi) +
-		       sizeof(rssi_para_tlv->min_rssi) +
-		       sizeof(rssi_para_tlv->step_rssi);
-	}
-	if (type & FW_ROAM_BAND_RSSI) {
-		band_rssi_tlv = (MrvlIEtypes_band_rssi_t *)pos;
-		band_rssi_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_BAND_RSSI);
-		band_rssi_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(MrvlIEtypes_band_rssi_t) -
-					 sizeof(MrvlIEtypesHeader_t));
-		band_rssi_tlv->band_rssi.band_preferred =
-			roam->band_rssi.band_preferred;
-		band_rssi_tlv->band_rssi.rssi_hysteresis =
-			roam->band_rssi.rssi_hysteresis;
-		pos += sizeof(MrvlIEtypes_band_rssi_t);
-	}
-
-	if (type & FW_ROAM_BGSCAN_PARAM) {
-		bgscan_set_tlv = (MrvlIEtypes_fw_roam_bgscan_setting_t *)pos;
-		bgscan_set_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_ROM_BGSCAN);
-		bgscan_set_tlv->header.len = wlan_cpu_to_le16(
-			sizeof(MrvlIEtypes_fw_roam_bgscan_setting_t) -
-			sizeof(MrvlIEtypesHeader_t));
-		bgscan_set_tlv->bss_type = roam->bgscan_cfg.bss_type;
-		bgscan_set_tlv->channels_perscan =
-			roam->bgscan_cfg.channels_per_scan;
-		bgscan_set_tlv->scan_interval =
-			wlan_cpu_to_le32(roam->bgscan_cfg.scan_interval);
-		bgscan_set_tlv->report_condition =
-			wlan_cpu_to_le32(roam->bgscan_cfg.bg_rpt_condition);
-		pos += sizeof(MrvlIEtypes_fw_roam_bgscan_setting_t);
-	}
-
-	if (type & FW_ROAM_EES_PARAM) {
-		ees_param_tlv = (MrvlIEtypes_ees_param_set_t *)pos;
-		ees_param_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_ENERGYEFFICIENTSCAN);
-		ees_param_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(MrvlIEtypes_ees_param_set_t) -
-					 sizeof(MrvlIEtypesHeader_t));
-		ees_param_tlv->ees_cfg.ees_mode =
-			wlan_cpu_to_le16(roam->ees_cfg.ees_mode);
-		ees_param_tlv->ees_cfg.ees_rpt_condition =
-			wlan_cpu_to_le16(roam->ees_cfg.ees_rpt_condition);
-		ees_param_tlv->ees_cfg.high_scan_period =
-			wlan_cpu_to_le16(roam->ees_cfg.high_scan_period);
-		ees_param_tlv->ees_cfg.high_scan_count =
-			wlan_cpu_to_le16(roam->ees_cfg.high_scan_count);
-		ees_param_tlv->ees_cfg.mid_scan_period =
-			wlan_cpu_to_le16(roam->ees_cfg.mid_scan_period);
-		ees_param_tlv->ees_cfg.mid_scan_count =
-			wlan_cpu_to_le16(roam->ees_cfg.mid_scan_count);
-		ees_param_tlv->ees_cfg.low_scan_period =
-			wlan_cpu_to_le16(roam->ees_cfg.low_scan_period);
-		ees_param_tlv->ees_cfg.low_scan_count =
-			wlan_cpu_to_le16(roam->ees_cfg.low_scan_count);
-		pos += sizeof(MrvlIEtypes_ees_param_set_t);
-	}
-
-	if (type & FW_ROAM_BCN_MISS_THRESHOLD) {
-		bcn_miss_threshold_tlv =
-			(MrvlIEtypes_beacon_miss_threshold_t *)pos;
-		bcn_miss_threshold_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_BCNMISS);
-		bcn_miss_threshold_tlv->header.len = wlan_cpu_to_le16(
-			sizeof(MrvlIEtypes_beacon_miss_threshold_t) -
-			sizeof(MrvlIEtypesHeader_t));
-		bcn_miss_threshold_tlv->bcn_miss_threshold =
-			roam->bcn_miss_threshold;
-		pos += sizeof(MrvlIEtypes_beacon_miss_threshold_t);
-	}
-
-	if (type & FW_ROAM_PRE_BCN_MISS_THRESHOLD) {
-		pre_bcn_miss_threshold_tlv =
-			(MrvlIEtypes_pre_beacon_miss_threshold_t *)pos;
-		pre_bcn_miss_threshold_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_PRE_BCNMISS);
-		pre_bcn_miss_threshold_tlv->header.len = wlan_cpu_to_le16(
-			sizeof(MrvlIEtypes_pre_beacon_miss_threshold_t) -
-			sizeof(MrvlIEtypesHeader_t));
-		pre_bcn_miss_threshold_tlv->pre_bcn_miss_threshold =
-			roam->pre_bcn_miss_threshold;
-		pos += sizeof(MrvlIEtypes_pre_beacon_miss_threshold_t);
-	}
-
-	if (type & FW_ROAM_BLACKLIST) {
-		blacklist_tlv = (MrvlIEtypes_roam_blacklist_t *)pos;
-		blacklist_tlv->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_BLACKLIST_BSSID);
-		blacklist_tlv->header.len =
-			roam->black_list.ap_num * MLAN_MAC_ADDR_LENGTH +
-			sizeof(roam->black_list.ap_num);
-		memcpy_ext(pmpriv->adapter, (t_u8 *)&blacklist_tlv->blacklist,
-			   (t_u8 *)&roam->black_list, blacklist_tlv->header.len,
-			   sizeof(blacklist_tlv->blacklist));
-		pos += sizeof(MrvlIEtypesHeader_t) + blacklist_tlv->header.len;
-		blacklist_tlv->header.len =
-			wlan_cpu_to_le16(blacklist_tlv->header.len);
-	}
-
-	if (type & FW_ROAM_REPEAT_CNT) {
-		tlv_repeat = (MrvlIEtypes_RepeatCount_t *)pos;
-		tlv_repeat->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_REPEAT_COUNT);
-		tlv_repeat->header.len =
-			wlan_cpu_to_le16(sizeof(MrvlIEtypes_RepeatCount_t) -
-					 sizeof(MrvlIEtypesHeader_t));
-		tlv_repeat->repeat_count = wlan_cpu_to_le16(roam->repeat_count);
-		pos += sizeof(MrvlIEtypes_RepeatCount_t);
-	}
-	ret_len = pos - begin;
-
-	LEAVE();
-	return ((t_u16)ret_len);
-}
-/**
- *  @brief This function sends enable/disable roam offload command to firmware.
- *
- *  @param pmpriv         A pointer to mlan_private structure
- *  @param pcmd          Hostcmd ID
- *  @param cmd_action   Command action
- *  @return             N/A
- */
-static mlan_status wlan_cmd_roam_offload(pmlan_private pmpriv,
-					 HostCmd_DS_COMMAND *cmd,
-					 t_u16 cmd_action, t_void *pdata_buf)
-{
-	HostCmd_DS_ROAM_OFFLOAD *roam_cmd = &cmd->params.roam_offload;
-	MrvlIEtypes_roam_aplist_t *aplist = MNULL;
-	t_u8 *pos = (t_u8 *)&cmd->params + sizeof(roam_cmd->action);
-	mlan_ds_misc_roam_offload *roam = MNULL;
-	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
-	t_u32 type = 0;
-	t_u8 trigger_condition = 0;
-
-	ENTER();
-
-	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_ROAM_OFFLOAD);
-	cmd->size = S_DS_GEN + sizeof(HostCmd_DS_ROAM_OFFLOAD);
-	roam_cmd->action = wlan_cpu_to_le16(cmd_action);
-
-	roam = (mlan_ds_misc_roam_offload *)pdata_buf;
-	if (!roam) {
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	if (roam->config_mode) {
-		switch (roam->config_mode) {
-		case ROAM_OFFLOAD_ENABLE:
-			type |= FW_ROAM_ENABLE;
-			if (roam->enable && roam->enable != AUTO_RECONNECT) {
-				type |= FW_ROAM_TRIGGER_COND;
-				trigger_condition |= RSSI_LOW_TRIGGER |
-						     PRE_BEACON_LOST_TRIGGER;
-			}
-			break;
-		case ROAM_OFFLOAD_SUSPEND_CFG:
-			type |= FW_ROAM_TRIGGER_COND | FW_ROAM_RETRY_COUNT;
-			if (roam->enable == AUTO_RECONNECT) {
-				type |= FW_ROAM_BSSID | FW_ROAM_SSID;
-				trigger_condition = LINK_LOST_TRIGGER |
-						    DEAUTH_WITH_EXT_AP_TRIGGER;
-			} else
-				trigger_condition = LINK_LOST_TRIGGER |
-						    DEAUTH_WITH_EXT_AP_TRIGGER |
-						    RSSI_LOW_TRIGGER |
-						    PRE_BEACON_LOST_TRIGGER;
-
-			if (roam->enable == ROAM_OFFLOAD_WITH_BSSID)
-				type |= FW_ROAM_BSSID;
-			if (roam->enable == ROAM_OFFLOAD_WITH_SSID)
-				type |= FW_ROAM_SSID;
-			break;
-		case ROAM_OFFLOAD_RESUME_CFG:
-			type |= FW_ROAM_TRIGGER_COND;
-			if (roam->enable == AUTO_RECONNECT)
-				trigger_condition = NO_TRIGGER;
-			else
-				trigger_condition = RSSI_LOW_TRIGGER |
-						    PRE_BEACON_LOST_TRIGGER;
-			if (roam->enable == ROAM_OFFLOAD_WITH_BSSID ||
-			    roam->enable == AUTO_RECONNECT)
-				type |= FW_ROAM_BSSID;
-			break;
-		case ROAM_OFFLOAD_PARAM_CFG:
-			if (roam->enable && roam->enable != AUTO_RECONNECT) {
-				if (roam->retry_count != 0)
-					type |= FW_ROAM_RETRY_COUNT;
-				if (roam->ssid_list.ssid_num)
-					type |= FW_ROAM_SSID;
-				if (roam->para_rssi.set_flag)
-					type |= FW_ROAM_RSSI_PARA;
-				if (memcmp(pmpriv->adapter,
-					   roam->bssid_reconnect, zero_mac,
-					   sizeof(zero_mac)) != 0)
-					type |= FW_ROAM_BSSID;
-				if (roam->band_rssi_flag)
-					type |= FW_ROAM_BAND_RSSI;
-				if (roam->bgscan_set_flag)
-					type |= FW_ROAM_BGSCAN_PARAM;
-				if (roam->ees_param_set_flag)
-					type |= FW_ROAM_EES_PARAM;
-				if (roam->bcn_miss_threshold)
-					type |= FW_ROAM_BCN_MISS_THRESHOLD;
-				if (roam->pre_bcn_miss_threshold)
-					type |= FW_ROAM_PRE_BCN_MISS_THRESHOLD;
-				if (roam->black_list.ap_num)
-					type |= FW_ROAM_BLACKLIST;
-				if (roam->trigger_condition != 0xff) {
-					type |= FW_ROAM_TRIGGER_COND;
-					trigger_condition =
-						roam->trigger_condition;
-				}
-				if (roam->repeat_count)
-					type |= FW_ROAM_REPEAT_CNT;
-			}
-			break;
-		}
-		cmd->size += mlan_prepare_roam_offload_tlv(
-			pmpriv, type, roam, trigger_condition, pos);
-	}
-	if (roam->aplist.ap_num) {
-		aplist = (MrvlIEtypes_roam_aplist_t *)pos;
-		aplist->header.type = wlan_cpu_to_le16(TLV_TYPE_APLIST);
-		aplist->header.len = roam->aplist.ap_num * MLAN_MAC_ADDR_LENGTH;
-		memcpy_ext(pmpriv->adapter, aplist->ap_mac, roam->aplist.ap_mac,
-			   roam->aplist.ap_num * MLAN_MAC_ADDR_LENGTH,
-			   roam->aplist.ap_num * MLAN_MAC_ADDR_LENGTH);
-		pos += sizeof(aplist->header) + aplist->header.len;
-		cmd->size += sizeof(aplist->header) + aplist->header.len;
-		aplist->header.len = wlan_cpu_to_le16(aplist->header.len);
-	}
-	cmd->size = wlan_cpu_to_le16(cmd->size);
-
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
  *  @brief This function sends set and get auto tx command to firmware.
  *
  *  @param pmpriv         A pointer to mlan_private structure
@@ -3984,6 +3645,7 @@ mlan_status wlan_cmd_secure_host(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	HostCmd_DS_SECURE_HOST *shc = &cmd->params.shc;
 	SECURE_HOST_MSG_HEADER *tls_hdr = (SECURE_HOST_MSG_HEADER *)pdata_buf;
 	t_u16 tls_len = tls_hdr->len;
+
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SECURE_HOST);
 	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(shc->action) + tls_len);
 
@@ -4470,11 +4132,6 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_ind_rst_cfg(cmd_ptr, cmd_action, pdata_buf);
 		break;
 
-	case HostCmd_CMD_ROAM_OFFLOAD:
-		ret = wlan_cmd_roam_offload(pmpriv, cmd_ptr, cmd_action,
-					    pdata_buf);
-		break;
-
 	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
 		ret = wlan_cmd_ps_inactivity_timeout(pmpriv, cmd_ptr,
 						     cmd_action, pdata_buf);
@@ -4633,6 +4290,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_secure_host(pmpriv, cmd_ptr, pdata_buf);
 		break;
 #endif
+
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		ret = MLAN_STATUS_FAILURE;

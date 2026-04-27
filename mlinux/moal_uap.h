@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_uap.h
  *
  * @brief This file contains uap driver specific defines etc.
  *
  *
- * Copyright 2008-2025, NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -22,7 +23,7 @@
 
 /********************************************************
 Change log:
-    02/02/2009: initial version
+02/02/2009: initial version
 ********************************************************/
 
 #ifndef _MOAL_UAP_H
@@ -445,10 +446,12 @@ typedef struct _band_steer_para {
 	/** enable/disable band steering*/
 	t_u8 state;
 	/** Probe Response will be blocked to 2G channel for first
-	 * block_2g_prb_req probe requests*/
+	 * block_2g_prb_req probe requests
+	 */
 	t_u8 block_2g_prb_req;
 	/** When band steering is enabled, limit the btm request sent to STA at
-	 * <max_btm_req_allowed>*/
+	 * <max_btm_req_allowed>
+	 */
 	t_u8 max_btm_req_allowed;
 
 } band_steer_para;

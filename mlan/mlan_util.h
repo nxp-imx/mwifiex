@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file mlan_util.h
  *
  *  @brief This file contains wrappers for linked-list,
  *  spinlock and timer defines.
  *
  *
- *  Copyright 2008-2021, 2025 NXP
+ *  Copyright 2008-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -23,7 +24,7 @@
 
 /******************************************************
 Change log:
-    10/28/2008: initial version
+10/28/2008: initial version
 ******************************************************/
 
 #ifndef _MLAN_UTIL_H_
@@ -176,6 +177,7 @@ static INLINE t_void util_enqueue_list_tail_nl(t_void *pmoal_handle,
 					       pmlan_linked_list pnode)
 {
 	pmlan_linked_list pold_last = phead->pprev;
+
 	pnode->pprev = pold_last;
 	pnode->pnext = (pmlan_linked_list)phead;
 
@@ -523,6 +525,16 @@ static INLINE t_void util_scalar_decrement(
 		moal_spin_unlock(pmoal_handle, pscalar->plock);
 }
 
+#ifdef CONFIG_KASAN
+#ifndef INT_MAX
+#define INT_MAX ((int)(~0U >> 1))
+#endif
+#else
+#ifndef INT_MAX
+#define INT_MAX 2147483647
+#endif
+#endif
+
 /**
  *  @brief This function adds an offset to the value in scalar,
  *         and returns the new value
@@ -535,11 +547,6 @@ static INLINE t_void util_scalar_decrement(
  *  @return			Value after offset or 0 if (scalar_value + offset)
  * overflows
  */
-
-#ifndef INT_MAX
-#define INT_MAX 2147483647
-#endif
-
 static INLINE t_s32 util_scalar_offset(
 	t_void *pmoal_handle, pmlan_scalar pscalar, t_s32 offset,
 	mlan_status (*moal_spin_lock)(t_void *handle, t_void *plock),
@@ -579,6 +586,7 @@ static INLINE t_u8 util_scalar_conditional_write(
 	mlan_status (*moal_spin_unlock)(t_void *handle, t_void *plock))
 {
 	t_u8 update;
+
 	if (moal_spin_lock)
 		moal_spin_lock(pmoal_handle, pscalar->plock);
 

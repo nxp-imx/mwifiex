@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_uap.c
  *
  * @brief This file contains the major functions in UAP
@@ -303,8 +304,8 @@ static int woal_uap_get_fw_info(struct net_device *dev, struct ifreq *req)
 		ret = -EFAULT;
 		goto done;
 	}
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info)) {
+	if (woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -418,6 +419,7 @@ static int woal_uap_band_steer(struct net_device *dev, struct ifreq *req)
 	band_steer_para param;
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 	memset(&param, 0, sizeof(param));
 
@@ -746,6 +748,7 @@ int woal_uap_11h_ctrl(moal_private *priv, t_u32 enable)
 	mlan_ds_snmp_mib *snmp = NULL;
 	int ret = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+
 	ENTER();
 	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_snmp_mib));
 	if (ioctl_req == NULL) {
@@ -1261,8 +1264,8 @@ static int woal_uap_tx_bf_cfg(struct net_device *dev, struct ifreq *req)
 	}
 	DBG_HEXDUMP(MCMD_D, "bf_cfg", (t_u8 *)&bf_cfg, sizeof(bf_cfg));
 
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_tx_bf_cfg(priv, action, &bf_cfg)) {
+	if (woal_set_get_tx_bf_cfg(priv, action, &bf_cfg) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1557,8 +1560,8 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 	    (hs_cfg.conditions != HOST_SLEEP_CFG_CANCEL ||
 	     invoke_hostcmd == MFALSE)) {
 		memset(&bss_info, 0, sizeof(bss_info));
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+		if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "ERR: failed in getting bss info\n");
 			ret = -EFAULT;
 			goto done;
@@ -1573,9 +1576,9 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 	if (hs_cfg.flags & HS_CFG_FLAG_SET) {
 		action = MLAN_ACT_SET;
 		if (hs_cfg.flags != HS_CFG_FLAG_ALL) {
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_set_get_hs_params(priv, MLAN_ACT_GET,
-						   MOAL_IOCTL_WAIT, &hscfg)) {
+			if (woal_set_get_hs_params(priv, MLAN_ACT_GET,
+						   MOAL_IOCTL_WAIT, &hscfg) !=
+			    MLAN_STATUS_SUCCESS) {
 				PRINTM(MERROR,
 				       "Unable to get HS Configuration\n");
 			}
@@ -1590,9 +1593,9 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 		if (invoke_hostcmd == MTRUE) {
 			/* Issue IOCTL to set up parameters */
 			hscfg.is_invoke_hostcmd = MFALSE;
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_set_get_hs_params(priv, action,
-						   MOAL_IOCTL_WAIT, &hscfg)) {
+			if (woal_set_get_hs_params(priv, action,
+						   MOAL_IOCTL_WAIT, &hscfg) !=
+			    MLAN_STATUS_SUCCESS) {
 				ret = -EFAULT;
 				goto done;
 			}
@@ -1603,8 +1606,8 @@ static int woal_uap_hs_cfg(struct net_device *dev, struct ifreq *req,
 
 	/* Issue IOCTL to invoke hostcmd */
 	hscfg.is_invoke_hostcmd = invoke_hostcmd;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_hs_params(priv, action, MOAL_IOCTL_WAIT, &hscfg)) {
+	if (woal_set_get_hs_params(priv, action, MOAL_IOCTL_WAIT, &hscfg) !=
+	    MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -1703,9 +1706,8 @@ static int woal_uap_mgmt_frame_control(struct net_device *dev,
 		sys_config->mgmt_ie_passthru_mask = param.mask;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, action,
-							   MOAL_IOCTL_WAIT,
-							   sys_config)) {
+	if (woal_set_get_sys_config(priv, action, MOAL_IOCTL_WAIT,
+				    sys_config) != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -2259,6 +2261,7 @@ static void woal_set_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
 	int index;
 	mlan_ds_11h_chan_dfs_state ch_dfs_state;
 	moal_private *priv;
+
 	memset(&ch_dfs_state, 0, sizeof(ch_dfs_state));
 	ch_dfs_state.channel = channel;
 	ch_dfs_state.dfs_state = dfs_state;
@@ -2294,6 +2297,7 @@ void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
 	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
 	t_u8 n_chan;
 	int i;
+
 	ENTER();
 	memset(ch_dfs_state, 0, sizeof(ch_dfs_state));
 	n_chan = woal_uap_get_dfs_chan(channel, bandwidth, &ch_dfs_state[0]);
@@ -2322,6 +2326,7 @@ void woal_update_uap_channel_dfs_state(moal_private *priv)
 	mlan_ds_11h_chan_dfs_state ch_dfs_state;
 	t_u8 channel;
 	t_u8 bandwidth;
+
 	ENTER();
 	if (woal_is_etsi_country(priv->phandle->country_code)) {
 		LEAVE();
@@ -2334,7 +2339,7 @@ void woal_update_uap_channel_dfs_state(moal_private *priv)
 		ch_dfs_state.channel = channel;
 		if (woal_11h_chan_dfs_state(priv, MLAN_ACT_GET,
 					    &ch_dfs_state)) {
-			PRINTM(MERROR, "%s: woal_11h_chan_dfs_state failed \n",
+			PRINTM(MERROR, "%s: woal_11h_chan_dfs_state failed\n",
 			       __func__);
 			LEAVE();
 			return;
@@ -2678,6 +2683,7 @@ static int woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 {
 	int ret = 0;
 	t_u32 subcmd = 0;
+
 	ENTER();
 	/* Sanity check */
 	if (req->ifr_data == NULL) {
@@ -2903,8 +2909,8 @@ static int woal_uap_radio_ctl(struct net_device *dev, struct ifreq *req)
 	} else {
 		/* Get radio status */
 		memset(&bss_info, 0, sizeof(bss_info));
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info)) {
+		if (woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "ERR: failed in getting bss info\n");
 			ret = -EFAULT;
 			goto done;
@@ -3047,7 +3053,7 @@ static int woal_uap_set_key_ioctl(struct net_device *dev, struct ifreq *req)
 	}
 
 	PRINTM(MIOCTL,
-	       "ioctl report set key: " MACSTR " key_index=%u, key_len=%u \n",
+	       "ioctl report set key: " MACSTR " key_index=%u, key_len=%u\n",
 	       MAC2STR(key.mac_addr), key.key_index, key.key_len);
 
 	if ((key.key_len > MLAN_MAX_KEY_LENGTH) || (key.key_index > 3)) {
@@ -3074,7 +3080,7 @@ static int woal_uap_set_key_ioctl(struct net_device *dev, struct ifreq *req)
 	moal_memcpy_ext(priv->phandle, sec->param.encrypt_key.key_material,
 			key.key_material, key.key_len,
 			sizeof(sec->param.encrypt_key.key_material));
-	if (0 == memcmp(sec->param.encrypt_key.mac_addr, bcast_addr, ETH_ALEN))
+	if (memcmp(sec->param.encrypt_key.mac_addr, bcast_addr, ETH_ALEN) == 0)
 		sec->param.encrypt_key.key_flags = KEY_FLAG_GROUP_KEY;
 	else
 		sec->param.encrypt_key.key_flags = KEY_FLAG_SET_TX_KEY;
@@ -3177,8 +3183,7 @@ static int woal_uap_power_mode_ioctl(struct net_device *dev, struct ifreq *req)
 		goto done;
 	}
 	PRINTM(MIOCTL,
-	       "ioctl power: flag=0x%x ps_mode=%u ctrl_bitmap=%u min_sleep=%u max_sleep=%u "
-	       "inact_to=%u min_awake=%u max_awake=%u\n",
+	       "ioctl power: flag=0x%x ps_mode=%u ctrl_bitmap=%u min_sleep=%u max_sleep=%u inact_to=%u min_awake=%u max_awake=%u\n",
 	       ps_mgmt.flags, ps_mgmt.ps_mode, ps_mgmt.sleep_param.ctrl_bitmap,
 	       ps_mgmt.sleep_param.min_sleep, ps_mgmt.sleep_param.max_sleep,
 	       ps_mgmt.inact_param.inactivity_to, ps_mgmt.inact_param.min_awake,
@@ -3427,7 +3432,7 @@ static int woal_uap_set_wapi_key_ioctl(moal_private *priv, wapi_msg *msg)
 			key_msg->mac_addr, ETH_ALEN,
 			sizeof(sec->param.encrypt_key.mac_addr));
 	sec->param.encrypt_key.key_index = key_msg->key_id;
-	if (0 == memcmp(key_msg->mac_addr, bcast_addr, ETH_ALEN))
+	if (memcmp(key_msg->mac_addr, bcast_addr, ETH_ALEN) == 0)
 		sec->param.encrypt_key.key_flags = KEY_FLAG_GROUP_KEY;
 	else
 		sec->param.encrypt_key.key_flags = KEY_FLAG_SET_TX_KEY;
@@ -3502,7 +3507,7 @@ static mlan_status woal_enable_wapi(moal_private *priv, t_u8 enable)
 	}
 	if (enable) {
 		if (woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_START))
-			PRINTM(MERROR, "%s: uap bss start failed \n", __func__);
+			PRINTM(MERROR, "%s: uap bss start failed\n", __func__);
 	}
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -3535,7 +3540,7 @@ static int woal_uap_set_wapi_flag_ioctl(moal_private *priv, wapi_msg *msg)
 	ENTER();
 
 	if (woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_STOP)) {
-		PRINTM(MERROR, "%s: uap bss stop failed \n", __func__);
+		PRINTM(MERROR, "%s: uap bss stop failed\n", __func__);
 		ret = -EFAULT;
 		goto done;
 	}
@@ -3562,8 +3567,8 @@ static int woal_uap_set_wapi_flag_ioctl(moal_private *priv, wapi_msg *msg)
 				sizeof(misc->param.gen_ie.ie_data));
 	} else if (msg->msg[0] == 0) {
 		/* disable WAPI in driver */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_wapi_enable(priv, MOAL_IOCTL_WAIT, 0))
+		if (woal_set_wapi_enable(priv, MOAL_IOCTL_WAIT, 0) !=
+		    MLAN_STATUS_SUCCESS)
 			ret = -EFAULT;
 		woal_enable_wapi(priv, MFALSE);
 		goto done;
@@ -3905,6 +3910,7 @@ int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11ax_cfg *cfg_11ax = NULL;
+
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ax_cfg));
 	if (req == NULL) {
 		ret = -ENOMEM;
@@ -3946,6 +3952,7 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 	mlan_fw_info fw_info;
 	int ret = 0;
 	mlan_ds_11ax_he_cfg he_cfg;
+
 	ENTER();
 
 	memset(&fw_info, 0, sizeof(mlan_fw_info));
@@ -4185,8 +4192,7 @@ static int woal_uap_ap_cfg_parse_data(moal_private *priv,
 			}
 			if (atoi_ret < 1 || atoi_ret > MLAN_MAX_CHANNEL) {
 				PRINTM(MERROR,
-				       "AP_CFG: Channel must be between 1 and %d"
-				       "(both included)\n",
+				       "AP_CFG: Channel must be between 1 and %d(both included)\n",
 				       MLAN_MAX_CHANNEL);
 				ret = -EINVAL;
 				goto done;
@@ -4204,7 +4210,8 @@ static int woal_uap_ap_cfg_parse_data(moal_private *priv,
 				goto done;
 			}
 			/* This is a READ only value from FW, so we
-			 * can not set this and pass it successfully */
+			 * can not set this and pass it successfully
+			 */
 			set_preamble = 1;
 		} else if (!strncmp(opt, "MAX_SCB", strlen("MAX_SCB"))) {
 			if (set_scb) {
@@ -4218,8 +4225,7 @@ static int woal_uap_ap_cfg_parse_data(moal_private *priv,
 			}
 			if (atoi_ret < 1 || atoi_ret > MAX_STA_COUNT) {
 				PRINTM(MERROR,
-				       "AP_CFG: MAX_SCB must be between 1 to %d "
-				       "(both included)\n",
+				       "AP_CFG: MAX_SCB must be between 1 to %d (both included)\n",
 				       MAX_STA_COUNT);
 				ret = -EINVAL;
 				goto done;
@@ -4338,7 +4344,8 @@ int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 		goto done;
 
 	/* If BSS already started stop it first and restart
-	 * after changing the setting */
+	 * after changing the setting
+	 */
 	if (priv->bss_started == MTRUE) {
 		ret = woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_STOP);
 		if (ret)
@@ -4348,27 +4355,27 @@ int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 
 	/* If the security mode is configured as WEP or WPA-PSK,
 	 * it will disable 11n automatically, and if configured as
-	 * open(off) or wpa2-psk, it will automatically enable 11n */
+	 * open(off) or wpa2-psk, it will automatically enable 11n
+	 */
 	if ((sys_config->protocol == PROTOCOL_STATIC_WEP) ||
 	    (sys_config->protocol == PROTOCOL_WPA)) {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_uap_set_11n_status(priv, sys_config,
-					    MLAN_ACT_DISABLE)) {
+		if (woal_uap_set_11n_status(priv, sys_config,
+					    MLAN_ACT_DISABLE) !=
+		    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
 	} else {
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_uap_set_11n_status(priv, sys_config,
-					    MLAN_ACT_ENABLE)) {
+		if (woal_uap_set_11n_status(priv, sys_config,
+					    MLAN_ACT_ENABLE) !=
+		    MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
 			goto done;
 		}
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_SET,
-							   MOAL_IOCTL_WAIT,
-							   sys_config)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
+				    sys_config) != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -4547,9 +4554,8 @@ static mlan_status woal_do_acs_check(moal_private *priv)
 		return MLAN_STATUS_FAILURE;
 	}
 
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   sys_config)) {
+	if (woal_set_get_sys_config(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
+				    sys_config) != MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Fail to get sys config data\n");
 		kfree(sys_config);
 		LEAVE();
@@ -4568,8 +4574,8 @@ static mlan_status woal_do_acs_check(moal_private *priv)
 		return MLAN_STATUS_FAILURE;
 	}
 	scan_channels->remove_nop_channel = MTRUE;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_ap_scan_channels(priv, MLAN_ACT_GET, scan_channels)) {
+	if (woal_set_get_ap_scan_channels(priv, MLAN_ACT_GET, scan_channels) !=
+	    MLAN_STATUS_SUCCESS) {
 		PRINTM(MERROR, "Fail to get scan channels\n");
 		goto done;
 	}
@@ -4577,9 +4583,9 @@ static mlan_status woal_do_acs_check(moal_private *priv)
 	if (scan_channels->num_remvoed_channel && scan_channels->num_of_chan) {
 		scan_channels->remove_nop_channel = 0;
 		/** set back new channel list after remove nop channels */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_ap_scan_channels(priv, MLAN_ACT_SET,
-						  scan_channels)) {
+		if (woal_set_get_ap_scan_channels(priv, MLAN_ACT_SET,
+						  scan_channels) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Fail to get scan channels\n");
 			goto done;
 		}
@@ -4620,7 +4626,7 @@ static mlan_status woal_uap_set_pre_confing(moal_private *priv)
 
 	if (priv->phandle->params.wacp_mode) {
 		/** Enable DMCS, if wacp_mode enabled */
-		if (MLAN_STATUS_SUCCESS != woal_set_dmcs(priv, 1, MOAL_IOCTL_WAIT)) {
+		if (woal_set_dmcs(priv, 1, MOAL_IOCTL_WAIT) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set DMCS failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4665,9 +4671,9 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 			aggr_prio_tbl.ampdu[i] = tos_to_tid_inv[i];
 			aggr_prio_tbl.amsdu[i] = tos_to_tid_inv[i];
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_ioctl_aggr_prio_tbl(priv, MLAN_ACT_SET,
-					     &aggr_prio_tbl)) {
+		if (woal_ioctl_aggr_prio_tbl(priv, MLAN_ACT_SET,
+					     &aggr_prio_tbl) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set AMPDU/AMSDU failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4677,8 +4683,8 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 		for (i = 0; i < MAX_NUM_TID; i++) {
 			addba_reject[i] = MFALSE;
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_ioctl_addba_reject(priv, MLAN_ACT_SET, addba_reject)) {
+		if (woal_ioctl_addba_reject(priv, MLAN_ACT_SET, addba_reject) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set addbareject failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4691,8 +4697,8 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 		addba_param.rxwinsize = 64;
 		addba_param.txamsdu = 0;
 		addba_param.rxamsdu = 0;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_ioctl_addba_param(priv, MLAN_ACT_SET, &addba_param)) {
+		if (woal_ioctl_addba_param(priv, MLAN_ACT_SET, &addba_param) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set addba_param failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4700,8 +4706,8 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		/** Enable ed_mac, if wacp_mode enabled */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_edmac_cfg(priv, priv->phandle->country_code)) {
+		if (woal_edmac_cfg(priv, priv->phandle->country_code) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Enable edmac failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4711,9 +4717,9 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 		/** Set AMPDU protect mode to TX_AMPDU_RTS_CTS, if wacp_mode
 		 * enabled */
 		prot_mode = TX_AMPDU_RTS_CTS;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_ioctl_tx_ampdu_prot_mode(priv, MLAN_ACT_SET,
-						  &prot_mode)) {
+		if (woal_ioctl_tx_ampdu_prot_mode(priv, MLAN_ACT_SET,
+						  &prot_mode) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set AMPDU protect mode failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4721,9 +4727,9 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 
 		/** Enable HTC CAP if wacp_mode enabled */
 		set_htc_cap = 1;
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_ioctl_hostcmd_htc_cap(priv, MLAN_ACT_SET,
-					       &set_htc_cap)) {
+		if (woal_ioctl_hostcmd_htc_cap(priv, MLAN_ACT_SET,
+					       &set_htc_cap) !=
+		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set Hostcmd htc_cap failed\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -4745,9 +4751,9 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 							       interval to 500
 							       ms */
 			bf_global->bf_mode = 5; /* Set beamforming mode to 5 */
-			if (MLAN_STATUS_SUCCESS !=
-			    woal_set_get_tx_bf_cfg(priv, MLAN_ACT_SET,
-						   &bf_cfg)) {
+			if (woal_set_get_tx_bf_cfg(priv, MLAN_ACT_SET,
+						   &bf_cfg) !=
+			    MLAN_STATUS_SUCCESS) {
 				PRINTM(MERROR, "Set TX beamforming failed\n");
 				ret = MLAN_STATUS_FAILURE;
 				goto done;
@@ -4810,7 +4816,7 @@ int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		}
 		/* DMCS and other that do not use FW cmd directly configurations
 		 */
-		if (MLAN_STATUS_SUCCESS != woal_uap_set_pre_confing(priv)) {
+		if (woal_uap_set_pre_confing(priv) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR,
 			       "Set WACP Pre default configurations failed\n");
 			ret = -EFAULT;
@@ -4867,17 +4873,20 @@ int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		if (netif_carrier_ok(priv->netdev))
 			netif_carrier_off(priv->netdev);
 		if (data == UAP_BSS_RESET) {
-			if (MLAN_STATUS_FAILURE ==
-			    woal_request_set_mac_address(priv, wait_option))
+			if (woal_request_set_mac_address(priv, wait_option) ==
+			    MLAN_STATUS_FAILURE)
 				PRINTM(MERROR,
 				       "Fail to set mac address after UAP_BSS_RESET\n");
 		}
 		woal_flush_tx_stat_queue(priv);
 		woal_flush_tcp_sess_queue(priv);
+		if (moal_agcs_get_state(priv) != AGCS_STATE_IDLE) {
+			moal_agcs_trans_state(priv, AGCS_STATE_START);
+		}
 	} else if (data == UAP_BSS_START) {
 		/* Due to the influence of DMCS, the configurations using FW cmd
 		 * must wait until BSS START. */
-		if (MLAN_STATUS_SUCCESS != woal_uap_set_post_confing(priv))
+		if (woal_uap_set_post_confing(priv) != MLAN_STATUS_SUCCESS)
 			PRINTM(MERROR,
 			       "Set WACP Post default configurations failed\n");
 	}
@@ -4918,6 +4927,7 @@ int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 #endif
 {
 	int ret = 0;
+
 	ENTER();
 #if 0
 #ifdef CONFIG_COMPAT

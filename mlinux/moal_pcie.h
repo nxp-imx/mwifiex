@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /** @file moal_pcie.h
  *
  *  @brief This file contains definitions for PCIE interface.
  *  driver.
  *
  *
- * Copyright 2014-2025 NXP
+ * Copyright 2014-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -23,7 +24,7 @@
 
 /********************************************************
 Change log:
-    02/01/2012: initial version
+02/01/2012: initial version
 ********************************************************/
 
 #ifndef _MOAL_PCIE_H_
