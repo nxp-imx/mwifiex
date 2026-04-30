@@ -583,7 +583,11 @@ static int woal_deauth_assoc_station(moal_private *priv, const u8 *mac_addr,
 	}
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+		cfg80211_del_sta(priv->wdev, mac_addr, GFP_KERNEL);
+#else
 		cfg80211_del_sta(priv->netdev, mac_addr, GFP_KERNEL);
+#endif
 #endif
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MINFO, "cfg80211: Media not connected!\n");
@@ -4234,7 +4238,12 @@ done:
  * @return                0 -- success, otherwise fail
  */
 #endif
-int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
+int woal_cfg80211_del_station(struct wiphy *wiphy,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+			      struct wireless_dev *wdev,
+#else
+			      struct net_device *dev,
+#endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 			      struct station_del_parameters *param)
 #else
@@ -4249,6 +4258,9 @@ int woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 	const u8 *mac_addr = NULL;
 #endif
 	u16 reason_code = REASON_CODE_DEAUTH_LEAVING;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+	struct net_device *dev = wdev->netdev;
+#endif
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 #ifdef UAP_SUPPORT
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)

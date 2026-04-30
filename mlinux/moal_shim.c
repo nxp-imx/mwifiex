@@ -5038,9 +5038,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				}
 #endif /* KERNEL_VERSION */
 				if (priv->netdev && priv->wdev)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+					cfg80211_new_sta(priv->wdev,
+							 (t_u8 *)addr, sinfo,
+							 GFP_KERNEL);
+#else
 					cfg80211_new_sta(priv->netdev,
 							 (t_u8 *)addr, sinfo,
 							 GFP_KERNEL);
+#endif
 				kfree(sinfo);
 			}
 		}
@@ -5101,9 +5107,15 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			} else
 #endif
 				if (priv->netdev && priv->wdev)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+				cfg80211_del_sta(priv->wdev,
+						 pmevent->event_buf + 2,
+						 GFP_KERNEL);
+#else
 				cfg80211_del_sta(priv->netdev,
 						 pmevent->event_buf + 2,
 						 GFP_KERNEL);
+#endif
 
 #endif /* KERNEL_VERSION */
 			priv->plinkstats.num_evt_deauth_rx++;
