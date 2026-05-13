@@ -1775,10 +1775,10 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 					user_he_cap_5g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
 				PRINTM(MERROR,
-				       "LHX|hw_spec=%d, user_2g_he_cap=%08x\n",
+				       "LHX|hw_spec=%d, user_2g_he_cap=%p\n",
 				       i,
-				       (t_u64)(&pmadapter->priv[i]
-							->user_2g_he_cap));
+				       &pmadapter->priv[i]
+							->user_2g_he_cap);
 				DBG_HEXDUMP(
 					MERROR, "LHX|hw_spec",
 					user_he_cap_2g_tlv->he_phy_cap,

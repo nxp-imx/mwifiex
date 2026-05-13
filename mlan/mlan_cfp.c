@@ -3671,6 +3671,9 @@ table_a:
 		max = 0;
 		bonded_chan_count = 0;
 		for (i = 0; i < rows; i++) {
+			t_bool channel_found = MFALSE;
+			t_u32 check_offset;
+			t_u32 offset;
 			if ((pmadapter->cfp_otp_a + i)->dynamic.flags &
 			    NXP_CHANNEL_DISABLED)
 				continue;
@@ -3683,18 +3686,47 @@ table_a:
 			 */
 			n = 0;
 			while (n < pmadapter->tx_power_table_a_rows) {
-				if (pmadapter->tx_power_table_a[n * cols] ==
-				    (pmadapter->cfp_otp_a + i)->channel)
+				check_offset = n * cols;
+				if (check_offset >=
+				    pmadapter->tx_power_table_a_size) {
+					PRINTM(MERROR,
+					       "A-band channel lookup offset %u exceeds table size %u\n",
+					       check_offset,
+					       pmadapter->tx_power_table_a_size);
 					break;
+				}
+				if (pmadapter->tx_power_table_a[check_offset] ==
+				    (pmadapter->cfp_otp_a + i)->channel) {
+					channel_found = MTRUE;
+					break;
+				}
 				n++;
+			}
+
+			/* Validate channel was found and n is within bounds */
+			if (!channel_found ||
+			    n >= pmadapter->tx_power_table_a_rows) {
+				PRINTM(MWARN,
+				       "Channel %u not found in A-band power table\n",
+				       (pmadapter->cfp_otp_a + i)->channel);
+				goto skip_a_channel;
 			}
 			/* Get the max value among all mod groups for this chan
 			 */
-			for (j = 1; j < cols; j++)
-				max = MAX(max,
-					  pmadapter->tx_power_table_a[n * cols +
-								      j]);
 
+			for (j = 1; j < cols; j++) {
+				offset = n * cols + j;
+				if (offset >=
+				    pmadapter->tx_power_table_a_size) {
+					PRINTM(MERROR,
+					       "A-band power offset %u exceeds table size %u\n",
+					       offset,
+					       pmadapter->tx_power_table_a_size);
+					goto skip_a_channel;
+				}
+				max = MAX(max,
+					  pmadapter->tx_power_table_a[offset]);
+			}
 			bonded_chan_count++;
 
 			if ((i < (rows - 1)) &&
@@ -3719,9 +3751,10 @@ table_a:
 			/* Apply the max power value to all channels in this
 			 * bonded group
 			 */
-			for (k = 0; k < bonded_chan_count; k++)
+			for (k = 0; k < bonded_chan_count && k <= i; k++)
 				(pmadapter->cfp_otp_a + i - k)->max_tx_power =
 					max;
+		skip_a_channel:
 			max = 0;
 			bonded_chan_count = 0;
 		}

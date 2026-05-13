@@ -2672,8 +2672,12 @@ static mlan_status wlan_ret_sta_config(pmlan_private pmpriv,
 				*bandcfg = tlv_band_channel->bandcfg;
 				bss->param.sta_channel.channel =
 					tlv_band_channel->channel;
+				/* Channel 14 (Japan) does not support 802.11n.
+				 */
 				bss->param.sta_channel.is_11n_enabled =
-					IS_11N_ENABLED(pmpriv);
+					(tlv_band_channel->channel == 14) ?
+						0 :
+						IS_11N_ENABLED(pmpriv);
 				if (bandcfg->chanWidth == CHAN_BW_80MHZ)
 					bss->param.sta_channel.center_chan =
 						wlan_get_center_freq_idx(

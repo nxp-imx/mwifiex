@@ -2884,8 +2884,12 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 					bss->param.ap_channel.channel =
 						chan_band_tlv->channel;
 					bss->param.ap_channel.center_chan = 0;
+					/* Channel 14 (Japan) does not support
+					 * 802.11n. */
 					bss->param.ap_channel.is_11n_enabled =
-						pmpriv->is_11n_enabled;
+						(chan_band_tlv->channel == 14) ?
+							0 :
+							pmpriv->is_11n_enabled;
 					pmpriv->uap_channel =
 						chan_band_tlv->channel;
 					pmpriv->uap_bandwidth =
