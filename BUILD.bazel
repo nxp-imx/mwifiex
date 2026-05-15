@@ -57,6 +57,12 @@ define_mwifiex(
     kernel_headers = "//kernel_imx:all_headers_aarch64",
 )
 
+define_mwifiex(
+    name_suffix = "imx95",
+    kernel_build = "//kernel_imx:imx95",
+    kernel_headers = "//kernel_imx:all_headers_aarch64",
+)
+
 # =============================================================================
 # Default aliases (for backward compatibility)
 # =============================================================================
