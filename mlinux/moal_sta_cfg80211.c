@@ -4653,7 +4653,7 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 #endif
 #endif
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 	sinfo->filled |= MBIT64(NL80211_STA_INFO_FCS_ERROR_COUNT);
 #endif
 
@@ -4687,7 +4687,7 @@ static mlan_status woal_cfg80211_dump_station_info(moal_private *priv,
 	sinfo->tx_failed = stats.failed;
 	sinfo->tx_retries = stats.retry;
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 	sinfo->fcs_err_count = stats.fcs_error;
 #endif
 

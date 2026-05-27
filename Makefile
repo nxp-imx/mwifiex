@@ -154,8 +154,8 @@ ccflags-y += -DLINUX
 
 
 
-ARCH ?= arm64
-CONFIG_IMX_SUPPORT=y
+ARCH ?= arm
+CONFIG_IMX_SUPPORT=n
 ifeq ($(CONFIG_IMX_SUPPORT),y)
 ccflags-y += -DIMX_SUPPORT
 ifneq ($(ANDROID_PRODUCT_OUT),)
