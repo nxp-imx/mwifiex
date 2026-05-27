@@ -28,6 +28,16 @@ Change log:
 #ifndef _MOAL_MAIN_H
 #define _MOAL_MAIN_H
 
+#ifndef fallthrough
+#if defined(__GNUC__) && __GNUC__ >= 7
+#define fallthrough __attribute__((fallthrough))
+#elif defined(__clang__) && __clang_major__ >= 10
+#define fallthrough __attribute__((fallthrough))
+#else
+#define fallthrough ((void)0)
+#endif
+#endif
+
 /* warnfix for FS redefination if any? */
 #ifdef FS
 #undef FS
