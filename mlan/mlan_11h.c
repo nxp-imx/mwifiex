@@ -22,9 +22,10 @@
  */
 
 /*************************************************************
-Change Log:
-03/26/2009: initial version
-************************************************************/
+ * Change Log:
+ * 03/26/2009: initial version
+ * **********************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -39,8 +40,9 @@ Change Log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /** Default IBSS DFS recovery interval (in TBTTs); used for adhoc start */
 #define WLAN_11H_DEFAULT_DFS_RECOVERY_INTERVAL 100
@@ -130,12 +132,14 @@ typedef struct {
 } wlan_11h_tpc_info_param_t;
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Utility function to get a random number based on the underlying OS
@@ -214,9 +218,8 @@ static t_u8 woal_get_bonded_channels(t_u8 pri_chan, t_u8 bw, t_u8 *chan_list)
 		}
 		if (find) {
 			n_chan = 4;
-			for (j = 0; j < n_chan; j++) {
+			for (j = 0; j < n_chan; j++)
 				chan_list[j] = (t_u8)vht80_dfs[i][j];
-			}
 		}
 	}
 	LEAVE();
@@ -1565,8 +1568,9 @@ static void wlan_11h_add_all_dfs_timestamp(mlan_adapter *pmadapter, t_u8 repr,
 }
 
 /********************************************************
-			Global functions
-********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Return whether the device has activated master radar detection.
@@ -1987,9 +1991,8 @@ mlan_status wlan_11h_activate(mlan_private *priv, t_void *pioctl_buf,
 	 * we do not enable master or slave radar det mode.
 	 * HW will not detect radar in dfs_repeater mode.
 	 */
-	if (priv->adapter->dfs_repeater) {
+	if (priv->adapter->dfs_repeater)
 		enable &= ~(MASTER_RADAR_DET_MASK | SLAVE_RADAR_DET_MASK);
-	}
 
 	/*
 	 * Send cmd to FW to enable/disable 11h function in firmware
@@ -3050,11 +3053,11 @@ mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 	if (pioctl_req) {
 		ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
-		if (pioctl_req->action == MLAN_ACT_GET) {
+		if (pioctl_req->action == MLAN_ACT_GET)
 			ds_11hcfg->param.cs_count = pmadapter->dfs_cs_count;
-		} else {
+		else
 			pmadapter->dfs_cs_count = ds_11hcfg->param.cs_count;
-		}
+
 		ret = MLAN_STATUS_SUCCESS;
 	}
 
@@ -3431,9 +3434,8 @@ void wlan_dfs_rep_disconnect(mlan_adapter *pmadapter)
 					       HostCmd_CMD_APCMD_BSS_STOP,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
-			if (ret) {
+			if (ret)
 				PRINTM(MMSG, "Error sending message to FW\n");
-			}
 		}
 	}
 }
@@ -3481,9 +3483,8 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 					       HostCmd_CMD_APCMD_BSS_STOP,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
-			if (ret) {
+			if (ret)
 				PRINTM(MERROR, "Error sending message to FW\n");
-			}
 		}
 	}
 
@@ -3496,9 +3497,8 @@ void wlan_dfs_rep_bw_change(mlan_adapter *pmadapter)
 					       HostCmd_CMD_APCMD_BSS_START,
 					       HostCmd_ACT_GEN_SET, 0, MNULL,
 					       MNULL);
-			if (ret) {
+			if (ret)
 				PRINTM(MERROR, "Error sending message to FW\n");
-			}
 		}
 	}
 }
@@ -3811,9 +3811,8 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 					.fixed_new_channel_on_radar;
 		}
 		/* applies to DFS with ECSA support */
-		if (pmadapter->dfs_test_params.no_channel_change_on_radar) {
+		if (pmadapter->dfs_test_params.no_channel_change_on_radar)
 			pstate_rdh->new_channel = pstate_rdh->curr_channel;
-		}
 		PRINTM(MCMD_D, "%s():  curr_chan=%d, new_chan=%d\n", __func__,
 		       pstate_rdh->curr_channel, pstate_rdh->new_channel);
 
@@ -4120,8 +4119,9 @@ mlan_status wlan_11h_radar_detected_handling(mlan_adapter *pmadapter,
 				if (wlan_11h_radar_detect_required(
 					    pmpriv, pstate_rdh->new_channel)) {
 					/* Radar detection is required for this
-					   channel, make sure 11h is activated
-					   in the firmware */
+					 * channel, make sure 11h is activated
+					 * in the firmware
+					 */
 					ret = wlan_11h_activate(pmpriv, MNULL,
 								MTRUE);
 					ret = wlan_11h_config_master_radar_det(
@@ -4401,11 +4401,10 @@ mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,
 	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 	dfs_w53_cfg = &ds_11hcfg->param.dfs_w53_cfg;
 
-	if (pioctl_req->action == MLAN_ACT_GET) {
+	if (pioctl_req->action == MLAN_ACT_GET)
 		dfs_w53_cfg->dfs53cfg = pmadapter->dfs53cfg;
-	} else {
+	else
 		pmadapter->dfs53cfg = dfs_w53_cfg->dfs53cfg;
-	}
 
 	LEAVE();
 
@@ -4429,11 +4428,11 @@ mlan_status wlan_11h_ioctl_dfs_mode(pmlan_adapter pmadapter,
 
 	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
-	if (pioctl_req->action == MLAN_ACT_GET) {
+	if (pioctl_req->action == MLAN_ACT_GET)
 		ds_11hcfg->param.dfs_mode = pmadapter->dfs_mode;
-	} else {
+	else
 		pmadapter->dfs_mode = ds_11hcfg->param.dfs_mode;
-	}
+
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

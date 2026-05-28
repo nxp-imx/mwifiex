@@ -695,10 +695,9 @@ static mlan_status wlan_cmd_mfg_otp_cal_data_rw(pmlan_private pmpriv,
 	mcmd->action = wlan_cpu_to_le16(cfg->action);
 	mcmd->cal_data_status = wlan_cpu_to_le32(cfg->cal_data_status);
 	mcmd->cal_data_len = wlan_cpu_to_le32(cfg->cal_data_len);
-	if (action == HostCmd_ACT_GEN_SET) {
+	if (action == HostCmd_ACT_GEN_SET)
 		memcpy_ext(pmpriv->adapter, mcmd->cal_data, cfg->cal_data,
 			   mcmd->cal_data_len, mcmd->cal_data_len);
-	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -732,9 +731,8 @@ static mlan_status wlan_cmd_mfg_generic_cmd(pmlan_private pmpriv,
 	mcmd->opcode = wlan_cpu_to_le32(cfg->opcode);
 
 	// Copy all data elements from the buffer
-	for (i = 0; i < GENERIC_CMD_BUFFER; i++) {
+	for (i = 0; i < GENERIC_CMD_BUFFER; i++)
 		mcmd->data[i] = wlan_cpu_to_le32(cfg->data[i]);
-	}
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

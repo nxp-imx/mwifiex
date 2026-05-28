@@ -23,9 +23,10 @@
  */
 
 /*************************************************************
-Change Log:
-    05/11/2009: initial version
-************************************************************/
+ * Change Log:
+ * 05/11/2009: initial version
+ * **********************************************************
+ */
 #include "mlan.h"
 #ifdef STA_SUPPORT
 #include "mlan_join.h"
@@ -41,12 +42,14 @@ Change Log:
 #include "mlan_uap.h"
 #endif
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 #if defined(USB8978) || defined(SD8978)
 /** custom Fw data */
 /** Fw remap config */
@@ -74,8 +77,9 @@ t_u8 fw_data_dpd_current_opt[FW_DATA_DPD_CURRENT_OPT_LEN] = {
 #endif
 #define FCS_SIZE (4)
 /********************************************************
-  Local Functions
- ********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 #if defined(PCIE) || defined(SDIO)
 /**
  *  @brief Check pending irq
@@ -278,8 +282,9 @@ static mlan_status wlan_custom_ioctl_auto_delete(pmlan_private pmpriv,
 				if (pmpriv->mgmt_ie[index].ie_length >
 				    (cnt + del_len)) {
 					/*buffer bounds are validated using MIN
-					 *and logic ensures safe access within
-					 *allocated array size. */
+					 * and logic ensures safe access within
+					 * allocated array size.
+					 */
 					// coverity[cert_arr30_c_violation:
 					// SUPPRESS]
 					// coverity[cert_str31_c_violation:SUPPRESS]
@@ -333,8 +338,9 @@ static mlan_status wlan_custom_ioctl_auto_delete(pmlan_private pmpriv,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Get custom Fw data
  *
@@ -2546,9 +2552,8 @@ mlan_status wlan_misc_ioctl_tdls_cs_channel(pmlan_adapter pmadapter,
 
 	if (pioctl_req->action == MLAN_ACT_GET)
 		misc->param.tdls_cs_channel = pmpriv->tdls_cs_channel;
-	else if (pioctl_req->action == MLAN_ACT_SET) {
+	else if (pioctl_req->action == MLAN_ACT_SET)
 		pmpriv->tdls_cs_channel = misc->param.tdls_cs_channel;
-	}
 	LEAVE();
 	return ret;
 }
@@ -2569,11 +2574,10 @@ mlan_status wlan_misc_ioctl_tdls_idle_time(pmlan_adapter pmadapter,
 
 	ENTER();
 
-	if (pioctl_req->action == MLAN_ACT_GET) {
+	if (pioctl_req->action == MLAN_ACT_GET)
 		misc->param.tdls_idle_time = pmpriv->tdls_idle_time;
-	} else if (pioctl_req->action == MLAN_ACT_SET) {
+	else if (pioctl_req->action == MLAN_ACT_SET)
 		pmpriv->tdls_idle_time = misc->param.tdls_idle_time;
-	}
 	LEAVE();
 	return ret;
 }
@@ -2658,7 +2662,8 @@ mlan_status wlan_misc_ioctl_tdls_oper(pmlan_adapter pmadapter,
 			/*for supplicant 2.0, we need send event to request
 			 *teardown, *for latest supplicant, we only need return
 			 *fail, and supplicant will send teardown packet and
-			 *disable tdls link*/
+			 * disable tdls link
+			 */
 			if (sta_ptr) {
 				ptdls_event->bss_index = pmpriv->bss_index;
 				ptdls_event->event_id =
@@ -4559,11 +4564,11 @@ t_u8 *wlan_get_specific_ie(pmlan_private priv, t_u8 *ie_buf, t_u16 ie_len,
 			break;
 		}
 		/*In case of 11AI, Assoc Req/Reassoc Req contains encrypted
-		 TLV's after FILS_SESSION. To avoid InterpretIE: error skipping
-		 TLV's after FILS_SESSION*/
-		if (element_id == FILS_SESSION) {
+		 * TLV's after FILS_SESSION. To avoid InterpretIE: error
+		 * skipping TLV's after FILS_SESSION
+		 */
+		if (element_id == FILS_SESSION)
 			break;
-		}
 		pcurrent_ptr += element_len + 2;
 		/* Need to account for IE ID and IE Len */
 		bytes_left -= (element_len + 2);
@@ -5844,9 +5849,8 @@ mlan_status wlan_misc_ioctl_aggr_ctrl(pmlan_adapter pmadapter,
 			       0, (t_void *)pioctl_req,
 			       &misc->param.aggr_params);
 
-	if (ret == MLAN_STATUS_SUCCESS) {
+	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
-	}
 
 	LEAVE();
 	return ret;
@@ -5890,9 +5894,8 @@ mlan_status wlan_misc_ioctl_usb_aggr_ctrl(pmlan_adapter pmadapter,
 			       cmd_action, 0, (t_void *)pioctl_req,
 			       &misc->param.usb_aggr_params);
 
-	if (ret == MLAN_STATUS_SUCCESS) {
+	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
-	}
 
 	LEAVE();
 	return ret;

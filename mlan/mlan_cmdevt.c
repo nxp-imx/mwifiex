@@ -23,9 +23,10 @@
  */
 
 /*************************************************************
-Change Log:
-05/12/2009: initial version
-************************************************************/
+ * Change Log:
+ * 05/12/2009: initial version
+ * **********************************************************
+ */
 #include "mlan.h"
 #include "mlan_util.h"
 #ifdef STA_SUPPORT
@@ -52,8 +53,9 @@ Change Log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 #ifdef DEBUG_LEVEL1
 
@@ -80,20 +82,21 @@ static const struct reflective_enum_element host_fw_event_names[] = {
 #endif /* DEBUG_LEVEL1 */
 
 /*******************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 static const char *wlan_hostcmd_get_name(enum host_cmd_id id)
 {
 #ifdef DEBUG_LEVEL1
 	const char *name = reflective_enum_lookup_name(host_cmd_id_names, id);
 
-	if (name) {
+	if (name)
 		return wlan_str_skip_prefix(name, "HostCmd_CMD_");
-	}
 #endif
 
 	return "???";
@@ -104,9 +107,8 @@ static const char *wlan_event_get_name(enum host_fw_event_id id)
 #ifdef DEBUG_LEVEL1
 	const char *name = reflective_enum_lookup_name(host_fw_event_names, id);
 
-	if (name) {
+	if (name)
 		return wlan_str_skip_prefix(name, "EVENT_");
-	}
 #endif
 
 	return "???";
@@ -744,9 +746,8 @@ static t_u32 wlan_parse_cal_cfg(const t_u8 *src, t_size len, t_u8 *dst)
 static int wlan_compare(t_u8 *x, t_u8 *y)
 {
 	while (*x && *y) {
-		if (*x != *y) {
+		if (*x != *y)
 			return 0;
-		}
 		if (!wlan_secure_add(&x, 1, &x, TYPE_PTR)) {
 			PRINTM(MERROR, "%s(): x is invalid\n", __func__);
 			return 0;
@@ -773,12 +774,10 @@ static t_u8 *wlan_strstr(t_u8 *s1, t_u8 *s2)
 	t_u8 *pos = s1;
 
 	while (*pos != '\0') {
-		if ((*pos == *s2) && wlan_compare(pos, s2)) {
+		if ((*pos == *s2) && wlan_compare(pos, s2))
 			return pos;
-		}
-		if (!wlan_secure_add(&pos, 1, &pos, TYPE_PTR)) {
+		if (!wlan_secure_add(&pos, 1, &pos, TYPE_PTR))
 			PRINTM(MERROR, "%s(): pos is invalid\n", __func__);
-		}
 	}
 	return MNULL;
 }
@@ -799,9 +798,8 @@ static const t_u8 *wlan_strchr(const t_u8 *s, int c)
 	while (*pos != '\0') {
 		if (*pos == (t_u8)c)
 			return pos;
-		if (!wlan_secure_add(&pos, 1, &pos, TYPE_PTR)) {
+		if (!wlan_secure_add(&pos, 1, &pos, TYPE_PTR))
 			PRINTM(MERROR, "pos is invalid\n");
-		}
 	}
 	return MNULL;
 }
@@ -1847,8 +1845,9 @@ static t_u16 wlan_get_bitmap_index(MrvlRateScope_t *rate_scope)
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Event handler
@@ -2744,6 +2743,10 @@ mlan_status wlan_process_cmdresp(mlan_adapter *pmadapter)
 		if ((cmdresp_result == HostCmd_RESULT_OK) &&
 		    (cmdresp_no == HostCmd_CMD_802_11_HS_CFG_ENH))
 			ret = wlan_ret_802_11_hs_cfg(pmpriv, resp, pioctl_buf);
+		if ((cmdresp_result == HostCmd_RESULT_OK) &&
+		    (cmdresp_no == HostCmd_CMD_REGION_POWER_CFG))
+			ret = wlan_ret_region_power_cfg(pmpriv, resp,
+							pioctl_buf);
 	} else {
 #if defined(SDIO) || defined(PCIE)
 		if (!IS_USB(pmadapter->card_type) && pmadapter->curr_cmd &&
@@ -5573,11 +5576,11 @@ mlan_status wlan_cmd_func_init(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd)
 	pboot_time_tlv->len =
 		wlan_cpu_to_le16(sizeof(MrvlIEtypes_boot_time_cfg_t) -
 				 sizeof(MrvlIEtypesHeader_t));
-	if (pmadapter->init_para.bootup_cal_ctrl == 1) {
+	if (pmadapter->init_para.bootup_cal_ctrl == 1)
 		pboot_time_tlv->enable = MTRUE;
-	} else {
+	else
 		pboot_time_tlv->enable = MFALSE;
-	}
+
 	tlv_buf += sizeof(MrvlIEtypes_boot_time_cfg_t);
 	prx_buf_size_tlv = (MrvlIEtypes_host_max_rx_buf_size_t *)tlv_buf;
 	prx_buf_size_tlv->type = wlan_cpu_to_le16(TLV_HOST_MAX_RX_BUF_SIZE);
@@ -7137,9 +7140,8 @@ mlan_status wlan_ret_get_hw_spec(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	/* read feature list from lower 16-bytes only */
 	feature_mask =
 		0xffff0000 | (pmadapter->init_para.dev_cap_mask & 0xffff);
-	if (!(feature_mask & DISABLE_5G_MASK)) {
+	if (!(feature_mask & DISABLE_5G_MASK))
 		feature_mask &= ~(1 << 13);
-	}
 	pmadapter->fw_cap_info &= feature_mask;
 
 	PRINTM(MMSG, "fw_cap_info=0x%x, dev_cap_mask=0x%x\n",
@@ -9825,11 +9827,11 @@ mlan_status wlan_ret_chan_region_cfg(pmlan_private pmpriv,
 
 	tlv_buf = (t_u8 *)&resp->params.reg_cfg.tlv_buffer;
 
-	if (resp->size > (S_DS_GEN + sizeof(*reg))) {
+	if (resp->size > (S_DS_GEN + sizeof(*reg)))
 		tlv_buf_left = resp->size - S_DS_GEN - sizeof(*reg);
-	} else {
+	else
 		PRINTM(MERROR, "Region size calculation ERROR.\n");
-	}
+
 	if (!tlv_buf || !tlv_buf_left) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
@@ -9917,6 +9919,74 @@ mlan_status wlan_ret_chan_region_cfg(pmlan_private pmpriv,
 					   sizeof(chan_freq_power_t));
 		}
 	}
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function handles the command response of region_power_cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_region_power_cfg(pmlan_private pmpriv,
+				      HostCmd_DS_COMMAND *resp,
+				      mlan_ioctl_req *pioctl_buf)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	t_u8 *tlv_buf = MNULL;
+	t_u16 tlv_buf_left = 0;
+	MrvlIEtypesHeader_t *tlv_hdr = MNULL;
+	t_u16 tlv_type, tlv_len;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (resp->size > (S_DS_GEN + sizeof(t_u16))) {
+		tlv_buf = (t_u8 *)resp + S_DS_GEN + sizeof(t_u16);
+		tlv_buf_left = resp->size - S_DS_GEN - sizeof(t_u16);
+	}
+
+	if (!tlv_buf || !tlv_buf_left) {
+		PRINTM(MERROR, "region_power_cfg: No TLV data in response\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	while (tlv_buf_left >= sizeof(MrvlIEtypesHeader_t)) {
+		tlv_hdr = (MrvlIEtypesHeader_t *)tlv_buf;
+		tlv_type = wlan_le16_to_cpu(tlv_hdr->type);
+		tlv_len = wlan_le16_to_cpu(tlv_hdr->len);
+
+		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len))
+			break;
+
+		if (tlv_type == TLV_TYPE_POWER_TABLE) {
+			/*
+			 * Power table TLV value starts with region header:
+			 *   Identifier(u16), Version(u8),
+			 *   NumberOfEntries(u8), PTBaseVersion(u8), ...
+			 * PTBaseVersion is at byte offset 4.
+			 */
+			if (tlv_len > 4) {
+				t_u8 *pwr_tbl_val =
+					tlv_buf + sizeof(MrvlIEtypesHeader_t);
+				pmadapter->pt_base_version = pwr_tbl_val[4];
+				PRINTM(MCMND,
+				       "region_power_cfg: PTBaseVersion=%u\n",
+				       pmadapter->pt_base_version);
+			}
+			break;
+		}
+
+		tlv_buf += sizeof(MrvlIEtypesHeader_t) + tlv_len;
+		tlv_buf_left -= (sizeof(MrvlIEtypesHeader_t) + tlv_len);
+	}
+
 done:
 	LEAVE();
 	return ret;
@@ -10150,9 +10220,8 @@ static t_u32 wlan_get_num_radio_supported(pmlan_adapter pmadapter)
 
 	/* Dual-radio SoCs: W9098 (Skyhawk), AW693 (Blackbird) */
 	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDAW693(pmadapter->card_type)) {
+	    IS_CARDAW693(pmadapter->card_type))
 		num_radio = 2;
-	}
 	/* All other SoCs are single-radio (including 9097, 9177, IW624, IW610,
 	 * legacy) */
 
@@ -10989,9 +11058,8 @@ mlan_status wlan_ret_led_config(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	left_len = cmdrsp_len - (S_DS_GEN + sizeof(HostCmd_DS_CMD_LED_CFG));
 
 	if (!wlan_secure_add(&resp, (S_DS_GEN + sizeof(HostCmd_DS_CMD_LED_CFG)),
-			     &tlv, TYPE_PTR)) {
+			     &tlv, TYPE_PTR))
 		PRINTM(MERROR, "tlv is invalid\n");
-	}
 
 	for (i = 0; i < MAX_FW_STATES; i++) {
 		mlan_led_cfg->misc_led_behvr[i].firmwarestate = *tlv;
@@ -11798,6 +11866,7 @@ mlan_status wlan_ret_chan_trpc_config(pmlan_private pmpriv,
 				misc->param.trpc_cfg);
 			cfg->sub_band = wlan_le16_to_cpu(trpc_cfg->sub_band);
 			cfg->length = resp->size;
+			cfg->pt_base_version = pmadapter->pt_base_version;
 			memcpy_ext(pmadapter, cfg->trpc_buf, (t_u8 *)resp,
 				   cfg->length, sizeof(cfg->trpc_buf));
 		}

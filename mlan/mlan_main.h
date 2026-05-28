@@ -24,9 +24,10 @@
  */
 
 /******************************************************
-Change log:
-    10/13/2008: initial version
-******************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * ****************************************************
+ */
 
 #ifndef _MLAN_MAIN_H_
 #define _MLAN_MAIN_H_
@@ -3140,6 +3141,8 @@ struct _mlan_adapter {
 	t_u32 tx_power_table_6g_size;
 	t_u8 tx_power_table_6g_rows;
 	t_u8 tx_power_table_6g_cols;
+	/** PT Base Version from region power table */
+	t_u8 pt_base_version;
 	/**mlan adapter operations*/
 	mlan_adapter_operations ops;
 	/** TP accounting mode 1-enable 0-disable */
@@ -3886,9 +3889,8 @@ static INLINE t_u8 wlan_get_port_index(pmlan_adapter pmadapter, t_u32 port)
 	t_u8 i;
 
 	for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
-		if (port == pmadapter->usb_tx_ports[i]) {
+		if (port == pmadapter->usb_tx_ports[i])
 			return i;
-		}
 	}
 	return 0;
 }
@@ -4838,6 +4840,9 @@ mlan_status wlan_cmd_chan_region_cfg(pmlan_private pmpriv,
 mlan_status wlan_ret_chan_region_cfg(pmlan_private pmpriv,
 				     HostCmd_DS_COMMAND *resp,
 				     mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_ret_region_power_cfg(pmlan_private pmpriv,
+				      HostCmd_DS_COMMAND *resp,
+				      mlan_ioctl_req *pioctl_buf);
 
 mlan_status wlan_misc_ioctl_fw_dump_event(pmlan_adapter pmadapter,
 					  mlan_ioctl_req *pioctl_req);
@@ -5006,9 +5011,8 @@ static INLINE const char *wlan_str_skip_prefix(const char *str,
 		prefix++;
 	}
 
-	if (*substr && !*prefix) {
+	if (*substr && !*prefix)
 		str = substr;
-	}
 
 	return str;
 }

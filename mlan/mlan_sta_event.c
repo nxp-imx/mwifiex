@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    10/13/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -39,12 +40,14 @@ Change log:
 #endif /* PCIE */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function handles link lost, deauth and
@@ -407,8 +410,9 @@ static void wlan_process_nan_event(pmlan_private pmpriv, pmlan_buffer pmbuf)
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function handles disconnect event, reports disconnect
  *          to upper layer, cleans tx/rx packets,

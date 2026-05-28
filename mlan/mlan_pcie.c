@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-02/01/2012: initial version
-********************************************************/
+ * Change log:
+ * 02/01/2012: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -39,8 +40,9 @@ Change log:
 #include "mlan_pcie.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #ifdef PCIE8897
 static const struct _mlan_pcie_card_reg mlan_reg_pcie8897 = {
 	.reg_txbd_rdptr = PCIE8897_RD_DATA_PTR_Q0_Q1,
@@ -201,12 +203,14 @@ static const struct _mlan_card_info mlan_card_info_pcie9098 = {
 };
 #endif
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 static mlan_status wlan_pcie_delete_evtbd_ring(pmlan_adapter pmadapter);
 static mlan_status wlan_pcie_delete_rxbd_ring(pmlan_adapter pmadapter);
@@ -1196,7 +1200,8 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 	pmadapter->pcard_pcie->txbd_rdptr = 0;
 
 	/* allocate shared memory for the BD ring and divide the same in to
-	   several descriptors */
+	 * several descriptors
+	 */
 #if defined(PCIE8897)
 	if (!pmadapter->pcard_pcie->reg->use_adma)
 		pmadapter->pcard_pcie->txbd_ring_size =
@@ -1452,7 +1457,8 @@ static mlan_status wlan_pcie_create_rxbd_ring(mlan_adapter *pmadapter)
 		pmadapter->pcard_pcie->rxbd_wrptr =
 			pmadapter->pcard_pcie->reg->txrx_rw_ptr_rollover_ind;
 		/* allocate shared memory for the BD ring and divide the same in
-		to several descriptors */
+		 * to several descriptors
+		 */
 		pmadapter->pcard_pcie->rxbd_ring_size =
 			sizeof(mlan_pcie_data_buf) *
 			pmadapter->pcard_pcie->txrx_bd_size;
@@ -3180,9 +3186,8 @@ static mlan_status wlan_pcie_reattach_handle(mlan_adapter *pmadapter,
 	}
 	if ((wlan_pcie_rx_ring_move_rdwrptr(pmadapter, rd_index,
 					    update_rx_action) !=
-	     MLAN_STATUS_SUCCESS)) {
+	     MLAN_STATUS_SUCCESS))
 		ret = MLAN_STATUS_FAILURE;
-	}
 
 	return ret;
 }
@@ -3338,7 +3343,8 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		       pmbuf, rd_index, pmadapter->pcard_pcie->rxbd_rdptr);
 
 		/* Get data length from interface header -
-		   first 2 bytes are len, second 2 bytes are type */
+		 * first 2 bytes are len, second 2 bytes are type
+		 */
 		rx_len = read_u16_unaligned(pmadapter,
 					    pmbuf->pbuf + pmbuf->data_offset);
 		rx_len = wlan_le16_to_cpu(rx_len);
@@ -3411,9 +3417,8 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 		if ((rx_len <= pmadapter->rx_buf_size) || (!pmbuf)) {
 			if (wlan_pcie_reattach_handle(pmadapter, rd_index,
 						      &pmbuf) ==
-			    MLAN_STATUS_FAILURE) {
+			    MLAN_STATUS_FAILURE)
 				PRINTM(MERROR, "RECV DATA: reattach failed\n");
-			}
 		}
 
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) ||
@@ -3499,18 +3504,19 @@ static mlan_status wlan_pcie_send_cmd(mlan_adapter *pmadapter,
 #if defined(PCIE8897)
 	if (!pmadapter->pcard_pcie->reg->use_adma) {
 		/* To send a command, the driver will:
-		    1. Write the 64bit physical address of the data buffer to
-			SCRATCH1 + SCRATCH0
-		    2. Ring the door bell (i.e. set the door bell interrupt)
+		 * 1. Write the 64bit physical address of the data buffer to
+		 * SCRATCH1 + SCRATCH0
+		 * 2. Ring the door bell (i.e. set the door bell interrupt)
 
-		    In response to door bell interrupt, the firmware will
-		   perform the DMA of the command packet (first header to obtain
-		   the total length and then rest of the command).
-		*/
+		 * In response to door bell interrupt, the firmware will
+		 * perform the DMA of the command packet (first header to obtain
+		 * the total length and then rest of the command).
+		 */
 
 		if (pmadapter->pcard_pcie->cmdrsp_buf) {
 			/* Write the lower 32bits of the cmdrsp buffer physical
-			   address */
+			 * address
+			 */
 			if (pcb->moal_write_reg(pmadapter->pmoal_handle,
 						REG_CMDRSP_ADDR_LO,
 						(t_u32)pmadapter->pcard_pcie
@@ -3521,7 +3527,8 @@ static mlan_status wlan_pcie_send_cmd(mlan_adapter *pmadapter,
 				goto done;
 			}
 			/* Write the upper 32bits of the cmdrsp buffer physical
-			    address */
+			 * address
+			 */
 			if (pcb->moal_write_reg(
 				    pmadapter->pmoal_handle, REG_CMDRSP_ADDR_HI,
 				    (t_u32)((t_u64)pmadapter->pcard_pcie
@@ -3544,13 +3551,13 @@ static mlan_status wlan_pcie_send_cmd(mlan_adapter *pmadapter,
 	defined(PCIEIW624)
 	if (pmadapter->pcard_pcie->reg->use_adma) {
 		/* To send a command, the driver will:
-		   1. driver prepare the cmdrep buffer for adma
-		   2. driver programs dma_mode field to direct programming mode
-		   and programs dma_size field to define DMA data transfer size.
-		   3. driver programs src_base_addr register to define source
-		   location of DMA data
-		   4. driver sets src_wptr to 1 to initiate DMA operation
-		*/
+		 * 1. driver prepare the cmdrep buffer for adma
+		 * 2. driver programs dma_mode field to direct programming mode
+		 * and programs dma_size field to define DMA data transfer size.
+		 * 3. driver programs src_base_addr register to define source
+		 * location of DMA data
+		 * 4. driver sets src_wptr to 1 to initiate DMA operation
+		 */
 		wlan_init_adma(pmadapter, ADMA_CMDRESP,
 			       pmadapter->pcard_pcie->cmdrsp_buf->buf_pa,
 			       MRVDRV_SIZE_OF_CMD_BUFFER, MFALSE);
@@ -3635,7 +3642,8 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 	}
 
 	/* Get data length from interface header -
-	   first 2 bytes are len, second 2 bytes are type */
+	 * first 2 bytes are len, second 2 bytes are type
+	 */
 	resp_len =
 		read_u16_unaligned(pmadapter, pmbuf->pbuf + pmbuf->data_offset);
 
@@ -3698,13 +3706,15 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 		pmadapter->curr_cmd->respbuf = pmbuf;
 
 		/* Take the pointer and set it to CMD node and will
-		   return in the response complete callback */
+		 * return in the response complete callback
+		 */
 		pmadapter->pcard_pcie->cmdrsp_buf = MNULL;
 #if defined(PCIE8897)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
 			/* Clear the cmd-rsp buffer address in scratch
-			registers. This will prevent firmware from writing to
-			the same response buffer again. */
+			 * registers. This will prevent firmware from writing to
+			 * the same response buffer again.
+			 */
 			if (pcb->moal_write_reg(pmadapter->pmoal_handle,
 						REG_CMDRSP_ADDR_LO, 0)) {
 				PRINTM(MERROR,
@@ -3713,7 +3723,8 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 				goto done;
 			}
 			/* Write the upper 32bits of the cmdrsp buffer physical
-			    address */
+			 * address
+			 */
 			if (pcb->moal_write_reg(pmadapter->pmoal_handle,
 						REG_CMDRSP_ADDR_HI, 0)) {
 				PRINTM(MERROR,
@@ -3727,8 +3738,9 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 	defined(PCIEIW624)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
 			/* Clear the cmd-rsp buffer address in adma registers.
-			   This will prevent firmware from writing to the same
-			   response buffer again. */
+			 * This will prevent firmware from writing to the same
+			 * response buffer again.
+			 */
 			if (wlan_init_adma(pmadapter, ADMA_CMDRESP, 0, 0,
 					   MFALSE)) {
 				PRINTM(MERROR,
@@ -3870,7 +3882,8 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 				       PCI_DMA_FROMDEVICE);
 
 		/* Take the pointer and set it to event pointer in adapter
-		   and will return back after event handling callback */
+		 * and will return back after event handling callback
+		 */
 #if defined(PCIE8897)
 		if (!pmadapter->pcard_pcie->reg->use_adma) {
 			pevtbd_buf = (mlan_pcie_evt_buf *)pmadapter->pcard_pcie
@@ -3908,7 +3921,8 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 			pmadapter, &pmbuf_evt->pbuf[pmbuf_evt->data_offset +
 						    PCIE_INTF_HEADER_LEN]);
 		/* The first 4bytes will be the event transfer header
-		   len is 2 bytes followed by type which is 2 bytes */
+		 * len is 2 bytes followed by type which is 2 bytes
+		 */
 		evt_len = read_u16_unaligned(
 			pmadapter, &pmbuf_evt->pbuf[pmbuf_evt->data_offset]);
 		evt_len = wlan_le16_to_cpu(evt_len);
@@ -3953,9 +3967,9 @@ static mlan_status wlan_pcie_process_event_ready(mlan_adapter *pmadapter)
 #endif
 
 		/* Do not update the event write pointer here, wait till the
-		   buffer is released. This is just to make things simpler,
-		   we need to find a better method of managing these buffers.
-		*/
+		 * buffer is released. This is just to make things simpler,
+		 * we need to find a better method of managing these buffers.
+		 */
 	} else {
 		PRINTM(MINTR, "------>EVENT DONE\n");
 		if (pcb->moal_write_reg(
@@ -4453,8 +4467,9 @@ done:
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *	@brief This function get pcie device from card type
  *
@@ -5672,9 +5687,8 @@ static mlan_status wlan_pcie_send_data_list(mlan_adapter *pmadapter, t_u8 type,
 		pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
 							&pmadapter->amsdu_txq,
 							MNULL, MNULL);
-		if (pmbuf) {
+		if (pmbuf)
 			wlan_pcie_send_data(pmadapter, type, pmbuf, MNULL);
-		}
 		return MLAN_STATUS_SUCCESS;
 	}
 	for (i = 0; i < num_pkt; i++) {

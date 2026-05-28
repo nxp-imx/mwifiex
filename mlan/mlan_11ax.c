@@ -33,20 +33,24 @@
 #include "mlan_11ac.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 #if 0
 /**
@@ -669,11 +673,10 @@ t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
 	case BW_40MHZ:
 		band_width = CHAN_BW_40MHZ;
 		if (phe_6g_op_info->primary_channel <
-		    phe_6g_op_info->channel_center_freq0) {
+		    phe_6g_op_info->channel_center_freq0)
 			bandcfg->chan2Offset = SEC_CHAN_ABOVE;
-		} else {
+		else
 			bandcfg->chan2Offset = SEC_CHAN_BELOW;
-		}
 		break;
 	case BW_80MHZ:
 		/* TODO: Use CHAN_BW_80MHZ until the support for 160MHz gets

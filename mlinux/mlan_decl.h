@@ -1064,7 +1064,8 @@ enum {
 /** DFS state */
 typedef enum _dfs_state_t {
 	/** Channel can be used, CAC (Channel Availability Check) must be done
-	  before using it */
+	 * before using it
+	 */
 	DFS_USABLE = 0,
 	/** Channel is not available, radar was detected */
 	DFS_UNAVAILABLE = 1,
@@ -1437,8 +1438,9 @@ typedef MLAN_PACK_START struct _radiotap_info {
 typedef MLAN_PACK_START struct {
 #ifdef BIG_ENDIAN_SUPPORT
 	/** Host tx power ctrl:
-	0x0: use fw setting for TX power
-	0x1: value specified in bit[6] and bit[5:0] are valid */
+	 * 0x0: use fw setting for TX power
+	 * 0x1: value specified in bit[6] and bit[5:0] are valid
+	 */
 	t_u8 hostctl : 1;
 	/** Sign of the power specified in bit[5:0] */
 	t_u8 sign : 1;
@@ -1450,8 +1452,9 @@ typedef MLAN_PACK_START struct {
 	/** Sign of the power specified in bit[5:0] */
 	t_u8 sign : 1;
 	/** Host tx power ctrl:
-	0x0: use fw setting for TX power
-	0x1: value specified in bit[6] and bit[5:0] are valid */
+	 * 0x0: use fw setting for TX power
+	 * 0x1: value specified in bit[6] and bit[5:0] are valid
+	 */
 	t_u8 hostctl : 1;
 #endif
 } MLAN_PACK_END tx_power_t;
@@ -1661,7 +1664,8 @@ typedef MLAN_PACK_START struct {
 	t_u16 medium_time;
 } MLAN_PACK_END wlan_ioctl_wmm_ts_status_t,
 	/** Type definition of mlan_ds_wmm_ts_status for
-	  MLAN_OID_WMM_CFG_TS_STATUS */
+	 * MLAN_OID_WMM_CFG_TS_STATUS
+	 */
 	mlan_ds_wmm_ts_status, *pmlan_ds_wmm_ts_status;
 
 /** Max Ie length */
@@ -2903,10 +2907,11 @@ typedef struct _mlan_callbacks {
 #endif
 
 /*
-#define DRV_MODE_NAN                 MBIT(4)
-#define DRV_MODE_11P                 MBIT(5)
-#define DRV_MODE_MAC80211            MBIT(6)
-#define DRV_MODE_DFS                 MBIT(7)*/
+ * #define DRV_MODE_NAN                 MBIT(4)
+ * #define DRV_MODE_11P                 MBIT(5)
+ * #define DRV_MODE_MAC80211            MBIT(6)
+ * #define DRV_MODE_DFS                 MBIT(7)
+ */
 #define DRV_MODE_MASK (MBIT(4) | MBIT(5) | MBIT(6) | MBIT(7))
 
 /** mlan_device data structure */

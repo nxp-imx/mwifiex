@@ -22,10 +22,11 @@
  *
  */
 /****************************************************
-Change log:
-	02/25/09: Initial creation -
-		  This file supports SDIO MMC only
-****************************************************/
+ * Change log:
+ * 02/25/09: Initial creation -
+ * This file supports SDIO MMC only
+ * **************************************************
+ */
 
 #include <linux/firmware.h>
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -46,7 +47,8 @@ Change log:
 #define NXP_VENDOR_ID 0x0471
 #define MRVL_VENDOR_ID 0x02df
 /* The macros below are hardware platform dependent.
-   The definition should match the actual platform */
+ * The definition should match the actual platform
+ */
 /** Initialize GPIO port */
 #define GPIO_PORT_INIT()
 /** Set GPIO port to high */
@@ -55,13 +57,15 @@ Change log:
 #define GPIO_PORT_TO_LOW()
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 /* moal interface ops */
 static moal_if_ops sdiommc_ops;
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 #ifdef SD8887
 /** Device ID for SD8887 */
@@ -205,8 +209,9 @@ static struct sdio_driver REFDATA wlan_sdio = {
 // clang-format on
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 static void woal_sdiommc_dump_fw_info(moal_handle *phandle);
 static void woal_trigger_nmi_on_no_dump_event(moal_handle *phandle);
 #if 0
@@ -256,8 +261,9 @@ static void woal_dump_sdio_reg(moal_handle *handle)
 }
 #endif
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function handles the interrupt.
  *
@@ -300,9 +306,8 @@ static void woal_sdio_interrupt(struct sdio_func *func)
 	}
 	/* call mlan_interrupt to read int status */
 	status = mlan_interrupt(0, handle->pmlan_adapter);
-	if (status == MLAN_STATUS_FAILURE) {
+	if (status == MLAN_STATUS_FAILURE)
 		PRINTM(MINTR, "mlan interrupt failed\n");
-	}
 #ifdef SDIO_SUSPEND_RESUME
 	if (handle->is_suspended) {
 		PRINTM(MINTR, "Receive interrupt in hs_suspended\n");
@@ -313,9 +318,8 @@ static void woal_sdio_interrupt(struct sdio_func *func)
 	handle->main_state = MOAL_START_MAIN_PROCESS;
 	/* Call MLAN main process */
 	status = mlan_main_process(handle->pmlan_adapter);
-	if (status == MLAN_STATUS_FAILURE) {
+	if (status == MLAN_STATUS_FAILURE)
 		PRINTM(MINTR, "mlan main process exited with failure\n");
-	}
 	handle->main_state = MOAL_END_MAIN_PROCESS;
 	LEAVE();
 }
@@ -353,9 +357,8 @@ static void woal_sdio_oob_irq_work(struct work_struct *work)
 
 	for (i = 0; i < mmc_card->sdio_funcs; i++) {
 		func = NULL;
-		if (mmc_card->sdio_func[i]) {
+		if (mmc_card->sdio_func[i])
 			func = mmc_card->sdio_func[i];
-		}
 		if (func) {
 			sdio_claim_host(func);
 			pending = sdio_f0_readb(func, SDIO_CCCR_INTx, &ret);
@@ -2083,15 +2086,13 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 				/* remove extension .se */
 				se_pos = strstr(handle->card_info->fw_name,
 						".se");
-				if (se_pos) {
+				if (se_pos)
 					memset(se_pos, '\0', sizeof(".se"));
-				}
 
 				se_pos = strstr(handle->card_info->fw_name_wlan,
 						".se");
-				if (se_pos) {
+				if (se_pos)
 					memset(se_pos, '\0', sizeof(".se"));
-				}
 			}
 			break;
 		default:
@@ -2217,14 +2218,12 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		if (magic != 0x03) {
 			/* remove extension .se */
 			se_pos = strstr(handle->card_info->fw_name, ".se");
-			if (se_pos) {
+			if (se_pos)
 				memset(se_pos, '\0', sizeof(".se"));
-			}
 
 			se_pos = strstr(handle->card_info->fw_name_wlan, ".se");
-			if (se_pos) {
+			if (se_pos)
 				memset(se_pos, '\0', sizeof(".se"));
-			}
 		}
 	}
 #endif
@@ -3236,9 +3235,8 @@ static int woal_sdiommc_reset_fw(moal_handle *handle)
 		goto done;
 	} else {
 		for (tries = 0; tries < 1000; ++tries) {
-			if (woal_sdiommc_check_winner_status(handle)) {
+			if (woal_sdiommc_check_winner_status(handle))
 				break;
-			}
 			udelay(1000);
 		}
 	}

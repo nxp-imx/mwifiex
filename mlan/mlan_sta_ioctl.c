@@ -22,9 +22,10 @@
  */
 
 /******************************************************
-Change log:
-    10/21/2008: initial version
-******************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ****************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -38,16 +39,19 @@ Change log:
 #include "mlan_11h.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Get signal information
@@ -803,8 +807,9 @@ static mlan_status wlan_bss_ioctl_get_channel_list(pmlan_adapter pmadapter,
 		       sizeof(parsed_region_chan_11d_t));
 
 		/*If country IE is present in the associated AP then return the
-		   channel list from country IE
-		   else return it from the learning table*/
+		 * channel list from country IE
+		 * else return it from the learning table
+		 */
 
 		if (wlan_11d_parse_domain_info(
 			    pmadapter, &pbss_desc->country_info,
@@ -2029,7 +2034,8 @@ static mlan_status wlan_set_auto_deep_sleep(pmlan_adapter pmadapter,
 	else
 		auto_ds.idletime = pmadapter->idle_time;
 	/* note: the command could be queued and executed
-	   later if there is command in progress. */
+	 * later if there is command in progress.
+	 */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
 			       (t_u16)mode, BITMAP_AUTO_DS,
 			       (t_void *)pioctl_req, &auto_ds);
@@ -3370,7 +3376,8 @@ static mlan_status wlan_set_gen_ie_helper(mlan_private *priv, t_u8 *ie_data_ptr,
 				   sizeof(temp), sizeof(priv->ext_cap));
 		} else
 			/* Test to see if it is a WPA IE, if not, then it is a
-			   gen IE*/
+			 * gen IE
+			 */
 			if (((pvendor_ie->element_id == WPA_IE) &&
 			     (!memcmp(priv->adapter, pvendor_ie->oui, wpa_oui,
 				      sizeof(wpa_oui)))) ||
@@ -4876,13 +4883,12 @@ static mlan_status wlan_misc_cloud_keep_alive(pmlan_adapter pmadapter,
 
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
-	else if (pioctl_req->action == MLAN_ACT_GET) {
+	else if (pioctl_req->action == MLAN_ACT_GET)
 		cmd_action = HostCmd_ACT_GEN_GET;
-	} else if (pioctl_req->action == MLAN_ACT_RESET) {
+	else if (pioctl_req->action == MLAN_ACT_RESET)
 		cmd_action = HostCmd_ACT_GEN_RESET;
-	} else {
+	else
 		cmd_action = HostCmd_ACT_GEN_REMOVE;
-	}
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_AUTO_TX, cmd_action,
@@ -4918,13 +4924,12 @@ static mlan_status wlan_misc_cloud_keep_alive_rx(pmlan_adapter pmadapter,
 
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
-	else if (pioctl_req->action == MLAN_ACT_GET) {
+	else if (pioctl_req->action == MLAN_ACT_GET)
 		cmd_action = HostCmd_ACT_GEN_GET;
-	} else if (pioctl_req->action == MLAN_ACT_RESET) {
+	else if (pioctl_req->action == MLAN_ACT_RESET)
 		cmd_action = HostCmd_ACT_GEN_RESET;
-	} else {
+	else
 		cmd_action = HostCmd_ACT_GEN_REMOVE;
-	}
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_AUTO_TX, cmd_action,
@@ -5651,8 +5656,9 @@ start_config:
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Set ewpa mode

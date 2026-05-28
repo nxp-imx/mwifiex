@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #ifndef _MOAL_MAIN_H
 #define _MOAL_MAIN_H
@@ -884,11 +885,11 @@ out:
 
 #ifdef UAP_SUPPORT
 /** Default watchdog timeout
-  Increase the value to avoid kernel Tx timeout message in case
-  station in PS mode or left.
-  The default value of PS station ageout timer is 40 seconds.
-  Hence, the watchdog timer is set to a value higher than it.
-*/
+ * Increase the value to avoid kernel Tx timeout message in case
+ * station in PS mode or left.
+ * The default value of PS station ageout timer is 40 seconds.
+ * Hence, the watchdog timer is set to a value higher than it.
+ */
 #define MRVDRV_DEFAULT_UAP_WATCHDOG_TIMEOUT (41 * HZ)
 #endif
 
@@ -1258,10 +1259,10 @@ struct debug_data {
 	/** Address */
 	t_ptr addr;
 	/** Attribute:
-	0-7bit: start address for addr to add to, 0 means common(no specific)
-	8-15bit: interface type, 0 means common(no interface specific)
-	other: unused
-	*/
+	 * 0-7bit: start address for addr to add to, 0 means common(no specific)
+	 * 8-15bit: interface type, 0 means common(no interface specific)
+	 * other: unused
+	 */
 	t_u32 attr;
 };
 
@@ -2400,13 +2401,14 @@ struct channel_field {
 #define RX_HE_BW_80 2
 #define RX_HE_BW_160 3
 /** mcs_field.flags
-The flags field is any combination of the following:
-0x03    bandwidth - 0: 20, 1: 40, 2: 20L, 3: 20U
-0x04    guard interval - 0: long GI, 1: short GI
-0x08    HT format - 0: mixed, 1: greenfield
-0x10    FEC type - 0: BCC, 1: LDPC
-0x60    Number of STBC streams
-0x80    Ness - bit 0 (LSB) of Number of extension spatial streams */
+ * The flags field is any combination of the following:
+ * 0x03    bandwidth - 0: 20, 1: 40, 2: 20L, 3: 20U
+ * 0x04    guard interval - 0: long GI, 1: short GI
+ * 0x08    HT format - 0: mixed, 1: greenfield
+ * 0x10    FEC type - 0: BCC, 1: LDPC
+ * 0x60    Number of STBC streams
+ * 0x80    Ness - bit 0 (LSB) of Number of extension spatial streams
+ */
 struct mcs_field {
 	/** known */
 	t_u8 known;

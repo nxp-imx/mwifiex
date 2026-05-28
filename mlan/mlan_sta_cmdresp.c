@@ -25,7 +25,8 @@
 /******************************************************
  * Change log:
  *   10/21/2008: initial version
- ******************************************************/
+ * ****************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -44,15 +45,18 @@
 
 /********************************************************
  *			Local Variables
- ********************************************************/
+ * ******************************************************
+ */
 
 /********************************************************
  *			Global Variables
- ********************************************************/
+ * ******************************************************
+ */
 
 /********************************************************
  *			Local Functions
- ********************************************************/
+ * ******************************************************
+ */
 /**
  *  @brief This function handles the command response error for TDLS operation
  *
@@ -1384,10 +1388,9 @@ static mlan_status wlan_ret_802_11_key_material(pmlan_private pmpriv,
 					HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG,
 					HostCmd_ACT_GEN_SET, 0, MNULL,
 					&pmpriv->gtk_rekey);
-				if (ret) {
+				if (ret)
 					PRINTM(MINFO,
 					       "Error sending message to FW\n");
-				}
 				memset(pmpriv->adapter, &pmpriv->gtk_rekey, 0,
 				       sizeof(mlan_ds_misc_gtk_rekey_data));
 			}
@@ -2869,8 +2872,9 @@ static mlan_status wlan_ret_auto_tx(pmlan_private pmpriv,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function prepares command resp of MFG Continuous Tx

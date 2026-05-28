@@ -31,9 +31,10 @@
  */
 
 /*************************************************************
-Change Log:
-    03/24/2009: initial version
-************************************************************/
+ * Change Log:
+ * 03/24/2009: initial version
+ * **********************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -50,8 +51,9 @@ static const char *meas_type_str[WLAN_MEAS_NUM_TYPES] = {
 };
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Retrieve the measurement string representation of a meas_type enum
@@ -317,8 +319,9 @@ static int wlan_meas_cmd_get_report(mlan_private *pmpriv,
 }
 
 /********************************************************
-			Global functions
-********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Send the input measurement request to the firmware.

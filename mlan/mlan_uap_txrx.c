@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-02/05/2009: initial version
-********************************************************/
+ * Change log:
+ * 02/05/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_util.h"
@@ -39,8 +40,9 @@ Change log:
 #include "mlan_11n_rxreorder.h"
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function processes received packet and forwards it
@@ -109,8 +111,9 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function fill the txpd for tx packet
  *
@@ -333,11 +336,10 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
 
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
 		endian_convert_RxPD_extra_header(
 			(rxpd_extra_info *)((t_u8 *)prx_pd +
 					    Rx_PD_SIZEOF(pmadapter)));
-	}
 
 	if (priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
@@ -573,9 +575,8 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	ret = mlan_11n_rxreorder_pkt(priv, prx_pd->seq_num, prx_pd->priority,
 				     ta, (t_u8)prx_pd->rx_pkt_type,
 				     (void *)pmbuf);
-	if (ret || (rx_pkt_type == PKT_TYPE_BAR)) {
+	if (ret || (rx_pkt_type == PKT_TYPE_BAR))
 		pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-	}
 done:
 	LEAVE();
 	return ret;
@@ -819,7 +820,8 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				if (dest_sta && !dest_sta->is_multi_ap) {
 					/* Destination is a fronthaul client
 					 * (3-address mode) Clear EASYMESH flag
-					 * to convert 4-addr to 3-addr */
+					 * to convert 4-addr to 3-addr
+					 */
 					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
 				}
 			}

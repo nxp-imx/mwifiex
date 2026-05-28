@@ -26,9 +26,10 @@
  */
 
 /******************************************************
-Change log:
-    10/30/2008: initial version
-******************************************************/
+ * Change log:
+ * 10/30/2008: initial version
+ * ****************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -41,20 +42,24 @@ Change log:
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
 /********************************************************
-			Local Constants
-********************************************************/
+ * Local Constants
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief Append a generic IE as a pass through TLV to a TLV buffer.
  *
@@ -582,7 +587,8 @@ static t_u16 wlan_get_rsn_cap(mlan_private *pmpriv, t_u8 *data, t_u8 len)
 
 	if (len < 20) {
 		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
-			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		 * akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B
+		 */
 		PRINTM(MERROR,
 		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
 		       len);
@@ -656,8 +662,9 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 }
 #endif
 /********************************************************
-				Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function updates RSN IE in the association request.
@@ -684,13 +691,13 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 
 #define PREFERENCE_TKIP 1
 	/* Cipher Perference Order:
-	   (5) CIPHER_SYITE_TYPE_GCMP_256 = 9
-	   (4) CIPHER_SYITE_TYPE_GCMP_128 = 8
-	   (3) CIPHER_SYITE_TYPE_CCMP_256 = 10
-	   (2) CIPHER_SYITE_TYPE_CCMP_128 = 4
-	   (1) CIPHER_SYITE_TYPE_TKIP     = 2
-	   (0) Skip
-	*/
+	 * (5) CIPHER_SYITE_TYPE_GCMP_256 = 9
+	 * (4) CIPHER_SYITE_TYPE_GCMP_128 = 8
+	 * (3) CIPHER_SYITE_TYPE_CCMP_256 = 10
+	 * (2) CIPHER_SYITE_TYPE_CCMP_128 = 4
+	 * (1) CIPHER_SYITE_TYPE_TKIP     = 2
+	 * (0) Skip
+	 */
 	t_u8 preference_selected;
 	t_u8 cipher_selected_id;
 #if 0 // defined(ENABLE_GCMP_SUPPORT)
@@ -702,14 +709,14 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u8 oui[4] = {0x00, 0x0f, 0xac, 0x00};
 
 	/* AKM Perference Order:
-	   (6) AKM_SUITE_TYPE_FT_SAE     = 9   //Not supported in esupp
-	   (5) AKM_SUITE_TYPE_SAE        = 8
-	   (4) AKM_SUITE_TYPE_OWE        = 18
-	   (3) AKM_SUITE_TYPE_FT_PSK     = 4   //Not supported in esupp
-	   (2) AKM_SUITE_TYPE_PSK_SHA256 = 6
-	   (1) AKM_SUITE_TYPE_PSK        = 2
-	   (0) Skip
-	*/
+	 * (6) AKM_SUITE_TYPE_FT_SAE     = 9   //Not supported in esupp
+	 * (5) AKM_SUITE_TYPE_SAE        = 8
+	 * (4) AKM_SUITE_TYPE_OWE        = 18
+	 * (3) AKM_SUITE_TYPE_FT_PSK     = 4   //Not supported in esupp
+	 * (2) AKM_SUITE_TYPE_PSK_SHA256 = 6
+	 * (1) AKM_SUITE_TYPE_PSK        = 2
+	 * (0) Skip
+	 */
 	t_u8 akm_type_selected;
 	t_u8 akm_type_id = 0;
 	t_u8 akm_preference[19] = {0, 0, 1, 0, 0, 0, 2, 0, 5, 0,
@@ -720,7 +727,8 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 
 	if (*rsn_ie_len < 20) {
 		/* Version(2B)+GRP(4B)+PairwiseCnt(2B)+PairwiseList(4B)+
-			akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B */
+		 * akmCnt(2B)+akmList(4B)+rsnCap(2B) = 20B
+		 */
 		PRINTM(MERROR,
 		       "RSNE: IE len should not less than 20 Bytes, len=%d\n",
 		       *rsn_ie_len);
@@ -1439,9 +1447,8 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 						pmpriv, prsn_ie_tlv,
 						&prsn_ie_tlv->header.len,
 						&akm_type);
-					if (ret != MLAN_STATUS_SUCCESS) {
+					if (ret != MLAN_STATUS_SUCCESS)
 						goto done;
-					}
 				} else {
 					ret = MLAN_STATUS_FAILURE;
 					goto done;

@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_eth_ioctl.h"
@@ -40,8 +41,9 @@ Change log:
 #endif
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #ifdef CONFIG_PROC_FS
 #define STATUS_PROC "wifi_status"
 #define MWLAN_PROC "mwlan"
@@ -67,13 +69,15 @@ static char *szModes[] = {
 #endif
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 int wifi_status;
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief Proc read function for info
  *
@@ -1395,10 +1399,9 @@ static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
 			format_result = snprintf(dw_string, sizeof(dw_string),
 						 "%08x ", current_word);
 		}
-		if (format_result <= 0 || format_result >= sizeof(dw_string)) {
+		if (format_result <= 0 || format_result >= sizeof(dw_string))
 			PRINTM(MERROR, "String formatting failed at word %u\n",
 			       i);
-		}
 
 		moal_memcpy_ext(handle, sfpbuf, dw_string, 9, 9);
 		sfpbuf += 9;
@@ -1498,8 +1501,9 @@ static const struct file_operations wifi_status_proc_fops = {
 #endif
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Convert string to number
  *

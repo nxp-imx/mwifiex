@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_eth_ioctl.h"
@@ -46,8 +47,9 @@ Change log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #define MRVL_TLV_HEADER_SIZE 4
 
 /* NXP Channel config TLV ID */
@@ -122,8 +124,9 @@ static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
 	"TZ", "TG", "TN", "AE", "VA", "EH", "YE", "ZM", "ZW"};
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 #ifdef UAP_SUPPORT
@@ -137,8 +140,9 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function converts region string to region code
  *
@@ -641,8 +645,9 @@ done:
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Send ioctl request to MLAN
@@ -1183,9 +1188,9 @@ static void woal_check_uap_dfs_status(moal_private *priv, t_u8 wait_option,
 		goto done;
 	if (bss_info.is_11h_active &&
 	    (bss_info.dfs_check_channel == channel.channel)) {
-		if (new_channel < MAX_BG_CHANNEL) {
+		if (new_channel < MAX_BG_CHANNEL)
 			bw = 20;
-		} else {
+		else {
 			switch (channel.bandcfg.chanWidth) {
 			case CHAN_BW_20MHZ:
 				bw = 20;
@@ -1289,9 +1294,8 @@ static void woal_check_uap_dfs_status(moal_private *priv, t_u8 wait_option,
 				MLAN_CUSTOM_IE_DELETE_MASK;
 			status = woal_request_ioctl(priv, ioctl_req,
 						    MOAL_IOCTL_WAIT);
-			if (status != MLAN_STATUS_SUCCESS) {
+			if (status != MLAN_STATUS_SUCCESS)
 				PRINTM(MERROR, "Failed to clear CSA/ECSA IE\n");
-			}
 		}
 	}
 #endif
@@ -1324,9 +1328,8 @@ void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
 	if (priv->phandle->card_info->drcs &&
 	    moal_extflg_isset(priv->phandle, EXT_CFG80211_DRCS)) {
 		if (woal_mc_policy_cfg(priv, &enable, wait_option,
-				       MLAN_ACT_GET)) {
+				       MLAN_ACT_GET))
 			PRINTM(MERROR, "Get multi-channel policy failed\n");
-		}
 	}
 
 	if (!enable)
@@ -4287,9 +4290,8 @@ int woal_enable_hs(moal_private *priv)
 				     handle->hs_activate_wait_q_woken,
 				     HS_ACTIVE_TIMEOUT);
 #ifdef SDIO_MMC
-	if (IS_SD(handle->card_type)) {
+	if (IS_SD(handle->card_type))
 		sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
-	}
 #endif
 
 #ifdef SDIO_SUSPEND_RESUME
@@ -4318,9 +4320,8 @@ int woal_enable_hs(moal_private *priv)
 	}
 #endif /* SDIO_SUSPEND_RESUME*/
 #ifdef SDIO_MMC
-	if (IS_SD(handle->card_type)) {
+	if (IS_SD(handle->card_type))
 		sdio_release_host(((sdio_mmc_card *)handle->card)->func);
-	}
 #endif
 	if (hs_actived != MTRUE) {
 		handle->hs_skip_count++;
@@ -4732,9 +4733,8 @@ mlan_status woal_set_get_tx_bf_cap(moal_private *priv, t_u16 action,
 
 	/* Send IOCTL request to MLAN */
 	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (ret != MLAN_STATUS_SUCCESS) {
+	if (ret != MLAN_STATUS_SUCCESS)
 		goto done;
-	}
 
 	if (action == MLAN_ACT_GET)
 		*tx_bf_cap = bf_cfg->param.tx_bf_cap;
@@ -5137,9 +5137,8 @@ int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	req->action = MLAN_ACT_SET;
 	/* Send Channel Check command and wait until the report is ready */
 	status = woal_request_ioctl(priv, req, wait_option);
-	if (status != MLAN_STATUS_SUCCESS) {
+	if (status != MLAN_STATUS_SUCCESS)
 		goto done;
-	}
 
 	/* set flag from here */
 	priv->phandle->cac_period = MTRUE;
@@ -7410,9 +7409,8 @@ mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 		/* Clear the internal BSS list maintained by the cfg80211
 		 * subsystem */
-		if (priv->wdev && priv->wdev->wiphy) {
+		if (priv->wdev && priv->wdev->wiphy)
 			cfg80211_bss_flush(priv->wdev->wiphy);
-		}
 #endif
 		/** deauth ext-ap */
 		if (priv->media_connected && !priv->cfg_disconnect) {
@@ -7446,9 +7444,8 @@ mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 		/* Clear the internal BSS list maintained by the cfg80211
 		 * subsystem */
-		if (priv->wdev && priv->wdev->wiphy) {
+		if (priv->wdev && priv->wdev->wiphy)
 			cfg80211_bss_flush(priv->wdev->wiphy);
-		}
 #endif
 		priv->fake_scan_complete = MFALSE;
 	}
@@ -7497,9 +7494,8 @@ done:
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		cfg80211_wext = priv->phandle->params.cfg80211_wext;
-		if (IS_STA_CFG80211(cfg80211_wext)) {
+		if (IS_STA_CFG80211(cfg80211_wext))
 			woal_bgscan_stop_event(priv);
-		}
 #endif
 #endif
 	}
@@ -7564,9 +7560,10 @@ mlan_status woal_add_rxfilter(moal_private *priv, char *rxfilter)
 
 	ENTER();
 	/*  Android command:
-	    "DRIVER RXFILTER-ADD 0"
-	    "DRIVER RXFILTER-ADD 1"
-	    "DRIVER RXFILTER-ADD 3" */
+	 * "DRIVER RXFILTER-ADD 0"
+	 * "DRIVER RXFILTER-ADD 1"
+	 * "DRIVER RXFILTER-ADD 3"
+	 */
 	if (*rxfilter == '0') {
 		PRINTM(MIOCTL, "Add IPV4 multicast filter\n");
 		priv->rx_filter |= RX_FILTER_IPV4_MULTICAST;
@@ -9073,9 +9070,8 @@ static int parse_tx_frame_string(moal_handle *handle, const char *s, size_t len,
 	d->MidP = -1;
 	d->QNum = -1;
 
-	for (i = 0; i < ETH_ALEN; i++) {
+	for (i = 0; i < ETH_ALEN; i++)
 		d->bssid[i] = 0xff;
-	}
 
 	copy_len = MIN(len - strlen("tx_frame="), TX_FRAME_STR_LEN - 1);
 	moal_memcpy_ext(NULL, string, s + strlen("tx_frame="), copy_len,
@@ -10067,9 +10063,8 @@ mlan_status woal_get_ch_load(moal_private *priv, t_u16 duration)
 	/* Because the duration unit of fw is 10ms, it must be divided by 10 */
 	misc->param.ch_load.duration = (duration / 10);
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_NO_WAIT);
-	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_SUCCESS && status != MLAN_STATUS_PENDING)
 		goto done;
-	}
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -10116,9 +10111,8 @@ mlan_status woal_get_ch_load_results(moal_private *priv, t_u16 *ch_load,
 
 	ioctl_req->action = MLAN_ACT_GET;
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
+	if (status != MLAN_STATUS_SUCCESS)
 		goto done;
-	}
 
 	*ch_load = misc->param.ch_load.ch_load_param;
 	*noise = misc->param.ch_load.noise;

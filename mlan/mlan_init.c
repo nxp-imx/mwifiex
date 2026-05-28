@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-10/13/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -49,12 +50,14 @@ Change log:
 #include "mlan_11ax.h"
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /*******************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function adds a BSS priority table
@@ -220,8 +223,9 @@ static t_void vdll_deinit(pmlan_adapter pmadapter)
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function allocates buffer for the members of adapter
@@ -740,9 +744,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->ecsa_enable = MFALSE;
 	pmadapter->getlog_enable = MFALSE;
 
-	if (!pmadapter->init_para.ps_mode) {
+	if (!pmadapter->init_para.ps_mode)
 		pmadapter->ps_mode = DEFAULT_PS_MODE;
-	} else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
+	else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
 		pmadapter->ps_mode = Wlan802_11PowerModeCAM;
 	else
 		pmadapter->ps_mode = Wlan802_11PowerModePSP;
@@ -833,9 +837,8 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 
 #ifdef USB
 	if (IS_USB(pmadapter->card_type)) {
-		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
+		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++)
 			pmadapter->pcard_usb->usb_port_status[i] = MFALSE;
-		}
 		for (i = 0; i < MAX_USB_TX_PORT_NUM; i++) {
 			pmadapter->pcard_usb->usb_tx_aggr[i].aggr_ctrl.enable =
 				MFALSE;
@@ -1621,9 +1624,8 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 		else
 			ret = MLAN_STATUS_PENDING;
 #if defined(MFG_CMD_SUPPORT) && defined(PCIE)
-		if (IS_PCIE(pmadapter->card_type) && pmadapter->mfg_mode) {
+		if (IS_PCIE(pmadapter->card_type) && pmadapter->mfg_mode)
 			ret = MLAN_STATUS_SUCCESS;
-		}
 #endif
 	}
 #ifdef PCIE
@@ -1671,9 +1673,8 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 		pmadapter->fw_bands &= ~BAND_GAC;
 	pmadapter->config_bands = pmadapter->fw_bands;
 	for (i = 0; i < pmadapter->priv_num; i++) {
-		if (pmadapter->priv[i]) {
+		if (pmadapter->priv[i])
 			pmadapter->priv[i]->config_bands = pmadapter->fw_bands;
-		}
 	}
 
 	if (pmadapter->fw_bands & BAND_A) {
@@ -1775,10 +1776,8 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 					user_he_cap_5g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
 				PRINTM(MERROR,
-				       "LHX|hw_spec=%d, user_2g_he_cap=%p\n",
-				       i,
-				       &pmadapter->priv[i]
-							->user_2g_he_cap);
+				       "LHX|hw_spec=%d, user_2g_he_cap=%p\n", i,
+				       pmadapter->priv[i]->user_2g_he_cap);
 				DBG_HEXDUMP(
 					MERROR, "LHX|hw_spec",
 					user_he_cap_2g_tlv->he_phy_cap,

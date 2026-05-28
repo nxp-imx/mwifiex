@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    10/13/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/13/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_init.h"
@@ -48,12 +49,14 @@ Change log:
 #include "mlan_11n_rxreorder.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 #ifdef STA_SUPPORT
 static mlan_operations mlan_sta_ops = {
 	/* init cmd handler */
@@ -143,8 +146,9 @@ static INLINE t_bool wlan_is_adma_supported(mlan_adapter *pmadapter)
 }
 
 /********************************************************
-			Local Functions
-*******************************************************/
+ * Local Functions
+ * *****************************************************
+ */
 /**
  *  @brief This function process pending ioctl
  *
@@ -199,8 +203,9 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 	LEAVE();
 }
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function registers MOAL to MLAN module.
@@ -237,9 +242,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	t_u8 i = 0;
 	t_u32 j = 0;
 
-	if (!pmdevice || !ppmlan_adapter) {
+	if (!pmdevice || !ppmlan_adapter)
 		return MLAN_STATUS_FAILURE;
-	}
 	MASSERT(ppmlan_adapter);
 	MASSERT(pmdevice->callbacks.moal_print);
 #ifdef DEBUG_LEVEL1
@@ -1862,9 +1866,8 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	ENTER();
 	MASSERT(padapter && pmbuf);
 
-	if (!padapter || !pmbuf) {
+	if (!padapter || !pmbuf)
 		return MLAN_STATUS_FAILURE;
-	}
 
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 	pmbuf->flags |= MLAN_BUF_FLAG_MOAL_TX_BUF;

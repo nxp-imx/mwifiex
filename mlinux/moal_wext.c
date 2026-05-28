@@ -22,9 +22,10 @@
  */
 
 /************************************************************************
-Change log:
-10/21/2008: initial version
-************************************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * **********************************************************************
+ */
 
 #include "moal_main.h"
 
@@ -36,8 +37,9 @@ Change log:
 	 IW_EV_PARAM_LEN + 40) /* 40 for WPAIE */
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 /**
  * iwpriv ioctl handlers
  */
@@ -239,8 +241,9 @@ static const struct iw_priv_args woal_private_args[] = {
 };
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Sort Channels
@@ -1305,9 +1308,8 @@ static int woal_set_rate(struct net_device *dev, struct iw_request_info *info,
 		rate_cfg.rate = vwrq->value / 500000;
 	}
 	if (woal_set_get_data_rate(priv, MLAN_ACT_SET, &rate_cfg) !=
-	    MLAN_STATUS_SUCCESS) {
+	    MLAN_STATUS_SUCCESS)
 		ret = -EFAULT;
-	}
 
 	LEAVE();
 	return ret;
@@ -1985,7 +1987,7 @@ static int woal_set_pmksa(struct net_device *dev, struct iw_request_info *info,
  *  Infra       G(12)           A(8)    B(4)    G(12)
  *  Adhoc       A+B(12)         A(8)    B(4)    B(4)
  *      non-MULTI_BANDS:
-										b       b/g
+ * b       b/g
  *  Infra                               B(4)    G(12)
  *  Adhoc                               B(4)    B(4)
  */
@@ -2545,9 +2547,8 @@ static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
 				MLAN_MAX_SSID_LENGTH);
 		scan_req->ssid_list[0].max_len = 0;
 	}
-	if (woal_get_scan_config(priv, &scan_cfg) != MLAN_STATUS_SUCCESS) {
+	if (woal_get_scan_config(priv, &scan_cfg) != MLAN_STATUS_SUCCESS)
 		PRINTM(MERROR, "Unable to get scan configuration\n");
-	}
 	if (scan_cfg.scan_chan_gap)
 		scan_req->scan_chan_gap = scan_cfg.scan_chan_gap;
 	else
@@ -3427,8 +3428,9 @@ static const iw_handler woal_private_handler[] = {
 #endif /* STA_SUPPORT */
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 #if WIRELESS_EXT > 14
 

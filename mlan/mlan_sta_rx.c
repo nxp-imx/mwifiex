@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-  Change log:
-  10/27/2008: initial version
- ********************************************************/
+ * Change log:
+ * 10/27/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -37,12 +38,14 @@
 #include "mlan_11ax.h"
 
 /********************************************************
-  Local Variables
- ********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-  Global functions
- ********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 /**
  *  @brief This function check and discard IPv4 and IPv6 gratuitous broadcast
  * packets
@@ -691,11 +694,10 @@ mlan_status wlan_ops_sta_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
+	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
 		endian_convert_RxPD_extra_header(
 			(rxpd_extra_info *)((t_u8 *)prx_pd +
 					    Rx_PD_SIZEOF(pmadapter)));
-	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
 	if (prx_pd->flags & RXPD_FLAG_PKT_EASYMESH) {
 		PRINTM_NETINTF(MDAT_D, priv);

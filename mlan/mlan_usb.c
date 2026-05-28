@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-04/21/2009: initial version
- ********************************************************/
+ * Change log:
+ * 04/21/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -36,8 +37,9 @@ Change log:
 #include "mlan_main.h"
 
 /********************************************************
-  Local Variables
- ********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #ifdef USB8897
 static const struct _mlan_card_info mlan_card_info_usb8897 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
@@ -103,12 +105,14 @@ static const struct _mlan_card_info mlan_card_info_usbIW610 = {
 #endif
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 #if defined(USB9098)
 /**
  *  @This function checks the chip revision id
@@ -793,8 +797,9 @@ static inline t_void wlan_usb_tx_send_aggr(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *	@brief This function get pcie device from card type
@@ -932,9 +937,8 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	while ((aggr_len >= (t_s32)sizeof(RxPD)) &&
 	       (max_loop_cnt++ < MLAN_USB_RX_MAX_AGGR_NUM)) {
 		/* check for (all-zeroes) termination RxPD */
-		if (!memcmp(pmadapter, pdata, zero_rx_pd, sizeof(RxPD))) {
+		if (!memcmp(pmadapter, pdata, zero_rx_pd, sizeof(RxPD)))
 			break;
-		}
 
 		/* make new buffer and copy packet to it (including RxPD).
 		 * Also, reserve headroom so that there must have space
@@ -970,13 +974,11 @@ mlan_status wlan_usb_deaggr_rx_pkt(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		// coverity[RESOURCE_LEAK]: SUPPRESS
 		/* send new packet to processing */
 		ret = wlan_handle_rx_packet(pmadapter, pdeaggr_buf);
-		if (ret == MLAN_STATUS_FAILURE) {
+		if (ret == MLAN_STATUS_FAILURE)
 			break;
-		}
 		/* last block has no padding bytes */
-		if (aggr_len == (t_s32)curr_pkt_len) {
+		if (aggr_len == (t_s32)curr_pkt_len)
 			break;
-		}
 
 		/* round up to next block boundary */
 		if (curr_pkt_len %

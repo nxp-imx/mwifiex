@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-    11/10/2008: initial version
-********************************************************/
+ * Change log:
+ * 11/10/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -37,16 +38,19 @@ Change log:
 #include "mlan_11n_rxreorder.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function will dispatch amsdu packet and
  *         forward it to kernel/upper layer
@@ -556,8 +560,9 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function will return the pointer to a entry in rx reordering
@@ -777,7 +782,8 @@ mlan_status wlan_cmd_11n_addba_rspgen(mlan_private *priv,
 			~BLOCKACKPARAM_AMSDU_SUPP_MASK;
 
 	/*cert failure observed due to BA setup failure
-	 if win_size requested from client is 0 */
+	 * if win_size requested from client is 0
+	 */
 	if (win_size)
 		win_size = MIN(win_size, priv->add_ba_param.rx_win_size);
 	else

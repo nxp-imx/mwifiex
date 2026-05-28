@@ -351,10 +351,10 @@ static t_u16 inact_tmo;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /* default filter flag 0x27 Stands for
-   (MLAN_NETMON_NON_BSS_BCN | \
-   MLAN_NETMON_DATA | \
-   MLAN_NETMON_CONTROL | \
-   MLAN_NETMON_MANAGEMENT)
+ * (MLAN_NETMON_NON_BSS_BCN | \
+ * MLAN_NETMON_DATA | \
+ * MLAN_NETMON_CONTROL | \
+ * MLAN_NETMON_MANAGEMENT)
  */
 #define DEFAULT_NETMON_FILTER 0x27
 static int mon_filter = DEFAULT_NETMON_FILTER;
@@ -2106,14 +2106,12 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	}
 #endif /* UAP_SUPPORT */
 	handle->params.fw_data_cfg = fw_data_cfg;
-	if (params) {
+	if (params)
 		handle->params.fw_data_cfg = params->fw_data_cfg;
-	}
 
 	handle->params.hs_auto_arp = hs_auto_arp;
-	if (params) {
+	if (params)
 		handle->params.hs_auto_arp = params->hs_auto_arp;
-	}
 #ifdef WIFI_DIRECT_SUPPORT
 	handle->params.max_wfd_bss = max_wfd_bss;
 	woal_dup_string(&handle->params.wfd_name, wfd_name);
@@ -3143,9 +3141,8 @@ static mlan_status woal_validate_cfg_id(moal_handle *handle)
 		if (m_handle[i] == NULL || m_handle[i] == handle)
 			continue;
 		if (m_handle[i]->card_type == handle->card_type) {
-			if (m_handle[i]->blk_id == handle->blk_id) {
+			if (m_handle[i]->blk_id == handle->blk_id)
 				ret = MLAN_STATUS_FAILURE;
-			}
 		}
 	}
 	return ret;
@@ -3387,9 +3384,8 @@ mlan_status woal_get_c_vidpid(char **c_vidpid)
 
 			for (i = 0; i < tbl_size; i++) {
 				if (strcmp(card_type_map_tbl[i].name,
-					   card_type) == 0) {
+					   card_type) == 0)
 					continue;
-				}
 			}
 		} else {
 			if (strncmp(line, "}", strlen("}")) == 0) {

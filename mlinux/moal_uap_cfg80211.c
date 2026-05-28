@@ -26,12 +26,14 @@
 /** deauth reason code */
 #define REASON_CODE_DEAUTH_LEAVING 3
 /********************************************************
-				Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-				Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 extern const struct net_device_ops woal_uap_netdev_ops;
 /* Handling for 6E Indoor/Outdoor Mode */
 #define UAP_MODE_IND 0
@@ -109,19 +111,19 @@ typedef struct _domain_code_mapping_t {
 
 /*
  *DOMAIN_CODE_FCC: AE AM AN AR AZ BH BL BN BR CL CN CR CS DZ EC
- EG GE HN HK ID IL IR JM JO KP KW KZ LB LK MA
- MO NP OM PE PG PH PK PT QA SA SG SV SY TH TT
- TN UY YE ZA ZW VN KR
+ * EG GE HN HK ID IL IR JM JO KP KW KZ LB LK MA
+ * MO NP OM PE PG PH PK PT QA SA SG SV SY TH TT
+ * TN UY YE ZA ZW VN KR
  *DOMAIN_CODE_FCC1: US UZ CA CO DO GT PA PR TW NZ BO BZ VE
  *DOMAIN_CODE_MKK: JP
  *DOMAIN_CODE_ETSI: AL AD AT AU BE BA BG HR CY CZ DK EE FI FR MK
- DE GB GR HU IS IE IT LV LI LT LU MT MD MC ME
- NL NO PL RO SM RS SI SK ES SE CH TR UA UK NE
- NZ DZ AO AM AW BH BD BT BO BQ BW VG BF BI KH
- CL KM CG CD CW EG FO GF PF GE GI GP HK ID IM
- IL JE KE XK KW LA LR MW MV MQ MR YT MA MZ MM
- NA NC NG OM PS PT QA RW RE BL MF VC SA SC ZA
- SZ SY TZ TG TN AE VA EH YE ZM ZW
+ * DE GB GR HU IS IE IT LV LI LT LU MT MD MC ME
+ * NL NO PL RO SM RS SI SK ES SE CH TR UA UK NE
+ * NZ DZ AO AM AW BH BD BT BO BQ BW VG BF BI KH
+ * CL KM CG CD CW EG FO GF PF GE GI GP HK ID IM
+ * IL JE KE XK KW LA LR MW MV MQ MR YT MA MZ MM
+ * NA NC NG OM PS PT QA RW RE BL MF VC SA SC ZA
+ * SZ SY TZ TG TN AE VA EH YE ZM ZW
  *DOMAIN_CODE_IN: IN
  */
 domain_code_mapping_t domain_code_mapping[] = {
@@ -230,12 +232,14 @@ domain_code_mapping_t domain_code_mapping[] = {
 
 #endif //#ifdef UAP_SUPPORT
 /********************************************************
-  Local Functions
- ********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /********************************************************
-  Global Functions
- ********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 #ifdef UAP_SUPPORT
 /**
  *  @brief This function converts country code string to domain code
@@ -584,7 +588,8 @@ static int woal_deauth_assoc_station(moal_private *priv, const u8 *mac_addr,
 	}
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
 		cfg80211_del_sta(priv->wdev, mac_addr, GFP_KERNEL);
 #else
 		cfg80211_del_sta(priv->netdev, mac_addr, GFP_KERNEL);
@@ -1776,12 +1781,10 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 	sys_config->frag_threshold = wiphy->frag_threshold;
 	sys_config->rts_threshold = wiphy->rts_threshold;
 	sys_config->retry_limit = wiphy->retry_long;
-	if (sys_config->frag_threshold == (t_u16)MLAN_FRAG_RTS_DISABLED) {
+	if (sys_config->frag_threshold == (t_u16)MLAN_FRAG_RTS_DISABLED)
 		sys_config->frag_threshold = MLAN_FRAG_MAX_VALUE;
-	}
-	if (sys_config->rts_threshold == (t_u16)MLAN_FRAG_RTS_DISABLED) {
+	if (sys_config->rts_threshold == (t_u16)MLAN_FRAG_RTS_DISABLED)
 		sys_config->rts_threshold = MLAN_RTS_MAX_VALUE;
-	}
 
 	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
@@ -3756,9 +3759,8 @@ int woal_cfg80211_add_beacon(struct wiphy *wiphy, struct net_device *dev,
 
 	PRINTM(MMSG, "wlan: %s Starting AP\n", dev->name);
 #ifdef UAP_SUPPORT
-	if (priv->phandle->params.custom_11d_bcn_country_ie_en) {
+	if (priv->phandle->params.custom_11d_bcn_country_ie_en)
 		woal_send_bcn_country_ie_cmd_fw(priv, MOAL_NO_WAIT);
-	}
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	/* cancel previous remain on channel to avoid firmware hang */
@@ -4293,7 +4295,8 @@ done:
  */
 #endif
 int woal_cfg80211_del_station(struct wiphy *wiphy,
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
 			      struct wireless_dev *wdev,
 #else
 			      struct net_device *dev,
@@ -4312,7 +4315,8 @@ int woal_cfg80211_del_station(struct wiphy *wiphy,
 	const u8 *mac_addr = NULL;
 #endif
 	u16 reason_code = REASON_CODE_DEAUTH_LEAVING;
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
 	struct net_device *dev = wdev->netdev;
 #endif
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);

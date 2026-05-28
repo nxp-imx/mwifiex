@@ -22,9 +22,10 @@
  */
 
 /******************************************************
-  Change log:
-  11/07/2008: initial version
- ******************************************************/
+ * Change log:
+ * 11/07/2008: initial version
+ * ****************************************************
+ */
 
 #ifndef _MLAN_IOCTL_H_
 #define _MLAN_IOCTL_H_
@@ -538,7 +539,7 @@ typedef MLAN_PACK_START struct _tx_mgmt_status_event {
 
 typedef MLAN_PACK_START struct _tx_bulk_status_event {
 	/* bulk event is multi set for tx_status [bulk1 bulk2 ...bulk128]
-	   bulk1 { packet_type, tx_token_id, status } so on.
+	 * bulk1 { packet_type, tx_token_id, status } so on.
 	 */
 	tx_mgmt_status_event bulk_events[128];
 } MLAN_PACK_END tx_bulk_status_event;
@@ -4449,7 +4450,8 @@ typedef struct MLAN_PACK_START _mlan_ds_twt_setup {
 	t_u8 flow_identifier;
 	/** Hard Constraint, 0: FW can tweak the TWT setup parameters if it is
 	 *rejected by AP.
-	 ** 1: Firmware should not tweak any parameters. */
+	 * * 1: Firmware should not tweak any parameters.
+	 */
 	t_u8 hard_constraint;
 	/** TWT Exponent, Range: [0-63] */
 	t_u8 twt_exponent;
@@ -5610,8 +5612,9 @@ typedef struct _mef_entry_t {
 	/** mode: bit0--hostsleep mode; bit1--non hostsleep mode */
 	t_u8 mode;
 	/** action: 0--discard and not wake host;
-		    1--discard and wake host;
-		    3--allow and wake host;*/
+	 * 1--discard and wake host;
+	 * 3--allow and wake host;
+	 */
 	t_u8 action;
 	/** filter number */
 	t_u8 filter_num;
@@ -5974,6 +5977,8 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 	t_u16 sub_band;
 	/** length */
 	t_u16 length;
+	/** power table base version */
+	t_u8 pt_base_version;
 	/** buf */
 	t_u8 trpc_buf[2048];
 } mlan_ds_misc_chan_trpc_cfg;

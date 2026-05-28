@@ -23,9 +23,10 @@
  */
 
 /************************************************************************
-  Change log:
-  01/05/2012: initial version
- ************************************************************************/
+ * Change log:
+ * 01/05/2012: initial version
+ * **********************************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_eth_ioctl.h"
@@ -64,8 +65,9 @@
 #define CMD_BUF_LEN 4096
 
 /********************************************************
-  Local Variables
- ********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /** Bands supported in Infra mode */
 static t_u16 SupportedInfraBand[] = {
@@ -91,9 +93,10 @@ static t_u16 SupportedInfraBand[] = {
 	BAND_B | BAND_G | BAND_GN | BAND_GAC | BAND_GAX,
 	BAND_G | BAND_GN | BAND_GAC | BAND_GAX,
 	/*BAND_6G,
-	  BAND_6G | BAND_AAX,
-	  BAND_6G | BAND_GAX,
-	  BAND_6G | BAND_AAX | BAND_GAX,*/
+	 * BAND_6G | BAND_AAX,
+	 * BAND_6G | BAND_GAX,
+	 * BAND_6G | BAND_AAX | BAND_GAX,
+	 */
 	BAND_A | BAND_B | BAND_G | BAND_AN | BAND_GN | BAND_AAC | BAND_GAX |
 		BAND_AAX | BAND_6G,
 	BAND_A | BAND_B | BAND_G | BAND_AN | BAND_GN | BAND_AAC | BAND_GAC |
@@ -117,8 +120,9 @@ static t_u16 SupportedInfraBand[] = {
 };
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 #ifdef UAP_SUPPORT
 /** Network device handlers for uAP */
@@ -131,8 +135,9 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  * @brief Parse a string to extract numerical arguments
  *
@@ -173,9 +178,8 @@ mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
 				is_hex = 0;
 			} else {
 				if (woal_atoi(&data[j], cdata) !=
-				    MLAN_STATUS_SUCCESS) {
+				    MLAN_STATUS_SUCCESS)
 					PRINTM(MERROR, " fail on woal_atoi()");
-				}
 			}
 			j++;
 			k = 0;
@@ -197,8 +201,9 @@ mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
 }
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 /**
@@ -353,9 +358,8 @@ static int woal_get_priv_driver_version(moal_private *priv, t_u8 *respbuf,
 
 	if (len) {
 		if (!woal_secure_sub(&respbuflen, 1, &temp_buf_len,
-				     TYPE_UINT32)) {
+				     TYPE_UINT32))
 			PRINTM(MERROR, "%s:respbuflen underflow\n", __func__);
-		}
 		/* Copy back the retrieved version string */
 		PRINTM(MINFO, "MOAL VERSION: %s\n", buf);
 		ret = MIN(len, (int)temp_buf_len);
@@ -540,8 +544,9 @@ static int woal_set_priv_11axcmdcfg_llde_pkt_filer_cmd(
 	}
 
 	/* remove llde_pkt_filter parameters from respbuf as they are parsed
-	   above, respbuf will contain llde cfg parameters only which will be
-	   later parsed via parse_arguments() */
+	 * above, respbuf will contain llde cfg parameters only which will be
+	 * later parsed via parse_arguments()
+	 */
 	memset(respbuf + llde_cfg_len, 0, llde_pkt_filter_len);
 
 	LEAVE();
@@ -6436,7 +6441,7 @@ static int woal_priv_set_get_usbaggrctrl(moal_private *priv, t_u8 *respbuf,
 		/* Indicate resubmition from here */
 		cardp->resubmit_urbs = 1;
 		/* Rx SG parameters has changed or disabled, kill the URBs, they
-		   will be resubmitted after saving the parameters to USB card
+		 * will be resubmitted after saving the parameters to USB card
 		 */
 		if (atomic_read(&cardp->rx_data_urb_pending)) {
 			for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
@@ -13045,9 +13050,8 @@ static int woal_is_channel_in_regdom_valid(moal_private *priv, t_u8 channel,
 			if (sband->channels[i].flags & IEEE80211_CHAN_DISABLED)
 				continue;
 
-			if (channel == sband->channels[i].hw_value) {
+			if (channel == sband->channels[i].hw_value)
 				return 0;
-			}
 		}
 	}
 
@@ -13255,9 +13259,8 @@ static int woal_channel_switch(moal_private *priv, t_u8 block_tx,
 	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
 	pcust_chansw_ie->mgmt_subtype_mask = 0;
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
+	if (status != MLAN_STATUS_SUCCESS)
 		PRINTM(MERROR, "Failed to clear ECSA IE\n");
-	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
@@ -14148,10 +14151,9 @@ void woal_process_agcs_event(moal_private *priv, pagcs_stats pstart_event)
 
 		/* Call for scan */
 		status = woal_request_userscan(priv, MOAL_NO_WAIT, scan_cfg);
-		if (status == MLAN_STATUS_FAILURE) {
+		if (status == MLAN_STATUS_FAILURE)
 			PRINTM(MERROR,
 			       "AGCS request the scan of candidate channel list failed\n");
-		}
 		status = moal_agcs_trans_state(priv, AGCS_STATE_IN_SCAN);
 		if (status == MLAN_STATUS_FAILURE) {
 			PRINTM(MERROR,
@@ -14163,9 +14165,8 @@ void woal_process_agcs_event(moal_private *priv, pagcs_stats pstart_event)
 done:
 	if (status == MLAN_STATUS_FAILURE) {
 		status = moal_agcs_trans_state(priv, AGCS_STATE_START);
-		if (status == MLAN_STATUS_FAILURE) {
+		if (status == MLAN_STATUS_FAILURE)
 			PRINTM(MERROR, "agcs state failed(AGCS_STATE_START)\n");
-		}
 	}
 	if (scan_cfg)
 		kfree(scan_cfg);
@@ -14232,11 +14233,10 @@ void woal_process_ch_sel_and_switch(moal_private *priv, pagcs_event pevent)
 			}
 		}
 		best_ch_load = 0;
-		if (pbest_chan_stats->cca_scan_duration) {
+		if (pbest_chan_stats->cca_scan_duration)
 			best_ch_load = pbest_chan_stats->cca_busy_duration *
 				       100 /
 				       pbest_chan_stats->cca_scan_duration;
-		}
 		/* (NF_newChannel < NF_threshold) && (channelLoad_newChannel <
 		 * ChLoad_TH%) */
 		if ((pbest_chan_stats->noise < pevent->stats.nf_threshold) &&
@@ -14298,10 +14298,9 @@ void woal_process_ch_sel_and_switch(moal_private *priv, pagcs_event pevent)
 				handle->agcs_info.csa_cnt,
 				pbest_chan_stats->bandcfg.chanBand, band_width,
 				MTRUE);
-			if (ret) {
+			if (ret)
 				moal_agcs_trans_state(priv,
 						      AGCS_STATE_COMPLETE);
-			}
 		} else {
 			PRINTM(MEVENT,
 			       "AGCS no channel switch NF_newChannel(%d) < NF_threshold(%d) && chload_newChannel(%d) < ChLoad_TH(%d)\n",
@@ -17045,9 +17044,8 @@ static int woal_priv_twt_setup(moal_private *priv, t_u8 *respbuf, t_u8 len,
 
 	ret = sizeof(mlan_ds_twt_setup);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -17100,9 +17098,8 @@ static int woal_priv_twt_teardown(moal_private *priv, t_u8 *respbuf, t_u8 len,
 
 	ret = sizeof(mlan_ds_twt_teardown);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -17154,9 +17151,8 @@ static int woal_priv_twt_report(moal_private *priv, t_u8 *respbuf, t_u8 len,
 
 	ret = sizeof(mlan_ds_twt_report);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -17210,9 +17206,8 @@ static int woal_priv_twt_information(moal_private *priv, t_u8 *respbuf,
 
 	ret = sizeof(mlan_ds_twt_information);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -17266,9 +17261,8 @@ static int woal_priv_btwt_ap_config_set(moal_private *priv, t_u8 *respbuf,
 
 	ret = sizeof(mlan_ds_btwt_ap_config);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -17322,9 +17316,8 @@ static int woal_priv_btwt_ap_config_get(moal_private *priv, t_u8 *respbuf,
 
 	ret = sizeof(mlan_ds_btwt_ap_config);
 done:
-	if (status != MLAN_STATUS_PENDING) {
+	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
-	}
 	LEAVE();
 	return ret;
 }
@@ -18153,9 +18146,8 @@ static int woal_priv_lte_coex_band_cfg(moal_private *priv, t_u8 *respbuf,
 			ret = -EINVAL;
 			goto done;
 		}
-		if (user_data_len == 1) {
+		if (user_data_len == 1)
 			lte_cfg->band = data[0];
-		}
 		req->action = MLAN_ACT_SET;
 	}
 
@@ -19575,9 +19567,8 @@ static int woal_priv_p2p_ecsa(moal_private *priv, t_u8 *respbuf,
 	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
 	pcust_chansw_ie->mgmt_subtype_mask = 0;
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
+	if (status != MLAN_STATUS_SUCCESS)
 		PRINTM(MERROR, "Failed to clear ECSA IE\n");
-	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(ioctl_req);
@@ -24457,8 +24448,9 @@ done:
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Create a brief scan resp to relay basic BSS info to the app layer
  *

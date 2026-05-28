@@ -25,9 +25,10 @@
  */
 
 /******************************************************
-Change log:
-    10/28/2008: initial version
-******************************************************/
+ * Change log:
+ * 10/28/2008: initial version
+ * ****************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -39,8 +40,9 @@ Change log:
 #include "mlan_11ax.h"
 #include "mlan_11h.h"
 /********************************************************
-			Local Constants
-********************************************************/
+ * Local Constants
+ * ******************************************************
+ */
 /** minimum scan time for passive to active scan */
 #define MIN_PASSIVE_TO_ACTIVE_SCAN_TIME 150
 
@@ -92,8 +94,9 @@ Change log:
 	 WPS_TLV_MAX_SIZE)
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /**
  * Interally used to send a configured scan cmd between
@@ -107,12 +110,14 @@ typedef union {
 } wlan_scan_cmd_config_tlv;
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /** Cipher suite definition */
 enum cipher_suite {
 	CIPHER_SUITE_WEP40,
@@ -1297,9 +1302,10 @@ process_start:
 			}
 
 			/* Special Case: For Japan, Scan on CH14 for 11G rates
-			   is not allowed
-			    Hence Rates TLV needs to be updated to support only
-			   11B rates */
+			 * is not allowed
+			 * Hence Rates TLV needs to be updated to support only
+			 * 11B rates
+			 */
 			if ((pmadapter->region_code == COUNTRY_CODE_JP_40 ||
 			     pmadapter->region_code == COUNTRY_CODE_JP_FF) &&
 			    (ptmp_chan_list->chan_number == 14) &&
@@ -1506,9 +1512,8 @@ process_start:
 			// coverity[overflow_sink:SUPPRESS]
 			if (ptmp_chan_list->bandcfg.chanBand !=
 			    ((ChanScanParamSet_t *)(ptmp_chan_list - 1))
-				    ->bandcfg.chanBand) {
+				    ->bandcfg.chanBand)
 				done_early = MTRUE;
-			}
 		}
 
 		/* The total scan time should be less than scan command timeout
@@ -4804,8 +4809,9 @@ wlan_scan_delete_ssid_table_entry(mlan_private *pmpriv,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Check if a scanned network compatible with the driver settings
@@ -5564,9 +5570,8 @@ static t_bool wlan_active_scan_req_for_passive_chan(mlan_private *pmpriv,
 		PRINTM(MCMND, "active scan request for passive channel %d\n",
 		       id);
 		if (wlan_scan_networks(pmpriv, pioctl_buf, user_scan_cfg) !=
-		    MLAN_STATUS_SUCCESS) {
+		    MLAN_STATUS_SUCCESS)
 			goto done;
-		}
 		ret = MTRUE;
 	}
 done:
@@ -6498,12 +6503,11 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 			 */
 			if (found_data_rate_ie) {
 				if ((element_len + rate_size) >
-				    WLAN_SUPPORTED_RATES) {
+				    WLAN_SUPPORTED_RATES)
 					bytes_to_copy = (WLAN_SUPPORTED_RATES -
 							 rate_size);
-				} else {
+				else
 					bytes_to_copy = element_len;
-				}
 
 				prate = (t_u8 *)pnew_entry->data_rates;
 				prate += rate_size;

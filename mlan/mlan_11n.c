@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    11/10/2008: initial version
-********************************************************/
+ * Change log:
+ * 11/10/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -37,16 +38,19 @@ Change log:
 #include "mlan_11ax.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *
@@ -525,12 +529,12 @@ static mlan_status wlan_11n_ioctl_addba_param(pmlan_adapter pmadapter,
 		timeout = pmpriv->add_ba_param.timeout;
 		/* WACP supports the MAX TX ba timeout */
 		if (pmadapter->tx_ba_timeout_support ||
-		    pmadapter->init_para.wacp_mode) {
+		    pmadapter->init_para.wacp_mode)
 			pmpriv->add_ba_param.timeout =
 				cfg->param.addba_param.timeout;
-		} else {
+		else
 			pmpriv->add_ba_param.timeout = 0;
-		}
+
 		pmpriv->add_ba_param.tx_win_size =
 			cfg->param.addba_param.txwinsize;
 
@@ -1291,8 +1295,9 @@ static TxBAStreamTbl *wlan_11n_get_txbastream_status(mlan_private *priv,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 #ifdef STA_SUPPORT
 /**

@@ -31,16 +31,19 @@
 #include "mlan_11ac.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
 				     t_u16 mcs_map);
 /**
@@ -149,9 +152,9 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 
 	RESET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info);
 	/*
-	   Set to 0 for 3895 octets.
-	   Set to 1 for 7991 octets.
-	   Set to 2 for 11 454 octets.
+	 * Set to 0 for 3895 octets.
+	 * Set to 1 for 7991 octets.
+	 * Set to 2 for 11 454 octets.
 	 */
 	cfg_value = GET_VHTCAP_MAXMPDULEN(usr_dot_11ac_dev_cap);
 	if (cfg_value &&
@@ -540,8 +543,9 @@ static mlan_status wlan_11ac_ioctl_supported_mcs_set(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function prints the 802.11ac device capability

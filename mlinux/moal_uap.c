@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-    10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_uap.h"
@@ -41,15 +42,18 @@ Change log:
 #endif
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief uap addba parameter handler
  *
@@ -1701,7 +1705,8 @@ static int woal_uap_mgmt_frame_control(struct net_device *dev,
 		action = MLAN_ACT_GET;
 	if (action == MLAN_ACT_SET) {
 		/* Initialize the invalid values so that the correct
-		   values below are downloaded to firmware */
+		 * values below are downloaded to firmware
+		 */
 		woal_set_sys_config_invalid_data(sys_config);
 		sys_config->mgmt_ie_passthru_mask = param.mask;
 	}
@@ -2654,9 +2659,8 @@ static int woal_uap_wacp_mode(struct net_device *dev, struct ifreq *req)
 
 	param.wacp_mode = pcfg_misc->param.wacp_mode;
 	/** Update the moal wacp_mode */
-	if (param.action == MLAN_ACT_SET) {
+	if (param.action == MLAN_ACT_SET)
 		priv->phandle->params.wacp_mode = param.wacp_mode;
-	}
 
 	/* Copy to user */
 	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
@@ -3641,8 +3645,9 @@ done:
 }
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Initialize the members of mlan_uap_bss_param
  *  which are uploaded from firmware
@@ -4680,9 +4685,8 @@ static mlan_status woal_uap_set_post_confing(moal_private *priv)
 		}
 
 		/** Disable addbareject, if wacp_mode enabled */
-		for (i = 0; i < MAX_NUM_TID; i++) {
+		for (i = 0; i < MAX_NUM_TID; i++)
 			addba_reject[i] = MFALSE;
-		}
 		if (woal_ioctl_addba_reject(priv, MLAN_ACT_SET, addba_reject) !=
 		    MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Set addbareject failed\n");
@@ -4880,9 +4884,8 @@ int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		}
 		woal_flush_tx_stat_queue(priv);
 		woal_flush_tcp_sess_queue(priv);
-		if (moal_agcs_get_state(priv) != AGCS_STATE_IDLE) {
+		if (moal_agcs_get_state(priv) != AGCS_STATE_IDLE)
 			moal_agcs_trans_state(priv, AGCS_STATE_START);
-		}
 	} else if (data == UAP_BSS_START) {
 		/* Due to the influence of DMCS, the configurations using FW cmd
 		 * must wait until BSS START. */

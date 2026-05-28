@@ -23,17 +23,19 @@
  */
 
 /********************************************************
-Change log:
-    10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_usb.h"
 extern struct semaphore AddRemoveCardSem;
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
 	defined(USBIW624) || defined(USBIW610)
@@ -180,12 +182,14 @@ static struct usb_driver REFDATA woal_usb_driver = {
 static moal_if_ops usb_ops;
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 /**
@@ -487,8 +491,9 @@ rx_ret:
 }
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
 	defined(USBIW624) || defined(USBIW610)
@@ -1161,7 +1166,8 @@ static int woal_usb_probe(struct usb_interface *intf,
 		 * the wakeup policy, which is purely a userspace decision.
 		 */
 		/* if (udev->actconfig->desc.bmAttributes &
-		   USB_CONFIG_ATT_WAKEUP) intf->needs_remote_wakeup = 1; */
+		 * USB_CONFIG_ATT_WAKEUP) intf->needs_remote_wakeup = 1;
+		 */
 #endif
 		usb_get_dev(udev);
 		LEAVE();
@@ -1336,31 +1342,26 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	}
 
 	/* Unlink Rx cmd URB */
-	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb) {
+	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb)
 		usb_kill_urb(cardp->rx_cmd.urb);
-	}
 	/* Unlink Rx data URBs */
 	if (atomic_read(&cardp->rx_data_urb_pending)) {
 		for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
-			if (cardp->rx_data_list[i].urb) {
+			if (cardp->rx_data_list[i].urb)
 				usb_kill_urb(cardp->rx_data_list[i].urb);
-			}
 		}
 	}
 
 	/* Unlink Tx data URBs */
 	for (i = 0; i < MVUSB_TX_HIGH_WMARK; i++) {
-		if (cardp->tx_data_list[i].urb) {
+		if (cardp->tx_data_list[i].urb)
 			usb_kill_urb(cardp->tx_data_list[i].urb);
-		}
-		if (cardp->tx_data2_list[i].urb) {
+		if (cardp->tx_data2_list[i].urb)
 			usb_kill_urb(cardp->tx_data2_list[i].urb);
-		}
 	}
 	/* Unlink Tx cmd URB */
-	if (cardp->tx_cmd.urb) {
+	if (cardp->tx_cmd.urb)
 		usb_kill_urb(cardp->tx_cmd.urb);
-	}
 
 	handle->suspend_wait_q_woken = MTRUE;
 	wake_up_interruptible(&handle->suspend_wait_q);
@@ -1428,7 +1429,8 @@ static int woal_usb_resume(struct usb_interface *intf)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
 		/* Resume handler may be called due to remote wakeup,
-		   force to exit suspend anyway */
+		 * force to exit suspend anyway
+		 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	cardp->udev->autosuspend_disabled = 1;
 #else
@@ -1865,13 +1867,11 @@ mlan_status woal_usb_bus_register(void)
 
 	ENTER();
 
-	if (skip_fwdnld) {
+	if (skip_fwdnld)
 		woal_usb_driver.id_table = woal_usb_table_skip_fwdnld;
-	}
 
-	if (woal_usb_table_ext != NULL) {
+	if (woal_usb_table_ext != NULL)
 		woal_usb_driver.id_table = woal_usb_table_ext;
-	}
 	/*
 	 * API registers the NXP USB driver
 	 * to the USB system
@@ -2403,9 +2403,8 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 			current_entry->vid_pid_pairs[pair_idx].pid = (__u16)pid;
 
 			/* Update the count to track the highest index + 1 */
-			if (pair_idx >= current_entry->vid_pid_count) {
+			if (pair_idx >= current_entry->vid_pid_count)
 				current_entry->vid_pid_count = pair_idx + 1;
-			}
 
 			PRINTM(MINFO,
 			       "Parsed VID/PID[%d]: 0x%04x:0x%04x for device %s\n",
@@ -2748,10 +2747,9 @@ mlan_status check_usb_ext_table_info(char *device_name, t_u16 *card_type,
 								 1] = '\0';
 						}
 
-						if (card_type != NULL) {
+						if (card_type != NULL)
 							*card_type =
 								get_card_type;
-						}
 
 						return MLAN_STATUS_SUCCESS;
 					}

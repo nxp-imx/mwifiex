@@ -23,9 +23,10 @@
  */
 
 /****************************************************
-Change log:
-    10/24/2008: initial version
-****************************************************/
+ * Change log:
+ * 10/24/2008: initial version
+ * **************************************************
+ */
 
 #ifndef _MLAN_WMM_H_
 #define _MLAN_WMM_H_
@@ -47,9 +48,9 @@ static INLINE t_u32 wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
 					    &ptr->buf_head, MNULL, MNULL);
 	LEAVE();
 
-	if (!mbuf) {
+	if (!mbuf)
 		return 0; // The default TID,BE
-	} else
+	else
 		return mbuf->priority;
 }
 

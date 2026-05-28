@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-11/03/2008: initial version
-********************************************************/
+ * Change log:
+ * 11/03/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #ifdef USB
@@ -32,12 +33,14 @@ Change log:
 #endif
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #ifdef CONFIG_PROC_FS
 
 /** Get info item size */
@@ -866,57 +869,44 @@ static int woal_log_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "dot11TransmittedFragmentCount = %u\n",
 			   stats.tx_frag_cnt);
 		seq_puts(sfp, "dot11QosTransmittedFragmentCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_tx_frag_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosFailedCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_failed_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosRetryCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_retry_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosMultipleRetryCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_multi_retry_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosFrameDuplicateCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_frm_dup_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosRTSSuccessCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_rts_suc_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosRTSFailureCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_rts_failure_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosACKFailureCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_ack_failure_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosReceivedFragmentCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_rx_frag_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosTransmittedFrameCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_tx_frm_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosDiscardedFrameCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_discarded_frm_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosMPDUsReceivedCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_mpdus_rx_cnt[i]);
-		}
 		seq_puts(sfp, "\ndot11QosRetriesReceivedCount = ");
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 8; i++)
 			seq_printf(sfp, "%u ", stats.qos_retries_rx_cnt[i]);
-		}
 		seq_printf(sfp,
 			   "\ndot11RSNAStatsCMACICVErrors = %u\n"
 			   "dot11RSNAStatsCMACReplays = %u\n"
@@ -981,8 +971,9 @@ static int woal_log_proc_open(struct inode *inode, struct file *file)
 }
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief Proc read function
  *
@@ -1367,8 +1358,9 @@ static const struct file_operations log_proc_fops = {
 };
 #endif
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Create debug proc file
  *
@@ -1570,9 +1562,8 @@ reflective_enum_lookup_name(const struct reflective_enum_element *elements,
 
 	// The elements array is guaranteed to be NULL-terminated.
 	// coverity[overflow_sink:SUPPRESS]
-	while (elem->name && elem->id != id) {
+	while (elem->name && elem->id != id)
 		elem++;
-	}
 	// The elements array is guaranteed to be NULL-terminated.
 	// coverity[overflow_sink:SUPPRESS]
 	return elem->name;
@@ -1584,9 +1575,8 @@ const char *wlan_errorcode_get_name(enum host_error_code_id id)
 	const char *name =
 		reflective_enum_lookup_name(host_error_code_names, id);
 
-	if (name) {
+	if (name)
 		return name;
-	}
 #endif
 
 	return "???";

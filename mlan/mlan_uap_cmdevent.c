@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-02/05/2009: initial version
-********************************************************/
+ * Change log:
+ * 02/05/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_util.h"
@@ -45,8 +46,9 @@ Change log:
 #include "mlan_pcie.h"
 #endif /* PCIE */
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function prepares command of BAND_STEERING_CFG
@@ -2153,10 +2155,9 @@ static mlan_status wlan_uap_cmd_sys_configure(pmlan_private pmpriv,
 				wlan_cpu_to_le16(TLV_TYPE_UAP_WACP_MODE);
 			tlv_wacp_mode->header.len =
 				wlan_cpu_to_le16(sizeof(t_u8));
-			if (cmd_action == HostCmd_ACT_GEN_SET) {
+			if (cmd_action == HostCmd_ACT_GEN_SET)
 				tlv_wacp_mode->wacp_mode =
 					misc->param.wacp_mode;
-			}
 			cmd->size = wlan_cpu_to_le16(
 				sizeof(HostCmd_DS_SYS_CONFIG) + S_DS_GEN +
 				sizeof(MrvlIEtypes_wacp_mode_t));
@@ -3065,10 +3066,9 @@ static mlan_status wlan_uap_ret_sys_config(pmlan_private pmpriv,
 				misc->param.wacp_mode =
 					tlv_wacp_mode->wacp_mode;
 				/** update the wacp_mode in mlan_adapter */
-				if (pioctl_buf->action == MLAN_ACT_SET) {
+				if (pioctl_buf->action == MLAN_ACT_SET)
 					pmpriv->adapter->init_para.wacp_mode =
 						misc->param.wacp_mode;
-				}
 			}
 		}
 	} else { /* no ioctl: driver generated get/set */
@@ -5294,10 +5294,9 @@ static mlan_status wlan_process_agcs_event(pmlan_private priv,
 
 				if ((sta_ptr->ExtCap.ext_cap.ExtChanSwitching ==
 				     0) &&
-				    (global_oper_class != 128)) {
+				    (global_oper_class != 128))
 					pacs_start_event->stats.all_sta_ecs =
 						MFALSE;
-				}
 				if (pacs_start_event->stats.all_sta_6g ==
 				    MTRUE) {
 					if (sta_ptr->is_11ax_enabled == 0) {
@@ -5425,8 +5424,9 @@ static mlan_status wlan_cmd_chan_switch_cnt_config(pmlan_private pmpriv,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief This function prepare the command before sending to firmware.
  *

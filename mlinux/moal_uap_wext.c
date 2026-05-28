@@ -22,9 +22,10 @@
  */
 
 /************************************************************************
-Change log:
-08/06/2010: initial version
-************************************************************************/
+ * Change log:
+ * 08/06/2010: initial version
+ * **********************************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_uap.h"
@@ -32,8 +33,9 @@ Change log:
 #include "moal_uap_priv.h"
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 typedef struct _chan_to_freq_t {
 	/** Channel */
 	t_u16 channel;
@@ -128,8 +130,9 @@ static const struct iw_priv_args woal_uap_priv_args[] = {
 #define freq_to_chan(x) ((((x)-2412) / 5) + 1)
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Sort Channels
@@ -1529,7 +1532,7 @@ static int woal_get_auth(struct net_device *dev, struct iw_request_info *info,
  *  Infra       G(12)           A(8)    B(4)    G(12)
  *  Adhoc       A+B(12)         A(8)    B(4)    B(4)
  *      non-MULTI_BANDS:
-										b       b/g
+ * b       b/g
  *  Infra                               B(4)    G(12)
  *  Adhoc                               B(4)    B(4)
  */
@@ -1903,8 +1906,9 @@ static const iw_handler woal_private_handler[] = {
 };
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 #ifdef CONFIG_WIRELESS_EXT
 // clang-format off

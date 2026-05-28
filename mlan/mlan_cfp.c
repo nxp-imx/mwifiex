@@ -3458,9 +3458,8 @@ t_void wlan_reset_all_chan_dfs_state(mlan_private *priv, t_u16 band,
 
 	if (pcfp) {
 		/*check table according to chan num*/
-		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++) {
+		for (j = 0; j < priv->adapter->region_channel[i].num_cfp; j++)
 			pcfp[j].dynamic.dfs_state = dfs_state;
-		}
 	}
 
 	LEAVE();

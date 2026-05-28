@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "moal_main.h"
 #include "moal_cfg80211.h"
@@ -73,8 +74,9 @@ static struct sk_buff *woal_process_xdp(moal_private *priv,
 #endif
 #endif
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 /** moal_lock */
 typedef struct _moal_lock {
 	/** Lock */
@@ -86,18 +88,21 @@ typedef struct _moal_lock {
 } moal_lock;
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 extern int wifi_status;
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /********************************************************
-		Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 /**
  *  @brief Alloc a buffer
  *
@@ -2463,10 +2468,9 @@ static mlan_status moal_recv_packet_to_mon_if(moal_handle *handle,
 									out,
 									usr_idx,
 									tone);
-								if (tone) {
+								if (tone)
 									he->data5 |=
 										tone;
-								}
 							}
 						}
 					}
@@ -3126,19 +3130,19 @@ mlan_status moal_recv_packet(t_void *pmoal, pmlan_buffer pmbuf)
 
 #if defined(USB) || defined(PCIE)
 			/* This is only required only in case of 11n and
-			 USB as we alloc if(skb_tailroom(skb) <
-			 pmbuf->data_len){ PRINTM(MERROR,"skb overflow:
-			 tail room=%d, data_len\n", skb_tailroom(skb),
-			 pmbuf->data_len); status = MLAN_STATUS_FAILURE;
-				priv->stats.rx_dropped++;
-				goto done;
-			    }
+			 * USB as we alloc if (skb_tailroom(skb) <
+			 * pmbuf->data_len) { PRINTM(MERROR,"skb overflow:
+			 * tail room=%d, data_len\n", skb_tailroom(skb),
+			 * pmbuf->data_len); status = MLAN_STATUS_FAILURE;
+			 * priv->stats.rx_dropped++;
+			 * goto done;
+			 * }
 			 * a buffer of 4K only if its 11N (to be able to
-			 receive 4K AMSDU
+			 * receive 4K AMSDU
 			 * packets). In case of SD we allocate buffers
-			 based on the size
+			 * based on the size
 			 * of packet and hence this is not needed.
-			*/
+			 */
 			/* Modifying the truesize here as our allocation
 			 * for each skb is 4K but we only receive 2K
 			 * packets and this cause the kernel to start
@@ -3279,9 +3283,8 @@ void woal_request_busfreq_pmqos_add(t_void *handle)
 	moal_handle *pmhandle = (moal_handle *)handle;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #ifdef IMX_SUPPORT
-	if (IS_PCIE(pmhandle->card_type)) {
+	if (IS_PCIE(pmhandle->card_type))
 		request_bus_freq(BUS_FREQ_HIGH);
-	}
 #endif
 #endif
 	if (moal_extflg_isset(pmhandle, EXT_PMQOS)) {
@@ -3309,9 +3312,8 @@ void woal_release_busfreq_pmqos_remove(t_void *handle)
 	moal_handle *pmhandle = (moal_handle *)handle;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #ifdef IMX_SUPPORT
-	if (IS_PCIE(pmhandle->card_type)) {
+	if (IS_PCIE(pmhandle->card_type))
 		release_bus_freq(BUS_FREQ_HIGH);
-	}
 #endif
 #endif
 
@@ -3352,9 +3354,8 @@ int woal_check_media_connected(t_void *pmoal)
 		pmpriv = pmhandle->priv[i];
 		if (!pmpriv)
 			continue;
-		if (pmpriv->media_connected == MTRUE) {
+		if (pmpriv->media_connected == MTRUE)
 			return MTRUE;
-		}
 	}
 	return MFALSE;
 }
@@ -3976,9 +3977,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 		if (priv->report_scan_result) {
 			priv->report_scan_result = MFALSE;
 #ifdef STA_CFG80211
-			if (IS_STA_CFG80211(cfg80211_wext)) {
+			if (IS_STA_CFG80211(cfg80211_wext))
 				woal_send_bss_scan_result_event(priv);
-			}
 #endif /* STA_CFG80211 */
 
 #ifdef STA_WEXT
@@ -5176,7 +5176,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 				}
 #endif /* KERNEL_VERSION */
 				if (priv->netdev && priv->wdev)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
 					cfg80211_new_sta(priv->wdev,
 							 (t_u8 *)addr, sinfo,
 							 GFP_KERNEL);
@@ -5245,7 +5246,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			} else
 #endif
 				if (priv->netdev && priv->wdev)
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21)
+#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
 				cfg80211_del_sta(priv->wdev,
 						 pmevent->event_buf + 2,
 						 GFP_KERNEL);
@@ -5869,9 +5871,8 @@ mlan_status moal_recv_event(t_void *pmoal, pmlan_event pmevent)
 			 evtbuf->peer_mac_addr[5], evtbuf->tid);
 #if defined(STA_SUPPORT) || defined(UAP_SUPPORT)
 #if defined(STA_WEXT) || defined(UAP_WEXT)
-		if (IS_STA_OR_UAP_WEXT(cfg80211_wext)) {
+		if (IS_STA_OR_UAP_WEXT(cfg80211_wext))
 			woal_send_iwevcustom_event(priv, iwevent_str);
-		}
 #endif
 #endif
 		break;

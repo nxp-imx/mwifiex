@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    02/05/2009: initial version
-********************************************************/
+ * Change log:
+ * 02/05/2009: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_util.h"
@@ -41,14 +42,16 @@ Change log:
 #include "mlan_11ax.h"
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 extern mlan_status wlan_sec_ioctl_passphrase(pmlan_adapter pmadapter,
 					     pmlan_ioctl_req pioctl_req);
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief Stop BSS
  *
@@ -1831,8 +1834,9 @@ static mlan_status wlan_uap_bss_ioctl_acs_scan(pmlan_adapter pmadapter,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Issue CMD to UAP firmware to get current channel
@@ -1975,11 +1979,10 @@ static mlan_status wlan_uap_snmp_mib_ctrl_deauth(pmlan_adapter pmadapter,
 	ENTER();
 
 	mib = (mlan_ds_snmp_mib *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_SET) {
+	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
-	} else {
+	else
 		cmd_action = HostCmd_ACT_GEN_GET;
-	}
 
 	/* Send command to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SNMP_MIB, cmd_action,
@@ -2012,11 +2015,10 @@ static mlan_status wlan_uap_snmp_mib_chan_track(pmlan_adapter pmadapter,
 	ENTER();
 
 	mib = (mlan_ds_snmp_mib *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_SET) {
+	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
-	} else {
+	else
 		cmd_action = HostCmd_ACT_GEN_GET;
-	}
 
 	/* Send command to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_SNMP_MIB, cmd_action,
@@ -2049,11 +2051,10 @@ static mlan_status wlan_uap_agcs_cfg(pmlan_adapter pmadapter,
 	ENTER();
 
 	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_SET) {
+	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
-	} else {
+	else
 		cmd_action = HostCmd_ACT_GEN_GET;
-	}
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_APCMD_AGCS_CFG, cmd_action,

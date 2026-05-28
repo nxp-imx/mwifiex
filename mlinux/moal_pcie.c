@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-02/01/2012: initial version
-********************************************************/
+ * Change log:
+ * 02/01/2012: initial version
+ * ******************************************************
+ */
 
 #include <linux/firmware.h>
 
@@ -50,8 +51,9 @@ Change log:
 #endif
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #define DRV_NAME "NXP mdriver PCIe"
 
 /* PCIE resume handler */
@@ -138,12 +140,14 @@ static moal_if_ops pcie_ops;
 
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
 #if defined(PCIE8897) || defined(PCIE9098) || defined(PCIE9097) ||             \
@@ -304,9 +308,8 @@ static mlan_status woal_reset_adma(moal_handle *handle)
 	/* Poll 10k times or till reset completes */
 	for (tries = 0; tries < 10000; ++tries) {
 		ret = handle->ops.read_reg(handle, reset_reg, &value);
-		if (value == 0) {
+		if (value == 0)
 			break;
-		}
 		if (tries && ((tries % 200) == 0))
 			PRINTM(MMSG, "ADMA reset tries done:%d\n", tries);
 
@@ -773,10 +776,9 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		if (handle->priv[i] && !keep_power &&
 		    handle->priv[i]->bss_started == MTRUE) {
 			if (woal_uap_bss_ctrl(handle->priv[i], MOAL_IOCTL_WAIT,
-					      UAP_BSS_STOP)) {
+					      UAP_BSS_STOP))
 				PRINTM(MERROR, "%s: stop uap failed\n",
 				       __func__);
-			}
 		}
 #endif
 	}
@@ -1168,8 +1170,9 @@ static struct pci_driver REFDATA wlan_pcie = {
 };
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function writes data into card register
@@ -1288,9 +1291,8 @@ static irqreturn_t woal_pcie_interrupt(int irq, void *dev_id)
 		PRINTM(MINTR, "**\n");
 	else
 		PRINTM(MINTR, "*\n");
-	if (handle->is_suspended) {
+	if (handle->is_suspended)
 		PRINTM(MERROR, "Receive interrupt in hs_suspended\n");
-	}
 	ret = mlan_interrupt(0xffff, handle->pmlan_adapter);
 
 exit:
@@ -2597,9 +2599,8 @@ static void woal_pcie_dump_fw_info(moal_handle *phandle)
 	if (!phandle->priv_num)
 		return;
 	priv = woal_get_priv(phandle, MLAN_BSS_ROLE_ANY);
-	if (priv == NULL) {
+	if (priv == NULL)
 		return;
-	}
 	woal_send_fw_dump_complete_event(priv);
 	mlan_pm_wakeup_card(phandle->pmlan_adapter, MFALSE);
 	queue_work(phandle->workqueue, &phandle->main_work);

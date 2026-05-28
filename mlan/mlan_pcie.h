@@ -23,9 +23,10 @@
  */
 
 /********************************************************
-Change log:
-    02/01/2012: initial version
-********************************************************/
+ * Change log:
+ * 02/01/2012: initial version
+ * ******************************************************
+ */
 
 #ifndef _MLAN_PCIE_H_
 #define _MLAN_PCIE_H_
@@ -391,7 +392,8 @@ Change log:
 /** Command ready interrupt for CPU */
 #define CPU_INTR_DOOR_BELL MBIT(1)
 /** Confirmation that sleep confirm message has been processed.
- Device will enter sleep after receiving this interrupt */
+ * Device will enter sleep after receiving this interrupt
+ */
 #define CPU_INTR_SLEEP_CFM_DONE MBIT(2)
 /** Reset interrupt for CPU */
 #define CPU_INTR_RESET MBIT(3)

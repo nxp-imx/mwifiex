@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-10/27/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/27/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #ifdef STA_SUPPORT
@@ -39,8 +40,9 @@ Change log:
 #include "mlan_sdio.h"
 
 /********************************************************
-		Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 #ifdef SD8887
 static const struct _mlan_sdio_card_reg mlan_reg_sd8887 = {
 	.start_rd_port = 0,
@@ -344,12 +346,14 @@ static const struct _mlan_card_info mlan_card_info_sd8987 = {
 #endif
 
 /********************************************************
-		Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-		Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function initialize the SDIO port
@@ -370,9 +374,8 @@ static mlan_status wlan_sdio_init_ioport(mlan_adapter *pmadapter)
 	t_u8 cmd_config_1 = pmadapter->pcard_sd->reg->cmd_config_1;
 
 	ENTER();
-	if (pmadapter->pcard_sd->supports_sdio_new_mode) {
+	if (pmadapter->pcard_sd->supports_sdio_new_mode)
 		pmadapter->pcard_sd->ioport = MEM_PORT;
-	}
 	PRINTM(MINFO, "SDIO FUNC1 IO port: 0x%x\n",
 	       pmadapter->pcard_sd->ioport);
 
@@ -1319,9 +1322,8 @@ static mlan_status wlan_decode_rx_packet(mlan_adapter *pmadapter,
 		PRINTM(MINFO, "--- Rx: Event ---\n");
 
 		if (!wlan_secure_add(&pmbuf->data_offset, SDIO_INTF_HEADER_LEN,
-				     &offset, TYPE_UINT32)) {
+				     &offset, TYPE_UINT32))
 			PRINTM(MERROR, "offset is invalid\n");
-		}
 		event = read_u32_unaligned(pmadapter, &pmbuf->pbuf[offset]);
 		pmadapter->event_cause = wlan_le32_to_cpu(event);
 		if ((pmadapter->upld_len > MLAN_EVENT_HEADER_LEN) &&
@@ -2022,8 +2024,9 @@ tx_curr_single:
 }
 
 /********************************************************
-		Global functions
-********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function checks if the interface is ready to download
@@ -2492,10 +2495,9 @@ static mlan_status wlan_sdio_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 	}
 	if (i > 0)
 		wlan_dump_mp_registers(pmadapter);
-	if (host_int_status_reg_val) {
+	if (host_int_status_reg_val)
 		pmadapter->pcard_sd->mp_regs[host_int_status_reg] |=
 			host_int_status_reg_val;
-	}
 
 	DBG_HEXDUMP(MIF_D, "SDIO MP Registers", pmadapter->pcard_sd->mp_regs,
 		    max_mp_regs);

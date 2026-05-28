@@ -21,9 +21,10 @@
  *
  */
 /********************************************************
-Change log:
-10/21/2008: initial version
-********************************************************/
+ * Change log:
+ * 10/21/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -33,8 +34,9 @@ Change log:
 #include "mlan_11h.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 #ifdef STA_SUPPORT
 /** Region code mapping table */
@@ -118,10 +120,11 @@ static chan_freq_power_t channel_freq_power_UN_AJ[] = {
 	{173, 5865, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{177, 5885, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}
 	/*  {240, 4920, TX_PWR_DEFAULT},
-	    {244, 4940, TX_PWR_DEFAULT},
-	    {248, 4960, TX_PWR_DEFAULT},
-	    {252, 4980, TX_PWR_DEFAULT},
-	    channels for 11J JP 10M channel gap */
+	 * {244, 4940, TX_PWR_DEFAULT},
+	 * {248, 4960, TX_PWR_DEFAULT},
+	 * {252, 4980, TX_PWR_DEFAULT},
+	 * channels for 11J JP 10M channel gap
+	 */
 };
 /** Channels for 802.116G */
 static chan_freq_power_t channel_freq_power_UN_6G[] = {
@@ -185,12 +188,14 @@ static chan_freq_power_t channel_freq_power_UN_6G[] = {
 	{229, 7095, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{233, 7115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}};
 /********************************************************
-  Global Variables
- ********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-  Local Functions
- ********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 #ifdef STA_SUPPORT
 /**
  *  @brief This function converts integer code to region string
@@ -445,7 +450,8 @@ static mlan_status wlan_11d_update_chan_pwr_table(mlan_private *pmpriv,
 	}
 
 	/* Check whether the channel already exists in channel power table of
-	   parsed region */
+	 * parsed region
+	 */
 	for (i = 0;
 	     ((i < parsed_region_chan->no_of_chan) && (i < MAX_NO_OF_CHAN));
 	     i++) {
@@ -453,7 +459,8 @@ static mlan_status wlan_11d_update_chan_pwr_table(mlan_private *pmpriv,
 		    parsed_region_chan->chan_pwr[i].band ==
 			    pbss_desc->bss_band) {
 			/* Channel already exists, use minimum of existing and
-			   tx_power */
+			 * tx_power
+			 */
 			parsed_region_chan->chan_pwr[i].pwr = MIN(
 				parsed_region_chan->chan_pwr[i].pwr, tx_power);
 			parsed_region_chan->chan_pwr[i].ap_seen = MTRUE;
@@ -463,7 +470,8 @@ static mlan_status wlan_11d_update_chan_pwr_table(mlan_private *pmpriv,
 
 	if (i == parsed_region_chan->no_of_chan && i < MAX_NO_OF_CHAN) {
 		/* Channel not found. Update the channel in the channel-power
-		   table */
+		 * table
+		 */
 		parsed_region_chan->chan_pwr[i].chan = chan;
 		parsed_region_chan->chan_pwr[i].band = pbss_desc->bss_band;
 		parsed_region_chan->chan_pwr[i].pwr = tx_power;
@@ -760,8 +768,9 @@ wlan_11d_set_domain_info(mlan_private *pmpriv, t_u16 band,
 }
 
 /********************************************************
-			Global functions
-********************************************************/
+ * Global functions
+ * ******************************************************
+ */
 
 /**
  *  @brief This function gets if priv is a station (STA)
@@ -1308,7 +1317,8 @@ mlan_status wlan_11d_parse_domain_info(
 			last_chan = cur_chan;
 
 			/* Step 5: We don't need to check if cur_chan is
-			   supported by mrvl in region */
+			 * supported by mrvl in region
+			 */
 			parsed_region_chan->chan_pwr[idx].chan = cur_chan;
 			parsed_region_chan->chan_pwr[idx].band = band;
 			parsed_region_chan->chan_pwr[idx].pwr =
@@ -1773,9 +1783,8 @@ mlan_status wlan_11d_bcn_country_ie_info(pmlan_adapter pmadapter,
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_CUSTOM_BEACON_IE,
 			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
 			       MNULL);
-	if (ret) {
+	if (ret)
 		PRINTM(MERROR, "BCN Country IE: Failed to download\n");
-	}
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
@@ -1884,12 +1893,11 @@ mlan_status wlan_11d_handle_uap_domain_info(mlan_private *pmpriv, t_u16 band,
 
 	pdomain_tlv = (MrvlIEtypes_DomainParamSet_t *)domain_tlv;
 
-	if (pdomain_tlv->header.type == TLV_TYPE_DOMAIN) {
+	if (pdomain_tlv->header.type == TLV_TYPE_DOMAIN)
 		pregdomain_tlv =
 			(MrvlIEtypes_Rgn_dom_code_t
 				 *)(domain_tlv + sizeof(MrvlIEtypesHeader_t) +
 				    pdomain_tlv->header.len);
-	}
 	/* update region code & table based on country string */
 	if (wlan_misc_country_2_cfp_table_code(
 		    pmadapter, pdomain_tlv->country_code, &cfp_bg, &cfp_a) ==

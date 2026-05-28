@@ -23,9 +23,10 @@
  */
 
 /******************************************************
-Change log:
-10/28/2008: initial version
-******************************************************/
+ * Change log:
+ * 10/28/2008: initial version
+ * ****************************************************
+ */
 
 #ifndef _MLAN_UTIL_H_
 #define _MLAN_UTIL_H_
@@ -643,9 +644,8 @@ reflective_enum_lookup_name(const struct reflective_enum_element *elements,
 {
 	const struct reflective_enum_element *elem = elements;
 
-	while (elem->name && elem->id != id) {
+	while (elem->name && elem->id != id)
 		elem++;
-	}
 
 	return elem->name;
 }

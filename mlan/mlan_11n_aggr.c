@@ -22,9 +22,10 @@
  */
 
 /********************************************************
-Change log:
-    11/10/2008: initial version
-********************************************************/
+ * Change log:
+ * 11/10/2008: initial version
+ * ******************************************************
+ */
 
 #include "mlan.h"
 #include "mlan_join.h"
@@ -36,16 +37,19 @@ Change log:
 #include "mlan_11n_aggr.h"
 
 /********************************************************
-			Local Variables
-********************************************************/
+ * Local Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Global Variables
-********************************************************/
+ * Global Variables
+ * ******************************************************
+ */
 
 /********************************************************
-			Local Functions
-********************************************************/
+ * Local Functions
+ * ******************************************************
+ */
 /**
  *  @brief Aggregate individual packets into one AMSDU packet
  *
@@ -409,8 +413,9 @@ static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
 }
 
 /********************************************************
-			Global Functions
-********************************************************/
+ * Global Functions
+ * ******************************************************
+ */
 
 /**
  *  @brief Deaggregate the received AMSDU packet
@@ -878,10 +883,9 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	PRINTM(MDAT_D, "Handling Aggr packet\n");
 #ifdef PCIEAW693
 	if (!wlan_copy_on_tx_enabled(pmadapter) &&
-	    IS_PCIEAW693(pmadapter->card_type)) {
+	    IS_PCIEAW693(pmadapter->card_type))
 		return wlan_send_amsdu_subframe_list(priv, pra_list, headroom,
 						     ptrindex);
-	}
 #endif
 	pmbuf_src = (pmlan_buffer)util_peek_list(
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
