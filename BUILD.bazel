@@ -2,23 +2,14 @@
 # Copyright 2026 NXP
 #
 # Bazel build configuration for NXP MWIFIEX WiFi drivers
-# Converted from Makefile - analyzed with kernel .config
 #
 # Modules built:
 #   - mlan.ko  (MLAN core driver)
 #   - moal.ko  (MOAL Linux interface driver)
 #
-# Kernel config used for analysis:
-#   CONFIG_64BIT=y
-#   CONFIG_WIRELESS_EXT=y
-#   CONFIG_WEXT_PRIV=y
-#   CONFIG_CFG80211=m
-#   CONFIG_PROC_FS=y
-#
 # Usage:
-#   For imx8mp: //nxp-mwifiex:mwifiex_modules_imx8mp
-#   For imx:    //nxp-mwifiex:mwifiex_modules_imx
-#   Default:    //nxp-mwifiex:mwifiex_modules (alias to imx8mp)
+#   //nxp-mwifiex:mwifiex_modules_<platform>
+#   e.g. //nxp-mwifiex:mwifiex_modules_imx8mp
 
 load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 load(":mwifiex.bzl", "define_mwifiex")
@@ -43,41 +34,24 @@ ddk_headers(
 
 # =============================================================================
 # Module definitions for each kernel build
+# All platforms share the same mlan.ko and moal.ko source/flags,
+# only kernel_build differs.
 # =============================================================================
 
-define_mwifiex(
-    name_suffix = "imx8mp",
-    kernel_build = "//kernel_imx:imx8mp",
+_PLATFORMS = {
+    "imx8mp": "//kernel_imx:imx8mp",
+    "imx8q": "//kernel_imx:imx8q",
+    "imx95": "//kernel_imx:imx95",
+    "imx952": "//kernel_imx:imx952",
+    "imx8mm": "//kernel_imx:imx8mm",
+    "imx8mq": "//kernel_imx:imx8mq",
+    "imx8mn": "//kernel_imx:imx8mn",
+    "imx8ulp": "//kernel_imx:imx8ulp",
+    "imx943": "//kernel_imx:imx943",
+}
+
+[define_mwifiex(
+    name_suffix = platform,
+    kernel_build = kernel,
     kernel_headers = "//kernel_imx:all_headers_aarch64",
-)
-
-define_mwifiex(
-    name_suffix = "imx",
-    kernel_build = "//kernel_imx:imx",
-    kernel_headers = "//kernel_imx:all_headers_aarch64",
-)
-
-define_mwifiex(
-    name_suffix = "imx95",
-    kernel_build = "//kernel_imx:imx95",
-    kernel_headers = "//kernel_imx:all_headers_aarch64",
-)
-
-# =============================================================================
-# Default aliases (for backward compatibility)
-# =============================================================================
-
-alias(
-    name = "mwifiex_modules",
-    actual = ":mwifiex_modules_imx8mp",
-)
-
-alias(
-    name = "mlan",
-    actual = ":mlan_imx8mp",
-)
-
-alias(
-    name = "moal",
-    actual = ":moal_imx8mp",
-)
+) for platform, kernel in _PLATFORMS.items()]
