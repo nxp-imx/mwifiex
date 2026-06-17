@@ -1,0 +1,59 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "spdxVersion": "SPDX-2.3",
+  "creationInfo": {
+    "created": "2026-05-21T03:57:49Z",
+    "creators": [
+      "Organization: NXP"
+    ],
+    "licenseListVersion": "3.26"
+  },
+  "name": "WSW driver-mxmdriver-linux-mxm405.p68_MGPL",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://nxp.com/spdx/332983ef-4475-48d3-aa79-29e455105047",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-package-332983ef-4475-48d3-aa79-29e455105047",
+      "name": "WSW driver",
+      "versionInfo": "mxmdriver-linux-mxm405.p68_MGPL",
+      "licenseConcluded": "(GPL-2.0-only)",
+      "licenseDeclared": "(GPL-2.0-only)",
+      "downloadLocation": "NOASSERTION",
+      "originator": "Organization: NXP",
+      "supplier": "NOASSERTION",
+      "externalRefs": [],
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-package-332983ef-4475-48d3-aa79-29e455105047---cad73bd9-d9d2-4715-adfb-fa1e1265ad20",
+      "name": "hostapd",
+      "versionInfo": "2.10",
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "homepage": "http://w1.fi/hostapd/",
+      "downloadLocation": "https://w1.fi/hostapd/",
+      "originator": "Person: Jouni Malinen and others",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "SECURITY",
+          "referenceLocator": "cpe:2.3:a:opensuse_package:hostapd:2.10:*:*:*:*:*:*:*",
+          "referenceType": "cpe23Type"
+        }
+      ],
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-package-332983ef-4475-48d3-aa79-29e455105047"
+    },
+    {
+      "spdxElementId": "SPDXRef-package-332983ef-4475-48d3-aa79-29e455105047",
+      "relationshipType": "DYNAMIC_LINK",
+      "relatedSpdxElement": "SPDXRef-package-332983ef-4475-48d3-aa79-29e455105047---cad73bd9-d9d2-4715-adfb-fa1e1265ad20"
+    }
+  ]
+}

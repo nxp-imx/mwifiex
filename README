@@ -1,0 +1,156 @@
+===============================================================================
+			U S E R  M A N U A L
+
+ Copyright 2008-2026 NXP
+
+
+1) FOR DRIVER BUILD
+
+	Goto source code directory wlan_src/.
+	make [clean] build
+	The driver and utility binaries can be found in ../bin_xxxx directory.
+	The driver code supports Linux kernel from 2.6.32 to 6.9.0.
+
+2) FOR DRIVER INSTALL
+
+	a) Copy firmware image to /lib/firmware/nxp/, copy wifi_mod_para.conf to /lib/firmware/nxp/.
+	b) Install WLAN driver
+	   There are drv_mode, max_sta_bss, max_uap_bss etc. module parameters.
+		The bit settings of drv_mode are,
+			Bit 0 :  STA
+			Bit 1 :  uAP
+			Bit 2 :  WIFIDIRECT
+			Bit 4 :  NAN
+
+		max_sta_bss: Maximum number of STA BSS (default 1, max 1)
+		sta_name: Name of the STA interface (default: "mlan")
+		max_uap_bss: Maximum number of uAP BSS (default 1, max 2)
+		uap_name: Name of the uAP interface (default: "uap")
+		max_wfd_bss: Maximum number of WIFIDIRECT BSS (default 1, max 1)
+		wfd_name: Name of the WIFIDIRECT interface (default: "wfd")
+		max_vir_bss: Number of Virtual interfaces (default 1)
+		nan_name: Name of the NAN interface (default: "nan")
+		max_nan_bss: Number of NAN interfaces (default 1)
+		uap_oper_ctrl: uAP operation control when in-STA disconnect with ext-AP
+                               0: default do nothing, 2: uAP stops and restarts automatically
+	   For example, to install multi-chip driver,
+		insmod mlan.ko
+		insmod moal.ko mod_para=nxp/wifi_mod_para.conf [drvdbg=0x7]
+	   wifi_mod_para.conf is used to support multi-chips which has different load module parameters. It contains
+           the module parameters for different chips.
+	c) Uninstall WLAN driver,
+		ifconfig mlanX down
+		ifconfig uapX down
+		rmmod moal
+		rmmod mlan
+
+	To load driver with MFG firmware file, use mfg_mode=1 when insmod WLAN driver and
+	specify MFG firmware name if needed.
+
+	To load driver with rf_test firmware file, use rf_test_mode=1 when insmod WLAN driver.
+	This parameter only used for 9177(FC)
+
+	There are some other parameters for debugging purpose etc. Use modinfo to check details.
+	  drvdbg=<bit mask of driver debug message control>
+	  dev_cap_mask=<Bit mask of the device capability>
+	  mac_addr=xx:xx:xx:xx:xx:xx <override the MAC address (in hex)>
+	  auto_ds=0|1|2 <use MLAN default | enable auto deepsleep | disable auto deepsleep>
+	  ext_scan=0|1|2 <use MLAN default | Enable Extended Scan| Enable Enhanced Extended Scan>
+      net_rx=0|1 <use netif_rx_ni in rx | use netif_receive_skb in rx>
+      amsdu_deaggr=0|1 <default | Try avoid buf copy in amsud deaggregation>
+
+	ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
+	tcpackenh=0|1 <disable TCP ACK enhancement | enable TCP ACK enhancement (default)>
+	sched_scan=0|1 <disable sched_scan | enable sched_scan default>
+	max_tx_buf=2048|4096|8192 <maximum AMSDU Tx buffer size>
+	  cfg_11d=0|1|2 <use MLAN default | enable 11d | disable 11d>
+	  dts_enable=0|1 <Disable DTS | Enable DTS (default)>
+	  fw_name = <FW file name>
+		e.g. copy pcieuart9098_combo_v1.bin to firmware directory, fw_name=nxp/pcieuart9098_combo_v1.bin
+	  hw_name = <hardware name>
+	  reg_work=0|1 <Disable register work queue| Enable register work queue>
+	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
+	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
+	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
+      dfs53cfg=0|1|2 <use Fw Default | New W53 | Old W53>
+	  mcs32=0|1 <disable HT MCS32 support | enable HT MCS32 (default)>
+	  plinkstats=0|1|2 <Disable plinkstats (default) | Enable plinkstats | Restore plinkstats>
+	Example usage:
+		insmod moal.ko plinkstats=0            : Disable link statistics prints
+		insmod moal.ko plinkstats=1            : Enable link statistics prints
+		insmod moal.ko plinkstats=2            : Reset link statistics prints
+		insmod moal.ko plinkstats=1,0x7,5,0    : Enable Num TX Packets, Num RX Packets and Channel prints on dmesg.
+		insmod moal.ko plinkstats=1,0xf,5,1    : Enable Num TX Packets, Num RX Packets, Channel and Region prints on dmesg, and netlink event also enabled.
+	Note:
+		1. For more details about plinkstats parameters, refer plinkstats command details in README_MLAN file.
+		2. When changing drvdbg mask dynamically while running test, set MLSTATS bit(0x800) along with the change, if wifi logging feature is enabled.
+	  init_cfg=<init config (MAC addresses, registers etc.) file name>
+		e.g. copy init_cfg.conf to firmware directory, init_cfg=nxp/init_cfg.conf
+	  cal_data_cfg=<CAL data config file name>
+		e.g. copy cal_data.conf to firmware directory, cal_data_cfg=nxp/cal_data.conf
+	 dpd_data_cfg=<DPD data config file name>
+	   e.g. copy dpd_data.conf to firmware directory, dpd_data_cfg=nxp/dpd_data.conf
+	  txpwrlimit_cfg=<Tx power limit config file name>
+		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=nxp/txpwrlimit_cfg_set.conf
+      cntry_txpwr=0|1|2
+                  0: Disable setting tx power table of country (default)
+                  1: Enable setting tx power table of country
+                  2: Enable setting rgpower table of country
+	  init_hostcmd_cfg=<init hostcmd config file name>
+		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=nxp/init_hostcmd_cfg.conf
+	  band_steer_cfg=<band steer config file name>
+		e.g. generate bscfg.conf by band_steer_cfg.conf, then copy bscfg.conf to firmware directory, band_steer_cfg=nxp/bscfg.conf
+	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
+		Bit 0: STA WEXT
+		Bit 1: uAP WEXT
+		Bit 2: STA CFG80211
+		Bit 3: uAP CFG80211
+	  cfg80211_drcs=1|0 <Enable DRCS support (default) | Disable DRCS support>
+	  reg_alpha2=<Regulatory alpha2 (default NULL)>
+	  wq_sched_prio: Priority for work queue
+	  wq_sched_policy: Scheduling policy for work queue
+		(0: SCHED_NORMAL, 1: SCHED_FIFO, 2: SCHED_RR, 3: SCHED_BATCH, 5: SCHED_IDLE)
+		Please note that, both wq_sched_prio and wq_sched_policy should be provided
+		as module parameters. If wq_sched_policy is (0, 3 or 5), then wq_sched_prio
+		must be 0. wq_sched_prio should be 1 to 99 otherwise.
+	  rx_work=0|1|2 <default | Enable rx_work_queue | Disable rx_work_queue>
+	  pcie_int_mode=0|1|2 <Legacy mode, MSI mode (default), MSI-X mode>
+	  pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
+      ring_size=32|64|128|256|512 <adma ring size for 9097/9098>
+	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
+	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
+	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
+	wakelock_timeout=<set wakelock_timeout value (ms)>
+	pmic=0|1 <No pmic configure cmd sent to firmware | Send pmic configure cmd to firmware>
+	indication_gpio=0xXY <GPIO to indicate wakeup source and its level; high four bits X:
+                  level(0/1) for normal wakeup; low four bits Y: GPIO pin number. This parameter
+                  only works with specific board and firmware.>
+	hs_wake_interval=<Host sleep wakeup interval,it will round to nearest multiple dtim*beacon_period in fw>
+	disconnect_on_suspend=0|1 <Disable disconnect wifi on suspend (default) | Enable disconnect wifi on suspend>
+	hs_mimo_switch=0|1 <Disable dynamic MIMO-SISO switch during host sleep (default) | Enable dynamic MIMO-SISO switch during host sleep>
+    hs_auto_arp=0|1 <disable hs_auto_arp (default) | enable hs_auto_arp>
+	gtk_rekey_offload=0|1|2 <disable gtk_rekey_offload|enable gtk_rekey_offload (default) | enable gtk_rekey_offload in suspend mode only>
+	napi=0|1 <disable napi | enable napi>
+	fixed_beacon_buffer=0|1 <allocate default buffer size (default) | allocate max buffer size>
+	GoAgeoutTime=0|x <use default ageout time (default) | set Go age out time xTU(TU 100ms)>
+	multi_dtim=0|x <use default DTIM interval(default) | set x*beacon_period as DTIM interval>
+	inact_tmo=0|x <use default IEEE ps inactivity timout value (default) | use IEEE ps inactivity timeout value x ms>
+	drcs_chantime_mode=0|x <channel time and mode for DRCS, use default value (default) | use setting value>
+	  Bit31~Bit24:Channel time for channel index0;
+	  Bit23~Bit16:mode for channel index0; 0|1 <PM1 | Null2Self>
+	  Bit15~Bit8:Channel time for channel index1;
+	  Bit7~Bit0:mode for channel index1; 0|1 <PM1 | Null2Self>
+	roamoffload_in_hs=0|1 <always enable fw roaming (default) | enable fw roaming only when host suspend>
+	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 10)
+	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
+	for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
+	for chipset 89xx FP-92, 90xx and later, host_mlme restricted to 1
+	country_ie_ignore=0|1 <Follow countryIE from AP and beacon hint enable (default) | Ignore countryIE from AP and beacon hint disable>
+	beacon_hints=0|1 <enable beacon hints(default) | disable beacon hints>
+
+	chan_track=0|1 <restore channel tracking parameters(default) | set channel tracking new parameters> for 9098 only
+	keep_previous_scan=0|1, <Flush previous scan result before start scan | Keep previous scan result(default)>
+	auto_11ax=0|1, <disable auto_11ax | enable auto_11ax(default)>
+
+ifdef PROBE_REQ_RAND_SN
+	probe_req_rand_sn=0|1, <disable random SN in probe req(default) | enable random SN in probe req>
