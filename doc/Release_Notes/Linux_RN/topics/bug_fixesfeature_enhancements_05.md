@@ -76,3 +76,11 @@ None.
 **Coex**
 - Fixed command timeouts occurring during Wi-Fi/BT on/off stress testing
 - Fixed a connectivity issue in which the DUT failed to establish further connections after extended execution of the LMP_au_rand flooding attack test
+
+## Firmware version 16.92.21.p155.1 to 16.92.21.p156.2
+
+**Wi-Fi**
+- Fixed command timeout during Wi-Fi/BT enable/disable stress tests.
+
+**Bluetooth**
+- Fixed same EN_RAND value being generated on every AES-CCM encryption, causing predictable random number in BT pairing.

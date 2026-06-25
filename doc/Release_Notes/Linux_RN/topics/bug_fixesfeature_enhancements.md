@@ -157,3 +157,38 @@ Firmware crash occurrence in the 2.4 GHz band during a roaming stress test scena
 **Bletooth**
 - After establishing a connection with the mobile device, the controller stops sending NOCP events to the host.
 - BT host stuck on BT pairing process because of the missing HCI_Simple_Pairing_Complete event from the controller.
+
+# Firmware version 17.92.1.p149.84 to 17.92.1.p149.88
+
+**Wi-Fi**
+- Fixed wakeup card timeout (ADMA AHB Exception) and firmware reset failure by adding power save protection around ADMA operations
+
+# Firmware version 17.92.1.p149.88 to 17.92.1.p149.115
+
+**Wi-Fi**
+- Fixed command timeout for RSSI_INFO (0xa4) command by ensuring it reaches firmware correctly during roaming operations.
+- Fixed wakeup card timeout occurring after IP address acquisition when only 2.4GHz band is enabled.
+- Added probe request sequence number randomization in driver/firmware to enhance privacy.
+- Fixed ADMA TX deadlock causing 0xa4 (RSSI_INFO) command timeout during roaming.
+- Fixed eCSA not executing when triggered via hostapd_cli
+- Fixed STA frequently disconnecting from 5GHz and switching to 2.4GHz.
+- Fixed ADMA AHB exception causing wakeup card timeout and firmware reset failure.
+- Fixed link loss regression introduced by the ping latency firmware fix.
+- Fixed firmware download failure during bootup stress test.
+- Fixed missing probe responses in scan results causing fewer APs to be detected.
+- Fixed 0xa4 command not reaching firmware, causing command timeout, by resolving ADMA race condition and adding timeout protection.
+- Fixed command timeout in ADMA TX path.
+- Fixed interleaved TSF timestamps reported when two APs are running simultaneously.
+- Fixed memory use-after-free in WLAN driver causing SMMU fault.
+- Fixed high ping latency observed after startup on 2.4GHz in MIMO configuration.
+
+**Bluetooth**
+- Fixed random eSCO/HFP audio glitch on PCM/TDM interface during audio playback.
+- Fixed missing Disconnect Complete event from controller causing host to get stuck after ACL link disconnection.
+- Fixed random eSCO/HFP audio glitch on PCM interface during ringtone audio playback.
+- Fixed BLE disconnection at low RSSI when using LE Coded PHY S=8 (long range) data rate.
+- Fixed DUT failing to reconnect due to controller being unable to resolve RPA after Bluetooth suspend and resume.
+- Fixed HFP audio quality issue when DUT operates as slave after role switch.
+- Fixed DUT becoming unable to connect after receiving a BT exploit attack with invalid timing accuracy.
+- Fixed missing HCI_Simple_Pairing_Complete event after ACL link disconnection, which caused host to get stuck during BT pairing.
+- Fixed BT inquiry results not appearing immediately during concurrent A2DP streaming and BLE scan — results were delayed by ~1 minute.

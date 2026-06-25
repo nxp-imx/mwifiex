@@ -22,4 +22,5 @@
 18. Webpage – FC controller certificate for IW612 \([link](https://qualification.bluetooth.com/ListingDetails/277216))
 19. Webpage – FC controller certificate for IW612 \(sub-set\) \([link](https://qualification.bluetooth.com/ListingDetails/293939)\)
 20. Webpage – mwifiex GitHub \(GitHub\) \([link](https://github.com/nxp-imx/mwifiex/tree/hotfix/lf-6.12.34_2.1.0_hotfix))
+21. Webpage – Qualification workspace – Qualified product details – IW623 ([link](https://qualification.bluetooth.com/ListingDetails/290930))
 

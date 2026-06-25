@@ -71,3 +71,20 @@
 
 **Zigbee**
 - Added GPIO naming auto-detection support in zb_mux.sh script for Zigbee multiplexer initialization
+
+## Firmware version 18.99.8.p16 to 18.99.8.p52
+
+**Wi-Fi**
+- Fixed HMAC stuck during concurrent uAP + STA (DRCS) + OpenThread coexistence test.
+- Fixed increased power consumption after Wi-Fi driver unload.
+- Fixed self-managed regulatory table not being generated in latest firmware release.
+- Fixed Wi-Fi IOCTL CMD 0x256 response error.
+
+**Bluetooth**
+- Added error code response in BT/BLE MFG firmware for invalid power configuration.
+
+**OpenThread**
+- Fixed OpenThread daemon crash in Wi-Fi + OT coexistence test
+
+**Coex (Wi-Fi & OpenThread)**
+- Fixed Wi-Fi command timeout during Wi-Fi (STA + uAP) + OpenThread coexistence test.

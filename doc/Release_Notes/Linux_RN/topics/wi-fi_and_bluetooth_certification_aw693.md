@@ -4,9 +4,6 @@
 
 The Wi-Fi and Bluetooth certification is obtained with the following combinations.
 
-
--   **[Bluetooth controller certification](../topics/bluetooth_controller_certification_aw693.md)**  
-
 ## Wi-Fi pre-certification
 
 -   STA – uAP \| WiFi 6E

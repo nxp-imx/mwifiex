@@ -119,3 +119,15 @@ None.
 
 **Coex**
 - Resolved Wi-Fi data stall and reduced BLE advertising reports in uAP+BLE scan coexistence scenarios
+
+## Firmware version 16.92.21.p155.1 to 16.92.21.p160
+
+**Wi-Fi**
+- Fixed STA unable to connect to AP in noisy conditions with antenna diversity enabled.
+- Fixed client devices unable to connect to DRCS AP.
+
+**Bluetooth**
+- Fixed BLE duty cycle variation (16-65%) when using coded PHY with S=8 coding scheme in TX test mode
+
+**Coex**
+- Resolved Wi-Fi data stall and reduced BLE advertising reports in uAP+BLE scan coexistence scenarios

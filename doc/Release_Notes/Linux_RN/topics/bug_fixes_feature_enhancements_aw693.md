@@ -51,3 +51,33 @@
 - Resolved BLE connection timeout occurring after data length update procedure with specific smartphone models
 - Fixed missing LL_CIS_REQ transmission during CIS connection establishment with certain Bluetooth devices
 - Resolved firmware crash occurring when establishing two concurrent CIS connections in LE Audio scenarios
+
+## Firmware version 18.99.2.p145.172 to 18.99.7.p230.2
+
+**WI-Fi**
+- DFS channels are marked as NO-IR when LTE Type MSG2 with 0xFF is received
+- 0x5B command timeout during Wi-Fi STA interface initialization after a driver reload cycle
+- 5GHz AP start failure when in-STA was already connected to 5GHz external AP.
+- Driver compilation failures on kernel 6.1.128 due to sa_data_min reverted in Android kernel.
+- Schedule scans are always using active scan even when no-IR flag is enabled in rgpower.
+- Fixed: mlan driver KASAN warnings on arm64
+- Fixed: 6GHz PSD table not downloaded for JP
+- Disable implicit beamformer operation
+- Enhancement: Add support for an additional offset Tx power table for MCS 5, 6, and 8
+- Enhancement: Added support for 0.25 dBm resolution in Tx power tables loaded from Excel for the Tx Power v3 method.
+- Enhancement: Enable support for antenna gain specified as decimal values in the Excel sheet with 0.25 dBm resolution.
+- Enhancement: Delink Turbo mode from EDMAC With Region‑Specific Configuration
+- Enhancement: Add RSSI based TPC support for ETSI and JP region for DFS channels
+- Enhancement: Explicitly reject cross MAC ECSA operation (ECSA only supported within single MAC)
+
+**Bluetooth/BLE**
+- Controller responds with Command Status instead of Command Complete for Sniff Subrating command causing stack failure
+- Extended Inquiry Result from remote iPhone is not send to host
+- Sniff subratting event from controller is sent with all zero’s
+- Delayed response from controller for HCI_Inquiry_Cancel command
+- eSCO link disconnecting with reason "Connection Timeout" when packet type used is EV3 and Re-Tx as 2
+
+**Coex**
+- HFP audio becomes distorted at a Bluetooth RSSI level of -65 dBm in the presence of ongoing WLAN Tx traffic
+- Sometimes Wi-fi Association failed during HFP call
+- WLAN TP is reduced when HFP call ongoing and DUT is in peripheral role
