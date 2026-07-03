@@ -199,6 +199,17 @@
 #define IMX_ANDROID_14 0
 #define IMX_ANDROID_12_BACKPORT 0
 
+/** moal_strncpy - kernel version compatible strncpy wrapper
+ *  strncpy() was removed from the kernel in v7.2. Since all call sites in this
+ *  driver copy into NUL-terminated char buffers and ignore the return value,
+ *  strscpy() is a safe drop-in replacement on kernels >= 7.2.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#define moal_strncpy(dst, src, size) strscpy(dst, src, size)
+#else
+#define moal_strncpy(dst, src, size) strncpy(dst, src, size)
+#endif
+
 #ifdef ANDROID_SDK_VERSION
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 15, 52)
 #undef IMX_ANDROID_13
