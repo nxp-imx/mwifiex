@@ -48,6 +48,7 @@ _PLATFORMS = {
     "imx8mn": "//kernel_imx:imx8mn",
     "imx8ulp": "//kernel_imx:imx8ulp",
     "imx943": "//kernel_imx:imx943",
+    "imx93": "//kernel_imx:imx93",
 }
 
 [define_mwifiex(
