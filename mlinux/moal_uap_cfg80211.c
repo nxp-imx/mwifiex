@@ -2053,6 +2053,11 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 		sys_config->protocol = PROTOCOL_WPA2;
 	else if (params->crypto.wpa_versions & NL80211_WPA_VERSION_1)
 		sys_config->protocol = PROTOCOL_WPA;
+	/* WPA3 (SAE/SAE-Transition): treat as WPA2 at protocol level;
+	* * actual SAE AKM is handled by wpa3_sae flag below */
+	else if (params->crypto.wpa_versions & NL80211_WPA_VERSION_3)
+		sys_config->protocol = PROTOCOL_WPA2;
+
 	if (params->crypto.n_akm_suites ||
 	    (params->privacy && params->crypto.wpa_versions))
 		woal_find_wpa_ies(ie, ie_len, sys_config);
@@ -2112,7 +2117,8 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			if (params->crypto.wpa_versions & NL80211_WPA_VERSION_1)
 				sys_config->wpa_cfg.pairwise_cipher_wpa |=
 					CIPHER_TKIP;
-			if (params->crypto.wpa_versions & NL80211_WPA_VERSION_2)
+			if (params->crypto.wpa_versions & 
+			(NL80211_WPA_VERSION_2 | NL80211_WPA_VERSION_3))
 				sys_config->wpa_cfg.pairwise_cipher_wpa2 |=
 					CIPHER_TKIP;
 			break;
@@ -2120,7 +2126,8 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			if (params->crypto.wpa_versions & NL80211_WPA_VERSION_1)
 				sys_config->wpa_cfg.pairwise_cipher_wpa |=
 					CIPHER_AES_CCMP;
-			if (params->crypto.wpa_versions & NL80211_WPA_VERSION_2)
+			if (params->crypto.wpa_versions & 
+			(NL80211_WPA_VERSION_2 | NL80211_WPA_VERSION_3))
 				sys_config->wpa_cfg.pairwise_cipher_wpa2 |=
 					CIPHER_AES_CCMP;
 			break;
