@@ -4,22 +4,22 @@
 
 ## Package information
 
-- Android BSP version: 16.0.0\_1.4.0
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version: 18.99.8.p3
-- Driver version: MM6X18542.p12-GPL
+- Android BSP version: 16.0.0\_2.0.0
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version: 18.99.8.p52
+- Driver version: MM6X18543.p18-GPL
 
 ## Version information
 
 - Wireless product: IW611/IW612
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware Version: 18.99.8.p3
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware Version: 18.99.8.p52
     - 18 - Major revision
     - 99 - Feature pack
     - 8 - Release version
-    - p3 - Patch number
-- Driver Version: MM6X18542.p12-GPL
+    - p52 - Patch number
+- Driver Version: MM6X18543.p18-GPL
     - 6X - Linux 6.x Kernel
-    - 18542 - Release version
-    - p12 - Patch number
+    - 18543 - Release version
+    - p18 - Patch number
     - GPL - General Public License v2
 
 ## Host platform
@@ -30,9 +30,9 @@
     - Bluetooth/Bluetooth LE over UART
 - Test Tools
     - iperf3
-    - wpa\_supplicant \(version 2.10\)
-    - hostapd \(version 2.10\)
-    - Wi-Fi Vendor HAL \(version A16\_M009.025\_M009.034)
+    - wpa\_supplicant \(version 2.11\)
+    - hostapd \(version 2.11\)
+    - Wi-Fi Vendor HAL \(version A16\_M009.027\_M009.035)
 
 - [Wi-Fi and Bluetooth certification](../topics/wi-fi_and_bluetooth_certification_06.md)
 

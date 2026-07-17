@@ -4,22 +4,22 @@
 
 ## Package information
 
-- Android BSP version: 16.0.0\_1.4.0
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware version: 17.92.1.p149.84
-- Driver version: MM6X17542.p12-GPL
+- Android BSP version: 16.0.0\_2.0.0
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware version: 17.92.1.p149.115
+- Driver version: MM6X17543.p18-GPL
 
 ## Version information
 
 - Wireless product: 88W9098
-- Wi-Fi and Bluetooth/Bluetooth LE Firmware Version: 17.92.21.p149.84
+- Wi-Fi and Bluetooth/Bluetooth LE Firmware Version: 17.92.1.p149.115
     - 17 - Major revision
     - 92 - Feature pack
-    - 21 - Release version
-    - p149.84 - Patch number
-- Driver Version: MM6X17542.p12-GPL
+    - 1 - Release version
+    - p149.115 - Patch number
+- Driver Version: MM6X17543.p18-GPL
     - 6X - Linux 6.x Kernel
-    - 17542 - Release version
-    - p12 - Patch number
+    - 17543 - Release version
+    - p18 - Patch number
     - GPL - General Public License v2
 
 ## Host platform
@@ -30,9 +30,9 @@
     - Bluetooth/Bluetooth LE over UART
 - Test Tools
     - iperf3
-    - wpa\_supplicant \(version 2.10\)
-    - hostapd \(version 2.10\)
-    - Wi-Fi Vendor HAL \(version A16\_M009.025\_M009.034)
+    - wpa\_supplicant \(version 2.11\)
+    - hostapd \(version 2.11\)
+    - Wi-Fi Vendor HAL \(version A16\_M009.027\_M009.035)
 
 - [Wi-Fi and Bluetooth certification](../topics/wi-fi_and_bluetooth_certification_05.md)
 

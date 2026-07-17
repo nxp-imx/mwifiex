@@ -176,4 +176,43 @@ Crash occurs during execution of Bluetooth Classic TX/RX test.
 - Resolved a problem in which BLE connections were terminated with a connection‑timeout event following the data length update sequence
 - Resolved a problem in which the DUT did not acknowledge LE packets from the Central device, resulting in a connection‑timeout event.
 
+## Firmware version 18.99.8.p3 to 18.99.8.p52
+ 
+**Wi-Fi**
+- Fixed STA setting wrong primary channel when external AP has incorrect secondary channel offset field.
+- Fixed WPA3 STA datapath ping stuck until next reassociation; fixed DUT TX throughput dropping to 0 or getting stuck in pre-sleep state under stress.
+- Fixed self-managed regulatory table not being generated in latest firmware release.
+- Fixed CW Tone (Labtool CMD18) not working in ePA configuration.
+- Fixed scan results taking more than 5 seconds to appear in AP+STA mode.
+- Fixed 5GHz TCP TX throughput regression under good RSSI conditions.
+- Fixed host not waking up on AP disconnect during host sleep, while driver incorrectly reports STA as connected.
+- Added protection to prevent buffer double-free issues in SDIO driver.
+- Implemented SDIO pad pull-up/pull-down configuration control to prevent back-feeding during partial I/O mode.
+- Removed ADS timer and IEEE PS timer stop/resume procedure during DPD; fixed firmware crash during random stress test.
+- Fixed RSSI_INFO (0xa4) command timeout when DUT is left idle for extended periods in AP+STA mode.
+- Implemented WAR for S-MPDU no ACK issue.
+- Fixed CLPC unable to be disabled via external calibration file.
+
+**Bluetooth**
+- Fixed DUT stopping polling to remote device and missing Disconnection Complete event during active call scenario.
+- Fixed HCI_LE_Enable_Encryption failing with "Command Disallowed" error during BLE pairing stress test.
+- Added mechanism to detect BT slave link FST on odd-numbered offset; fixed first LE link impacted during second LE link connect/disconnect.
+- Fixed BLE link instability and increased latency when 10 BLE links are connected with short connection intervals (30–50ms).
+- Fixed BTC ACL link disconnection due to CCM counter not being incremented during encryption; applied Coverity fixes for FC Bluetooth.
+- Fixed firmware crash after host enables Battery Level CCCD during long-duration test.
+- Fixed incorrect output for "Read Transmit Power Level" and "Read Enhanced Transmit Power Level" HCI commands.
+- Fixed abnormal CIU_GPIO interrupt triggered after first sleep-to-wakeup transition; removed unused GPIO sleep/wakeup functions.
+- Fixed disconnection due CCM counter not incremented.
+- Fixed firmware crash observed after eSCO connection complete event.
+- Fixed DUT hang while sending Read Remote Feature Request command in loop during pairing.
+- Fixed DUT initiating LMP detach with response timeout even after receiving valid responses from remote.
+- Fixed audio breaks in A2DP bridge mode during active call scenario.
+- Fixed heavy AAC A2DP audio glitching and instability caused by enabling HID profile concurrently.
+- Fixed controller not responding or responding with significant delay to Inquiry Cancel HCI command.
+- Fixed A2DP bridge audio cuts not recovering when BT inquiry is triggered during streaming.
+- Added mechanism to detect BT slave link FST on odd-numbered offset; fixed first LE link impacted during second LE link connect/disconnect.
+- Fixed DUT failing to enter deep sleep after sleep command; cleared SSP RXD prior to enabling APU interrupt; added watchdog in DSM manager.
+- Fixed link loss due to DUT not responding to Sniff request from remote in dual HFP scenario.
+- Firmware hang occurring when BLE connection timeout (0x08) is observed.
+
 **Parent page:** [IW611/IW612 SDIO-UART)](../topics/sd-uart_iw612.md)

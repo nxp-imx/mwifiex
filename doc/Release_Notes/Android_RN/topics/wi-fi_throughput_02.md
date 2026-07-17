@@ -59,9 +59,10 @@ STA Mode Throughput - BGN Mode – 2.4 GHz Band – 20 MHz
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|Open security|56|59|59|60|
-|WPA2-AES|55|59|59|61|
-|WPA3-SAE|56|59|59|60|
+|Open Security|55|55|63|62|
+|WPA2-AES|55|56|63|62|
+|WPA3-SAE|54|58|61|60|
+
 
 STA Mode Throughput - AN Mode – 5 GHz Band – 20 MHz \(HT\)
 
@@ -77,9 +78,10 @@ STA Mode Throughput - AN Mode – 5 GHz Band – 40 MHz \(HT\)
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|Open security|117|131|126|134|
-|WPA2-AES|116|130|125|134|
-|WPA3-SAE|115|131|125|134|
+|Open Security|156|166|167|176|
+|WPA2-AES|154|167|167|176|
+|WPA3-SAE|155|168|167|176|
+
 
 STA Mode Throughput - AC Mode – 5 GHz Band – 20 MHz \(VHT\)
 
@@ -116,7 +118,7 @@ P2P - GO Mode Throughput - BGN Mode – 2.4 GHz Band – 20MHz
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|57|59|62|63|
+|WPA2-AES|57|58|60|64|
 
 P2P - GO Mode Throughput - AC Mode – 5 GHz Band – 80 MHz
 
@@ -133,7 +135,7 @@ P2P - GC Mode Throughput - BGN Mode – 2.4 GHz Band – 20 MHz
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|WPA2-AES|54|58|63|63|
+|WPA2-AES|57|58|60|64|
 
 P2P - GC Mode Throughput - AC Mode – 5 GHz Band – 80 MHz
 
@@ -152,9 +154,10 @@ Mobile AP Mode Throughput - BGN Mode – 2.4 GHz Band – 20 MHz
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|Open security|56|57|59|62|
-|WPA2-AES|55|57|59|61|
-|WPA3-SAE|56|56|59|62|
+|Open Security|52|57|57|62|
+|WPA2-AES|51|57|57|62|
+|WPA3-SAE|53|58|58|63|
+
 
 Mobile AP Mode Throughput - AN Mode – 5 GHz Band – 20 MHz \(HT\)
 
@@ -188,9 +191,9 @@ Mobile AP Mode Throughput - AC Mode – 5 GHz Band – 40 MHz \(VHT\)
 |Protocol|TCP \(Mbit/s\)| |UDP \(Mbit/s\)| |
 |--------|--------------|---|--------------|---|
 |Direction|TX|RX|TX|RX|
-|Open security|149|168|162|180|
-|WPA2-AES|147|168|168|178|
-|WPA3-SAE|147|168|161|180|
+|Open Security|145|164|159|172|
+|WPA2-AES|145|162|158|174|
+|WPA3-SAE|147|165|160|175|
 
 Mobile AP Mode Throughput - AC Mode – 5 GHz Band – 80 MHz \(VHT\)
 
