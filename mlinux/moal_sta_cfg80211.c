@@ -12026,7 +12026,11 @@ mlan_status woal_register_cfg80211(moal_private *priv)
 		woal_cfg80211_ops.disconnect = NULL;
 		woal_cfg80211_ops.connect = NULL;
 #ifdef UAP_SUPPORT
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 24)
+		woal_cfg80211_ops.probe_peer = woal_cfg80211_probe_client;
+#else
 		woal_cfg80211_ops.probe_client = woal_cfg80211_probe_client;
+#endif
 #endif
 	}
 #endif
