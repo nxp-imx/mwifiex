@@ -270,7 +270,6 @@ Crash occurs during execution of Bluetooth Classic TX/RX test.
 
 ## Firmware version 18.99.8.p16 to 18.99.8.p52
 
-
 **Wi-Fi**
 - Fixed mlanutl cfginfo returning incorrect 5GHz channel information after TX power limit configuration.
 - Fixed STA setting wrong primary channel when external AP has incorrect secondary channel offset field.
@@ -314,3 +313,8 @@ Crash occurs during execution of Bluetooth Classic TX/RX test.
 
 **802.15.4 (Open Thread)**
 - Fixed DUT failing to enter deep sleep after sleep command; cleared SSP RXD prior to enabling APU interrupt; added watchdog in DSM manager.
+
+## Firmware version 18.99.8.p52 to 18.99.8.p52.1
+
+**Bluetooth**
+- Fixed BT power off failure

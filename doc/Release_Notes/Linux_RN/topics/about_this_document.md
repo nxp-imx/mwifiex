@@ -6,6 +6,9 @@ This document includes information about the supported features, driver and firm
 
 The release has been tested for the wireless products listed below with Linux BSP version v.6.18.20_2.0.0.
 
+Note: This hotfix release (version v.6.18.20_2.0.0_hotfix) is intended exclusively for 88W9098, IW611, and IW612 wireless chipsets. It is not recommended for use with any other chipsets listed in these Release Notes.
+
+
 ## Supported products
 
 88W8987

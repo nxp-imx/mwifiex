@@ -166,3 +166,8 @@ None.
 - Fixed DUT becoming unable to connect after receiving a BT exploit attack with invalid timing accuracy.
 - Fixed missing HCI_Simple_Pairing_Complete event after ACL link disconnection, which caused host to get stuck during BT pairing.
 - Fixed BT inquiry results not appearing immediately during concurrent A2DP streaming and BLE scan — results were delayed by ~1 minute.
+
+# Firmware version 17.92.1.p149.115 to 17.92.1.p214.1
+
+**Wi-Fi**
+- Fixed STA transmitting unencrypted data frames during roaming.

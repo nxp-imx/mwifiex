@@ -5,17 +5,17 @@
 ## Package information
 
 -   BSP version: Linux 6.18.20_2.0.0
--   Wi-Fi and Bluetooth/Bluetooth LE Firmware version 17.92.1.p149.115
+-   Wi-Fi and Bluetooth/Bluetooth LE Firmware version 17.92.1.p214.1
 -   Driver version: MM6X17543.p18-GPL
 
 ## Version information
 
 -   Wireless SoC: 88W9098
--   Wi-Fi and Bluetooth/Bluetooth LE Firmware version 17.92.1.p149.115
+-   Wi-Fi and Bluetooth/Bluetooth LE Firmware version 17.92.1.p214.1
     -   17 - Major revision
     -   92 - Feature pack
     -   1 - Release version
-    -   p149.115 - Patch number
+    -   p214.1 - Patch number
 -   Driver Version: MM6X17543.p18-GPL
     -   6X - Linux 6.x Kernel
     -   17543 - Release version
