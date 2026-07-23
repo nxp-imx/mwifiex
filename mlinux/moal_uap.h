@@ -43,10 +43,8 @@ Change log:
 #define UAP_DEEP_SLEEP 3
 /** Tx data pause subcommand */
 #define UAP_TX_DATA_PAUSE 5
-#ifdef SDIO
 /** sdcmd52 read write subcommand */
 #define UAP_SDCMD52_RW 6
-#endif
 /** snmp mib subcommand */
 #define UAP_SNMP_MIB 7
 /** domain info subcommand */
@@ -173,10 +171,6 @@ typedef struct _ant_cfg_t {
 	int tx_mode;
 	/** RX mode configured */
 	int rx_mode;
-	/** TX mode 6G configured */
-	t_u8 tx_mode_6g;
-	/** RX mode 6G configured */
-	t_u8 rx_mode_6g;
 } ant_cfg_t;
 
 /** htstream_cfg structure */
@@ -412,7 +406,6 @@ typedef struct _uap_oper_para_hdr {
 	t_u32 action;
 } uap_oper_para_hdr;
 
-#ifdef SDIO
 /** sdcmd52rw parameters */
 typedef struct _sdcmd52_para {
 	/** subcmd */
@@ -422,7 +415,6 @@ typedef struct _sdcmd52_para {
 	/** Command 52 paramters */
 	t_u8 cmd52_params[3];
 } sdcmd52_para;
-#endif
 
 /** deep_sleep parameters */
 typedef struct _deep_sleep_para {
@@ -616,19 +608,9 @@ mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
 				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
 
-#if defined(UAP_CFG80211)
-#if defined(STA_WEXT) || defined(UAP_WEXT)
-int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq);
-#endif
-#endif
-
 int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 band,
 			     t_u8 vht20_40,
 			     const IEEEtypes_VHTCap_t *vhtcap_ie);
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
-		  t_u8 wait_option);
-int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
-			     const IEEEtypes_HECap_t *hecap_ie);
 int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,
 			   t_u16 ht_cap, t_u8 en);
 mlan_status woal_uap_set_11n_status(moal_private *priv,

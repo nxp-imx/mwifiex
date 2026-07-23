@@ -34,13 +34,7 @@ Change log:
 #include "mlan_main.h"
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
-#include "mlan_11ax.h"
-#ifdef SDIO
 #include "mlan_sdio.h"
-#endif /* SDIO */
-#ifdef PCIE
-#include "mlan_pcie.h"
-#endif /* PCIE */
 
 /********************************************************
 			Local Variables
@@ -65,9 +59,6 @@ typedef MLAN_PACK_START enum _wmm_ac_e {
  */
 static const t_u8 wmm_aci_to_qidx_map[] = {WMM_AC_BE, WMM_AC_BK, WMM_AC_VI,
 					   WMM_AC_VO};
-
-/** AC to ACI mapping as per IEEE802.11 spec */
-static const t_u8 wmm_ac_to_aci_map[] = {AC_BK, AC_BE, AC_VI, AC_VO};
 
 /**
  * This table will be used to store the tid values based on ACs.
@@ -461,27 +452,6 @@ static void wlan_wmm_cleanup_queues(pmlan_private priv)
  */
 static void wlan_wmm_delete_all_sta_entries(pmlan_private priv)
 {
-	pmlan_adapter pmadapter = priv->adapter;
-	t_void *const pmoal_handle = pmadapter->pmoal_handle;
-	mlan_linked_list *sta_entry;
-
-	while ((sta_entry =
-			util_peek_list_nl(pmoal_handle, &priv->wmm.all_stas))) {
-		struct wmm_sta_table *sta = util_container_of(
-			sta_entry, struct wmm_sta_table, all_stas_entry);
-
-		util_unlink_list_nl(pmoal_handle, &sta->all_stas_entry);
-		util_unlink_list_safe_nl(pmoal_handle,
-					 &sta->pending_stas_entry);
-		util_unlink_list_safe_nl(pmoal_handle, &sta->active_sta_entry);
-
-		pmadapter->callbacks.moal_mfree(pmoal_handle, (t_u8 *)sta);
-	}
-
-	util_list_head_reset(&priv->wmm.all_stas);
-
-	priv->wmm.selected_ra_list = MNULL;
-	pmadapter->ra_list_tracing.ra_list = MNULL;
 }
 
 /**
@@ -509,11 +479,6 @@ static void wlan_wmm_delete_all_ralist(pmlan_private priv)
 					 &priv->wmm.tid_tbl_ptr[i].ra_list,
 					 (pmlan_linked_list)ra_list, MNULL,
 					 MNULL);
-
-			if (util_is_node_in_list(&ra_list->pending_txq_entry))
-				util_unlink_list_nl(
-					pmoal_handle,
-					&ra_list->pending_txq_entry);
 
 			pmadapter->callbacks.moal_mfree(pmoal_handle,
 							(t_u8 *)ra_list);
@@ -700,18 +665,6 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 				/* Ignore data pkts from a BSS if tx pause */
 				goto next_intf;
 			}
-#if defined(USB)
-			if (!wlan_is_port_ready(pmadapter,
-						priv_tmp->port_index)) {
-				PRINTM(MINFO,
-				       "get_highest_prio_ptr(): "
-				       "usb port is busy,Ignore pkts from BSS%d\n",
-				       priv_tmp->bss_index);
-				/* Ignore data pkts from a BSS if usb port is
-				 * busy */
-				goto next_intf;
-			}
-#endif
 
 			pmadapter->callbacks.moal_spin_lock(
 				pmadapter->pmoal_handle,
@@ -837,658 +790,6 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Calculates byte budget based on time budget and currect PHY rate
- *
- *  @param pmadapter        Pointer to the mlan_adapter structure
- *  @param time_budget_us   Time budget in usec
- *  @param phy_rate_kbps    TX PHY rate in kbit/sec
- *
- *  @return                 byte budget
- */
-static t_u32 wlan_wmm_get_byte_budget(pmlan_adapter pmadapter,
-				      t_u32 time_budget_us, t_u32 phy_rate_kbps)
-{
-	const t_u32 min_budget = MV_ETH_FRAME_LEN;
-	t_u64 byte_budget = pmadapter->callbacks.moal_do_div(
-		(t_u64)phy_rate_kbps * time_budget_us, 8 * 1000u);
-
-	if (byte_budget > INT_MAX)
-		return INT_MAX;
-
-	if (byte_budget < min_budget)
-		return min_budget;
-
-	return byte_budget;
-}
-
-/**
- *  @brief Allocate sta_table address
- *
- *  @param pmadapter       Pointer to the mlan_adapter structure
- *  @param ra              Pointer to the route address
- *
- *  @return         sta_table
- */
-static struct wmm_sta_table *
-wlan_wmm_allocate_sta_table(pmlan_adapter pmadapter, t_u8 *ra)
-{
-	struct wmm_sta_table *sta_table = MNULL;
-	int i;
-	const t_u32 default_rate = 200 * 1000;
-	const t_u32 default_queue_packets = 1024;
-
-	ENTER();
-
-	if (!pmadapter->mclient_tx_supported)
-		goto done;
-
-	if (pmadapter->callbacks.moal_malloc(pmadapter->pmoal_handle,
-					     sizeof(*sta_table), MLAN_MEM_DEF,
-					     (t_u8 **)&sta_table)) {
-		PRINTM(MERROR, "Fail to allocate sta_table\n");
-		goto done;
-	}
-
-	util_init_list(&sta_table->all_stas_entry);
-	util_init_list(&sta_table->pending_stas_entry);
-	util_init_list(&sta_table->active_sta_entry);
-	memcpy_ext(pmadapter, sta_table->ra, ra, MLAN_MAC_ADDR_LENGTH,
-		   MLAN_MAC_ADDR_LENGTH);
-
-	sta_table->budget.time_budget_init_us = pmadapter->init_para.tx_budget;
-	sta_table->budget.byte_budget_init = wlan_wmm_get_byte_budget(
-		pmadapter, sta_table->budget.time_budget_init_us, default_rate);
-	sta_table->budget.queue_packets = default_queue_packets;
-	sta_table->budget.phy_rate_kbps = default_rate;
-
-	sta_table->budget.mpdu_with_amsdu_pps_cap =
-		pmadapter->tx_mpdu_with_amsdu_pps;
-	sta_table->budget.mpdu_no_amsdu_pps_cap =
-		pmadapter->tx_mpdu_no_amsdu_pps;
-
-	sta_table->budget.mpdu_with_amsdu_budget_init =
-		pmadapter->callbacks.moal_do_div(
-			(t_u64)sta_table->budget.mpdu_with_amsdu_pps_cap *
-				sta_table->budget.time_budget_init_us,
-			1000000);
-	sta_table->budget.mpdu_no_amsdu_budget_init =
-		pmadapter->callbacks.moal_do_div(
-			(t_u64)sta_table->budget.mpdu_no_amsdu_pps_cap *
-				sta_table->budget.time_budget_init_us,
-			1000000);
-
-	for (i = 0; i < NELEMENTS(sta_table->budget.bytes); ++i) {
-		sta_table->budget.bytes[i] = sta_table->budget.byte_budget_init;
-		sta_table->budget.mpdus[i] =
-			sta_table->budget.mpdu_with_amsdu_budget_init;
-	}
-
-done:
-	LEAVE();
-
-	return sta_table;
-}
-
-/**
- *  @brief Generates pseudorandom number
- *
- *  @return         random number
- */
-static t_u32 wmm_get_random_num(void)
-{
-	static t_u32 state = 2463534242u;
-
-	state ^= state << 13;
-	state ^= state >> 17;
-	state ^= state << 5;
-
-	return state;
-}
-
-/**
- *  @brief reset remaning AIFS to default value
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           N/A
- */
-static void wlan_wmm_txq_contention_reset_aifs(mlan_wmm_contention *txq_cont)
-{
-	txq_cont->remaining_aifs = txq_cont->param.aifsn * 9 + 16;
-}
-
-/**
- *  @brief reset remaning backoff to default value
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           N/A
- */
-static void wlan_wmm_txq_contention_reset_backoff(mlan_wmm_contention *txq_cont)
-{
-	const t_u32 mask = (1u << txq_cont->ecw) - 1;
-	txq_cont->remaining_backoff = (wmm_get_random_num() & mask) * 9;
-}
-
-/**
- *  @brief get remaning time till contention end in usec
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           remaning time
- */
-static t_u32 wlan_wmm_txq_get_remaining_time(mlan_wmm_contention *txq_cont)
-{
-	return txq_cont->remaining_aifs + txq_cont->remaining_backoff;
-}
-
-/**
- *  @brief decrement contention timer by specified duration
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *  @param duration   duration in usec
- *
- *  @return           MTRUE if timer reach 0
- */
-static t_bool wlan_wmm_txq_count_donw(mlan_wmm_contention *txq_cont,
-				      t_u32 duration)
-{
-	if (txq_cont->remaining_aifs > 0) {
-		t_u32 del = MIN(txq_cont->remaining_aifs, duration);
-
-		txq_cont->remaining_aifs -= del;
-		duration -= del;
-	}
-
-	if (txq_cont->remaining_aifs == 0)
-		txq_cont->remaining_backoff -= duration;
-
-	/* Input values are bounded and subtraction logic ensures no integer
-	 * overflow during contention timer update. */
-	// coverity[integer_overflow:SUPPRESS]
-	return txq_cont->remaining_backoff == 0 &&
-	       txq_cont->remaining_aifs == 0;
-}
-
-/**
- *  @brief This function is called when txq_cont win contention
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           N/A
- */
-static void wlan_wmm_txq_win(mlan_wmm_contention *txq_cont)
-{
-	txq_cont->ecw = txq_cont->param.ecwmin;
-	wlan_wmm_txq_contention_reset_aifs(txq_cont);
-	wlan_wmm_txq_contention_reset_backoff(txq_cont);
-}
-
-/**
- *  @brief This function is called when txq_cont lost contention
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           N/A
- */
-static void wlan_wmm_txq_lost(mlan_wmm_contention *txq_cont)
-{
-	wlan_wmm_txq_contention_reset_aifs(txq_cont);
-	if (txq_cont->move_cw_on_lost) {
-		txq_cont->ecw = MIN(txq_cont->ecw + 1, txq_cont->param.ecwmax);
-		wlan_wmm_txq_contention_reset_backoff(txq_cont);
-	}
-}
-
-/**
- *  @brief This function is called when collision detected
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *
- *  @return           N/A
- */
-static void wlan_wmm_txq_collision(mlan_wmm_contention *txq_cont)
-{
-	txq_cont->ecw = MIN(txq_cont->ecw + 1, txq_cont->param.ecwmax);
-	wlan_wmm_txq_contention_reset_aifs(txq_cont);
-	wlan_wmm_txq_contention_reset_backoff(txq_cont);
-}
-
-/**
- *  @brief Setup contention parameters based on WMM structure
- *
- *  @param txq_cont   Pointer to mlan_wmm_contention structure
- *  @param wmm_param   Pointer to IEEEtypes_WmmAcParameters_t structure
- *  @param move_cw_on_lost   tells if CW should be doubled in case of lose
- *                             in contention
- *
- *  @return           N/A
- */
-static void
-wlan_wmm_txq_contention_setup(mlan_wmm_contention *txq_cont,
-			      t_bool move_cw_on_lost,
-			      const IEEEtypes_WmmAcParameters_t *wmm_param)
-{
-	txq_cont->param.aifsn = wmm_param->aci_aifsn.aifsn;
-	txq_cont->param.ecwmin = wmm_param->ecw.ecw_min;
-	txq_cont->param.ecwmax = wmm_param->ecw.ecw_max;
-	txq_cont->ecw = txq_cont->param.ecwmin;
-	txq_cont->move_cw_on_lost = move_cw_on_lost;
-	wlan_wmm_txq_contention_reset_aifs(txq_cont);
-	wlan_wmm_txq_contention_reset_backoff(txq_cont);
-}
-
-/**
- *  @brief Get WMM contention winner
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *  @param mlan        Pointer to mlan_private structure
- *
- *  @return           TX queue index, -1 if no pending data
- */
-static int wlan_wmm_contention_get_winner(pmlan_adapter pmadapter,
-					  mlan_private *mlan)
-{
-	int queue;
-	t_u32 active_queues = 0;
-	t_u32 remaining_time = INT_MAX;
-	t_bool has_winner = MFALSE;
-	int winner_queue = -1;
-
-	for (queue = 0; queue < NELEMENTS(mlan->wmm.pending_txq); ++queue) {
-		pmlan_linked_list entry = util_peek_list_nl(
-			pmadapter->pmoal_handle, &mlan->wmm.pending_txq[queue]);
-
-		if (entry) {
-			t_u32 q_remaining_time =
-				wlan_wmm_txq_get_remaining_time(
-					&mlan->wmm.txq_contention[queue]);
-			remaining_time = MIN(remaining_time, q_remaining_time);
-			active_queues |= MBIT(queue);
-		}
-	}
-
-	for (queue = 0; queue < NELEMENTS(mlan->wmm.pending_txq); ++queue) {
-		if (active_queues & MBIT(queue)) {
-			mlan_wmm_contention *txq_cont =
-				&mlan->wmm.txq_contention[queue];
-			t_bool winner = wlan_wmm_txq_count_donw(txq_cont,
-								remaining_time);
-
-			if (winner && !has_winner) {
-				has_winner = MTRUE;
-				winner_queue = queue;
-				wlan_wmm_txq_win(txq_cont);
-			} else if (winner && has_winner) {
-				wlan_wmm_txq_collision(txq_cont);
-			} else {
-				wlan_wmm_txq_lost(txq_cont);
-			}
-		}
-	}
-
-	return winner_queue;
-}
-
-/**
- *  @brief Initi contention parameters
- *
- *  @param mlan        Pointer to mlan_private structure
- *  @param ac_params   Pointer to IEEEtypes_WmmAcParameters_t array
- *
- *  @return           N/A
- */
-void wlan_wmm_contention_init(
-	mlan_private *mlan,
-	const IEEEtypes_WmmAcParameters_t ac_params[MAX_AC_QUEUES])
-{
-	int queue;
-
-	if (ac_params == MNULL)
-		return;
-
-	for (queue = 0; queue < NELEMENTS(mlan->wmm.queue_priority); ++queue) {
-		const mlan_wmm_ac_e ac = mlan->wmm.queue_priority[queue];
-		const wmm_ac_e aci = wmm_ac_to_aci_map[ac];
-		/* adjust BK`s contention logic to mimic legacy behaviour */
-		const t_bool move_cw_on_lost = aci == AC_BK;
-
-		wlan_wmm_txq_contention_setup(&mlan->wmm.txq_contention[queue],
-					      move_cw_on_lost, &ac_params[aci]);
-	}
-}
-
-/**
- *  @brief get AC queue index for transmission
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *  @param mlan        Pointer to mlan_private structure
- *
- *  @return           AC queue index to TX
- */
-static int wlan_wmm_get_next_ac(pmlan_adapter pmadapter, mlan_private *mlan)
-{
-	return wlan_wmm_contention_get_winner(pmadapter, mlan);
-}
-
-/**
- *  @brief checks if BSS is ready for TX
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *  @param mlan        Pointer to mlan_private structure
- *
- *  @return           MTRUE when BSS is reasy for TX
- */
-static t_bool wlan_wmm_is_bss_ready_for_tx(pmlan_adapter pmadapter,
-					   mlan_private *mlan)
-{
-	if ((mlan->port_ctrl_mode == MTRUE) && (mlan->port_open == MFALSE)) {
-		PRINTM(MINFO, "PORT_CLOSED Ignore pkts from BSS%d\n",
-		       mlan->bss_index);
-		return MFALSE;
-	}
-
-	if (mlan->tx_pause) {
-		PRINTM(MINFO, "TX PASUE Ignore pkts from BSS%d\n",
-		       mlan->bss_index);
-		return MFALSE;
-	}
-#if defined(USB)
-	if (!wlan_is_port_ready(pmadapter, mlan->port_index)) {
-		PRINTM(MINFO, "usb port is busy,Ignore pkts from BSS%d\n",
-		       mlan->bss_index);
-		return MFALSE;
-	}
-#endif
-
-	return MTRUE;
-}
-
-static mlan_private *wlan_wmm_get_next_mlan(pmlan_adapter pmadapter,
-					    mlan_bssprio_tbl *bssprio_tbl)
-{
-	mlan_bssprio_node *bss = bssprio_tbl->bssprio_cur;
-	const mlan_callbacks *const cb = &pmadapter->callbacks;
-	t_void *pmoal = pmadapter->pmoal_handle;
-	mlan_bssprio_node *const stop_point = bss;
-
-	do {
-		mlan_private *mlan;
-		t_u32 queue;
-
-		bssprio_tbl->bssprio_cur = bss;
-		if (bss == (mlan_bssprio_node *)&bssprio_tbl->bssprio_head)
-			goto next_bss;
-
-		mlan = bss->priv;
-
-		if (!wlan_wmm_is_bss_ready_for_tx(pmadapter, mlan)) {
-			goto next_bss;
-		}
-
-		cb->moal_spin_lock(pmoal, mlan->wmm.ra_list_spinlock);
-
-		for (queue = 0; queue < NELEMENTS(mlan->wmm.pending_txq);
-		     ++queue) {
-			if (util_peek_list_nl(pmoal,
-					      &mlan->wmm.pending_txq[queue])) {
-				bssprio_tbl->bssprio_cur =
-					bssprio_tbl->bssprio_cur->pnext;
-				return mlan;
-			}
-		}
-
-		cb->moal_spin_unlock(pmoal, mlan->wmm.ra_list_spinlock);
-
-	next_bss:
-		bss = bss->pnext;
-	} while (bss != stop_point);
-
-	return MNULL;
-}
-
-/**
- *  @brief gets next BSS to TX
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *
- *  @return           mlan_private
- */
-static mlan_private *wlan_wmm_get_next_bss(pmlan_adapter pmadapter)
-{
-	int i;
-	t_void *pmoal = pmadapter->pmoal_handle;
-	mlan_private *mlan = MNULL;
-	ENTER();
-
-	for (i = pmadapter->priv_num - 1; i >= 0 && mlan == MNULL; --i) {
-		mlan_bssprio_tbl *bssprio_tbl = &pmadapter->bssprio_tbl[i];
-
-		if (!util_peek_list_nl(pmoal, &bssprio_tbl->bssprio_head))
-			continue;
-
-		mlan = wlan_wmm_get_next_mlan(pmadapter, bssprio_tbl);
-	}
-
-	LEAVE();
-
-	return mlan;
-}
-
-/**
- *  @brief helper function to refill budget
- *
- *  @param current_value   current budget value
- *  @param init_value      Addition to bugget
- *
- *  @return            new budget value
- */
-static t_s32 wlan_wmm_refill_budget(t_s32 current_value, t_u32 init_value)
-{
-	if (current_value > 0)
-		return init_value;
-
-	/* Input values are constrained and addition logic ensures no overflow
-	 */
-	// coverity[integer_overflow:SUPPRESS]
-	return current_value + init_value;
-}
-
-/**
- *  @brief checks if ra_list has budget to be scheduled for TX
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *  @param mlan        Pointer to mlan_private structure
- *  @param ra_list     Pointer to ra_list structure
- *
- *  @return           MTRUE when ra_list can be scheduled
- */
-static t_bool wlan_wmm_process_ra_list_quoats(pmlan_adapter pmadapter,
-					      mlan_private *mlan,
-					      raListTbl *ra_list)
-{
-	struct wmm_sta_table *sta = ra_list->sta;
-	const t_u8 tid = ra_list->tid;
-	t_bool ready = MTRUE;
-
-	if (sta->budget.bytes[tid] <= 0 || sta->budget.mpdus[tid] <= 0) {
-		const t_u32 mpdu_budget_init =
-			ra_list->amsdu_in_ampdu ?
-				sta->budget.mpdu_with_amsdu_budget_init :
-				sta->budget.mpdu_no_amsdu_budget_init;
-		if (util_is_node_in_list(&ra_list->pending_txq_entry))
-			util_unlink_list_nl(pmadapter->pmoal_handle,
-					    &ra_list->pending_txq_entry);
-
-		util_enqueue_list_tail_nl(
-			pmadapter->pmoal_handle,
-			&mlan->wmm.pending_txq[ra_list->queue],
-			&ra_list->pending_txq_entry);
-
-		sta->budget.bytes[tid] = wlan_wmm_refill_budget(
-			sta->budget.bytes[tid], sta->budget.byte_budget_init);
-		sta->budget.mpdus[tid] = wlan_wmm_refill_budget(
-			sta->budget.mpdus[tid], mpdu_budget_init);
-
-		mlan->wmm.selected_ra_list = MNULL;
-
-		ready = MFALSE;
-	} else {
-		mlan->wmm.selected_ra_list = ra_list;
-	}
-
-	return ready;
-}
-
-/**
- *  @brief gets next ra_list to TX
- *
- *  @param pmadapter   Pointer to pmlan_adapter structure
- *  @param mlan        Pointer to mlan_private structure
- *
- *  @return           raListTbl
- */
-static raListTbl *wlan_wmm_get_next_ra_list(pmlan_adapter pmadapter,
-					    mlan_private *mlan)
-{
-	int ac;
-	t_void *pmoal = pmadapter->pmoal_handle;
-
-	while ((ac = wlan_wmm_get_next_ac(pmadapter, mlan)) >= 0) {
-		pmlan_linked_list entry;
-
-		while ((entry = util_peek_list_nl(
-				pmoal, &mlan->wmm.pending_txq[ac])) != MNULL) {
-			raListTbl *ra_list;
-			t_bool has_data;
-
-			ra_list = util_container_of(entry, raListTbl,
-						    pending_txq_entry);
-			has_data = ra_list->total_pkts &&
-				   util_peek_list_nl(pmoal, &ra_list->buf_head);
-
-			/* ra_list can be empry since we re-queue it once we hit
-			 * budget limit */
-			if (!has_data) {
-				struct wmm_sta_table *sta = ra_list->sta;
-				const t_u32 mpdu_budget_init =
-					ra_list->amsdu_in_ampdu ?
-						sta->budget
-							.mpdu_with_amsdu_budget_init :
-						sta->budget
-							.mpdu_no_amsdu_budget_init;
-
-				sta->budget.bytes[ra_list->tid] =
-					sta->budget.byte_budget_init;
-				sta->budget.mpdus[ra_list->tid] =
-					mpdu_budget_init;
-
-				util_unlink_list_nl(
-					pmoal, &ra_list->pending_txq_entry);
-				continue;
-			}
-
-			if (wlan_wmm_process_ra_list_quoats(pmadapter, mlan,
-							    ra_list)) {
-				return ra_list;
-			}
-		}
-	}
-
-	return MNULL;
-}
-
-/**
- *  @brief Track byte budget consumed by ra_list
- *
- *  @param ra_list   Pointer to raListTbl structure
- *  @param pmbuf     Pointer to mlan_buffer structure
- *
- *  @return          N/A
- */
-void wlan_wmm_consume_byte_budget(raListTbl *ra_list, mlan_buffer *pmbuf)
-{
-	struct wmm_sta_table *sta = ra_list->sta;
-
-	if (sta != MNULL) {
-		t_u32 data_len = pmbuf->data_len;
-
-		if (ra_list->ba_status != BA_STREAM_SETUP_COMPLETE) {
-			/*
-			 * Assumption that non-agg consumes 2 times more
-			 * airtime. It is not always true but we don't have
-			 * airtime feedback from FW anyway.
-			 */
-			data_len *= 2;
-		}
-
-		sta->budget.bytes[ra_list->tid] -= data_len;
-	}
-}
-
-/**
- *  @brief Track MPDU budget consumed by ra_list
- *
- *  @param ra_list   Pointer to raListTbl structure
- *  @param pmbuf     Pointer to mlan_buffer structure
- *
- *  @return          N/A
- */
-void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list)
-{
-	struct wmm_sta_table *sta = ra_list->sta;
-
-	if (sta != MNULL)
-		sta->budget.mpdus[ra_list->tid]--;
-}
-
-/**
- *  @brief Debug function to track ra_list switching during scheduling
- *
- *  @param mlan      Pointer to mlan_private structure
- *  @param ra_list   Pointer to raListTbl structure
- *
- *  @return          N/A
- */
-static void wlan_wmm_track_ra_list_switch(mlan_private *mlan,
-					  raListTbl *ra_list)
-{
-	const int use_runtime_log = 1;
-	mlan_adapter *adapter = mlan->adapter;
-
-	if (ra_list != adapter->ra_list_tracing.ra_list) {
-		raListTbl *old_list = adapter->ra_list_tracing.ra_list;
-		t_u32 in_tx_ring = 0;
-#ifdef PCIE
-		if (IS_PCIE(mlan->adapter->card_type))
-			in_tx_ring = mlan->adapter->pcard_pcie->txbd_pending;
-#endif
-		if (use_runtime_log && old_list != MNULL) {
-			struct wmm_sta_table *old_sta = old_list->sta;
-
-			PRINTM(MSCH_D,
-			       "mclient: switch[ %u/%u : q size: %u/%u bb: r %d m %d ri %u mi %u %u p %u] %pM tid %u -> %pM tid %u",
-			       adapter->ra_list_tracing.pushed_pkg, in_tx_ring,
-			       old_list->total_pkts,
-			       old_sta->budget.queue_packets,
-			       old_sta->budget.bytes[old_list->tid],
-			       old_sta->budget.mpdus[old_list->tid],
-			       old_sta->budget.byte_budget_init,
-			       old_sta->budget.mpdu_no_amsdu_budget_init,
-			       old_sta->budget.mpdu_with_amsdu_budget_init,
-			       old_sta->budget.phy_rate_kbps / 1000,
-			       old_list->ra, old_list->tid, ra_list->ra,
-			       ra_list->tid);
-		}
-
-		adapter->ra_list_tracing.ra_list = ra_list;
-		adapter->ra_list_tracing.pushed_pkg = 0;
-	}
-
-	adapter->ra_list_tracing.pushed_pkg++;
-}
-
-/**
  *  @brief gets next raListTbl for TX based on currect scheduling configuration
  *
  *  @param pmadapter      A pointer to mlan_adapter
@@ -1500,53 +801,9 @@ static void wlan_wmm_track_ra_list_switch(mlan_private *mlan,
 static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 						 pmlan_private *priv, int *tid)
 {
-	mlan_private *mlan = pmadapter->selected_mlan_bss;
-	mlan_callbacks *cbs = &pmadapter->callbacks;
-	void *const pmoal_handle = pmadapter->pmoal_handle;
-	raListTbl *ra_list = MNULL;
-
 	if (!pmadapter->priv_num)
 		return MNULL;
 
-	if (!pmadapter->mclient_tx_supported)
-		return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
-
-	if (mlan) {
-		cbs->moal_spin_lock(pmoal_handle, mlan->wmm.ra_list_spinlock);
-	} else {
-		mlan = wlan_wmm_get_next_bss(pmadapter);
-	}
-
-	for (; mlan != MNULL; mlan = wlan_wmm_get_next_bss(pmadapter)) {
-		ra_list = mlan->wmm.selected_ra_list;
-
-		if (ra_list == MNULL || ra_list->total_pkts == 0 ||
-		    MNULL == util_peek_list_nl(pmoal_handle,
-					       &ra_list->buf_head)) {
-			ra_list = wlan_wmm_get_next_ra_list(pmadapter, mlan);
-		} else if (!wlan_wmm_process_ra_list_quoats(pmadapter, mlan,
-							    ra_list)) {
-			pmadapter->selected_mlan_bss = MNULL;
-			cbs->moal_spin_unlock(pmoal_handle,
-					      mlan->wmm.ra_list_spinlock);
-			continue;
-		}
-
-		if (ra_list != MNULL) {
-			wlan_wmm_track_ra_list_switch(mlan, ra_list);
-
-			*priv = mlan;
-			*tid = ra_list->tid;
-
-			pmadapter->selected_mlan_bss = mlan;
-
-			return ra_list;
-		}
-
-		cbs->moal_spin_unlock(pmoal_handle, mlan->wmm.ra_list_spinlock);
-	}
-
-	pmadapter->selected_mlan_bss = MNULL;
 	/* priv_num is checked earlier in the function to ensure it is non-zero.
 	 */
 	// coverity[cert_arr30_c_violation:SUPPRESS]
@@ -1738,11 +995,6 @@ static INLINE void wlan_send_processed_packet(pmlan_private priv,
 		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
 						  &tx_param);
 		switch (ret) {
-#ifdef USB
-		case MLAN_STATUS_PRESOURCE:
-			PRINTM(MINFO, "MLAN_STATUS_PRESOURCE is returned\n");
-			break;
-#endif
 		case MLAN_STATUS_RESOURCE:
 			PRINTM(MINFO, "MLAN_STATUS_RESOURCE is returned\n");
 			pmadapter->callbacks.moal_spin_lock(
@@ -1829,7 +1081,6 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
 	int tid_del = 0;
 	int tid = 0;
-	mlan_buffer *pmbuf = MNULL;
 
 	ENTER();
 
@@ -1872,33 +1123,6 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	}
 	if (ptr->del_ba_count >= DEL_BA_THRESHOLD)
 		wlan_update_del_ba_count(priv, ptr);
-	if (pmadapter->tp_state_on) {
-		pmbuf = (pmlan_buffer)util_peek_list(
-			pmadapter->pmoal_handle, &ptr->buf_head, MNULL, MNULL);
-		if (pmbuf) {
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf, 3);
-			if (pmadapter->tp_state_drop_point == 3) {
-				pmbuf = (pmlan_buffer)util_dequeue_list(
-					pmadapter->pmoal_handle, &ptr->buf_head,
-					MNULL, MNULL);
-				PRINTM(MERROR, "Dequeuing the packet %p %p\n",
-				       ptr, pmbuf);
-				priv->wmm.pkts_queued[ptrindex]--;
-				util_scalar_decrement(pmadapter->pmoal_handle,
-						      &priv->wmm.tx_pkts_queued,
-						      MNULL, MNULL);
-				ptr->total_pkts--;
-				pmadapter->callbacks.moal_spin_unlock(
-					pmadapter->pmoal_handle,
-					priv->wmm.ra_list_spinlock);
-				wlan_write_data_complete(pmadapter, pmbuf,
-							 MLAN_STATUS_SUCCESS);
-				LEAVE();
-				return MLAN_STATUS_SUCCESS;
-			}
-		}
-	}
 	if (!ptr->is_wmm_enabled || priv->adapter->remain_on_channel ||
 	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT
@@ -1955,10 +1179,6 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 		}
 	}
 
-	if (ptr->sta && ptr->sta->ps_sleep) {
-		wlan_update_ralist_tx_pause(priv, ptr->ra, 1);
-	}
-
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -1976,21 +1196,6 @@ static void wlan_ralist_remove_from_pending_txq(pmlan_private priv,
 						pmlan_adapter pmadapter,
 						raListTbl *ra_list)
 {
-	mlan_adapter *adapter = priv->adapter;
-
-	if (util_is_node_in_list(&ra_list->pending_txq_entry))
-		util_unlink_list_nl(pmadapter->pmoal_handle,
-				    &ra_list->pending_txq_entry);
-
-	if (ra_list == priv->wmm.selected_ra_list)
-		priv->wmm.selected_ra_list = MNULL;
-
-	if (ra_list == adapter->ra_list_tracing.ra_list)
-		adapter->ra_list_tracing.ra_list = MNULL;
-
-	if (ra_list->sta)
-		util_unlink_list_safe_nl(pmadapter->pmoal_handle,
-					 &ra_list->sta->pending_stas_entry);
 }
 
 /**
@@ -2007,11 +1212,6 @@ static void wlan_ralist_add_to_pending_txq(pmlan_private priv,
 					   pmlan_adapter pmadapter,
 					   raListTbl *ra_list, t_u8 tid)
 {
-	t_u8 queue = wlan_wmm_select_queue(priv, tid);
-
-	util_enqueue_list_head(pmadapter->pmoal_handle,
-			       &priv->wmm.pending_txq[queue],
-			       &ra_list->pending_txq_entry, MNULL, MNULL);
 }
 
 /**
@@ -2329,14 +1529,6 @@ t_void wlan_clean_txrx(pmlan_private priv)
 	}
 	wlan_11n_cleanup_reorder_tbl(priv);
 	wlan_11n_deleteall_txbastream_tbl(priv);
-#if defined(USB)
-	if (IS_USB(pmadapter->card_type))
-		wlan_reset_usb_tx_aggr(priv->adapter);
-#endif
-#ifdef PCIE
-	if (IS_PCIE(pmadapter->card_type))
-		wlan_clean_pcie_ring_buf(priv->adapter);
-#endif
 	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
 					    priv->wmm.ra_list_spinlock);
 	wlan_wmm_cleanup_queues(priv);
@@ -2349,7 +1541,6 @@ t_void wlan_clean_txrx(pmlan_private priv)
 #ifdef UAP_SUPPORT
 	priv->num_drop_pkts = 0;
 #endif
-#ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		memset(pmadapter, pmadapter->pcard_sd->mpa_tx_count, 0,
 		       sizeof(pmadapter->pcard_sd->mpa_tx_count));
@@ -2358,7 +1549,6 @@ t_void wlan_clean_txrx(pmlan_private priv)
 		memset(pmadapter, pmadapter->pcard_sd->mpa_rx_count, 0,
 		       sizeof(pmadapter->pcard_sd->mpa_rx_count));
 	}
-#endif
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 					      priv->wmm.ra_list_spinlock);
 
@@ -2510,7 +1700,7 @@ static t_u8 is_station_wmm_enabled(mlan_private *priv, t_u8 *mac)
 	sta_node *sta_ptr = MNULL;
 	sta_ptr = wlan_get_station_entry(priv, mac);
 	if (sta_ptr) {
-		if (sta_ptr->is_11n_enabled || sta_ptr->is_11ax_enabled)
+		if (sta_ptr->is_11n_enabled)
 			return MTRUE;
 	}
 	return MFALSE;
@@ -2530,8 +1720,7 @@ static int wlan_is_wmm_enabled(mlan_private *priv, t_u8 *ra)
 	ENTER();
 #ifdef UAP_SUPPORT
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP) {
-		if ((!(ra[0] & 0x01)) &&
-		    (priv->is_11n_enabled || priv->is_11ax_enabled))
+		if ((!(ra[0] & 0x01)) && (priv->is_11n_enabled))
 			ret = is_station_wmm_enabled(priv, ra);
 	}
 #endif /* UAP_SUPPORT */
@@ -2553,16 +1742,8 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 	raListTbl *ra_list;
 	pmlan_adapter pmadapter = priv->adapter;
 	tdlsStatus_e status;
-	struct wmm_sta_table *sta = MNULL;
 
 	ENTER();
-
-	sta = wlan_wmm_allocate_sta_table(pmadapter, ra);
-	if (sta) {
-		util_enqueue_list_tail_nl(pmadapter->pmoal_handle,
-					  &priv->wmm.all_stas,
-					  &sta->all_stas_entry);
-	}
 
 	for (i = 0; i < MAX_NUM_TID; ++i) {
 		ra_list = wlan_wmm_allocate_ralist_node(pmadapter, ra);
@@ -2572,12 +1753,6 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 		ra_list->max_amsdu = 0;
 		ra_list->ba_status = BA_STREAM_NOT_SETUP;
 		ra_list->amsdu_in_ampdu = MFALSE;
-		ra_list->tid = i;
-		ra_list->queue = wlan_wmm_select_queue(priv, i);
-		ra_list->sta = sta;
-		if (sta)
-			sta->ra_lists[i] = ra_list;
-		util_init_list(&ra_list->pending_txq_entry);
 
 		if (queuing_ra_based(priv)) {
 			ra_list->is_wmm_enabled = wlan_is_wmm_enabled(priv, ra);
@@ -2599,8 +1774,6 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 				ra_list->is_tdls_link = MTRUE;
 			} else {
 				ra_list->is_wmm_enabled = IS_11N_ENABLED(priv);
-				ra_list->is_wmm_enabled |=
-					IS_116E_ENABLED(priv);
 				if (ra_list->is_wmm_enabled)
 					ra_list->max_amsdu = priv->max_amsdu;
 			}
@@ -2710,7 +1883,6 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 				priv->wmm.pkts_queued[i] = 0;
 				priv->wmm.pkts_paused[i] = 0;
 				priv->wmm.tid_tbl_ptr[i].ra_list_curr = MNULL;
-				priv->wmm.selected_ra_list = MNULL;
 			}
 			priv->wmm.drv_pkt_delay_max = WMM_DRV_DELAY_MAX;
 
@@ -2725,8 +1897,6 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 					BA_STREAM_NOT_ALLOWED;
 			priv->add_ba_param.timeout =
 				MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
-			if (!pmadapter->tx_ba_timeout_support)
-				priv->add_ba_param.timeout = 0;
 #ifdef STA_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_STA) {
 				priv->add_ba_param.tx_win_size =
@@ -2743,12 +1913,6 @@ t_void wlan_wmm_init(pmlan_adapter pmadapter)
 					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
 			}
 #endif
-			if (priv->bss_type == MLAN_BSS_TYPE_NAN) {
-				priv->add_ba_param.tx_win_size =
-					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
-				priv->add_ba_param.rx_win_size =
-					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
-			}
 #ifdef UAP_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 				priv->add_ba_param.tx_win_size =
@@ -2840,10 +2004,6 @@ int wlan_wmm_lists_empty(pmlan_adapter pmadapter)
 			}
 			if (priv->tx_pause)
 				continue;
-#if defined(USB)
-			if (!wlan_is_port_ready(pmadapter, priv->port_index))
-				continue;
-#endif
 
 			if (util_scalar_read(
 				    pmadapter->pmoal_handle,
@@ -2901,29 +2061,6 @@ raListTbl *wlan_wmm_get_ralist_node(pmlan_private priv, t_u8 tid, t_u8 *ra_addr)
 static struct wmm_sta_table *wlan_wmm_get_sta(pmlan_private priv,
 					      const t_u8 *ra_addr)
 {
-	mlan_linked_list *sta_entry;
-	mlan_adapter *adapter = priv->adapter;
-
-	if (!adapter->mclient_tx_supported)
-		return MNULL;
-
-	ENTER();
-
-	for (sta_entry = util_peek_list_nl(adapter->pmoal_handle,
-					   &priv->wmm.all_stas);
-	     sta_entry && sta_entry != (void *)&priv->wmm.all_stas;
-	     sta_entry = sta_entry->pnext) {
-		struct wmm_sta_table *sta = util_container_of(
-			sta_entry, struct wmm_sta_table, all_stas_entry);
-
-		if (memcmp(adapter, sta->ra, ra_addr, MLAN_MAC_ADDR_LENGTH) ==
-		    0) {
-			LEAVE();
-			return sta;
-		}
-	}
-
-	LEAVE();
 	return MNULL;
 }
 
@@ -2999,8 +2136,6 @@ int wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 							priv, new_ra);
 			} else {
 				ra_list->is_wmm_enabled = IS_11N_ENABLED(priv);
-				ra_list->is_wmm_enabled |=
-					IS_116E_ENABLED(priv);
 				if (ra_list->is_wmm_enabled)
 					ra_list->max_amsdu = priv->max_amsdu;
 			}
@@ -3027,89 +2162,6 @@ int wlan_ralist_update(mlan_private *priv, t_u8 *old_ra, t_u8 *new_ra)
 }
 
 /**
- *  @brief  Update TX PHY rate for STAs in sta_list
- *
- *  @param pmpriv     Pointer to the mlan_private driver data struct
- *  @param sta_list   NULL terminated list of STAs
- *
- *  @return MLAN_STATUS_SUCCESS
- */
-static mlan_status wlan_misc_get_sta_rate(pmlan_private pmpriv,
-					  t_u8 *sta_list[])
-{
-	HostCmd_CMD_802_11_STA_TX_RATE txRateReq = {0};
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	int i;
-
-	for (i = 0; i < NELEMENTS(txRateReq.entry) && sta_list[i]; ++i) {
-		memcpy_ext(pmpriv->adapter, txRateReq.entry[i].sta_mac,
-			   sta_list[i], MLAN_MAC_ADDR_LENGTH,
-			   MLAN_MAC_ADDR_LENGTH);
-	}
-
-	if (i > 0) {
-		txRateReq.num_entries = i;
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_PEER_TX_RATE_QUERY,
-				       HostCmd_ACT_GEN_GET, 0, MNULL,
-				       &txRateReq);
-	}
-
-	return ret;
-}
-
-/**
- *  @brief Trigger STAs TX rate update
- *
- *  @param pmadapter  Pointer to the pmlan_adapter driver data struct
- *  @param priv       Pointer to the mlan_private driver data struct
- *
- *  @return N/A
- */
-static void wlan_wmm_update_sta_txrate_info(pmlan_adapter pmadapter,
-					    pmlan_private priv)
-{
-	t_u8 *sta_list[MAX_STA_IN_TX_RATE_REQ + 1] = {0};
-	t_void *pmoal = pmadapter->pmoal_handle;
-	mlan_callbacks *cbs = &pmadapter->callbacks;
-	int idx = 0;
-	const int idx_limit = MAX_STA_IN_TX_RATE_REQ;
-	pmlan_linked_list list_entry;
-	t_u64 time_now;
-	static const t_u64 update_interval = 1000ull * 1000ull * 1000ull;
-
-	cbs->moal_get_host_time_ns(&time_now);
-
-	if (util_is_time_before(time_now, priv->wmm.next_rate_update)) {
-		return;
-	}
-
-	if (priv->wmm.is_rate_update_pending) {
-		return;
-	}
-
-	priv->wmm.next_rate_update = time_now + update_interval;
-
-	while (idx < idx_limit &&
-	       (list_entry = util_peek_list_nl(
-			pmoal, &priv->wmm.pending_stas)) != MNULL) {
-		struct wmm_sta_table *sta = util_container_of(
-			list_entry, struct wmm_sta_table, pending_stas_entry);
-		const t_bool is_bmcast = (sta->ra[0] & 0x01);
-
-		if (!is_bmcast) {
-			sta_list[idx++] = sta->ra;
-		}
-
-		util_unlink_list_nl(pmoal, list_entry);
-	}
-
-	if (idx > 0) {
-		priv->wmm.is_rate_update_pending = MTRUE;
-		wlan_misc_get_sta_rate(priv, sta_list);
-	}
-}
-
-/**
  *  @brief Updates STAs activity
  *
  *  @param pmadapter  Pointer to the pmlan_adapter driver data struct
@@ -3123,20 +2175,6 @@ static t_void wlan_wmm_record_sta_tx(pmlan_adapter pmadapter,
 				     pmlan_private priv, raListTbl *ra_list,
 				     struct wmm_sta_table *sta_table)
 {
-	t_bool is_bmcast;
-	const t_u32 tx_active_threshold = 4;
-
-	if (!sta_table)
-		return;
-
-	is_bmcast = (sta_table->ra[0] & 0x01);
-	if (!is_bmcast && ra_list->total_pkts > tx_active_threshold &&
-	    !util_is_node_in_list(&sta_table->active_sta_entry)) {
-		util_enqueue_list_tail_nl(pmadapter->pmoal_handle,
-					  &priv->wmm.active_stas.list,
-					  &sta_table->active_sta_entry);
-		priv->wmm.active_stas.n_stas++;
-	}
 }
 
 /**
@@ -3150,60 +2188,6 @@ static t_void wlan_wmm_record_sta_tx(pmlan_adapter pmadapter,
 static t_void wlan_wmm_update_queue_packets_budget(pmlan_adapter pmadapter,
 						   pmlan_private priv)
 {
-	t_void *pmoal = pmadapter->pmoal_handle;
-	pmlan_linked_list list_entry;
-	const t_u32 queue_packets_limit = pmadapter->init_para.max_tx_pending;
-	t_u64 total_capacity = 0;
-	t_u64 time_now;
-	mlan_callbacks *cbs = &pmadapter->callbacks;
-	static const t_u64 update_interval = 200ull * 1000ull * 1000ull;
-	const t_u32 min_sta_share = 128;
-	const t_u32 max_pending_tx_time_us = 200u * 1000u;
-
-	if (!pmadapter->mclient_tx_supported)
-		return;
-
-	cbs->moal_get_host_time_ns(&time_now);
-
-	if (util_is_time_before(time_now, priv->wmm.active_stas.next_update))
-		return;
-
-	priv->wmm.active_stas.n_stas = 0;
-	priv->wmm.active_stas.next_update = time_now + update_interval;
-
-	for (list_entry = util_peek_list_nl(pmoal, &priv->wmm.active_stas.list);
-	     util_is_list_node(&priv->wmm.active_stas.list, list_entry);
-	     list_entry = list_entry->pnext) {
-		struct wmm_sta_table *sta = util_container_of(
-			list_entry, struct wmm_sta_table, active_sta_entry);
-
-		total_capacity += sta->budget.byte_budget_init;
-	}
-
-	if (total_capacity == 0)
-		return;
-
-	while ((list_entry = util_peek_list_nl(
-			pmoal, &priv->wmm.active_stas.list)) != MNULL) {
-		struct wmm_sta_table *sta = util_container_of(
-			list_entry, struct wmm_sta_table, active_sta_entry);
-		const t_u64 sta_capacity = sta->budget.byte_budget_init;
-		const t_u32 max_pkts_by_airtime =
-			wlan_wmm_get_byte_budget(pmadapter,
-						 max_pending_tx_time_us,
-						 sta->budget.phy_rate_kbps) /
-			MV_ETH_FRAME_LEN;
-		t_u32 sta_share = pmadapter->callbacks.moal_do_div(
-			(t_u64)queue_packets_limit * sta_capacity,
-			total_capacity);
-
-		sta_share = MAX(sta_share, min_sta_share);
-		sta_share = MIN(sta_share, queue_packets_limit * 7 / 8);
-		sta_share = MIN(sta_share, max_pkts_by_airtime);
-
-		sta->budget.queue_packets = sta_share;
-		util_unlink_list_nl(pmoal, list_entry);
-	}
 }
 
 /**
@@ -3264,13 +2248,8 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 				&priv->wmm.tid_tbl_ptr[tid_down].ra_list, MNULL,
 				MNULL);
 	} else {
-		if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH)
-			memcpy_ext(pmadapter, ra, pmbuf->mac,
-				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-		else
-			memcpy_ext(pmadapter, ra,
-				   pmbuf->pbuf + pmbuf->data_offset,
-				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		memcpy_ext(pmadapter, ra, pmbuf->pbuf + pmbuf->data_offset,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 		/** put multicast/broadcast packet in the same ralist */
 		if (ra[0] & 0x01)
 			memset(pmadapter, ra, 0xff, sizeof(ra));
@@ -3343,27 +2322,6 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 			tos_to_tid_inv[tid_down], MNULL, MNULL);
 	}
 
-	if (sta_table) {
-		if (!ra_list->tx_pause &&
-		    !util_is_node_in_list(&sta_table->pending_stas_entry)) {
-			util_enqueue_list_tail_nl(
-				pmadapter->pmoal_handle,
-				&priv->wmm.pending_stas,
-				&sta_table->pending_stas_entry);
-		}
-
-		wlan_wmm_update_sta_txrate_info(pmadapter, priv);
-
-		/* enqueue node-tid to pending AC */
-		if (!ra_list->tx_pause &&
-		    !util_is_node_in_list(&ra_list->pending_txq_entry)) {
-			t_u8 queue = wlan_wmm_select_queue(priv, tid_down);
-
-			util_enqueue_list_tail_nl(pmadapter->pmoal_handle,
-						  &priv->wmm.pending_txq[queue],
-						  &ra_list->pending_txq_entry);
-		}
-	}
 	/* Record the current time the packet was queued; used to determine
 	 *   the amount of time the packet was queued in the driver before it
 	 *   was sent to the firmware.  The delay is then sent along with the
@@ -3654,13 +2612,6 @@ t_u8 wlan_wmm_compute_driver_packet_delay(pmlan_private priv,
 
 	priv->adapter->callbacks.moal_get_system_time(
 		priv->adapter->pmoal_handle, &out_ts_sec, &out_ts_usec);
-	if (priv->adapter->tp_state_on) {
-		pmbuf->out_ts_sec = out_ts_sec;
-		pmbuf->out_ts_usec = out_ts_usec;
-		if (pmbuf->in_ts_sec)
-			priv->adapter->callbacks.moal_tp_accounting(
-				priv->adapter->pmoal_handle, pmbuf, 11);
-	}
 	if (!wlan_secure_sub(&out_ts_sec, pmbuf->in_ts_sec, &temp_delay,
 			     TYPE_SINT32))
 		PRINTM(MERROR, "%s:TS(sec) not valid \n", __func__);
@@ -3707,24 +2658,12 @@ void wlan_wmm_process_tx(pmlan_adapter pmadapter)
 	do {
 		if (wlan_dequeue_tx_packet(pmadapter))
 			break;
-#ifdef SDIO
 		if (IS_SD(pmadapter->card_type) &&
 		    (pmadapter->ireg & UP_LD_CMD_PORT_HOST_INT_STATUS)) {
 			wlan_send_mp_aggr_buf(pmadapter);
 			break;
 		}
-#endif
 
-#ifdef PCIE
-		if (IS_PCIE(pmadapter->card_type) &&
-		    (pmadapter->ireg &
-		     pmadapter->pcard_pcie->reg->host_intr_event_rdy))
-			break;
-#endif
-#ifdef USB
-		if (IS_USB(pmadapter->card_type) && pmadapter->event_received)
-			break;
-#endif
 		/* Check if busy */
 	} while (!pmadapter->data_sent && !pmadapter->tx_lock_flag &&
 		 !wlan_wmm_lists_empty(pmadapter));
@@ -3887,17 +2826,6 @@ t_void wlan_wmm_delete_peer_ralist(pmlan_private priv, t_u8 *mac)
 			else
 				pkt_cnt += ra_list->total_pkts;
 			wlan_wmm_del_pkts_in_ralist_node(priv, ra_list);
-
-			if (ra_list == priv->wmm.selected_ra_list)
-				priv->wmm.selected_ra_list = MNULL;
-
-			if (ra_list == pmadapter->ra_list_tracing.ra_list)
-				pmadapter->ra_list_tracing.ra_list = MNULL;
-
-			if (util_is_node_in_list(&ra_list->pending_txq_entry))
-				util_unlink_list_nl(
-					pmoal_handle,
-					&ra_list->pending_txq_entry);
 
 			util_unlink_list(pmoal_handle,
 					 &priv->wmm.tid_tbl_ptr[i].ra_list,
@@ -5052,370 +3980,4 @@ void wlan_dump_ralist(mlan_private *priv)
 int wlan_get_wmm_tid_down(mlan_private *priv, int tid)
 {
 	return wlan_wmm_downgrade_tid(priv, tid);
-}
-
-#define ieee_mbit_rate(float_value) ((t_u32)(float_value * 1000u))
-
-/**
- *  @brief The function gets PHY rate in kbit/s for HE PPDU.
- *
- *  @param bw     PPDU bandwith
- *  @param gi     GI type
- *  @param nss    number of spatial streams
- *  @param mcs    MCS
- *
- *  @return            PHY rate in kbit per second
- */
-static t_u32 wlam_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs)
-{
-	const t_u32 gi_1x_0p8 = 0;
-	const t_u32 gi_2x_0p8 = 1;
-	const t_u32 gi_2x_1p6 = 2;
-
-	const t_u32 bw_20 = 0;
-	const t_u32 bw_40 = 1;
-	const t_u32 bw_160 = 3;
-	t_u32 rate;
-
-	static const t_u32 he_80_3p2_gi_mcS_to_rate[] = {
-		/* intentional float value multiplication with 1000 */
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(30.6),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(61.3),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(91.9),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(122.5),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(183.8), ieee_mbit_rate(245),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(275.6),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(306.3),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(367.5),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(408.3),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(459.4),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(510.4)};
-
-	if (mcs >= NELEMENTS(he_80_3p2_gi_mcS_to_rate))
-		return 0;
-
-	rate = he_80_3p2_gi_mcS_to_rate[mcs];
-
-	// 11ax scaling rules
-	// 1.6_gi_rate = 0.8_gi_rate / 1.059
-	// 3.2_gi_rate = 1.6_gi_rate / 1.112
-	// 160mhz_rate = 80mhz_rate * 2.0
-	// 40mhz_rate = 80mhz_rate / 2.09
-	// 20mhz_rate = 40mhz_rate / 2
-
-	if (gi == gi_1x_0p8 || gi == gi_2x_0p8) {
-		rate = (rate * 1112u) / 1000u;
-		rate = (rate * 1059u) / 1000u;
-	} else if (gi == gi_2x_1p6) {
-		rate = (rate * 1112u) / 1000u;
-	}
-
-	if (bw == bw_20) {
-		rate = (rate * 1000u) / 2090u;
-		rate /= 2;
-	} else if (bw == bw_40) {
-		rate = (rate * 1000u) / 2090u;
-	} else if (bw == bw_160) {
-		rate *= 2;
-	}
-
-	rate = rate * nss;
-
-	// coverity[integer_overflow:SUPPRESS]
-	return rate;
-}
-
-/**
- *  @brief The function gets PHY rate in kbit/s for VHT PPDU.
- *
- *  @param bw     PPDU bandwith
- *  @param sgi    short GI
- *  @param nss    number of spatial streams
- *  @param mcs    MCS
- *
- *  @return            PHY rate in kbit per second
- */
-static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
-{
-	const t_u32 bw_20 = 0;
-	const t_u32 bw_40 = 1;
-	const t_u32 bw_160 = 3;
-	t_u32 rate;
-
-	static const t_u32 vht_80_lgi_mcs_to_rate[] = {
-		/* intentional float value multiplication with 1000 */
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(29.3),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(58.5),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(87.8),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(117.0),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(175.5),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(234.0),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(263.3),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(292.5),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(351.0),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(390.0)};
-
-	if (mcs >= NELEMENTS(vht_80_lgi_mcs_to_rate))
-		return 0;
-
-	rate = vht_80_lgi_mcs_to_rate[mcs];
-
-	// 11ac scaling rules:
-	// sgi_rate = lgi_rate * 1.111
-	// 160mhz_rate = 80_mhz_rate * 2.0
-	// 40mhz_rate = 80_mhz_rate / 2.166
-	// 20mhz_rate = 40mhz_rate / 2.077
-	// XSS_rate = 1ss_rate * NSS
-	if (sgi)
-		rate = (rate * 1111) / 1000;
-
-	if (bw == bw_20) {
-		rate = (rate * 1000u) / 2166u;
-		rate = (rate * 1000u) / 2077u;
-	} else if (bw == bw_40) {
-		rate = (rate * 1000u) / 2166u;
-	} else if (bw == bw_160) {
-		rate *= 2;
-	}
-
-	rate = rate * nss;
-	/* The maximum possible value of rate after all operations
-	 * remains within the bounds of a 32-bit unsigned integer.
-	 */
-	// coverity[integer_overflow:SUPPRESS]
-	return rate;
-}
-
-/**
- *  @brief The function gets PHY rate in kbit/s for HT PPDU.
- *
- *  @param bw     PPDU bandwith
- *  @param sgi    short GI
- *  @param mcs    MCS
- *
- *  @return            PHY rate in kbit per second
- */
-static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
-{
-	const t_u32 bw_40 = 1;
-	t_u32 rate;
-
-	static const t_u32 ht_20_lgi_mcs_to_rate[] = {
-		/* intentional float value multiplication with 1000 */
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(6.5),
-		ieee_mbit_rate(13),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(19.5),
-		ieee_mbit_rate(26),
-		ieee_mbit_rate(39),
-		ieee_mbit_rate(52),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(58.5),
-		ieee_mbit_rate(65),
-		ieee_mbit_rate(13),
-		ieee_mbit_rate(26),
-		ieee_mbit_rate(39),
-		ieee_mbit_rate(52),
-		ieee_mbit_rate(78),
-		ieee_mbit_rate(104),
-		ieee_mbit_rate(117),
-		ieee_mbit_rate(130),
-	};
-
-	if (mcs >= NELEMENTS(ht_20_lgi_mcs_to_rate))
-		return 0;
-
-	rate = ht_20_lgi_mcs_to_rate[mcs];
-
-	// 11n scaling rules:
-	// sgi_rate = lgi_rate * 1.111
-	// 40mhz_rate = 20_mhz_rate * 2.077
-
-	if (sgi)
-		rate = (rate * 1111) / 1000;
-
-	if (bw == bw_40) {
-		rate = (rate * 2077u) / 1000;
-	}
-	/* The maximum possible value of rate after all operations
-	 * remains within the bounds of a 32-bit unsigned integer.
-	 */
-	// coverity[integer_overflow:SUPPRESS]
-	return rate;
-}
-
-/**
- *  @brief The function gets PHY rate in kbit/s for legacy PPDU.
- *
- *  @param rate_idx    rate index
- *
- *  @return            PHY rate in kbit per second
- */
-static t_u32 wlam_wmm_get_legacy_rate(t_u32 rate_idx)
-{
-	static const t_u32 legacy_rate_idx_to_rate[] = {
-		/* intentional float value multiplication with 1000 */
-		ieee_mbit_rate(1),
-		ieee_mbit_rate(2),
-		// coverity[misra_c_2012_rule_10_8_violation:SUPPRESS]
-		ieee_mbit_rate(5.5),
-		ieee_mbit_rate(11),
-		ieee_mbit_rate(22),
-		ieee_mbit_rate(6),
-		ieee_mbit_rate(9),
-		ieee_mbit_rate(12),
-		ieee_mbit_rate(18),
-		ieee_mbit_rate(24),
-		ieee_mbit_rate(36),
-		ieee_mbit_rate(48),
-		ieee_mbit_rate(54),
-		ieee_mbit_rate(72),
-	};
-
-	if (rate_idx >= NELEMENTS(legacy_rate_idx_to_rate))
-		return 0;
-
-	return legacy_rate_idx_to_rate[rate_idx];
-}
-
-/**
- *  @brief The function sets byte tx_budget based on currect TX rate and
- *          allocated airtime.
- *
- *  @param priv    Pointer to the pmlan_private driver data struct
- *  @param sta     Pointer to the wmm_sta_table data struct
- *  @param rate    STA`s TX rate
- *
- *  @return N/A
- */
-static void wlan_wmm_adjust_sta_tx_budget(pmlan_private priv,
-					  struct wmm_sta_table *sta,
-					  HostCmd_TX_RATE_QUERY *rate)
-{
-	mlan_adapter *pmadapter = priv->adapter;
-	const t_u8 ppdu_type_legacy = 0;
-	const t_u8 ppdu_type_ht = 1;
-	const t_u8 ppdu_type_vht = 2;
-	const t_u8 ppdu_type_he = 3;
-	t_u32 phy_rate = 0;
-	t_u8 nss = (rate->tx_rate >> 4) + 1;
-	t_u8 mcs = (rate->tx_rate) & 0x0f;
-	t_u8 ppdu_format = rate->tx_rate_info & 0x3;
-	t_u8 ppdu_bw = (rate->tx_rate_info >> 2) & 0x3;
-	t_u8 ru_size = (rate->ext_tx_rate_info >> 1) & 0x7;
-	t_u8 dcm = (rate->ext_tx_rate_info) & 0x1;
-	t_u8 gi = (rate->tx_rate_info >> 4) & 0x1;
-
-	gi |= (rate->tx_rate_info >> 6) & 0x02;
-
-	if (ppdu_format == ppdu_type_he)
-		phy_rate = wlam_wmm_get_he_rate(ppdu_bw, gi, nss, mcs);
-	else if (ppdu_format == ppdu_type_vht)
-		phy_rate = wlam_wmm_get_vht_rate(ppdu_bw, gi, nss, mcs);
-	else if (ppdu_format == ppdu_type_ht)
-		phy_rate = wlam_wmm_get_ht_rate(ppdu_bw, gi, rate->tx_rate);
-	else if (ppdu_format == ppdu_type_legacy)
-		phy_rate = wlam_wmm_get_legacy_rate(rate->tx_rate);
-
-	if (phy_rate > 0) {
-		const t_u32 old_phy_rate = sta->budget.phy_rate_kbps;
-		sta->budget.byte_budget_init = wlan_wmm_get_byte_budget(
-			pmadapter, sta->budget.time_budget_init_us, phy_rate);
-		sta->budget.phy_rate_kbps = phy_rate;
-
-		if (old_phy_rate / phy_rate >= 2 ||
-		    phy_rate / old_phy_rate >= 2) {
-			PRINTM(MWARN,
-			       "mclient: %pM rate jump %u -> %u, phy type %u\n",
-			       sta->ra, old_phy_rate, phy_rate, ppdu_format);
-		}
-	}
-
-	if (phy_rate == 0) {
-		PRINTM(MERROR,
-		       "mclient_error: invalid rate %u, tx_rate %u, nss %u, mcs %u, ppdu_format %u, ppdu_bw %u, gi %u, dcm %u, ru_size %u, budget %d sta %pM\n",
-		       phy_rate, rate->tx_rate, nss, mcs, ppdu_format, ppdu_bw,
-		       gi, dcm, ru_size, sta->budget.byte_budget_init, sta->ra);
-	}
-}
-
-/**
- *  @brief The function is called when TX rate command response received
- *
- *  @param priv    Pointer to the pmlan_private driver data struct
- *  @param mac     STA`s MAC
- *  @param rate    STA`s TX rate
- *
- *  @return N/A
- */
-void wlan_wmm_update_sta_tx_rate(pmlan_private priv, t_u8 *mac,
-				 HostCmd_TX_RATE_QUERY *rate)
-{
-	struct wmm_sta_table *sta = wlan_wmm_get_sta(priv, mac);
-
-	if (sta) {
-		priv->wmm.is_rate_update_pending = MFALSE;
-		wlan_wmm_adjust_sta_tx_budget(priv, sta, rate);
-	}
-}
-
-/**
- *  @brief The function is called when PS state change event is received
- *
- *  @param priv    Pointer to the pmlan_private driver data struct
- *  @param mac     STA`s MAC
- *  @param sleep   NTRUE is STA is in IEEE PS mode
- *
- *  @return N/A
- */
-void wlan_update_sta_ps_state(pmlan_private priv, t_u8 *mac, t_u8 sleep)
-{
-	mlan_adapter *pmadapter = priv->adapter;
-	struct wmm_sta_table *sta;
-	t_bool resume_sta = MFALSE;
-	mlan_callbacks *cbs = &pmadapter->callbacks;
-
-	cbs->moal_spin_lock(pmadapter->pmoal_handle,
-			    priv->wmm.ra_list_spinlock);
-
-	sta = wlan_wmm_get_sta(priv, mac);
-	if (sta) {
-		if (!sleep)
-			resume_sta = MTRUE;
-
-		if (sta->ps_sleep == sleep) {
-			PRINTM(MWARN,
-			       "mclient-err: %pM already in same state %u\n",
-			       sta->ra, sta->ps_sleep);
-		}
-
-		sta->ps_sleep = sleep;
-	}
-
-	cbs->moal_spin_unlock(pmadapter->pmoal_handle,
-			      priv->wmm.ra_list_spinlock);
-	if (resume_sta)
-		wlan_update_ralist_tx_pause(priv, mac, 0);
 }

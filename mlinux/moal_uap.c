@@ -28,9 +28,7 @@ Change log:
 
 #include "moal_main.h"
 #include "moal_uap.h"
-#ifdef SDIO
 #include "moal_sdio.h"
-#endif /* SDIO */
 #include "moal_eth_ioctl.h"
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
@@ -626,7 +624,6 @@ done:
 	return ret;
 }
 
-#ifdef SDIO
 /**
  *  @brief uap sdcmd52rw ioctl handler
  *
@@ -661,7 +658,6 @@ static int woal_uap_sdcmd52_rw(struct net_device *dev, struct ifreq *req)
 
 	if (!param.action) {
 		PRINTM(MINFO, "Cmd52 read, func=%d, reg=0x%08X\n", func, reg);
-#ifdef SDIO_MMC
 		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			data = sdio_readb(
@@ -678,22 +674,11 @@ static int woal_uap_sdcmd52_rw(struct net_device *dev, struct ifreq *req)
 			       reg);
 			goto done;
 		}
-#else
-		if (sdio_read_ioreg(priv->phandle->card, func, reg, &data) <
-		    0) {
-			PRINTM(MERROR,
-			       "sdio_read_ioreg: reading register 0x%X failed\n",
-			       reg);
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-#endif
 		param.cmd52_params[2] = data;
 	} else {
 		data = (t_u8)param.cmd52_params[2];
 		PRINTM(MINFO, "Cmd52 write, func=%d, reg=0x%08X, data=0x%02X\n",
 		       func, reg, data);
-#ifdef SDIO_MMC
 		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			sdio_writeb(
@@ -710,16 +695,6 @@ static int woal_uap_sdcmd52_rw(struct net_device *dev, struct ifreq *req)
 			       reg);
 			goto done;
 		}
-#else
-		if (sdio_write_ioreg(priv->phandle->card, func, reg, data) <
-		    0) {
-			PRINTM(MERROR,
-			       "sdio_write_ioreg: writing register 0x%X failed\n",
-			       reg);
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-#endif
 	}
 	/* Copy to user */
 	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
@@ -730,7 +705,6 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif
 
 /**
  *  @brief enable/disable 11h
@@ -1791,7 +1765,7 @@ static int woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 			}
 			/* rate_format sanity check */
 			if ((tx_rate_config.rate_format >
-			     MLAN_RATE_FORMAT_HE)) {
+			     MLAN_RATE_FORMAT_VHT)) {
 				PRINTM(MERROR, "Invalid format selection\n");
 				ret = -EINVAL;
 				goto done;
@@ -1812,11 +1786,7 @@ static int woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 				    ((tx_rate_config.rate_format ==
 				      MLAN_RATE_FORMAT_VHT) &&
 				     (tx_rate_config.rate >
-				      MLAN_RATE_INDEX_MCS9)) ||
-				    ((tx_rate_config.rate_format ==
-				      MLAN_RATE_FORMAT_HE) &&
-				     (tx_rate_config.rate >
-				      MLAN_RATE_INDEX_MCS11))) {
+				      MLAN_RATE_INDEX_MCS9))) {
 					PRINTM(MERROR,
 					       "Invalid rate selection\n");
 					ret = -EINVAL;
@@ -1873,9 +1843,7 @@ static int woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 				rate->param.rate_cfg.rate_format;
 			tx_rate_config.rate = rate->param.rate_cfg.rate;
 			if (rate->param.rate_cfg.rate_format ==
-				    MLAN_RATE_FORMAT_VHT ||
-			    rate->param.rate_cfg.rate_format ==
-				    MLAN_RATE_FORMAT_HE)
+			    MLAN_RATE_FORMAT_VHT)
 				tx_rate_config.nss = rate->param.rate_cfg.nss;
 			tx_rate_config.rate_setting =
 				rate->param.rate_cfg.rate_setting;
@@ -1945,8 +1913,6 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 		mreq->action = MLAN_ACT_SET;
 		radio->param.ant_cfg.tx_antenna = antenna_config.tx_mode;
 		radio->param.ant_cfg.rx_antenna = antenna_config.rx_mode;
-		radio->param.ant_cfg.tx_antenna_6g = antenna_config.tx_mode_6g;
-		radio->param.ant_cfg.rx_antenna_6g = antenna_config.rx_mode_6g;
 	}
 
 	status = woal_request_ioctl(priv, mreq, MOAL_IOCTL_WAIT);
@@ -1974,8 +1940,6 @@ static int woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
 	if (mreq->action == MLAN_ACT_GET) {
 		antenna_config.tx_mode = radio->param.ant_cfg.tx_antenna;
 		antenna_config.rx_mode = radio->param.ant_cfg.rx_antenna;
-		antenna_config.tx_mode_6g = radio->param.ant_cfg.tx_antenna_6g;
-		antenna_config.rx_mode_6g = radio->param.ant_cfg.rx_antenna_6g;
 		if (copy_to_user(req->ifr_data, &antenna_config,
 				 sizeof(ant_cfg_t))) {
 			PRINTM(MERROR, "Copy to user failed\n");
@@ -2709,11 +2673,9 @@ static int woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 	case UAP_TX_DATA_PAUSE:
 		ret = woal_uap_txdatapause(dev, req);
 		break;
-#ifdef SDIO
 	case UAP_SDCMD52_RW:
 		ret = woal_uap_sdcmd52_rw(dev, req);
 		break;
-#endif
 	case UAP_SNMP_MIB:
 		ret = woal_uap_snmp_mib(dev, req);
 		break;
@@ -3886,126 +3848,6 @@ done:
 }
 
 /**
- *  @brief Get/Set 11ax cfg
- *
- *  @param priv     A pointer to moal_private structure
- *  @param action   MLAN_ACT_SET or MLAN_ACT_GET
- *  @param he_cfg   a pointer to mlan_ds_11ax_he_cfg
- *  @param wait_option  wait_option
- *
- *  @return         0--success, otherwise failure
- */
-int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg,
-		  t_u8 wait_option)
-{
-	int ret = 0;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_11ax_cfg *cfg_11ax = NULL;
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ax_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	cfg_11ax = (mlan_ds_11ax_cfg *)req->pbuf;
-	cfg_11ax->sub_command = MLAN_OID_11AX_HE_CFG;
-	req->req_id = MLAN_IOCTL_11AX_CFG;
-	req->action = action;
-	moal_memcpy_ext(priv->phandle, &cfg_11ax->param.he_cfg, he_cfg,
-			sizeof(mlan_ds_11ax_he_cfg),
-			sizeof(mlan_ds_11ax_he_cfg));
-	status = woal_request_ioctl(priv, req, wait_option);
-	if (status == MLAN_STATUS_SUCCESS) {
-		moal_memcpy_ext(priv->phandle, he_cfg, &cfg_11ax->param.he_cfg,
-				sizeof(mlan_ds_11ax_he_cfg),
-				sizeof(mlan_ds_11ax_he_cfg));
-	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief enable/disable 11AX
- *
- *  @param priv     A pointer to moal_private structure
- *  @param action   MLAN_ACT_DISABLE or MLAN_ACT_ENABLE
- *  @param band     band config
- *  @param hecap_ie
- *
- *  @return         0--success, otherwise failure
- */
-int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
-			     const IEEEtypes_HECap_t *hecap_ie)
-{
-	mlan_fw_info fw_info;
-	int ret = 0;
-	mlan_ds_11ax_he_cfg he_cfg;
-	ENTER();
-
-	memset(&fw_info, 0, sizeof(mlan_fw_info));
-	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
-	if ((band == BAND_5GHZ && !(fw_info.fw_bands & BAND_AAX)) ||
-	    (band == BAND_2GHZ && !(fw_info.fw_bands & BAND_GAX))) {
-		PRINTM(MERROR, "fw doesn't support 11ax\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if ((band == BAND_6GHZ) && !(fw_info.fw_bands & BAND_6G)) {
-		PRINTM(MERROR, "FW doesn't support 6E 11ax\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	memset(&he_cfg, 0, sizeof(he_cfg));
-	if (band == BAND_5GHZ)
-		he_cfg.band = MBIT(1);
-	else if (band == BAND_2GHZ)
-		he_cfg.band = MBIT(0);
-	else if (band == BAND_6GHZ)
-		he_cfg.band = MBIT(2);
-	else {
-		PRINTM(MERROR, "Invalid band!\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (woal_11ax_cfg(priv, MLAN_ACT_GET, &he_cfg, MOAL_IOCTL_WAIT)) {
-		PRINTM(MERROR, "Fail to get 11ax cfg!\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (hecap_ie) {
-		DBG_HEXDUMP(MCMD_D, "hecap_ie", (const t_u8 *)hecap_ie,
-			    hecap_ie->ieee_hdr.len +
-				    sizeof(IEEEtypes_Header_t));
-		he_cfg.he_cap.id = hecap_ie->ieee_hdr.element_id;
-		he_cfg.he_cap.len = hecap_ie->ieee_hdr.len;
-		moal_memcpy_ext(priv->phandle, &he_cfg.he_cap.ext_id,
-				&hecap_ie->ext_id, he_cfg.he_cap.len,
-				he_cfg.he_cap.len);
-	}
-#define HE_MAC_CAP_TWT_REQ_SUPPORT MBIT(1)
-	/* uap mode should be TWT responder only */
-	he_cfg.he_cap.he_mac_cap[0] &= ~HE_MAC_CAP_TWT_REQ_SUPPORT;
-	if (action == MLAN_ACT_DISABLE) {
-		if (he_cfg.he_cap.len &&
-		    (he_cfg.he_cap.ext_id == HE_CAPABILITY)) {
-			memset(he_cfg.he_cap.he_txrx_mcs_support, 0xff,
-			       sizeof(he_cfg.he_cap.he_txrx_mcs_support));
-		} else {
-			PRINTM(MCMND, "11ax already disabled\n");
-			goto done;
-		}
-	}
-	DBG_HEXDUMP(MCMD_D, "HE_CFG ", (t_u8 *)&he_cfg, sizeof(he_cfg));
-	ret = woal_11ax_cfg(priv, MLAN_ACT_SET, &he_cfg, MOAL_IOCTL_WAIT);
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Parse AP configuration from ASCII string
  *
  *  @param priv       A pointer to moal_private structure
@@ -4235,61 +4077,6 @@ done:
 	return ret;
 }
 
-#if defined(UAP_CFG80211)
-#if defined(STA_WEXT) || defined(UAP_WEXT)
-/**
- *  @brief Set/Get multi AP mode
- *
- *  @param priv             A pointer to moal_private structure
- *  @param wrq              A pointer to structure iwreq
- *
- *  @return                  0 --success, otherwise fail
- */
-int woal_uap_set_get_multi_ap_mode(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0;
-	int mode = 0;
-
-	ENTER();
-
-	if (wrq->u.data.length) {
-		if (wrq->u.data.length > 1) {
-			PRINTM(MERROR, "Invalid no of arguments!\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		if (copy_from_user(&mode, wrq->u.data.pointer, sizeof(int))) {
-			PRINTM(MERROR, "copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (mode == EASY_MESH_MULTI_AP_BSS_MODE_3)
-			/* Supports backhaul and fronthaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_AND_FH_BSS;
-		else if (mode == EASY_MESH_MULTI_AP_BSS_MODE_2)
-			/* Supports backhaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_BSS;
-		else if (mode == EASY_MESH_MULTI_AP_BSS_MODE_1)
-			/* Supports fronthaul BSS */
-			priv->multi_ap_flag = EASY_MESH_MULTI_AP_FH_BSS;
-	} else {
-		if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_AND_FH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_3;
-		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_BH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_2;
-		else if (priv->multi_ap_flag == EASY_MESH_MULTI_AP_FH_BSS)
-			mode = EASY_MESH_MULTI_AP_BSS_MODE_1;
-		wrq->u.data.length = 1;
-		if (copy_to_user(wrq->u.data.pointer, &mode, sizeof(int)))
-			ret = -EFAULT;
-	}
-done:
-	LEAVE();
-	return ret;
-}
-#endif
-#endif
-
 /**
  *  @brief Set AP configuration
  *
@@ -4381,56 +4168,6 @@ done:
 }
 
 /**
- *  @brief Set/Get ap scan channel list
- *
- *  @param priv             A pointer to moal_private structure
- *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
- *  @param scan_channels    A pointer to mlan_uap_scan_channels structure
- *
- *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status
-woal_set_get_ap_scan_channels(moal_private *priv, t_u16 action,
-			      mlan_uap_scan_channels *scan_channels)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ds_bss *bss = NULL;
-	mlan_ioctl_req *req = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	bss = (mlan_ds_bss *)req->pbuf;
-	bss->sub_command = MLAN_OID_UAP_SCAN_CHANNELS;
-	req->req_id = MLAN_IOCTL_BSS;
-	req->action = action;
-
-	moal_memcpy_ext(priv->phandle, &bss->param.ap_scan_channels,
-			scan_channels, sizeof(mlan_uap_scan_channels),
-			sizeof(bss->param.ap_scan_channels));
-
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-	if (action == MLAN_ACT_GET)
-		moal_memcpy_ext(priv->phandle, scan_channels,
-				&bss->param.ap_scan_channels,
-				sizeof(mlan_uap_scan_channels),
-				sizeof(mlan_uap_scan_channels));
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set/Get uap channel
  *
  *  @param priv             A pointer to moal_private structure
@@ -4474,129 +4211,6 @@ mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 done:
 	if (ret != MLAN_STATUS_PENDING)
 		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief start ACS scan
- *
- *  @param priv             A pointer to moal_private structure
- *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
- *
- *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status woal_start_acs_scan(moal_private *priv)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ds_bss *bss = NULL;
-	mlan_ioctl_req *req = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	bss = (mlan_ds_bss *)req->pbuf;
-	bss->sub_command = MLAN_OID_UAP_ACS_SCAN;
-	req->req_id = MLAN_IOCTL_BSS;
-	req->action = MLAN_ACT_SET;
-
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-	PRINTM(MIOCTL,
-	       "ACS scan done: bandcfg:[chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x], channel=%d\n",
-	       bss->param.ap_acs_scan.bandcfg.chanBand,
-	       bss->param.ap_acs_scan.bandcfg.chanWidth,
-	       bss->param.ap_acs_scan.bandcfg.chan2Offset,
-	       bss->param.ap_acs_scan.bandcfg.scanMode,
-	       bss->param.ap_acs_scan.chan);
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brie check if we need do ACS scan
- *
- *  @param priv             A pointer to moal_private structure
- *
- *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-static mlan_status woal_do_acs_check(moal_private *priv)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_uap_bss_param *sys_config = NULL;
-	mlan_uap_scan_channels *scan_channels = NULL;
-	chan_band_info uap_channel;
-	ENTER();
-
-	sys_config = kzalloc(sizeof(mlan_uap_bss_param), GFP_ATOMIC);
-	if (!sys_config) {
-		PRINTM(MERROR, "Fail to alloc memory for mlan_uap_bss_param\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv, MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   sys_config)) {
-		PRINTM(MERROR, "Fail to get sys config data\n");
-		kfree(sys_config);
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-	if (!(sys_config->bandcfg.scanMode == SCAN_MODE_ACS)) {
-		kfree(sys_config);
-		LEAVE();
-		return ret;
-	}
-	scan_channels = kzalloc(sizeof(mlan_uap_scan_channels), GFP_ATOMIC);
-	if (scan_channels == NULL) {
-		PRINTM(MERROR, "Fail to alloc scan channels buffer\n");
-		kfree(sys_config);
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-	scan_channels->remove_nop_channel = MTRUE;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_ap_scan_channels(priv, MLAN_ACT_GET, scan_channels)) {
-		PRINTM(MERROR, "Fail to get scan channels\n");
-		goto done;
-	}
-
-	if (scan_channels->num_remvoed_channel && scan_channels->num_of_chan) {
-		scan_channels->remove_nop_channel = 0;
-		/** set back new channel list after remove nop channels */
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_set_get_ap_scan_channels(priv, MLAN_ACT_SET,
-						  scan_channels)) {
-			PRINTM(MERROR, "Fail to get scan channels\n");
-			goto done;
-		}
-	}
-	if (scan_channels->num_of_chan)
-		ret = woal_start_acs_scan(priv);
-	else
-		ret = MLAN_STATUS_FAILURE;
-	/** set to default channel 6 when 5G ACS is configured */
-	if ((ret != MLAN_STATUS_SUCCESS) &&
-	    (sys_config->bandcfg.chanBand == BAND_5GHZ)) {
-		memset(&uap_channel, 0, sizeof(uap_channel));
-		uap_channel.bandcfg.chanBand = DEFAULT_UAP_BAND;
-		uap_channel.channel = DEFAULT_UAP_CHANNEL;
-		ret = woal_set_get_ap_channel(priv, MLAN_ACT_SET,
-					      MOAL_IOCTL_WAIT, &uap_channel);
-	}
-done:
-	kfree(scan_channels);
-	kfree(sys_config);
 	LEAVE();
 	return ret;
 }
@@ -4792,9 +4406,6 @@ int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 			   || moal_extflg_isset(priv->phandle, EXT_DFS_OFFLOAD)
 #endif
 		) {
-			status = woal_do_acs_check(priv);
-			if (status)
-				PRINTM(MMSG, "woal_do_acs_check fails\n");
 			/* about to start bss: issue channel check */
 			status = woal_11h_channel_check_ioctl(priv,
 							      MOAL_IOCTL_WAIT);

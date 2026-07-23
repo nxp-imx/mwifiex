@@ -56,10 +56,6 @@
 #endif
 #endif
 
-#ifndef WLAN_CIPHER_SUITE_FILS_PSK
-#define WLAN_CIPHER_SUITE_FILS_PSK 0x000FACFF
-#endif
-
 /* define for custom ie operation */
 #define MLAN_CUSTOM_IE_AUTO_IDX_MASK 0xffff
 #define IE_MASK_WPS 0x0001
@@ -69,12 +65,6 @@
 #define IE_MASK_EXTCAP 0x0010
 
 #define MRVL_PKT_TYPE_MGMT_FRAME 0xE5
-
-#if defined(UAP_CFG80211) || defined(STA_CFG80211)
-#define MRVL_PKT_TYPE_MGMT_EASYMESH 0xCF
-#endif
-
-t_u8 woal_check_fils_capability(const t_u8 *ie, int len);
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
@@ -331,8 +321,6 @@ mlan_status woal_register_cfg80211(moal_private *priv);
 
 extern struct ieee80211_supported_band cfg80211_band_2ghz;
 extern struct ieee80211_supported_band cfg80211_band_5ghz;
-extern struct ieee80211_supported_band mac1_cfg80211_band_2ghz;
-extern struct ieee80211_supported_band mac1_cfg80211_band_5ghz;
 
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 int woal_cfg80211_bss_role_cfg(moal_private *priv, t_u16 action,
@@ -391,7 +379,9 @@ int woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct net_device *dev);
 #endif
 #endif
 
+#if defined(WIFI_DIRECT_SUPPORT)
 void woal_remove_virtual_interface(moal_handle *handle);
+#endif
 
 #ifdef WIFI_DIRECT_SUPPORT
 /* Group Owner Negotiation Req */
@@ -574,20 +564,6 @@ mlan_status woal_chandef_create(moal_private *priv,
 #endif
 #endif
 
-#if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
-void woal_cfg80211_setup_he_cap(moal_private *priv,
-				struct ieee80211_supported_band *band);
-#else
-void woal_cfg80211_setup_uap_he_cap(moal_private *priv, t_u8 wait_option);
-#endif
-
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-mlan_status woal_request_6e_inband_frame(
-	moal_private *priv, t_u8 wait_option,
-	struct cfg80211_fils_discovery *fils_discovery,
-	struct cfg80211_unsol_bcast_probe_resp *unsol_bcast_probe_resp);
-#endif
-
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 void woal_cfg80211_free_bands(struct wiphy *wiphy);
 #endif
@@ -603,7 +579,6 @@ int woal_cfg80211_mgmt_frame_ie(
 	t_u8 wait_option);
 
 int woal_get_active_intf_freq(moal_private *priv);
-int woal_get_rx_freq(moal_private *priv, t_u8 band_config, t_u8 chan_num);
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
@@ -628,41 +603,6 @@ mlan_status woal_reset_wifi(moal_handle *handle, t_u8 cnt, char *reason);
 
 /* Handling for 6E Indoor/Outdoor Mode */
 
-#define OP_MODE_LEN 8
-#define PSD_LEN 8
-
-/**
- * @brief Operation mode/PSD table
- */
-typedef struct _mode_psd_t {
-	/** @brief Operation mode */
-	t_u8 op_mode[OP_MODE_LEN];
-	/** @brief PSD Value */
-	t_u8 psd_dbm[PSD_LEN];
-} mode_psd_t;
-
-/**
- * @brief The structure for Region-Mode-PSD table
- */
-typedef struct _rmp_table_t {
-	/** @brief Region or Code */
-	t_u8 code;
-	/** @brief Mode/Power */
-	mode_psd_t *mp_ptr;
-} rmp_table_t;
-
-void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
-				t_u32 buf_len);
-
-void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
-				t_u32 resp_len,
-				chan_band_reginfo_t *psta_reg_info);
-
-mlan_status woal_dnld_default_6e_psd_table(moal_private *priv);
-
 mlan_status woal_request_set_host_mlme(moal_private *priv, t_u8 *bssid);
-
-void process_wifi_channel_avoid_list_event(
-	moal_private *priv, wifi_chan_avoid_list_t *pwifi_chan_info);
 
 #endif /* _MOAL_CFG80211_H_ */

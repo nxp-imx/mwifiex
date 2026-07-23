@@ -255,15 +255,18 @@ mlan_status wlan_wmm_cfg_ioctl(pmlan_adapter pmadapter,
 void wlan_wmm_update_sta_tx_rate(pmlan_private priv, t_u8 *mac,
 				 HostCmd_TX_RATE_QUERY *rate);
 
-void wlan_wmm_consume_byte_budget(raListTbl *ra_list, mlan_buffer *pmbuf);
-void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list);
+static INLINE void wlan_wmm_consume_byte_budget(raListTbl *ra_list,
+						mlan_buffer *pmbuf)
+{
+}
+
+static INLINE void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list)
+{
+}
 
 static INLINE void wlan_advance_bss_on_pkt_push(pmlan_adapter pmadapter,
 						mlan_bssprio_tbl *bssprio_tbl)
 {
-	if (pmadapter->mclient_tx_supported)
-		return;
-
 	bssprio_tbl->bssprio_cur = bssprio_tbl->bssprio_cur->pnext;
 }
 

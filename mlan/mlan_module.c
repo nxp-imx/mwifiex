@@ -29,19 +29,12 @@ Change log:
 #include <linux/module.h>
 #include "mlan_decl.h"
 #include "mlan_ioctl.h"
-#ifdef PCIE
-EXPORT_SYMBOL(mlan_process_pcie_interrupt_cb);
-#endif
 EXPORT_SYMBOL(mlan_register);
 EXPORT_SYMBOL(mlan_unregister);
 EXPORT_SYMBOL(mlan_init_fw);
 EXPORT_SYMBOL(mlan_set_init_param);
 EXPORT_SYMBOL(mlan_dnld_fw);
 EXPORT_SYMBOL(mlan_shutdown_fw);
-#ifdef USB
-EXPORT_SYMBOL(mlan_write_data_async_complete);
-EXPORT_SYMBOL(mlan_recv);
-#endif
 EXPORT_SYMBOL(mlan_send_packet);
 EXPORT_SYMBOL(mlan_ioctl);
 EXPORT_SYMBOL(mlan_set_driver_status);
@@ -49,18 +42,13 @@ EXPORT_SYMBOL(mlan_main_process);
 EXPORT_SYMBOL(mlan_rx_process);
 EXPORT_SYMBOL(mlan_select_wmm_queue);
 EXPORT_SYMBOL(mlan_process_deaggr_pkt);
-#if defined(SDIO) || defined(PCIE)
 EXPORT_SYMBOL(mlan_interrupt);
 #if defined(SYSKT)
 EXPORT_SYMBOL(mlan_hs_callback);
 #endif /* SYSKT_MULTI || SYSKT */
-#endif /* SDIO || PCIE */
 
 EXPORT_SYMBOL(mlan_pm_wakeup_card);
 EXPORT_SYMBOL(mlan_is_main_process_running);
-#ifdef PCIE
-EXPORT_SYMBOL(mlan_set_int_mode);
-#endif
 EXPORT_SYMBOL(mlan_disable_host_int);
 EXPORT_SYMBOL(mlan_enable_host_int);
 

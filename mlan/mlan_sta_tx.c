@@ -130,15 +130,9 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	}
 	if (pmbuf->flags & MLAN_BUF_FLAG_TDLS)
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TDLS_PACKET;
-	if (pmbuf->flags & MLAN_BUF_FLAG_EASYMESH) {
-		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_EASYMESH;
-		memcpy_ext(pmpriv->adapter, plocal_tx_pd->ra_mac, pmbuf->mac,
-			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-	}
 	/* Offset of actual data */
-	plocal_tx_pd->tx_pkt_offset =
-		(t_u16)((t_ptr)pmbuf->pbuf + pmbuf->data_offset -
-			(t_ptr)plocal_tx_pd);
+	plocal_tx_pd->tx_pkt_offset = (t_u16)(
+		(t_ptr)pmbuf->pbuf + pmbuf->data_offset - (t_ptr)plocal_tx_pd);
 
 	if (!plocal_tx_pd->tx_control) {
 		/* TxCtrl set by user or default */
@@ -176,37 +170,6 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 						    << 8;
 			plocal_tx_pd->tx_control |= TXPD_RETRY_ENABLE;
 		}
-	}
-	if (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT) {
-		tx_ctrl *ctrl = (tx_ctrl *)&plocal_tx_pd->tx_control;
-		mc_tx_ctrl *mc_ctrl =
-			(mc_tx_ctrl *)&plocal_tx_pd->pkt_delay_2ms;
-		plocal_tx_pd->tx_pkt_type = PKT_TYPE_802DOT11_MC_AGGR;
-		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_CYCLE)
-			ctrl->mc_cycle_start = MTRUE;
-		else
-			ctrl->mc_cycle_start = MFALSE;
-		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_CYCLE)
-			ctrl->mc_cycle_end = MTRUE;
-		else
-			ctrl->mc_cycle_end = MFALSE;
-		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_START_AMPDU)
-			ctrl->mc_ampdu_start = MTRUE;
-		else
-			ctrl->mc_ampdu_start = MFALSE;
-		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_END_AMPDU)
-			ctrl->mc_ampdu_end = MTRUE;
-		else
-			ctrl->mc_ampdu_end = MFALSE;
-		if (pmbuf->u.mc_tx_info.mc_pkt_flags & MC_FLAG_RETRY)
-			ctrl->mc_pkt_retry = MTRUE;
-		else
-			ctrl->mc_pkt_retry = MFALSE;
-		ctrl->bw = pmbuf->u.mc_tx_info.bandwidth & 0x7;
-		ctrl->tx_rate = pmbuf->u.mc_tx_info.mcs_index & 0x1f;
-		mc_ctrl->abs_tsf_expirytime =
-			wlan_cpu_to_le32(pmbuf->u.mc_tx_info.pkt_expiry);
-		mc_ctrl->mc_seq = wlan_cpu_to_le16(pmbuf->u.mc_tx_info.seq_num);
 	}
 	endian_convert_TxPD(plocal_tx_pd);
 
@@ -266,12 +229,6 @@ mlan_status wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-#if defined(USB)
-	if (!wlan_is_port_ready(pmadapter, priv->port_index)) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-#endif
 
 	pmbuf = wlan_alloc_mlan_buffer(pmadapter, data_len, 0,
 				       MOAL_MALLOC_BUFFER);
@@ -300,11 +257,6 @@ mlan_status wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf, MNULL);
 
 	switch (ret) {
-#ifdef USB
-	case MLAN_STATUS_PRESOURCE:
-		PRINTM(MINFO, "MLAN_STATUS_PRESOURCE is returned\n");
-		break;
-#endif
 	case MLAN_STATUS_RESOURCE:
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		PRINTM(MERROR, "STA Tx Error: Failed to send NULL packet!\n");

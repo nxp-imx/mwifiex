@@ -48,10 +48,6 @@ static const struct iw_priv_args woal_private_args[] = {
 	{WOAL_VEREXT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_CHAR | 128, "verext"},
 	{WOAL_SETNONE_GETNONE, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, ""},
 	{WOAL_WARMRESET, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "warmreset"},
-#ifdef CONFIG_USB_SUSPEND
-	{WOAL_USB_SUSPEND, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "usbsuspend"},
-	{WOAL_USB_RESUME, IW_PRIV_TYPE_NONE, IW_PRIV_TYPE_NONE, "usbresume"},
-#endif /* CONFIG_USB_SUSPEND */
 	{WOAL_SETONEINT_GETONEINT, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
 	 ""},
 	{WOAL_SET_GET_TXRATE, IW_PRIV_TYPE_INT | 1, IW_PRIV_TYPE_INT | 1,
@@ -138,25 +134,19 @@ static const struct iw_priv_args woal_private_args[] = {
 	 "bandcfg"},
 	{WOAL_INACTIVITY_TIMEOUT_EXT, IW_PRIV_TYPE_INT | 16,
 	 IW_PRIV_TYPE_INT | 16, "inactivityto"},
-#ifdef SDIO
 	{WOAL_SDIO_CLOCK, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "sdioclock"},
 	{WOAL_CMD_52RDWR, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "sdcmd52rw"},
-#endif
 	{WOAL_SCAN_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "scancfg"},
 	{WOAL_PS_CFG, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16, "pscfg"},
 	{WOAL_MEM_READ_WRITE, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "memrdwr"},
-#ifdef SDIO
 	{WOAL_SDIO_MPA_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "mpactrl"},
-#endif
 	{WOAL_SLEEP_PARAMS, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "sleepparams"},
-	{WOAL_NET_MONITOR, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
-	 "netmon"},
 	{WOAL_DFS_TESTING, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
 	 "dfstesting"},
 	{WOAL_MGMT_FRAME_CTRL, IW_PRIV_TYPE_INT | 16, IW_PRIV_TYPE_INT | 16,
@@ -209,10 +199,8 @@ static const struct iw_priv_args woal_private_args[] = {
 	 "rdeeprom"},
 	{WOAL_SET_GET_2K_BYTES, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
 	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, ""},
-#if defined(SDIO)
 	{WOAL_CMD_53RDWR, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
 	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "sdcmd53rw"},
-#endif
 	{WOAL_SET_USER_SCAN, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
 	 IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES, "setuserscan"},
 	{WOAL_GET_SCAN_TABLE, IW_PRIV_TYPE_BYTE | WOAL_2K_BYTES,
@@ -2525,9 +2513,6 @@ static mlan_status woal_wext_request_scan(moal_private *priv, t_u8 wait_option,
 		scan_req->scan_chan_gap = scan_cfg.scan_chan_gap;
 	else
 		scan_req->scan_chan_gap = priv->phandle->scan_chan_gap;
-	/** indicate FW, gap is optional */
-	if (scan_req->scan_chan_gap && priv->phandle->pref_mac)
-		scan_req->scan_chan_gap |= GAP_FLAG_OPTIONAL;
 	status = woal_request_userscan(priv, wait_option, scan_req);
 	kfree(scan_req);
 	LEAVE();
@@ -3197,8 +3182,8 @@ static int woal_get_scan(struct net_device *dev, struct iw_request_info *info,
 
 			while ((unsigned int)beacon_size >=
 			       sizeof(IEEEtypes_Header_t)) {
-				element_id = (IEEEtypes_ElementId_e)(*(
-					t_u8 *)pbeacon);
+				element_id = (IEEEtypes_ElementId_e)(
+					*(t_u8 *)pbeacon);
 				element_len = *((t_u8 *)pbeacon + 1);
 				if ((unsigned int)beacon_size <
 				    (unsigned int)element_len +

@@ -95,8 +95,6 @@ typedef t_s32 t_sval;
 /** MLAN FALSE */
 #define MFALSE (0)
 
-#define CHANNEL_SPEC_SNIFFER_MODE 1
-
 #ifndef MACSTR
 /** MAC address security format */
 #define MACSTR "%02x:XX:XX:XX:%02x:%02x"
@@ -126,8 +124,13 @@ typedef t_s32 t_sval;
 /** Return aligned offset */
 #define OFFSET_ALIGN_ADDR(p, a) (t_u32)(ALIGN_ADDR(p, a) - (t_ptr)p)
 
+#if defined(WIFI_DIRECT_SUPPORT)
 /** Maximum BSS numbers */
 #define MLAN_MAX_BSS_NUM (16)
+#else
+/** Maximum BSS numbers */
+#define MLAN_MAX_BSS_NUM (2)
+#endif
 
 /** NET IP alignment */
 #define MLAN_NET_IP_ALIGN 2
@@ -177,11 +180,6 @@ typedef t_s32 t_sval;
 /** RX winsize for COEX */
 #define MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE 16
 #endif
-
-/** NAN use the same window size for tx/rx */
-#define MLAN_NAN_AMPDU_DEF_TXRXWINSIZE 16
-/** RX winsize for COEX */
-#define MLAN_NAN_COEX_AMPDU_DEF_RXWINSIZE 16
 
 /** Block ack timeout value */
 #define MLAN_DEFAULT_BLOCK_ACK_TIMEOUT 0xffff
@@ -248,18 +246,6 @@ typedef t_s32 t_sval;
 /** Upload size */
 #define WLAN_UPLD_SIZE MRVDRV_SIZE_OF_CMD_BUFFER
 
-#if defined(PCIE)
-#define MLAN_SSU_MAX_PKT_SIZE (283 * 4)
-#define MLAN_SSU_HEADER_SIZE 256
-/**
- * Size of DMA buffer to collect 10ms SSU data:
- * 2500 spectral packets, plus header
- */
-#define MLAN_SSU_BUF_SIZE_1MS (MLAN_SSU_MAX_PKT_SIZE * 250)
-#define MLAN_SSU_BUF_SIZE (MLAN_SSU_HEADER_SIZE + MLAN_SSU_BUF_SIZE_1MS * 10)
-#define MLAN_SSU_BUF_SIZE_HOST (MLAN_SSU_BUF_SIZE)
-#endif
-
 /** driver initial the fw reset */
 #define FW_RELOAD_SDIO_INBAND_RESET 1
 /** out band reset trigger reset, no interface re-emulation */
@@ -277,42 +263,6 @@ typedef t_s32 t_sval;
 #define AUTO_FW_RELOAD_ENABLE MBIT(0)
 /** auto fw reload enable pcie inband reset */
 #define AUTO_FW_RELOAD_PCIE_INBAND_RESET MBIT(1)
-
-#ifdef PCIE
-/* Interrupt type */
-enum {
-	RX_DATA,
-	RX_EVENT,
-	TX_COMPLETE,
-	RX_CMD_RESP,
-	RX_CMD_DNLD,
-	RX_DATA_DELAY
-};
-#endif
-#ifdef USB
-#define MLAN_USB_BLOCK_SIZE (512)
-#define MLAN_USB_AGGR_MODE_NUM (0)
-#define MLAN_USB_AGGR_MODE_LEN (1)
-#define MLAN_USB_AGGR_MODE_LEN_V2 (2)
-#define MLAN_USB_TX_AGGR_MAX_LEN (16000)
-#define MLAN_USB_TX_AGGR_MAX_NUM 10
-#define MLAN_USB_TX_AGGR_V2_ALIGN 4
-#define MLAN_USB_TX_AGGR_HEADER 4
-#define MLAN_USB_MAX_PKT_SIZE (MLAN_USB_BLOCK_SIZE * 4)
-
-#define MLAN_USB_RX_ALIGN_SIZE MLAN_USB_BLOCK_SIZE
-#define MLAN_USB_RX_MAX_AGGR_NUM (8)
-#define MLAN_USB_RX_DEAGGR_TIMEOUT_USEC (200)
-
-#define MLAN_USB_TX_AGGR_ALIGN (MLAN_USB_BLOCK_SIZE * 4)
-#define MLAN_USB_TX_MAX_AGGR_NUM (8)
-#define MLAN_USB_TX_MAX_AGGR_SIZE                                              \
-	(MLAN_USB_BLOCK_SIZE * 4 * MLAN_USB_TX_MAX_AGGR_NUM)
-#define MLAN_USB_TX_MIN_AGGR_TIMEOUT (1)
-#define MLAN_USB_TX_MAX_AGGR_TIMEOUT (4)
-#define MLAN_USB_TX_AGGR_TIMEOUT_MSEC MLAN_USB_TX_MIN_AGGR_TIMEOUT
-#define MLAN_USB_TX_AGGR_TIMEOUT_DYN (0xFFFF)
-#endif /*USB*/
 
 /** MLAN MAC Address Length */
 #define MLAN_MAC_ADDR_LENGTH (6)
@@ -340,7 +290,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 /** max Wmm AC queues */
 #define MAX_AC_QUEUES 4
 
-#ifdef SDIO
 /** define SDIO block size for data Tx/Rx */
 /* We support up to 480-byte block size due to FW buffer limitation. */
 #define MLAN_SDIO_BLOCK_SIZE 256
@@ -358,7 +307,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define MLAN_SDIO_IO_PORT_MASK 0xfffff
 /** SDIO Block/Byte mode mask */
 #define MLAN_SDIO_BYTE_MODE_MASK 0x80000000
-#endif /* SDIO */
 
 /** SD Interface */
 #define INTF_SD MBIT(0)
@@ -409,7 +357,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define INTF_MASK 0xff
 #define CARD_TYPE_MASK 0xff
 
-#ifdef SDIO
 /** SD8887 card type */
 #define CARD_TYPE_SD8887 (CARD_TYPE_8887 | (INTF_SD << 8))
 /** SD8897 card type */
@@ -479,99 +426,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SDIW610 "SDIW610"
 /** SDIW623 Card */
 #define CARD_SDIW623 "SDIW623"
-#endif
-
-#ifdef PCIE
-/** PCIE8897 card type */
-#define CARD_TYPE_PCIE8897 (CARD_TYPE_8897 | (INTF_PCIE << 8))
-/** PCIE8997 card type */
-#define CARD_TYPE_PCIE8997 (CARD_TYPE_8997 | (INTF_PCIE << 8))
-/** PCIE9097 card type */
-#define CARD_TYPE_PCIE9097 (CARD_TYPE_9097 | (INTF_PCIE << 8))
-/** PCIE9098 card type */
-#define CARD_TYPE_PCIE9098 (CARD_TYPE_9098 | (INTF_PCIE << 8))
-/** PCIEIW624 card type */
-#define CARD_TYPE_PCIEIW624 (CARD_TYPE_IW624 | (INTF_PCIE << 8))
-/** PCIEAW693 card type */
-#define CARD_TYPE_PCIEAW693 (CARD_TYPE_AW693 | (INTF_PCIE << 8))
-
-#define IS_PCIE8897(ct) (CARD_TYPE_PCIE8897 == (ct))
-#define IS_PCIE8997(ct) (CARD_TYPE_PCIE8997 == (ct))
-#define IS_PCIE9097(ct) (CARD_TYPE_PCIE9097 == (ct))
-#define IS_PCIE9098(ct) (CARD_TYPE_PCIE9098 == (ct))
-#define IS_PCIEIW624(ct) (CARD_TYPE_PCIEIW624 == (ct))
-#define IS_PCIEAW693(ct) (CARD_TYPE_PCIEAW693 == (ct))
-
-/** PCIE8897 Card */
-#define CARD_PCIE8897 "PCIE8897"
-/** PCIE8997 Card */
-#define CARD_PCIE8997 "PCIE8997"
-/** PCIE9097 Card */
-#define CARD_PCIE9097 "PCIEIW620"
-/** PCIE9000S Card */
-#define CARD_PCIE9000S "PCIE9000S"
-/** PCIE9098 Card */
-#define CARD_PCIE9098 "PCIE9098"
-/** PCIEAW690 Card */
-#define CARD_PCIEAW690 "PCIEAW690"
-/** PCIEAW590 Card */
-#define CARD_PCIEAW590 "PCIEAW590"
-/** PCIEAW592 Card */
-#define CARD_PCIEAW592 "PCIEAW592"
-/** PCIEIW624 Card */
-#define CARD_PCIEIW624 "PCIEIW624"
-/** PCIEAW693 Card */
-#define CARD_PCIEAW693 "PCIEAW693"
-/** PCIEIW629 Card */
-#define CARD_PCIEIW629 "PCIEIW629"
-/** PCIEIW623 Card */
-#define CARD_PCIEIW623 "PCIEIW623"
-#endif
-
-#ifdef USB
-/** USB8801 card type */
-#define CARD_TYPE_USB8801 (CARD_TYPE_8801 | (INTF_USB << 8))
-/** USB8897 card type */
-#define CARD_TYPE_USB8897 (CARD_TYPE_8897 | (INTF_USB << 8))
-/** USB8997 card type */
-#define CARD_TYPE_USB8997 (CARD_TYPE_8997 | (INTF_USB << 8))
-/** USB8978 card type */
-#define CARD_TYPE_USB8978 (CARD_TYPE_8978 | (INTF_USB << 8))
-/** USB9098 card type */
-#define CARD_TYPE_USB9098 (CARD_TYPE_9098 | (INTF_USB << 8))
-/** USB9097 card type */
-#define CARD_TYPE_USB9097 (CARD_TYPE_9097 | (INTF_USB << 8))
-/** USBIW624 card type */
-#define CARD_TYPE_USBIW624 (CARD_TYPE_IW624 | (INTF_USB << 8))
-/** USBIW610 card type */
-#define CARD_TYPE_USBIW610 (CARD_TYPE_IW610 | (INTF_USB << 8))
-
-#define IS_USB8801(ct) (CARD_TYPE_USB8801 == (ct))
-#define IS_USB8897(ct) (CARD_TYPE_USB8897 == (ct))
-#define IS_USB8997(ct) (CARD_TYPE_USB8997 == (ct))
-#define IS_USB8978(ct) (CARD_TYPE_USB8978 == (ct))
-#define IS_USB9098(ct) (CARD_TYPE_USB9098 == (ct))
-#define IS_USB9097(ct) (CARD_TYPE_USB9097 == (ct))
-#define IS_USBIW624(ct) (CARD_TYPE_USBIW624 == (ct))
-#define IS_USBIW610(ct) (CARD_TYPE_USBIW610 == (ct))
-
-/** USB8801 Card */
-#define CARD_USB8801 "USB8801"
-/** USB8897 Card */
-#define CARD_USB8897 "USB8897"
-/** USB8997 Card */
-#define CARD_USB8997 "USB8997"
-/** USB8978 Card */
-#define CARD_USB8978 "USBIW416"
-/** USB9098 Card */
-#define CARD_USB9098 "USB9098"
-/** USB9097 Card */
-#define CARD_USB9097 "USBIW620"
-/** USBIW624 Card */
-#define CARD_USBIW624 "USBIW624"
-/** USBIW610 Card */
-#define CARD_USBIW610 "USBIW610"
-#endif
 
 #define IS_CARD8801(ct) (CARD_TYPE_8801 == ((ct)&0xf))
 #define IS_CARD8887(ct) (CARD_TYPE_8887 == ((ct)&0xf))
@@ -593,19 +447,8 @@ typedef struct _card_type_entry {
 	char *name;
 } card_type_entry;
 
-#if defined(SDIO) || defined(PCIE)
 /** Max retry number of IO write */
 #define MAX_WRITE_IOMEM_RETRY 2
-#endif /* SDIO || PCIE */
-
-#ifdef PCIE
-typedef enum {
-	PCIE_INT_MODE_LEGACY = 0,
-	PCIE_INT_MODE_MSI,
-	PCIE_INT_MODE_MSIX,
-	PCIE_INT_MODE_MAX,
-} PCIE_INT_MODE;
-#endif /* PCIE */
 
 /** IN parameter */
 #define IN
@@ -626,17 +469,6 @@ typedef enum {
 /** Buffer flag for bridge packet */
 #define MLAN_BUF_FLAG_BRIDGE_BUF MBIT(3)
 
-#ifdef USB
-/** Buffer flag for deaggregated rx packet */
-#define MLAN_BUF_FLAG_RX_DEAGGR MBIT(5)
-
-/** Buffer flag for sleep confirm resp packet */
-#define MLAN_BUF_FLAG_SLEEPCFM_RESP MBIT(6)
-
-/** Buffer flag for USB TX AGGR */
-#define MLAN_BUF_FLAG_USB_TX_AGGR MBIT(7)
-#endif
-
 /** Buffer flag for TDLS */
 #define MLAN_BUF_FLAG_TDLS MBIT(8)
 
@@ -646,9 +478,6 @@ typedef enum {
 /** Buffer flag for TX_STATUS */
 #define MLAN_BUF_FLAG_TX_STATUS MBIT(10)
 
-/** Buffer flag for NET_MONITOR */
-#define MLAN_BUF_FLAG_NET_MONITOR MBIT(11)
-
 /** Buffer flag for NULL data packet */
 #define MLAN_BUF_FLAG_NULL_PKT MBIT(12)
 /** Buffer flag for Diag pkt */
@@ -656,17 +485,9 @@ typedef enum {
 
 #define MLAN_BUF_FLAG_TX_CTRL MBIT(14)
 
-#define MLAN_BUF_FLAG_EASYMESH MBIT(16)
-
-#define MLAN_BUF_FLAG_MC_AGGR_PKT MBIT(17)
-
 #define MLAN_BUF_FLAG_TCP_PKT MBIT(18)
 
 #define MLAN_BUF_FLAG_LLDE_PKT_FILTER MBIT(19)
-
-#ifdef XDP_SUPPORT
-#define MLAN_BUF_FLAG_XDP MBIT(20)
-#endif
 
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
@@ -714,10 +535,6 @@ typedef enum _mlan_status {
 	MLAN_STATUS_SUCCESS = 0,
 	MLAN_STATUS_PENDING,
 	MLAN_STATUS_RESOURCE,
-#ifdef USB
-	/* Status pending and no resource */
-	MLAN_STATUS_PRESOURCE,
-#endif
 	MLAN_STATUS_COMPLETE,
 	MLAN_STATUS_FILE_ERR,
 } mlan_status;
@@ -757,9 +574,7 @@ typedef enum _mlan_buf_type {
 	MLAN_BUF_TYPE_DATA,
 	MLAN_BUF_TYPE_EVENT,
 	MLAN_BUF_TYPE_RAW_DATA,
-#ifdef SDIO
 	MLAN_BUF_TYPE_SPA_DATA,
-#endif
 } mlan_buf_type;
 
 /** assoc_logger_data */
@@ -813,22 +628,6 @@ typedef enum _agcs_state {
 } agcs_state;
 #endif /* UAP_SUPPORT */
 
-#ifdef USB
-/** mlan_usb_ep */
-typedef enum _mlan_usb_ep {
-	MLAN_USB_EP_CTRL = 0,
-	MLAN_USB_EP_CMD_EVENT = 1,
-	MLAN_USB_EP_DATA = 2,
-	MLAN_USB_EP_DATA_CH2 = 3,
-	MLAN_USB_EP_CMD_EVENT_IF2 = 4,
-	MLAN_USB_EP_DATA_IF2 = 5,
-	MLAN_USB_EP_DATA_CH2_IF2 = 6,
-} mlan_usb_ep;
-
-/** Timeout in milliseconds for usb_bulk_msg function */
-#define MLAN_USB_BULK_MSG_TIMEOUT 100
-#endif /* USB */
-
 /** MLAN BSS type */
 typedef enum _mlan_bss_type {
 	MLAN_BSS_TYPE_STA = 0,
@@ -836,7 +635,6 @@ typedef enum _mlan_bss_type {
 #ifdef WIFI_DIRECT_SUPPORT
 	MLAN_BSS_TYPE_WIFIDIRECT = 2,
 #endif
-	MLAN_BSS_TYPE_NAN = 4,
 	MLAN_BSS_TYPE_DFS = 8,
 	MLAN_BSS_TYPE_ANY = 0xff,
 } mlan_bss_type;
@@ -906,9 +704,6 @@ typedef enum _mlan_event_id {
 
 	MLAN_EVENT_ID_FW_TX_STATUS = 0x00000034,
 	MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE = 0x00000036,
-#if defined(PCIE)
-	MLAN_EVENT_ID_SSU_DUMP_FILE = 0x00000039,
-#endif /* SSU_SUPPORT */
 	MLAN_EVENT_ID_CSI = 0x00000040,
 	MLAN_EVENT_ID_FW_TX_BULK_STATUS = 0x00000043,
 #ifdef UAP_SUPPORT
@@ -939,26 +734,14 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_UAP_CHAN_INFO = 0x80000020,
 #endif
 	MLAN_EVENT_ID_FW_ROAM_OFFLOAD_RESULT = 0x80000023,
-	MLAN_EVENT_ID_NAN_STARTED = 0x80000024,
-	MLAN_EVENT_ID_DRV_RTT_RESULT = 0x80000025,
 	MLAN_EVENT_ID_DRV_ASSOC_FAILURE_LOGGER = 0x80000026,
 	MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER = 0x80000027,
 	MLAN_EVENT_ID_DRV_DISCONNECT_LOGGER = 0x80000028,
 	MLAN_EVENT_ID_DRV_WIFI_STATUS = 0x80000029,
 	MLAN_EVENT_ID_STORE_HOST_CMD_RESP = 0x80000030,
 	MLAN_EVENT_ID_DRV_ADDBA_TIMEOUT = 0x80000031,
-#ifdef PCIE
-	MLAN_EVENT_ID_DRV_DEFER_RX_DATA = 0x80000032,
-	MLAN_EVENT_ID_DRV_DEFER_CMDRESP = 0x80000034,
-	MLAN_EVENT_ID_DRV_DEFER_TX_COMPLTE = 0x80000035,
-	MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE = 0x80000036,
-#endif
 	MLAN_EVENT_ID_DRV_RGPWR_KEY_MISMATCH = 0x80000037,
-#if defined(STA_SUPPORT)
-	MLAN_EVENT_ID_FW_CHAN_SWITCH_REGINFO = 0x80000038,
-#endif
 	MLAN_EVENT_ID_DRV_ASSOC_FAILURE = 0x80000039,
-	MLAN_EVENT_ID_FW_WIFI_CHANNEL_AVOID_LIST = 0x8000003A,
 	MLAN_EVENT_ID_EMERGENCY_TEMP_REACHED = 0x80000040,
 } mlan_event_id;
 
@@ -1040,34 +823,29 @@ enum mlan_channel_type {
 };
 
 /** channel band */
-enum {
-	BAND_2GHZ = 0,
-	BAND_5GHZ = 1,
-	BAND_6GHZ = 2,
-	BAND_4GHZ = 3,
+enum { BAND_2GHZ = 0,
+       BAND_5GHZ = 1,
+       BAND_6GHZ = 2,
+       BAND_4GHZ = 3,
 };
 
 /** channel offset */
-enum {
-	SEC_CHAN_NONE = 0,
-	SEC_CHAN_ABOVE = 1,
-	SEC_CHAN_5MHZ = 2,
-	SEC_CHAN_BELOW = 3
-};
+enum { SEC_CHAN_NONE = 0,
+       SEC_CHAN_ABOVE = 1,
+       SEC_CHAN_5MHZ = 2,
+       SEC_CHAN_BELOW = 3 };
 
 /** channel bandwidth */
-enum {
-	CHAN_BW_20MHZ = 0,
-	CHAN_BW_10MHZ,
-	CHAN_BW_40MHZ,
-	CHAN_BW_80MHZ,
+enum { CHAN_BW_20MHZ = 0,
+       CHAN_BW_10MHZ,
+       CHAN_BW_40MHZ,
+       CHAN_BW_80MHZ,
 };
 
 /** scan mode */
-enum {
-	SCAN_MODE_MANUAL = 0,
-	SCAN_MODE_ACS,
-	SCAN_MODE_USER,
+enum { SCAN_MODE_MANUAL = 0,
+       SCAN_MODE_ACS,
+       SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -1156,40 +934,6 @@ typedef MLAN_PACK_START struct _remain_on_channel_info {
 	/* Is previous AP lost when waiting doing Auth RoC */
 	t_bool delay_link_lost;
 } MLAN_PACK_END remain_on_channel_info;
-
-#if defined(STA_SUPPORT)
-/** MrvlIEtypes_chan_band_reginfo_t */
-typedef MLAN_PACK_START struct _MrvlIEtypes_chan_band_reginfo_t {
-	/** Header */
-	MrvlIEtypesHeader_t header;
-	/** Band Configuration */
-	Band_Config_t bandcfg;
-	/** channel */
-	t_u8 channel;
-	/** Reg Info */
-	t_u8 regInfo;
-} MLAN_PACK_END MrvlIEtypes_chan_band_reginfo_t;
-
-/** Structure to store 6E Channel/Band/Regulatory Info */
-typedef MLAN_PACK_START struct _chan_band_reginfo_t {
-	/** Band Configuration */
-	Band_Config_t bandcfg;
-	/** channel */
-	t_u8 channel;
-	/** Reg Info */
-	t_u8 regInfo;
-} MLAN_PACK_END chan_band_reginfo_t;
-#endif
-
-/** Structure to WiFi Channel Avoidance List */
-typedef MLAN_PACK_START struct _wifi_chan_avoid_list_t {
-	/** Band Configuration */
-	Band_Config_t bandcfg;
-	/** Length */
-	t_u8 length;
-	/** Chanlist */
-	t_u8 chanList[];
-} MLAN_PACK_END wifi_chan_avoid_list_t;
 
 /** Channel usability flags */
 #define NXP_CHANNEL_NO_OFDM MBIT(9)
@@ -1349,96 +1093,6 @@ typedef struct _mlan_ioctl_req {
 	t_ptr reserved_1;
 } mlan_ioctl_req, *pmlan_ioctl_req;
 
-typedef MLAN_PACK_START struct _mix_rate_info {
-	/**  bit0: LGI: gi=0, SGI: gi= 1 */
-	/**  bit1-2: 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3  */
-	/**  bit3-4: LG: format=0, HT: format=1, VHT: format=2 */
-	/**  bit5: LDPC: 0-not support,  1-support */
-	/**  bit6-7:reserved */
-	t_u8 rate_info;
-	/** MCS index */
-	t_u8 mcs_index;
-	/** bitrate, in 500Kbps */
-	t_u16 bitrate;
-	/** NSS */
-	t_u8 nss_index;
-	/** DCM */
-	t_u8 dcm;
-} MLAN_PACK_END mix_rate_info, *pmix_rate_info;
-
-typedef MLAN_PACK_START struct _radiotap_timestamp {
-	/* device timestamp */
-	t_u64 device_timestamp;
-	/* accuracy */
-	t_u16 accuracy;
-	/* unit:
-	 * 0 milliseconds,
-	 * 1 microseconds,
-	 * 2 nanoseconds,
-	 * 3-15 reserved */
-	// bit-field usage is required to match protocol-defined layout
-	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
-	t_u8 unit : 4;
-	/* position:
-	 * 0 first bit (or symbol containing it) of MPDU - matches TSFT field
-	 * 1 signal acquisition at start of PLCP
-	 * 2 end of PPDU
-	 * 3 end of MPDU (after FCS)
-	 * 4-14 reserved
-	 * 15 unknown or vendor/OOB defined
-	 */
-	// bit-field usage is required to match protocol-defined layout
-	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
-	t_u8 position : 4;
-	/* flags
-	 * 0x01 32-bit counter (high 32 bits are unused)
-	 * 0x02 accuracy known
-	 * 0xFC reserved
-	 */
-	t_u8 flags;
-} MLAN_PACK_END radiotap_timestamp, *pradiotap_timestamp;
-
-typedef MLAN_PACK_START struct _rxpd_extra_info {
-	/** flags */
-	t_u8 flags;
-	/** channel.flags */
-	t_u16 channel_flags;
-	/** mcs.known */
-	t_u8 mcs_known;
-	/** mcs.flags */
-	t_u8 mcs_flags;
-	/** vht/he sig1 */
-	t_u32 vht_he_sig1;
-	/** vht/he sig2 */
-	t_u32 vht_he_sig2;
-	/** HE user idx */
-	t_u32 user_idx;
-	/** timestamp */
-	radiotap_timestamp timestamp;
-	/** PLCP CRC Failed */
-	t_u8 plcp_crc_failed;
-	t_u8 rssi_dbm_a;
-	t_u8 rssi_dbm_b;
-} MLAN_PACK_END rxpd_extra_info, *prxpd_extra_info;
-
-typedef MLAN_PACK_START struct _radiotap_info {
-	/** Rate Info */
-	mix_rate_info rate_info;
-	/** SNR */
-	t_s8 snr;
-	/** Noise Floor */
-	t_s8 nf;
-	/** band config */
-	t_u8 band_config;
-	/** chan number */
-	t_u8 chan_num;
-	t_u8 antenna;
-	/** extra radiotap */
-	t_u8 radiotap_extra;
-	/** extra rxpd info from FW */
-	rxpd_extra_info extra_info;
-} MLAN_PACK_END radiotap_info, *pradiotap_info;
-
 /** txpower structure */
 typedef MLAN_PACK_START struct {
 #ifdef BIG_ENDIAN_SUPPORT
@@ -1490,37 +1144,6 @@ typedef MLAN_PACK_START struct _pkt_rxinfo {
 	t_u8 rssi;
 } MLAN_PACK_END pkt_rxinfo, *ppkt_rxinfo;
 
-#define MC_FLAG_RETRY MBIT(0)
-#define MC_FLAG_START_CYCLE MBIT(1)
-#define MC_FLAG_END_CYCLE MBIT(2)
-#define MC_FLAG_START_AMPDU MBIT(3)
-#define MC_FLAG_END_AMPDU MBIT(4)
-/* mc pkt txcontrol */
-typedef MLAN_PACK_START struct _mc_txcontrol {
-	/** Data rate in mcs index, 0-7 */
-	t_u8 mcs_index;
-	/** band width 0-20Mhz, 1-40Mhz */
-	t_u8 bandwidth;
-	/** seq_num */
-	t_u16 seq_num;
-	/** packet expiry time */
-	t_u32 pkt_expiry;
-	/** mc_pkt_flags */
-	t_u8 mc_pkt_flags;
-} MLAN_PACK_END mc_txcontrol, *pmc_txcontrol;
-typedef MLAN_PACK_START struct MAPP_Stats_Mcast_drv {
-	t_u32 cycle_recv_under_2300usec;
-	t_u32 cycle_recv_in_time;
-	t_u32 cycle_recv_over_2900usec;
-	t_u32 cycle_recv_over_3500usec;
-	t_u32 cycle_recv_over_5000usec;
-	t_u32 cycle_recv_over_10000usec;
-	t_u32 cycle_recv_over_15000usec;
-	t_u32 spent_time_under_1000usec;
-	t_u32 spent_time_over_1000usec;
-	t_u32 spent_time_over_2000usec;
-	t_u32 spent_time_over_3000usec;
-} MLAN_PACK_END Stats_mcast_drv_t, *pStats_mcast_drv_t;
 /** mlan_buffer data structure */
 typedef struct _mlan_buffer {
 	/** Pointer to previous mlan_buffer */
@@ -1537,11 +1160,6 @@ typedef struct _mlan_buffer {
 	t_void *pdesc;
 	/** Pointer to buffer */
 	t_u8 *pbuf;
-#ifdef PCIE
-	/** Physical address of the pbuf pointer */
-	t_u64 buf_pa;
-	t_u32 total_pcie_buf_len;
-#endif
 	/** Offset to data */
 	t_u32 data_offset;
 	/** Data length */
@@ -1562,19 +1180,12 @@ typedef struct _mlan_buffer {
 	t_u32 out_ts_usec;
 	/** tx_seq_num */
 	t_u32 tx_seq_num;
-	/** Time stamp when packet is deque from rx_q(seconds) */
-	t_u32 extra_ts_sec;
-	/** Time stamp when packet is dequed from rx_q(micro seconds) */
-	t_u32 extra_ts_usec;
-	/** When TX ra mac address,  When Rx Ta mac address*/
-	t_u8 mac[MLAN_MAC_ADDR_LENGTH];
 	/** Fields below are valid for MLAN module only */
 	/** Pointer to parent mlan_buffer */
 	struct _mlan_buffer *pparent;
 	/** Use count for this buffer */
 	t_u32 use_count;
 	union {
-		mc_txcontrol mc_tx_info;
 		pkt_txctrl tx_info;
 		pkt_rxinfo rx_info;
 	} u;
@@ -2317,308 +1928,6 @@ typedef struct {
 	0x00000080 /** all contention (min, max, avg) statistics (within ac    \
 		      statisctics) */
 
-/** =========== Define Copied from HAL START =========== */
-/** Ranging status */
-typedef enum {
-	RTT_STATUS_SUCCESS = 0,
-	/** general failure status */
-	RTT_STATUS_FAILURE = 1,
-	/** target STA does not respond to request */
-	RTT_STATUS_FAIL_NO_RSP = 2,
-	/** request rejected. Applies to 2-sided RTT only */
-	RTT_STATUS_FAIL_REJECTED = 3,
-	RTT_STATUS_FAIL_NOT_SCHEDULED_YET = 4,
-	/** timing measurement times out */
-	RTT_STATUS_FAIL_TM_TIMEOUT = 5,
-	/** Target on different channel, cannot range */
-	RTT_STATUS_FAIL_AP_ON_DIFF_CHANNEL = 6,
-	/** ranging not supported */
-	RTT_STATUS_FAIL_NO_CAPABILITY = 7,
-	/** request aborted for unknown reason */
-	RTT_STATUS_ABORTED = 8,
-	/** Invalid T1-T4 timestamp */
-	RTT_STATUS_FAIL_INVALID_TS = 9,
-	/** 11mc protocol failed */
-	RTT_STATUS_FAIL_PROTOCOL = 10,
-	/** request could not be scheduled */
-	RTT_STATUS_FAIL_SCHEDULE = 11,
-	/** responder cannot collaborate at time of request */
-	RTT_STATUS_FAIL_BUSY_TRY_LATER = 12,
-	/** bad request args */
-	RTT_STATUS_INVALID_REQ = 13,
-	/** WiFi not enabled */
-	RTT_STATUS_NO_WIFI = 14,
-	/** Responder overrides param info, cannot range with new params */
-	RTT_STATUS_FAIL_FTM_PARAM_OVERRIDE = 15
-} wifi_rtt_status;
-
-/** RTT peer type */
-typedef enum {
-	RTT_PEER_AP = 0x1,
-	RTT_PEER_STA = 0x2,
-	RTT_PEER_P2P_GO = 0x3,
-	RTT_PEER_P2P_CLIENT = 0x4,
-	RTT_PEER_NAN = 0x5
-} rtt_peer_type;
-
-/** RTT Measurement Bandwidth */
-typedef enum {
-	WIFI_RTT_BW_5 = 0x01,
-	WIFI_RTT_BW_10 = 0x02,
-	WIFI_RTT_BW_20 = 0x04,
-	WIFI_RTT_BW_40 = 0x08,
-	WIFI_RTT_BW_80 = 0x10,
-	WIFI_RTT_BW_160 = 0x20
-} wifi_rtt_bw;
-
-/** RTT Type */
-typedef enum {
-	RTT_TYPE_1_SIDED = 0x1,
-	RTT_TYPE_2_SIDED = 0x2,
-} wifi_rtt_type;
-
-/** RTT configuration */
-typedef struct {
-	/** peer device mac address */
-	t_u8 addr[MLAN_MAC_ADDR_LENGTH];
-	/** 1-sided or 2-sided RTT */
-	wifi_rtt_type type;
-	/** optional - peer device hint (STA, P2P, AP) */
-	rtt_peer_type peer;
-	/** Required for STA-AP mode, optional for P2P, NBD etc. */
-	wifi_channel_info channel;
-	/** Time interval between bursts (units: 100 ms).
-	 * Applies to 1-sided and 2-sided RTT multi-burst requests.
-	 * Range: 0-31, 0: no preference by initiator (2-sided RTT) */
-	t_u32 burst_period;
-	/** Total number of RTT bursts to be executed. It will be
-	 * specified in the same way as the parameter "Number of
-	 * Burst Exponent" found in the FTM frame format. It
-	 * applies to both: 1-sided RTT and 2-sided RTT. Valid
-	 * values are 0 to 15 as defined in 802.11mc std.
-	 * 0 means single shot
-	 * The implication of this parameter on the maximum
-	 * number of RTT results is the following:
-	 * for 1-sided RTT: max num of RTT results =
-	 * (2^num_burst)*(num_frames_per_burst)
-	 * for 2-sided RTT: max num of RTT results =
-	 * (2^num_burst)*(num_frames_per_burst - 1) */
-	t_u32 num_burst;
-	/** num of frames per burst. Minimum value = 1, Maximum value = 31
-	 * For 2-sided this equals the number of FTM frames to be attempted in a
-	 * single burst. This also equals the number of FTM frames that the
-	 * initiator will request that the responder send in a single frame. */
-	t_u32 num_frames_per_burst;
-	/** number of retries for a failed RTT frame. Applies
-	 * to 1-sided RTT only. Minimum value = 0, Maximum value = 3 */
-	t_u32 num_retries_per_rtt_frame;
-
-	/** following fields are only valid for 2-side RTT */
-	/** Maximum number of retries that the initiator can retry an FTMR
-	 * frame. Minimum value = 0, Maximum value = 3 */
-	t_u32 num_retries_per_ftmr;
-	/** 1: request LCI, 0: do not request LCI */
-	t_u8 LCI_request;
-	/** 1: request LCR, 0: do not request LCR */
-	t_u8 LCR_request;
-	/** Applies to 1-sided and 2-sided RTT. Valid values will
-	 * be 2-11 and 15 as specified by the 802.11mc std for
-	 * the FTM parameter burst duration. In a multi-burst
-	 * request, if responder overrides with larger value,
-	 * the initiator will return failure. In a single-burst
-	 * request if responder overrides with larger value,
-	 * the initiator will sent TMR_STOP to terminate RTT
-	 * at the end of the burst_duration it requested. */
-	t_u32 burst_duration;
-	/** RTT preamble to be used in the RTT frames */
-	wifi_preamble preamble;
-	/** RTT BW to be used in the RTT frames */
-	wifi_rtt_bw bw;
-} wifi_rtt_config;
-
-/** Format of information elements found in the beacon */
-typedef struct {
-	/** element identifier */
-	t_u8 id;
-	/** number of bytes to follow */
-	t_u8 len;
-	t_u8 data[];
-} wifi_information_element;
-
-/** RTT results */
-typedef struct {
-	/** device mac address */
-	t_u8 addr[MLAN_MAC_ADDR_LENGTH];
-	/** burst number in a multi-burst request */
-	t_u32 burst_num;
-	/** Total RTT measurement frames attempted */
-	t_u32 measurement_number;
-	/** Total successful RTT measurement frames */
-	t_u32 success_number;
-	/** Maximum number of "FTM frames per burst" supported by
-	 * the responder STA. Applies to 2-sided RTT only.
-	 * If reponder overrides with larger value:
-	 * - for single-burst request initiator will truncate the
-	 * larger value and send a TMR_STOP after receiving as
-	 * many frames as originally requested.
-	 * - for multi-burst request, initiator will return
-	 * failure right away */
-	t_u8 number_per_burst_peer;
-	/** ranging status */
-	wifi_rtt_status status;
-	/** When status == RTT_STATUS_FAIL_BUSY_TRY_LATER,
-	 * this will be the time provided by the responder as to
-	 * when the request can be tried again. Applies to 2-sided
-	 * RTT only. In sec, 1-31sec. */
-	t_u8 retry_after_duration;
-	/** RTT type */
-	wifi_rtt_type type;
-	/** average rssi in 0.5 dB steps e.g. 143 implies -71.5 dB */
-	int rssi;
-	/** rssi spread in 0.5 dB steps e.g. 5 implies 2.5 dB spread (optional)
-	 */
-	int rssi_spread;
-	/** 1-sided RTT: TX rate of RTT frame.
-	 * 2-sided RTT: TX rate of initiator's Ack in response to FTM frame. */
-	wifi_rate tx_rate;
-	/** 1-sided RTT: TX rate of Ack from other side.
-	 * 2-sided RTT: TX rate of FTM frame coming from responder. */
-	wifi_rate rx_rate;
-	/** round trip time in picoseconds */
-	t_s64 rtt;
-	/** rtt standard deviation in picoseconds */
-	t_s64 rtt_sd;
-	/** difference between max and min rtt times recorded in picoseconds */
-	t_s64 rtt_spread;
-	/** distance in mm (optional) */
-	int distance_mm;
-	/** standard deviation in mm (optional) */
-	int distance_sd_mm;
-	/** difference between max and min distance recorded in mm (optional) */
-	int distance_spread_mm;
-	/** time of the measurement (in microseconds since boot) */
-	t_s64 ts;
-	/** in ms, actual time taken by the FW to finish one burst
-	 * measurement. Applies to 1-sided and 2-sided RTT. */
-	int burst_duration;
-	/** Number of bursts allowed by the responder. Applies
-	 * to 2-sided RTT only. */
-	int negotiated_burst_num;
-	/** for 11mc only */
-	wifi_information_element *LCI;
-	/** for 11mc only */
-	wifi_information_element *LCR;
-} wifi_rtt_result;
-
-/** Preamble definition for bit mask used in wifi_rtt_capabilities */
-#define PREAMBLE_LEGACY 0x1
-#define PREAMBLE_HT 0x2
-#define PREAMBLE_VHT 0x4
-
-/** BW definition for bit mask used in wifi_rtt_capabilities */
-#define BW_5_SUPPORT 0x1
-#define BW_10_SUPPORT 0x2
-#define BW_20_SUPPORT 0x4
-#define BW_40_SUPPORT 0x8
-#define BW_80_SUPPORT 0x10
-#define BW_160_SUPPORT 0x20
-
-/** RTT Capabilities */
-typedef struct {
-	/** if 1-sided rtt data collection is supported */
-	t_u8 rtt_one_sided_supported;
-	/** if ftm rtt data collection is supported */
-	t_u8 rtt_ftm_supported;
-	/** if initiator supports LCI request. Applies to 2-sided RTT */
-	t_u8 lci_support;
-	/** if initiator supports LCR request. Applies to 2-sided RTT */
-	t_u8 lcr_support;
-	/** bit mask indicates what preamble is supported by initiator */
-	t_u8 preamble_support;
-	/** bit mask indicates what BW is supported by initiator */
-	t_u8 bw_support;
-	/** if 11mc responder mode is supported */
-	t_u8 responder_supported;
-	/** draft 11mc spec version supported by chip. For instance,
-	 * version 4.0 should be 40 and version 4.3 should be 43 etc. */
-	t_u8 mc_version;
-} wifi_rtt_capabilities;
-
-/** API for setting LCI/LCR information to be provided to a requestor */
-typedef enum {
-	/** Not expected to change location */
-	WIFI_MOTION_NOT_EXPECTED = 0,
-	/** Expected to change location */
-	WIFI_MOTION_EXPECTED = 1,
-	/** Movement pattern unknown */
-	WIFI_MOTION_UNKNOWN = 2,
-} wifi_motion_pattern;
-
-/** LCI information */
-typedef struct {
-	/** latitude in degrees * 2^25 , 2's complement */
-	long latitude;
-	/** latitude in degrees * 2^25 , 2's complement */
-	long longitude;
-	/** Altitude in units of 1/256 m */
-	int altitude;
-	/** As defined in Section 2.3.2 of IETF RFC 6225 */
-	t_u8 latitude_unc;
-	/** As defined in Section 2.3.2 of IETF RFC 6225 */
-	t_u8 longitude_unc;
-	/** As defined in Section 2.4.5 from IETF RFC 6225: */
-	t_u8 altitude_unc;
-	/** Following element for configuring the Z subelement */
-	wifi_motion_pattern motion_pattern;
-	/** floor in units of 1/16th of floor. 0x80000000 if unknown. */
-	int floor;
-	/** in units of 1/64 m */
-	int height_above_floor;
-	/** in units of 1/64 m. 0 if unknown */
-	int height_unc;
-} wifi_lci_information;
-
-/** LCR information */
-typedef struct {
-	/** country code */
-	char country_code[2];
-	/** length of the info field */
-	int length;
-	/** Civic info to be copied in FTM frame */
-	char civic_info[256];
-} wifi_lcr_information;
-
-/**
- * RTT Responder information
- */
-typedef struct {
-	wifi_channel_info channel;
-	wifi_preamble preamble;
-} wifi_rtt_responder;
-
-/** =========== Define Copied from HAL END =========== */
-
-#define MAX_RTT_CONFIG_NUM 10
-
-/** RTT config params */
-typedef struct wifi_rtt_config_params {
-	t_u8 rtt_config_num;
-	wifi_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
-} wifi_rtt_config_params_t;
-
-#define OID_RTT_REQUEST 0
-#define OID_RTT_CANCEL 1
-
-/** Pass RTT result element between mlan and moal */
-typedef struct {
-	/** element identifier  */
-	t_u16 id;
-	/** number of bytes to follow  */
-	t_u16 len;
-	/** data: fill with one wifi_rtt_result  */
-	t_u8 data[];
-} wifi_rtt_result_element;
-
 /** station stats */
 typedef struct _sta_stats {
 	/** last_rx_in_msec */
@@ -2684,17 +1993,10 @@ typedef struct _mlan_callbacks {
 	/** moal_free_mlan_buffer */
 	mlan_status (*moal_free_mlan_buffer)(t_void *pmoal, pmlan_buffer pmbuf);
 
-#ifdef USB
-	/** moal_write_data_async */
-	mlan_status (*moal_write_data_async)(t_void *pmoal, pmlan_buffer pmbuf,
-					     t_u32 port);
-#endif /* USB */
-#if defined(SDIO) || defined(PCIE)
 	/** moal_write_reg */
 	mlan_status (*moal_write_reg)(t_void *pmoal, t_u32 reg, t_u32 data);
 	/** moal_read_reg */
 	mlan_status (*moal_read_reg)(t_void *pmoal, t_u32 reg, t_u32 *data);
-#endif /* SDIO || PCIE */
 	/** moal_write_data_sync */
 	mlan_status (*moal_write_data_sync)(t_void *pmoal, pmlan_buffer pmbuf,
 					    t_u32 port, t_u32 timeout);
@@ -2710,34 +2012,6 @@ typedef struct _mlan_callbacks {
 	mlan_status (*moal_vmalloc)(t_void *pmoal, t_u32 size, t_u8 **ppbuf);
 	/** moal_vfree */
 	mlan_status (*moal_vfree)(t_void *pmoal, t_u8 *pbuf);
-#ifdef PCIE
-	/** moal_malloc_consistent */
-	mlan_status (*moal_malloc_consistent)(t_void *pmoal, t_u32 size,
-					      t_u8 **ppbuf, t_u64 *pbuf_pa);
-	/** moal_mfree_consistent */
-	mlan_status (*moal_mfree_consistent)(t_void *pmoal, t_u32 size,
-					     t_u8 *pbuf, t_u64 buf_pa);
-	/** moal_malloc_cached */
-	mlan_status (*moal_malloc_cached)(t_void *pmoal, t_u32 size,
-					  t_u8 **ppbuf, t_u64 *pbuf_pa);
-	/** moal_mfree_cached */
-	mlan_status (*moal_mfree_cached)(t_void *pmoal, t_u32 size, t_u8 *pbuf,
-					 t_u64 buf_pa);
-	/** moal_dma_sync_to_cpu */
-	mlan_status (*moal_dma_sync_to_cpu)(t_void *pmoal, t_u32 size,
-					    t_u64 buf_pa,
-					    moal_dma_sync_direction_t direction);
-	/** moal_dma_sync_to_device */
-	mlan_status (*moal_dma_sync_to_device)(
-		t_void *pmoal, t_u32 size, t_u64 buf_pa,
-		moal_dma_sync_direction_t direction);
-	/** moal_map_memory */
-	mlan_status (*moal_map_memory)(t_void *pmoal, t_u8 *pbuf,
-				       t_u64 *pbuf_pa, t_u32 size, t_u32 flag);
-	/** moal_unmap_memory */
-	mlan_status (*moal_unmap_memory)(t_void *pmoal, t_u8 *pbuf,
-					 t_u64 buf_pa, t_u32 size, t_u32 flag);
-#endif /* PCIE */
 	/** moal_memset */
 	t_void *(*moal_memset)(t_void *pmoal, t_void *pmem, t_u8 byte,
 			       t_u32 num);
@@ -2797,16 +2071,7 @@ typedef struct _mlan_callbacks {
 				     t_u8 antenna);
 	t_void (*moal_updata_peer_signal)(t_void *pmoal, t_u32 bss_index,
 					  t_u8 *peer_addr, t_s8 snr, t_s8 nflr);
-	mlan_status (*moal_get_host_time_ns)(t_u64 *time);
 	t_u64 (*moal_do_div)(t_u64 num, t_u32 base);
-	void (*moal_tp_accounting)(t_void *pmoal, t_void *buf,
-				   t_u32 drop_point);
-	void (*moal_tp_accounting_rx_param)(t_void *pmoal, unsigned int type,
-					    unsigned int rsvd1);
-	void (*moal_amsdu_tp_accounting)(t_void *pmoal, t_s32 delay,
-					 t_s32 copy_delay);
-	mlan_status (*moal_calc_short_ssid)(t_u8 *pssid, t_u32 ssid_len,
-					    t_u32 *pshort_ssid);
 	/* Unaligned Access */
 	struct unaligned_access {
 		t_u16 (*moal_read_u16)(const void *src);
@@ -2819,12 +2084,6 @@ typedef struct _mlan_callbacks {
 			       unsigned long len);
 } mlan_callbacks, *pmlan_callbacks;
 
-/** Parameter unchanged, use MLAN default setting */
-#define ROBUSTCOEX_GPIO_UNCHANGED 0
-/** Parameter enabled, override MLAN default setting */
-#define ROBUSTCOEX_GPIO_CFG 1
-
-#if defined(SDIO)
 /** Interrupt Mode SDIO */
 #define INT_MODE_SDIO 0
 /** Interrupt Mode GPIO */
@@ -2832,7 +2091,6 @@ typedef struct _mlan_callbacks {
 /** New mode: GPIO-1 as a duplicated signal of interrupt as appear of SDIO_DAT1
  */
 #define GPIO_INT_NEW_MODE 255
-#endif
 
 /** Parameter unchanged, use MLAN default setting */
 #define MLAN_INIT_PARA_UNCHANGED 0
@@ -2840,25 +2098,6 @@ typedef struct _mlan_callbacks {
 #define MLAN_INIT_PARA_ENABLED 1
 /** Parameter disabled, override MLAN default setting */
 #define MLAN_INIT_PARA_DISABLED 2
-
-/** Control bit for stream 2X2 */
-#define FEATURE_CTRL_STREAM_2X2 MBIT(0)
-/** Control bit for DFS support */
-#define FEATURE_CTRL_DFS_SUPPORT MBIT(1)
-#ifdef USB
-/** Control bit for winner check & not wait for FW ready event */
-#define FEATURE_CTRL_USB_NEW_INIT MBIT(2)
-#endif
-/** Default feature control */
-#define FEATURE_CTRL_DEFAULT 0xffffffff
-/** Check if stream 2X2 enabled */
-#define IS_STREAM_2X2(x) ((x)&FEATURE_CTRL_STREAM_2X2)
-/** Check if DFS support enabled */
-#define IS_DFS_SUPPORT(x) ((x)&FEATURE_CTRL_DFS_SUPPORT)
-#ifdef USB
-/** Check if winner check & not wait for FW ready event */
-#define IS_USB_NEW_INIT(x) ((x)&FEATURE_CTRL_USB_NEW_INIT)
-#endif
 
 /*
 #define DRV_MODE_NAN                 MBIT(4)
@@ -2879,15 +2118,10 @@ typedef struct _mlan_device {
 	/** MFG mode */
 	t_u32 mfg_mode;
 #endif
-#ifdef PCIE
-	t_u16 ring_size;
-#endif
-#if defined(SDIO)
 	/** SDIO interrupt mode (0: INT_MODE_SDIO, 1: INT_MODE_GPIO) */
 	t_u32 int_mode;
 	/** GPIO interrupt pin number */
 	t_u32 gpio_pin;
-#endif
 #ifdef DEBUG_LEVEL1
 	/** Driver debug bit masks */
 	t_u32 drvdbg;
@@ -2898,7 +2132,6 @@ typedef struct _mlan_device {
 	t_u32 mpa_tx_cfg;
 	/** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
-#ifdef SDIO
 	/** host max block num */
 	t_u32 max_blk_count;
 	/** sdio blk size */
@@ -2911,7 +2144,6 @@ typedef struct _mlan_device {
 	t_u16 max_segs;
 	/** SDIO bus mode (0: Non-SPI mode, 1: SPI mode) */
 	t_u8 spi_mode;
-#endif
 	/** Auto deep sleep */
 	t_u32 auto_ds;
 	/** Boot Time Config */
@@ -2924,8 +2156,6 @@ typedef struct _mlan_device {
 	/** 802.11d configuration */
 	t_u32 cfg_11d;
 #endif
-	/** Feature control bitmask */
-	t_u32 feature_control;
 	/** enable/disable rx work */
 	t_u8 rx_work;
 	/** dev cap mask */
@@ -2944,23 +2174,6 @@ typedef struct _mlan_device {
 	t_u32 hs_wake_interval;
 	/** GPIO to indicate wakeup source */
 	t_u8 indication_gpio;
-	/** Dynamic MIMO-SISO switch for hscfg*/
-	t_u8 hs_mimo_switch;
-	/** channel time and mode for DRCS*/
-	t_u32 drcs_chantime_mode;
-#ifdef USB
-	/** Tx CMD endpoint address */
-	t_u8 tx_cmd_ep;
-	/** Rx CMD/EVT endpoint address */
-	t_u8 rx_cmd_ep;
-
-	/** Rx data endpoint address */
-	t_u8 rx_data_ep;
-	/** Tx data endpoint address */
-	t_u8 tx_data_ep;
-	/** Tx data second endpoint address */
-	t_u8 tx_data2_ep;
-#endif
 	/** passive to active scan */
 	t_u8 passive_to_active_scan;
 	/** uap max supported station per chip */
@@ -2979,24 +2192,13 @@ typedef struct _mlan_device {
 	t_u8 ext_scan;
 	/* mcs32 setting */
 	t_u8 mcs32;
-	/** second mac flag */
-	t_u8 second_mac;
 	/** napi */
 	t_u8 napi;
-	t_u8 copy_on_rx;
-	t_u8 copy_on_tx;
 	/** antcfg */
 	t_u32 antcfg;
-	/** dmcs */
-	t_u8 dmcs;
-	t_u8 pref_dbc;
 	t_u32 reject_addba_req;
 
-	t_u32 max_tx_pending;
-	t_u16 tx_budget;
-	t_u8 mclient_scheduling;
 	t_u8 disable_11h_tpc;
-	t_u8 tpe_ie_ignore;
 	t_u32 amsdu_disable;
 } mlan_device, *pmlan_device;
 
@@ -3035,18 +2237,6 @@ mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts);
 /** Packet Transmission */
 MLAN_API mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf);
 
-#ifdef USB
-/** mlan_write_data_async_complete */
-MLAN_API mlan_status mlan_write_data_async_complete(t_void *padapter,
-						    pmlan_buffer pmbuf,
-						    t_u32 port,
-						    mlan_status status);
-
-/** Packet Reception */
-MLAN_API mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf,
-			       t_u32 port);
-#endif /* USB */
-
 /** Packet Reception complete callback */
 MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 					       pmlan_buffer pmbuf,
@@ -3055,7 +2245,6 @@ MLAN_API mlan_status mlan_recv_packet_complete(t_void *padapter,
 /** handle amsdu deaggregated packet */
 void mlan_process_deaggr_pkt(t_void *padapter, pmlan_buffer pmbuf, t_u8 *drop);
 
-#if defined(SDIO) || defined(PCIE)
 /** interrupt handler */
 MLAN_API mlan_status mlan_interrupt(t_u16 msg_id, t_void *padapter);
 
@@ -3063,15 +2252,10 @@ MLAN_API mlan_status mlan_interrupt(t_u16 msg_id, t_void *padapter);
 /** GPIO IRQ callback function */
 MLAN_API t_void mlan_hs_callback(t_void *pctx);
 #endif /* SYSKT_MULTI || SYSKT */
-#endif /* SDIO || PCIE */
 
 MLAN_API t_void mlan_pm_wakeup_card(t_void *padapter, t_u8 keep_wakeup);
 
 MLAN_API t_u8 mlan_is_main_process_running(t_void *adapter);
-#ifdef PCIE
-MLAN_API t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode,
-				  t_u8 func_num);
-#endif
 /** mlan ioctl */
 MLAN_API mlan_status mlan_ioctl(t_void *padapter, pmlan_ioctl_req pioctl_req);
 /** mlan select wmm queue */
@@ -3081,9 +2265,6 @@ MLAN_API t_u8 mlan_select_wmm_queue(t_void *padapter, t_u8 bss_num, t_u8 tid);
 MLAN_API mlan_status mlan_disable_host_int(t_void *padapter);
 /** mlan unmask host interrupt */
 MLAN_API mlan_status mlan_enable_host_int(t_void *padapter);
-#ifdef PCIE
-MLAN_API void mlan_process_pcie_interrupt_cb(t_void *pmadapter, int type);
-#endif
 
 #define CSI_SIGNATURE 0xABCD
 

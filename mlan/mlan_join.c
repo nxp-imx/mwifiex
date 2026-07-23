@@ -37,7 +37,6 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
 #include "mlan_11ac.h"
-#include "mlan_11ax.h"
 #include "mlan_11h.h"
 /********************************************************
 			Local Constants
@@ -689,7 +688,7 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u8 preference_selected;
 	t_u8 cipher_selected_id;
 #if 0 // defined(ENABLE_GCMP_SUPPORT)
-      //  embedded supplicant doesn't support GCMP yet
+      // embedded supplicant doesn't support GCMP yet
 	t_u8 cipher_preference[11] = {0, 0, 1, 0, 2, 0, 0, 0, 4, 5, 3};
 #else
 	t_u8 cipher_preference[5] = {0, 0, 1, 0, 2};
@@ -1079,9 +1078,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	MrvlIEtypes_HostMlme_t *host_mlme_tlv = MNULL;
 	MrvlIEtypes_PrevBssid_t *prev_bssid_tlv = MNULL;
 	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
-	MrvlIEtypes_MultiAp_t *multi_ap_tlv = MNULL;
 	MrvlIETypes_VHTCap_t *pvhtcap = MNULL;
-	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	MrvlIEtypesHeader_t *papInfo_tlv = MNULL;
 	MrvlIEtypesHeader_t *pvendorOUI_tlv;
 	t_u8 ie_len = 0;
@@ -1196,10 +1193,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			pauth_tlv->auth_type =
 				wlan_cpu_to_le16(AssocAgentAuth_FastBss_Skip);
 		else if (pmpriv->sec_info.authentication_mode ==
-			 MLAN_AUTH_MODE_FILS)
-			pauth_tlv->auth_type =
-				wlan_cpu_to_le16(AssocAgentAuth_FILS);
-		else if (pmpriv->sec_info.authentication_mode ==
 			 MLAN_AUTH_MODE_SAE)
 			pauth_tlv->auth_type =
 				wlan_cpu_to_le16(AssocAgentAuth_Wpa3Sae);
@@ -1261,11 +1254,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
 			wlan_band_to_radio_type(pbss_desc->bss_band);
-		if (pbss_desc->bss_band == BAND_6G)
-			pchan_tlv->chan_scan_param[0].bandcfg.chanWidth =
-				wlan_get_6g_ap_bandconfig(
-					pbss_desc,
-					&pchan_tlv->chan_scan_param[0].bandcfg);
 		PRINTM(MINFO, "Assoc: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
 		pos += sizeof(pchan_tlv->header) + sizeof(ChanScanParamSet_t);
@@ -1497,19 +1485,11 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	    wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);
 
-	if ((IS_FW_SUPPORT_11AX(pmadapter)) &&
-	    wlan_11ax_bandconfig_allowed(pmpriv, pbss_desc))
-		wlan_cmd_append_11ax_tlv(pmpriv, pbss_desc, &pos);
-
 	if ((!pbss_desc->disable_11n) &&
 	    (ISSUPP_11NENABLED(pmadapter->fw_cap_info) ||
-	     ISSUPP_11ACENABLED(pmadapter->fw_cap_info) ||
-	     IS_FW_SUPPORT_11AX(pmadapter))) {
+	     ISSUPP_11ACENABLED(pmadapter->fw_cap_info))) {
 		PRINTM(MCMND, "STBC NOT supported, Will be disabled\n");
 	}
-	if ((IS_FW_SUPPORT_6G(pmadapter)) &&
-	    wlan_116e_bandconfig_allowed(pmpriv, pbss_desc))
-		wlan_cmd_append_116e_tlv(pmpriv, pbss_desc, &pos);
 
 	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie);
 	if (pmpriv->sec_info.wapi_enabled && pmpriv->wapi_ie_len)
@@ -1551,18 +1531,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 		pos += sizeof(prev_bssid_tlv->header) + MLAN_MAC_ADDR_LENGTH;
 	}
 
-	if (pmpriv->multi_ap_flag) {
-		multi_ap_tlv = (MrvlIEtypes_MultiAp_t *)pos;
-		multi_ap_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_MULTI_AP);
-		multi_ap_tlv->header.len = sizeof(multi_ap_tlv->flag);
-		multi_ap_tlv->flag = pmpriv->multi_ap_flag;
-		PRINTM(MINFO, " TLV multi_ap_flag : 0x%x\n",
-		       multi_ap_tlv->flag);
-		pos += sizeof(multi_ap_tlv->header) + multi_ap_tlv->header.len;
-		multi_ap_tlv->header.len =
-			wlan_cpu_to_le16(sizeof(multi_ap_tlv->flag));
-	}
-
 	if (wlan_11d_create_dnld_countryinfo(pmpriv, pbss_desc->bss_band)) {
 		PRINTM(MERROR, "Dnld_countryinfo_11d failed\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -1598,24 +1566,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			pos += ie_len;
 			pvhtcap->header.len =
 				wlan_cpu_to_le16(pvhtcap->header.len);
-		}
-
-		/* append AP he cap tlv */
-		if (pbss_desc->phe_cap) {
-			ie_len = sizeof(MrvlIEtypesHeader_t) +
-				 pbss_desc->phe_cap->ieee_hdr.len;
-			papInfo_tlv->len += ie_len;
-			phecap = (MrvlIEtypes_He_cap_t *)pos;
-			phecap->type = wlan_cpu_to_le16(EXTENSION);
-			phecap->len = pbss_desc->phe_cap->ieee_hdr.len;
-			memcpy_ext(pmadapter,
-				   (t_u8 *)phecap + sizeof(MrvlIEtypesHeader_t),
-				   (t_u8 *)pbss_desc->phe_cap +
-					   sizeof(IEEEtypes_Header_t),
-				   pbss_desc->phe_cap->ieee_hdr.len,
-				   pbss_desc->phe_cap->ieee_hdr.len);
-			pos += ie_len;
-			phecap->len = wlan_cpu_to_le16(phecap->len);
 		}
 
 		/* append AP vendor oui list tlv */
@@ -1661,9 +1611,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 	if (pmpriv->config_bands == BAND_B)
 		SHORT_SLOT_TIME_DISABLED(tmp_cap);
-
-	if (pmpriv->adapter->pcard_info->support_11mc)
-		RADIO_MEASUREMENT_ENABLED(tmp_cap);
 
 	tmp_cap &= CAPINFO_MASK;
 	PRINTM(MINFO, "ASSOC_CMD: tmp_cap=%4X CAPINFO_MASK=%4lX\n", tmp_cap,
@@ -1889,7 +1836,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	/* Send a Media Connected event, according to the Spec */
 	pmpriv->media_connected = MTRUE;
-	pmpriv->multi_ap_flag = 0;
 	pmpriv->adapter->pps_uapsd_mode = MFALSE;
 	pmpriv->adapter->tx_lock_flag = MFALSE;
 	pmpriv->adapter->delay_null_pkt = MFALSE;
@@ -1985,15 +1931,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_4K;
 	} else if (pbss_desc->pht_cap) {
 		if (GETHT_MAXAMSDU(pbss_desc->pht_cap->ht_cap.ht_cap_info))
-			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_8K;
-		else
-			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_4K;
-	} else if (pbss_desc->phe_6g_cap) {
-		if (GET_6G_BAND_CAP_MAXMPDULEN(pbss_desc->phe_6g_cap->capa) ==
-		    2)
-			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_12K;
-		else if (GET_6G_BAND_CAP_MAXMPDULEN(
-				 pbss_desc->phe_6g_cap->capa) == 1)
 			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_8K;
 		else
 			pmpriv->max_amsdu = MLAN_TX_DATA_BUF_SIZE_4K;
@@ -2210,9 +2147,6 @@ t_u8 wlan_band_to_radio_type(t_u16 band)
 	case BAND_A | BAND_AN:
 	case BAND_A | BAND_AN | BAND_AAC:
 		ret_radio_type = BAND_5GHZ;
-		break;
-	case BAND_6G:
-		ret_radio_type = BAND_6GHZ;
 		break;
 	case BAND_B:
 	case BAND_G:

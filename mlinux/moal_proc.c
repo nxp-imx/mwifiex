@@ -34,9 +34,7 @@ Change log:
 #include "moal_cfg80211.h"
 #include "moal_cfg80211_util.h"
 #endif
-#ifdef SDIO
 #include "moal_sdio.h"
-#endif
 
 /********************************************************
 		Local Variables
@@ -285,86 +283,6 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 			   ustats.rsna_4way_hshk_failures);
 	}
 #endif /* UAP_SUPPORT */
-	seq_printf(sfp, "=== tp_acnt.on:%d drop_point:%d ===\n",
-		   handle->tp_acnt.on, handle->tp_acnt.drop_point);
-	seq_printf(sfp, "====Tx accounting====\n");
-	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
-		seq_printf(sfp, "[%d] Tx packets     : %lu\n", i,
-			   handle->tp_acnt.tx_packets[i]);
-		seq_printf(sfp, "[%d] Tx packets last: %lu\n", i,
-			   handle->tp_acnt.tx_packets_last[i]);
-		seq_printf(sfp, "[%d] Tx packets rate: %lu\n", i,
-			   handle->tp_acnt.tx_packets_rate[i]);
-		seq_printf(sfp, "[%d] Tx bytes       : %lu\n", i,
-			   handle->tp_acnt.tx_bytes[i]);
-		seq_printf(sfp, "[%d] Tx bytes last  : %lu\n", i,
-			   handle->tp_acnt.tx_bytes_last[i]);
-		seq_printf(sfp, "[%d] Tx bytes rate  : %luMbps\n", i,
-			   handle->tp_acnt.tx_bytes_rate[i] * 8 / 1024 / 1024);
-	}
-	seq_printf(sfp, "Tx amsdu cnt		: %lu\n",
-		   handle->tp_acnt.tx_amsdu_cnt);
-	seq_printf(sfp, "Tx amsdu cnt last	: %lu\n",
-		   handle->tp_acnt.tx_amsdu_cnt_last);
-	seq_printf(sfp, "Tx amsdu cnt rate	: %lu\n",
-		   handle->tp_acnt.tx_amsdu_cnt_rate);
-	seq_printf(sfp, "Tx amsdu pkt cnt	: %lu\n",
-		   handle->tp_acnt.tx_amsdu_pkt_cnt);
-	seq_printf(sfp, "Tx amsdu pkt cnt last : %lu\n",
-		   handle->tp_acnt.tx_amsdu_pkt_cnt_last);
-	seq_printf(sfp, "Tx amsdu pkt cnt rate : %lu\n",
-		   handle->tp_acnt.tx_amsdu_pkt_cnt_rate);
-	seq_printf(sfp, "Tx intr cnt    		: %lu\n",
-		   handle->tp_acnt.tx_intr_cnt);
-	seq_printf(sfp, "Tx intr last        : %lu\n",
-		   handle->tp_acnt.tx_intr_last);
-	seq_printf(sfp, "Tx intr rate        : %lu\n",
-		   handle->tp_acnt.tx_intr_rate);
-	seq_printf(sfp, "Tx pending          : %lu\n",
-		   handle->tp_acnt.tx_pending);
-	seq_printf(sfp, "Tx xmit skb realloc : %lu\n",
-		   handle->tp_acnt.tx_xmit_skb_realloc_cnt);
-	seq_printf(sfp, "Tx stop queue cnt : %lu\n",
-		   handle->tp_acnt.tx_stop_queue_cnt);
-	seq_printf(sfp, "====Rx accounting====\n");
-	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
-		seq_printf(sfp, "[%d] Rx packets     : %lu\n", i,
-			   handle->tp_acnt.rx_packets[i]);
-		seq_printf(sfp, "[%d] Rx packets last: %lu\n", i,
-			   handle->tp_acnt.rx_packets_last[i]);
-		seq_printf(sfp, "[%d] Rx packets rate: %lu\n", i,
-			   handle->tp_acnt.rx_packets_rate[i]);
-		seq_printf(sfp, "[%d] Rx bytes       : %lu\n", i,
-			   handle->tp_acnt.rx_bytes[i]);
-		seq_printf(sfp, "[%d] Rx bytes last  : %lu\n", i,
-			   handle->tp_acnt.rx_bytes_last[i]);
-		seq_printf(sfp, "[%d] Rx bytes rate  : %luMbps\n", i,
-			   handle->tp_acnt.rx_bytes_rate[i] * 8 / 1024 / 1024);
-	}
-	seq_printf(sfp, "Rx amsdu cnt		 : %lu\n",
-		   handle->tp_acnt.rx_amsdu_cnt);
-	seq_printf(sfp, "Rx amsdu cnt last	 : %lu\n",
-		   handle->tp_acnt.rx_amsdu_cnt_last);
-	seq_printf(sfp, "Rx amsdu cnt rate	 : %lu\n",
-		   handle->tp_acnt.rx_amsdu_cnt_rate);
-	seq_printf(sfp, "Rx amsdu pkt cnt	 : %lu\n",
-		   handle->tp_acnt.rx_amsdu_pkt_cnt);
-	seq_printf(sfp, "Rx amsdu pkt cnt last : %lu\n",
-		   handle->tp_acnt.rx_amsdu_pkt_cnt_last);
-	seq_printf(sfp, "Rx amsdu pkt cnt rate : %lu\n",
-		   handle->tp_acnt.rx_amsdu_pkt_cnt_rate);
-	seq_printf(sfp, "Rx intr cnt    	 : %lu\n",
-		   handle->tp_acnt.rx_intr_cnt);
-	seq_printf(sfp, "Rx intr last        : %lu\n",
-		   handle->tp_acnt.rx_intr_last);
-	seq_printf(sfp, "Rx intr rate        : %lu\n",
-		   handle->tp_acnt.rx_intr_rate);
-	seq_printf(sfp, "Rx pending          : %lu\n",
-		   handle->tp_acnt.rx_pending);
-	seq_printf(sfp, "Rx pause            : %lu\n",
-		   handle->tp_acnt.rx_paused_cnt);
-	seq_printf(sfp, "Rx rdptr full cnt   : %lu\n",
-		   handle->tp_acnt.rx_rdptr_full_cnt);
 exit:
 	LEAVE();
 	MODULE_PUT;
@@ -399,7 +317,6 @@ static const struct file_operations info_proc_fops = {
 };
 #endif
 
-#ifdef SDIO
 #define CMD52_STR_LEN 50
 /*
  *  @brief Parse cmd52 string
@@ -455,7 +372,6 @@ static int parse_cmd52_string(const char *buffer, size_t len, int *func,
 	LEAVE();
 	return ret;
 }
-#endif
 
 static void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
 {
@@ -491,40 +407,17 @@ static void woal_priv_get_tx_rx_ant(struct seq_file *sfp, moal_private *priv)
 		LEAVE();
 		return;
 	}
-	if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-		data[0] = radio->param.ant_cfg.tx_antenna;
-		data[1] = radio->param.ant_cfg.rx_antenna;
-		if (data[0] && data[1])
-			ret = sizeof(int) * 2;
-		else
-			ret = sizeof(int) * 1;
-		if (IS_CARDIW624(priv->phandle->card_type) ||
-		    IS_CARDAW693(priv->phandle->card_type)) {
-			data[2] = radio->param.ant_cfg.tx_antenna_6g;
-			data[3] = radio->param.ant_cfg.rx_antenna_6g;
-			if (data[2] && data[3])
-				ret = sizeof(int) * 4;
-		}
-		if (ret == sizeof(int) * 1)
-			seq_printf(sfp, "antcfg=0x%x\n", data[0]);
-		else if (ret == sizeof(int) * 2)
-			seq_printf(sfp, "antcfg=0x%x 0x%x\n", data[0], data[1]);
-		else if (ret == sizeof(int) * 4)
-			seq_printf(sfp, "antcfg=0x%x 0x%x %d %d\n", data[0],
-				   data[1], data[2], data[3]);
+	data[0] = radio->param.ant_cfg.tx_antenna;
+	data[1] = radio->param.ant_cfg.rx_antenna;
+	if (data[0] && data[1])
+		ret = sizeof(int) * 2;
+	else
+		ret = sizeof(int) * 1;
+	if (ret == sizeof(int) * 1)
+		seq_printf(sfp, "antcfg=0x%x\n", data[0]);
+	else if (ret == sizeof(int) * 2)
+		seq_printf(sfp, "antcfg=0x%x 0x%x\n", data[0], data[1]);
 
-	} else {
-		if (radio->param.ant_cfg_1x1.antenna == 0xffff) {
-			seq_printf(
-				sfp, "antcfg=0x%x %d %d\n",
-				(int)radio->param.ant_cfg_1x1.antenna,
-				(int)radio->param.ant_cfg_1x1.evaluate_time,
-				(int)radio->param.ant_cfg_1x1.current_antenna);
-		} else {
-			seq_printf(sfp, "antcfg=0x%x\n",
-				   (int)radio->param.ant_cfg_1x1.antenna);
-		}
-	}
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 	LEAVE();
@@ -544,7 +437,7 @@ static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 	memset((char *)data, 0, sizeof(data));
 	parse_arguments(line, data, ARRAY_SIZE(data), &user_data_len);
 
-	if (user_data_len > 4) {
+	if (user_data_len > 2) {
 		PRINTM(MERROR, "Invalid number of args!\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -570,43 +463,27 @@ static mlan_status woal_priv_set_tx_rx_ant(moal_handle *handle, char *line)
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
 
-	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-		radio->param.ant_cfg.tx_antenna = data[0];
-		if (data[0] == RF_ANTENNA_AUTO) {
-			radio->param.ant_cfg.rx_antenna = 0;
-			if (data[1] > 0xffff) {
-				kfree(req);
-				LEAVE();
-				return MLAN_STATUS_FAILURE;
-			}
-		} else {
-			radio->param.ant_cfg.rx_antenna = data[0];
-		}
-		if (user_data_len == 2)
-			radio->param.ant_cfg.rx_antenna = data[1];
-		if (user_data_len == 4) {
-			radio->param.ant_cfg.tx_antenna_6g = data[2];
-			radio->param.ant_cfg.rx_antenna_6g = data[3];
-		}
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-		if (IS_CARD9098(priv->phandle->card_type) ||
-		    IS_CARD9097(priv->phandle->card_type) ||
-		    IS_CARDIW624(priv->phandle->card_type) ||
-		    IS_CARDAW693(priv->phandle->card_type)) {
-			woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy,
-						    radio);
-		}
-#endif
-	} else
-		radio->param.ant_cfg_1x1.antenna = data[0];
-	if (user_data_len == 2) {
+	radio->param.ant_cfg.tx_antenna = data[0];
+	if (data[0] == RF_ANTENNA_AUTO) {
+		radio->param.ant_cfg.rx_antenna = 0;
 		if (data[1] > 0xffff) {
 			kfree(req);
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
-		radio->param.ant_cfg_1x1.evaluate_time = data[1];
+	} else {
+		radio->param.ant_cfg.rx_antenna = data[0];
 	}
+	if (user_data_len == 2)
+		radio->param.ant_cfg.rx_antenna = data[1];
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+	if (IS_CARD9098(priv->phandle->card_type) ||
+	    IS_CARD9097(priv->phandle->card_type) ||
+	    IS_CARDIW624(priv->phandle->card_type) ||
+	    IS_CARDAW693(priv->phandle->card_type)) {
+		woal_cfg80211_notify_antcfg(priv, priv->phandle->wiphy, radio);
+	}
+#endif
 	/* Send IOCTL request to MLAN */
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_PENDING)
@@ -637,10 +514,7 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 	struct seq_file *sfp = f->private_data;
 	moal_handle *handle = (moal_handle *)sfp->private;
 
-#ifdef SDIO
 	int func = 0, reg = 0, val = 0;
-#endif
-	moal_handle *ref_handle = NULL;
 	t_u32 cmd = 0;
 	t_u32 tmp_count = 0;
 	int copy_len;
@@ -700,7 +574,6 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 				PRINTM(MERROR, "Could not switch drv mode\n");
 			}
 	}
-#ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		if (!strncmp(databuf, "sdcmd52rw=", strlen("sdcmd52rw=")) &&
 		    count > strlen("sdcmd52rw=")) {
@@ -709,27 +582,11 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 			woal_sdio_read_write_cmd52(handle, func, reg, val);
 		}
 	}
-#endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
 		PRINTM(MERROR, "Recevie debug_dump command\n");
-#ifdef USB
-		if (!IS_USB(handle->card_type))
-#endif
-			handle->driver_status = MTRUE;
+		handle->driver_status = MTRUE;
 		mlan_set_driver_status(handle->pmlan_adapter,
 				       handle->driver_status);
-		ref_handle = (moal_handle *)handle->pref_mac;
-		if (ref_handle) {
-			ref_handle->driver_status = MTRUE;
-			mlan_set_driver_status(ref_handle->pmlan_adapter,
-					       ref_handle->driver_status);
-			priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
-			if (priv) {
-				ref_handle->fw_dump_status = MTRUE;
-				woal_mlan_debug_info(priv);
-				woal_moal_debug_info(priv, NULL, MFALSE);
-			}
-		}
 		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
 		if (priv) {
 			handle->fw_dump_status = MTRUE;
@@ -758,45 +615,10 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		if (!strncmp(databuf, "fw_reload=", strlen("fw_reload="))) {
 			line += strlen("fw_reload") + 1;
 			config_data = (t_u32)woal_string_to_number(line);
-		}
-#ifdef SDIO_MMC
-		else if (IS_SD(handle->card_type))
+		} else if (IS_SD(handle->card_type))
 			config_data = FW_RELOAD_SDIO_INBAND_RESET;
-#endif
 		PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
 		ret = woal_request_fw_reload(handle, config_data);
-	}
-	if (!strncmp(databuf, "drop_point=", strlen("drop_point="))) {
-		line += strlen("drop_point") + 1;
-		/* line is assigned from databuf, which is checked for NULL
-		 * before use. Therefore, line is guaranteed to be non-NULL at
-		 * this point.
-		 */
-		// coverity[string_null:SUPPRESS]
-		config_data = (t_u32)woal_string_to_number(line);
-		if (config_data) {
-			handle->tp_acnt.on = 1;
-			handle->tp_acnt.drop_point = config_data;
-			if (handle->is_tp_acnt_timer_set == MFALSE) {
-				woal_initialize_timer(&handle->tp_acnt.timer,
-						      woal_tp_acnt_timer_func,
-						      handle);
-				handle->is_tp_acnt_timer_set = MTRUE;
-				woal_mod_timer(&handle->tp_acnt.timer, 1000);
-			}
-		} else {
-			if (handle->is_tp_acnt_timer_set) {
-				woal_cancel_timer(&handle->tp_acnt.timer);
-				handle->is_tp_acnt_timer_set = MFALSE;
-			}
-			memset((void *)&handle->tp_acnt, 0,
-			       sizeof(moal_tp_acnt_t));
-		}
-		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
-		if (priv)
-			woal_set_tp_state(priv);
-		PRINTM(MMSG, "on=%d drop_point=%d\n", handle->tp_acnt.on,
-		       handle->tp_acnt.drop_point);
 	}
 	if (!strncmp(databuf, "hssetpara=", strlen("hssetpara="))) {
 		line += strlen("hssetpara") + 1;
@@ -924,13 +746,11 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "hssetpara=%d,0x%x,%d,%d\n", hscfg.conditions,
 			   hscfg.gpio, hscfg.gap, hscfg.hs_wake_interval);
 	}
-#ifdef SDIO
 	if (IS_SD(handle->card_type)) {
 		seq_printf(sfp, "sdcmd52rw=%d 0x%0x 0x%02X\n",
 			   handle->cmd52_func, handle->cmd52_reg,
 			   handle->cmd52_val);
 	}
-#endif /* SD */
 	seq_printf(sfp, "rf_test_mode=%u\n", handle->rf_test_mode);
 	if (handle->rf_test_mode && handle->rf_data) {
 		seq_printf(sfp, "tx_antenna=%u\n", handle->rf_data->tx_antenna);
@@ -1315,99 +1135,6 @@ static const struct file_operations fw_dump_fops = {
 };
 #endif
 
-#if defined(PCIE)
-static int woal_ssu_dump_read(struct seq_file *sfp, void *data)
-{
-	moal_handle *handle = (moal_handle *)sfp->private;
-	int ret = 0;
-	t_u32 i;
-	t_u32 *tmpbuf;
-	unsigned char *sfpbuf;
-	char dw_string[10] = {0};
-
-	ENTER();
-
-	if (MODULE_GET == 0) {
-		LEAVE();
-		return 0;
-	}
-
-	if (!handle) {
-		PRINTM(MERROR, "handle is null!\n");
-		goto done;
-	}
-
-	if (!handle->ssu_dump_buf || !handle->ssu_dump_len) {
-		PRINTM(MERROR,
-		       "ssu dump buffer is NULL or total length is zero\n");
-		goto done;
-	}
-
-	if (sfp->size < ((handle->ssu_dump_len * 9) / 4)) {
-		PRINTM(MCMND,
-		       "ssu dump size too big, size=%d, ssu_dump_len=%ld\n",
-		       (int)sfp->size,
-		       (long int)((handle->ssu_dump_len * 9) / 4));
-		sfp->count = sfp->size;
-		ret = 0;
-		MODULE_PUT;
-		return ret;
-	}
-
-	tmpbuf = (t_u32 *)handle->ssu_dump_buf;
-	sfpbuf = sfp->buf;
-	for (i = 0; i < handle->ssu_dump_len / 4; i++) {
-		if ((i + 1) % 8 == 0)
-			snprintf(dw_string, sizeof(dw_string), "%08x\n",
-				 *tmpbuf);
-		else
-			snprintf(dw_string, sizeof(dw_string), "%08x ",
-				 *tmpbuf);
-
-		moal_memcpy_ext(handle, sfpbuf, dw_string, 9, 9);
-		tmpbuf++;
-		sfpbuf += 9;
-	}
-
-	sfp->count = ((handle->ssu_dump_len * 9) / 4);
-	moal_vfree(handle, handle->ssu_dump_buf);
-	handle->ssu_dump_buf = NULL;
-	handle->ssu_dump_len = 0;
-
-done:
-	MODULE_PUT;
-	LEAVE();
-	return 0;
-}
-
-static int woal_ssu_dump_proc_open(struct inode *inode, struct file *file)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
-	return single_open(file, woal_ssu_dump_read, pde_data(inode));
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-	return single_open(file, woal_ssu_dump_read, PDE_DATA(inode));
-#else
-	return single_open(file, woal_ssu_dump_read, PDE(inode)->data);
-#endif
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
-static const struct proc_ops ssu_dump_fops = {
-	.proc_open = woal_ssu_dump_proc_open,
-	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
-	.proc_release = single_release,
-};
-#else
-static const struct file_operations ssu_dump_fops = {
-	.owner = THIS_MODULE,
-	.open = woal_ssu_dump_proc_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-#endif
-#endif
 #endif
 
 /**
@@ -1567,9 +1294,6 @@ void woal_proc_init(moal_handle *handle)
 #ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
-#if defined(PCIE)
-	char ssu_dump_dir[20];
-#endif
 #endif
 
 	ENTER();
@@ -1656,21 +1380,6 @@ void woal_proc_init(moal_handle *handle)
 	if (!r)
 		PRINTM(MERROR, "Failed to create proc fw dump\n");
 
-#if defined(PCIE)
-	strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	r = proc_create_data(ssu_dump_dir, 0644, handle->proc_wlan,
-			     &ssu_dump_fops, handle);
-#else
-	r = create_proc_entry(ssu_dump_dir, 0644, handle->proc_wlan);
-	if (r) {
-		r->data = handle;
-		r->proc_fops = &ssu_dump_fops;
-	}
-#endif
-	if (!r)
-		PRINTM(MERROR, "Failed to create proc ssu dump\n");
-#endif
 #endif
 
 done:
@@ -1690,9 +1399,6 @@ void woal_proc_exit(moal_handle *handle)
 #ifdef DUMP_TO_PROC
 	char drv_dump_dir[20];
 	char fw_dump_dir[20];
-#if defined(PCIE)
-	char ssu_dump_dir[20];
-#endif
 #endif
 
 	ENTER();
@@ -1706,10 +1412,6 @@ void woal_proc_exit(moal_handle *handle)
 		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
 		strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
 		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
-#if defined(PCIE)
-		strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
-		remove_proc_entry(ssu_dump_dir, handle->proc_wlan);
-#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
@@ -1739,13 +1441,6 @@ void woal_proc_exit(moal_handle *handle)
 		handle->drv_dump_len = 0;
 		handle->drv_dump_buf = NULL;
 	}
-#if defined(PCIE)
-	if (handle->ssu_dump_buf) {
-		moal_vfree(handle, handle->ssu_dump_buf);
-		handle->ssu_dump_buf = NULL;
-		handle->ssu_dump_len = 0;
-	}
-#endif
 #endif
 	LEAVE();
 }

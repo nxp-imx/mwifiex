@@ -30,33 +30,7 @@ YMD=		`date +%Y%m%d%H%M`
 # Configuration Options
 #############################################################################
 # Multi-chipsets
-CONFIG_SD8887=n
-CONFIG_SD8897=n
-CONFIG_USB8897=n
-CONFIG_PCIE8897=n
-CONFIG_SD8977=n
-CONFIG_SD8978=y
-CONFIG_USB8978=n
 CONFIG_SD8997=y
-CONFIG_USB8997=n
-CONFIG_PCIE8997=y
-CONFIG_SD8987=y
-CONFIG_SD9097=n
-CONFIG_SD9177=y
-CONFIG_SD8801=n
-CONFIG_USB8801=n
-CONFIG_USB9097=n
-CONFIG_PCIE9097=n
-CONFIG_SD9098=y
-CONFIG_USB9098=n
-CONFIG_PCIE9098=y
-CONFIG_SDIW610=y
-CONFIG_USBIW610=y
-CONFIG_SDIW624=n
-CONFIG_SDAW693=n
-CONFIG_PCIEIW624=n
-CONFIG_USBIW624=n
-CONFIG_PCIEAW693=y
 
 
 # Debug Option
@@ -92,29 +66,30 @@ CONFIG_BIG_ENDIAN=n
 
 
 
+
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
 
 # DFS testing support
 CONFIG_DFS_TESTING_SUPPORT=y
 
-# Multi-channel support
-CONFIG_MULTI_CHAN_SUPPORT=y
 
+# Enable Android kernel
+CONFIG_ANDROID_KERNEL=n
 
-
+# Enable driver/FW dump to proc
 CONFIG_DUMP_TO_PROC=y
 
-CONFIG_TASKLET_SUPPORT=n
 
 
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
+ifeq ($(ANDROID),)
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
-        ccflags-y += -Wno-packed-bitfield-compat
+	ccflags-y += -Wno-packed-bitfield-compat
 endif
 WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
 ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
@@ -133,12 +108,87 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
+endif
 
+#############################################################################
+# Enable Feature Config
+#############################################################################
+ifneq ($(KERNELRELEASE),)
+ifeq ($(CONFIG_WIRELESS_EXT),y)
+ifeq ($(CONFIG_WEXT_PRIV),y)
+	# Enable WEXT for STA
+	CONFIG_STA_WEXT=y
+	# Enable WEXT for uAP
+	CONFIG_UAP_WEXT=y
+else
+# Disable WEXT for STA
+	CONFIG_STA_WEXT=n
+# Disable WEXT for uAP
+	CONFIG_UAP_WEXT=n
+endif
+endif
+# Enable CFG80211 for STA
+ifeq ($(CONFIG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CONFIG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+# OpenWrt
+ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
+ifeq ($(CPTCFG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CPTCFG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+endif
+# Enable CFG80211 for uAP
+ifeq ($(CONFIG_CFG80211),y)
+	CONFIG_UAP_CFG80211=y
+else ifeq ($(CONFIG_CFG80211),m)
+	CONFIG_UAP_CFG80211=y
+else
+	CONFIG_UAP_CFG80211=n
+endif
+# OpenWrt
+ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
+ifeq ($(CPTCFG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CPTCFG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+endif
+#--------------------------------------------------
+# Disable Feature if STA and UAP is not supported
+#--------------------------------------------------
+ifneq ($(CONFIG_STA_SUPPORT),y)
+	CONFIG_WIFI_DIRECT_SUPPORT=n
+	CONFIG_STA_WEXT=n
+	CONFIG_STA_CFG80211=n
+endif
+ifneq ($(CONFIG_UAP_SUPPORT),y)
+	CONFIG_WIFI_DIRECT_SUPPORT=n
+	CONFIG_UAP_WEXT=n
+	CONFIG_UAP_CFG80211=n
+endif
+endif
 #############################################################################
 # Select Platform Tools
 #############################################################################
-
-ifeq ($(ANDROID_BUILD), 1)
+ifeq ($(ANDROID), yes)
+# Set target Android SDK version.
+# ANDROID_SDK_VERSION 29 corresponds to Android 10 Android 10
+# ANDROID_SDK_VERSION 30 corresponds to Android 11 (Red Velvet Cake)
+# ANDROID_SDK_VERSION 31 corresponds to Android 12 (Snow Cone)
+# ANDROID_SDK_VERSION 33 corresponds to Android 13 (Tiramisu)
+# ANDROID_SDK_VERSION 34 corresponds to Android 14 (Upside Down Cake)
+# ANDROID_SDK_VERSION 35 corresponds to Android 15 (Vanilla Ice Cream)
+# ANDROID_SDK_VERSION 36 corresponds to Android 16
     KERNEL_CFLAGS += -DANDROID
     PWD := $(shell pwd)
     KERNELDIR ?= $(KERNEL_SRC)
@@ -154,20 +204,14 @@ ccflags-y += -DLINUX
 
 
 
-ARCH ?= arm64
-CONFIG_IMX_SUPPORT=y
-ifeq ($(CONFIG_IMX_SUPPORT),y)
-ccflags-y += -DIMX_SUPPORT
-ifneq ($(ANDROID_PRODUCT_OUT),)
-ccflags-y += -DIMX_ANDROID
-ccflags-y += -Wno-implicit-fallthrough
-CONFIG_ANDROID_KERNEL=y
-endif
-endif
 
+KERNELVERSION_X86 := 	$(shell uname -r)
+KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
 
 BINDIR = bin_wlan
+
+
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -175,7 +219,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p33"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"540.p34"'
 
 	ccflags-y += -DFPNUM='"92"'
 
@@ -198,18 +242,11 @@ ifeq ($(CONFIG_STA_SUPPORT),y)
 ifeq ($(CONFIG_REASSOCIATION),y)
 	ccflags-y += -DREASSOCIATION
 endif
-else
-CONFIG_WIFI_DIRECT_SUPPORT=n
-CONFIG_STA_WEXT=n
-CONFIG_STA_CFG80211=n
 endif
 
 ifeq ($(CONFIG_UAP_SUPPORT),y)
 	ccflags-y += -DUAP_SUPPORT
-else
-CONFIG_WIFI_DIRECT_SUPPORT=n
-CONFIG_UAP_WEXT=n
-CONFIG_UAP_CFG80211=n
+
 endif
 
 ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
@@ -232,10 +269,6 @@ ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	ccflags-y += -DSDIO_SUSPEND_RESUME
 endif
 
-ifeq ($(CONFIG_MULTI_CHAN_SUPPORT),y)
-	ccflags-y += -DMULTI_CHAN_SUPPORT
-endif
-
 ifeq ($(CONFIG_DFS_TESTING_SUPPORT),y)
 	ccflags-y += -DDFS_TESTING_SUPPORT
 endif
@@ -250,229 +283,29 @@ ifeq ($(CONFIG_DUMP_TO_PROC), y)
 	ccflags-y += -DDUMP_TO_PROC
 endif
 
-ifeq ($(CONFIG_TASKLET_SUPPORT), y)
-	ccflags-y += -DTASKLET_SUPPORT
+ifeq ($(CONFIG_FWDUMP_VIA_PRINT), y)
+	ccflags-y += -DFWDUMP_VIA_PRINT
 endif
+
 
 ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
 	ccflags-y += -DOPENWRT
 endif
 
-ifeq ($(CONFIG_T50), y)
-	ccflags-y += -DT50
-	ccflags-y += -DT40
-	ccflags-y += -DT3T
-endif
 
-ifeq ($(CONFIG_SD8887),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8887
-endif
-ifeq ($(CONFIG_SD8897),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8897
-endif
-ifeq ($(CONFIG_SD8977),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8977
-endif
-ifeq ($(CONFIG_SD8978),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8978
-endif
 ifeq ($(CONFIG_SD8997),y)
 	CONFIG_SDIO=y
-	ccflags-y += -DSD8997
-endif
-ifeq ($(CONFIG_SD8987),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8987
-endif
-ifeq ($(CONFIG_SD9097),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD9097
-endif
-ifeq ($(CONFIG_SDIW610),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSDIW610
-endif
-ifeq ($(CONFIG_SDIW624),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSDIW624
-endif
-ifeq ($(CONFIG_SDAW693),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSDAW693
-endif
-ifeq ($(CONFIG_SD9177),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD9177
-endif
-ifeq ($(CONFIG_SD8801),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD8801
-endif
-ifeq ($(CONFIG_SD9098),y)
-	CONFIG_SDIO=y
-	ccflags-y += -DSD9098
-endif
-ifeq ($(CONFIG_USB8801),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB8801
-endif
-ifeq ($(CONFIG_USB8897),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB8897
-endif
-ifeq ($(CONFIG_USB8997),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB8997
-endif
-ifeq ($(CONFIG_USB8978),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB8978
-endif
-ifeq ($(CONFIG_USB9097),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB9097
-endif
-ifeq ($(CONFIG_USBIW610),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSBIW610
-endif
-ifeq ($(CONFIG_USBIW624),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSBIW624
-endif
-ifeq ($(CONFIG_USB9098),y)
-	CONFIG_MUSB=y
-	ccflags-y += -DUSB9098
-endif
-ifeq ($(CONFIG_PCIE8897),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIE8897
-endif
-ifeq ($(CONFIG_PCIE8997),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIE8997
-endif
-ifeq ($(CONFIG_PCIE9097),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIE9097
-endif
-ifeq ($(CONFIG_PCIE9098),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIE9098
-endif
-ifeq ($(CONFIG_PCIEIW624),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIEIW624
-endif
-ifeq ($(CONFIG_PCIEAW693),y)
-	CONFIG_PCIE=y
-	ccflags-y += -DPCIEAW693
-endif
-ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
 	ccflags-y += -DSDIO_MMC
-endif
-ifeq ($(CONFIG_MUSB),y)
-	ccflags-y += -DUSB
-endif
-ifeq ($(CONFIG_PCIE),y)
-	ccflags-y += -DPCIE
+	ccflags-y += -DSD8997
 endif
 
-ifeq ($(CONFIG_MAC80211_SUPPORT),y)
-	ccflags-y += -DMAC80211_SUPPORT
-endif
-ifeq ($(CONFIG_MAC80211_SUPPORT_UAP),y)
-	ccflags-y += -DMAC80211_SUPPORT_UAP
-endif
-ifeq ($(CONFIG_MAC80211_SUPPORT_MESH),y)
-	ccflags-y += -DMAC80211_SUPPORT_MESH
-endif
 
 #############################################################################
 # Make Targets
 #############################################################################
 
 ifneq ($(KERNELRELEASE),)
-
-ifeq ($(CONFIG_WIRELESS_EXT),y)
-ifeq ($(CONFIG_WEXT_PRIV),y)
-	# Enable WEXT for STA
-	CONFIG_STA_WEXT=y
-	# Enable WEXT for uAP
-	CONFIG_UAP_WEXT=y
-else
-# Disable WEXT for STA
-	CONFIG_STA_WEXT=n
-# Disable WEXT for uAP
-	CONFIG_UAP_WEXT=n
-endif
-endif
-
-# Enable CFG80211 for STA
-ifeq ($(CONFIG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CONFIG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-
-# OpenWrt
-ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
-ifeq ($(CPTCFG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CPTCFG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-endif
-
-# Enable CFG80211 for uAP
-ifeq ($(CONFIG_CFG80211),y)
-	CONFIG_UAP_CFG80211=y
-else
-ifeq ($(CONFIG_CFG80211),m)
-	CONFIG_UAP_CFG80211=y
-else
-	CONFIG_UAP_CFG80211=n
-endif
-endif
-
-# OpenWrt
-ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
-ifeq ($(CPTCFG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CPTCFG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-endif
-
-ifneq ($(CONFIG_STA_SUPPORT),y)
-	CONFIG_WIFI_DIRECT_SUPPORT=n
-	CONFIG_STA_WEXT=n
-	CONFIG_STA_CFG80211=n
-endif
-
-ifneq ($(CONFIG_UAP_SUPPORT),y)
-	CONFIG_WIFI_DIRECT_SUPPORT=n
-	CONFIG_UAP_WEXT=n
-	CONFIG_UAP_CFG80211=n
-endif
-
 ifeq ($(CONFIG_STA_SUPPORT),y)
 ifeq ($(CONFIG_STA_WEXT),y)
 	ccflags-y += -DSTA_WEXT
@@ -511,6 +344,7 @@ endif
 
 
 
+
 # Default for out-of-tree builds
 CONFIG_NXP_WLAN_DRIVER ?= m
 
@@ -527,20 +361,11 @@ MLANOBJS =	mlan/mlan_shim.o mlan/mlan_init.o \
 		mlan/mlan_module.o
 
 MLANOBJS += mlan/mlan_wmm.o
-ifeq ($(CONFIG_MUSB),y)
-MLANOBJS += mlan/mlan_usb.o
-endif
-ifeq ($(CONFIG_SDIO),y)
 MLANOBJS += mlan/mlan_sdio.o
-endif
-ifeq ($(CONFIG_PCIE),y)
-MLANOBJS += mlan/mlan_pcie.o
-endif
 MLANOBJS += mlan/mlan_11n_aggr.o
 MLANOBJS += mlan/mlan_11n_rxreorder.o
 MLANOBJS += mlan/mlan_11n.o
 MLANOBJS += mlan/mlan_11ac.o
-MLANOBJS += mlan/mlan_11ax.o
 MLANOBJS += mlan/mlan_11d.o
 MLANOBJS += mlan/mlan_11h.o
 ifeq ($(CONFIG_STA_SUPPORT),y)
@@ -584,34 +409,19 @@ MOALOBJS += mlinux/moal_proc.o
 MOALOBJS += mlinux/moal_debug.o
 endif
 
-ifeq ($(CONFIG_MAC80211_SUPPORT),y)
-MOALOBJS += mlinux/moal_mac80211.o
-MLANOBJS += mlan/mlan_mac80211.o
-endif
-
-
-
 
 obj-$(CONFIG_NXP_WLAN_DRIVER) := mlan.o
 mlan-objs := $(MLANOBJS)
 
-ifeq ($(CONFIG_MUSB),y)
-MOALOBJS += mlinux/moal_usb.o
-endif
-ifeq ($(CONFIG_SDIO),y)
 MOALOBJS += mlinux/moal_sdio_mmc.o
-endif
-ifeq ($(CONFIG_PCIE),y)
-MOALOBJS += mlinux/moal_pcie.o
-endif
-obj-$(CONFIG_NXP_WLAN_DRIVER) += moal.o
-moal-objs := $(MOALOBJS)
+obj-$(CONFIG_NXP_WLAN_DRIVER) += sdxxx.o
+sdxxx-objs := $(MOALOBJS)
 
 # Otherwise we were called directly from the command line; invoke the kernel build system.
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 endif
 
@@ -619,13 +429,8 @@ endif
 
 export		CC LD ccflags-y KERNELDIR
 
-.PHONY: mapp/mlanutl clean distclean
+.PHONY: clean distclean
 	@echo "Finished Making NXP Wlan Linux Driver"
-
-mapp/mlanutl:
-	$(MAKE) -C $@
-
-echo:
 
 appsbuild:
 
@@ -633,11 +438,8 @@ appsbuild:
 		mkdir $(BINDIR); \
 	fi
 
+ifeq ($(CONFIG_STA_SUPPORT),y)
 	cp -f README $(BINDIR)
-
-ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
-	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
 endif
 
 build:		echo default
@@ -648,14 +450,8 @@ build:		echo default
 
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
 
-	cp -f moal.$(MODEXT) $(BINDIR)/moal$(DBG).$(MODEXT)
-
-	cp -f README $(BINDIR)
-
-ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
-	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
-endif
+	cp -f sdxxx.$(MODEXT) $(BINDIR)/sd8997$(DBG).$(MODEXT)
+	cp -rpf script/sdio_mmc/* $(BINDIR)/
 
 clean:
 	-find . -name "*.o" -exec rm {} \;
@@ -667,19 +463,16 @@ clean:
 	-find . -name "modules.order" -exec rm {} \;
 	-find . -name ".*.dwo" -exec rm {} \;
 	-find . -name "*dwo" -exec rm {} \;
+	-find . -name "*.mod" -exec rm {} \;
+	-find . -name ".*.o.d" -exec rm {} \;
 	-rm -rf .tmp_versions
-ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanutl $@
-endif
-#ifdef SDIO
-#endif // SDIO
 
 install: default
 
 	cp -f mlan.$(MODEXT) $(INSTALLDIR)/mlan$(DBG).$(MODEXT)
-	cp -f moal.$(MODEXT) $(INSTALLDIR)/moal$(DBG).$(MODEXT)
-	echo $(INSTALLDIR)
-	echo "MX Driver Installed"
+	cp -f ../io/sdio/$(PLATFORM)/sdio.$(MODEXT) $(INSTALLDIR)
+	cp -f sdxxx.$(MODEXT) $(INSTALLDIR)/sd8997$(DBG).$(MODEXT)
+	echo "sd8997 Driver Installed"
 
 distclean:
 	-find . -name "*.o" -exec rm {} \;
@@ -696,9 +489,8 @@ distclean:
 	-find . -name "*.mod.c" -exec rm {} \;
 	-find . -name ".*.dwo" -exec rm {} \;
 	-find . -name "*dwo" -exec rm {} \;
+	-find . -name "*.mod" -exec rm {} \;
+	-find . -name ".*.o.d" -exec rm {} \;
 	-rm -rf .tmp_versions
-ifneq ($(APPDIR),)
-	$(MAKE) -C mapp/mlanutl $@
-endif
 
 # End of file

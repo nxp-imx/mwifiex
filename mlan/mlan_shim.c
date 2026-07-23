@@ -34,12 +34,7 @@ Change log:
 #include "mlan_fw.h"
 #include "mlan_main.h"
 #include "mlan_wmm.h"
-#ifdef SDIO
 #include "mlan_sdio.h"
-#endif /* SDIO */
-#ifdef PCIE
-#include "mlan_pcie.h"
-#endif /* PCIE */
 #ifdef UAP_SUPPORT
 #include "mlan_uap.h"
 #endif
@@ -126,17 +121,9 @@ mlan_status (*get_sys_time_callback)(t_pvoid pmoal_handle, t_pu32 psec,
 t_u32 mlan_drvdbg = DEFAULT_DEBUG_MASK;
 #endif
 
-#ifdef USB
-extern mlan_status wlan_get_usb_device(pmlan_adapter pmadapter);
-#endif
-
 static INLINE t_bool wlan_is_adma_supported(mlan_adapter *pmadapter)
 {
 	t_bool is_adma_supported = 0;
-#if defined(PCIE)
-	is_adma_supported = IS_PCIE(pmadapter->card_type) &&
-			    pmadapter->pcard_pcie->reg->use_adma;
-#endif
 
 	return is_adma_supported;
 }
@@ -302,14 +289,12 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_recv_event);
 	MASSERT(pcb->moal_ioctl_complete);
 
-#if defined(SDIO) || defined(PCIE)
 	if (!IS_USB(pmadapter->card_type)) {
 		MASSERT(pcb->moal_write_reg);
 		MASSERT(pcb->moal_read_reg);
 		MASSERT(pcb->moal_alloc_mlan_buffer);
 		MASSERT(pcb->moal_free_mlan_buffer);
 	}
-#endif
 	MASSERT(pcb->moal_get_vdll_data);
 	MASSERT(pcb->moal_write_data_sync);
 	MASSERT(pcb->moal_read_data_sync);
@@ -331,7 +316,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_updata_peer_signal);
 	MASSERT(pcb->moal_do_div);
 
-	MASSERT(pcb->moal_get_host_time_ns);
 	MASSERT(pcb->moal_unaligned_access.moal_read_u16);
 	MASSERT(pcb->moal_unaligned_access.moal_read_u32);
 	MASSERT(pcb->moal_unaligned_access.moal_write_u16);
@@ -339,8 +323,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
-
-	pmadapter->feature_control = pmdevice->feature_control;
 
 	pmadapter->card_type = pmdevice->card_type;
 	pmadapter->card_rev = pmdevice->card_rev;
@@ -350,15 +332,12 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.mcs32 = pmdevice->mcs32;
 	pmadapter->init_para.antcfg = pmdevice->antcfg;
 	pmadapter->init_para.reject_addba_req = pmdevice->reject_addba_req;
-	pmadapter->init_para.dmcs = pmdevice->dmcs;
-	pmadapter->init_para.pref_dbc = pmdevice->pref_dbc;
 
 	if (pmadapter->callbacks.moal_memcpy_ext == MNULL) {
 		ret = MLAN_STATUS_FAILURE;
 		goto error;
 	}
 
-#ifdef SDIO
 	if (IS_SD(pmadapter->card_type)) {
 		PRINTM(MMSG,
 		       "Attach mlan adapter operations.card_type is 0x%x.\n",
@@ -395,62 +374,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->pcard_sd->sdio_rx_aggr_enable =
 			pmdevice->sdio_rx_aggr_enable;
 	}
-#endif
-
-	/* By default BA timeout is supported unless FW reports it as not
-	 * supported in multi-client capabilites	 */
-	pmadapter->tx_ba_timeout_support = 1;
-
-#ifdef PCIE
-	if (IS_PCIE(pmadapter->card_type)) {
-		MASSERT(pcb->moal_malloc_consistent);
-		MASSERT(pcb->moal_mfree_consistent);
-		MASSERT(pcb->moal_map_memory);
-		MASSERT(pcb->moal_unmap_memory);
-		PRINTM(MMSG,
-		       "Attach mlan adapter operations.card_type is 0x%x.\n",
-		       pmdevice->card_type);
-		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_pcie_ops,
-			   sizeof(mlan_adapter_operations),
-			   sizeof(mlan_adapter_operations));
-		pmadapter->init_para.ring_size = pmdevice->ring_size;
-		pmadapter->init_para.max_tx_pending = pmdevice->max_tx_pending;
-		pmadapter->init_para.tx_budget = pmdevice->tx_budget;
-		pmadapter->init_para.mclient_scheduling =
-			pmdevice->mclient_scheduling;
-
-		ret = wlan_get_pcie_device(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto error;
-		}
-
-		pmadapter->init_para.copy_on_rx =
-			pmdevice->copy_on_rx &&
-			wlan_is_adma_supported(pmadapter);
-		pmadapter->init_para.copy_on_tx =
-			pmdevice->copy_on_tx &&
-			wlan_is_adma_supported(pmadapter);
-	}
-#endif
-
-#ifdef USB
-	if (IS_USB(pmadapter->card_type)) {
-		MASSERT(pcb->moal_write_data_async);
-		MASSERT(pcb->moal_recv_complete);
-		PRINTM(MMSG,
-		       "Attach mlan adapter operations.card_type is 0x%x.\n",
-		       pmdevice->card_type);
-		memcpy_ext(pmadapter, &pmadapter->ops, &mlan_usb_ops,
-			   sizeof(mlan_adapter_operations),
-			   sizeof(mlan_adapter_operations));
-		ret = wlan_get_usb_device(pmadapter);
-		if (MLAN_STATUS_SUCCESS != ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto error;
-		}
-	}
-#endif
 
 #ifdef DEBUG_LEVEL1
 	mlan_drvdbg = pmdevice->drvdbg;
@@ -473,9 +396,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 #else
 	pmadapter->init_para.cfg_11d = 0;
 #endif
-	if (IS_DFS_SUPPORT(pmadapter->feature_control))
-		pmadapter->init_para.dfs_master_radar_det_en =
-			DFS_MASTER_RADAR_DETECT_EN;
+	pmadapter->init_para.dfs_master_radar_det_en =
+		DFS_MASTER_RADAR_DETECT_EN;
 	pmadapter->init_para.dfs_slave_radar_det_en = DFS_SLAVE_RADAR_DETECT_EN;
 	pmadapter->init_para.dev_cap_mask = pmdevice->dev_cap_mask;
 	pmadapter->init_para.indrstcfg = pmdevice->indrstcfg;
@@ -486,8 +408,6 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
-	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
-	pmadapter->second_mac = pmdevice->second_mac;
 	pmadapter->napi = pmdevice->napi;
 	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
 	if (pmdevice->indication_gpio != 0xff) {
@@ -499,21 +419,9 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 			pmadapter->level = 0;
 		}
 	}
-	pmadapter->hs_mimo_switch = pmdevice->hs_mimo_switch;
-#ifdef USB
-	if (IS_USB(pmadapter->card_type)) {
-		pmadapter->tx_cmd_ep = pmdevice->tx_cmd_ep;
-		pmadapter->rx_cmd_ep = pmdevice->rx_cmd_ep;
-		pmadapter->tx_data_ep = pmdevice->tx_data_ep;
-		pmadapter->rx_data_ep = pmdevice->rx_data_ep;
-		pmadapter->usb_tx_ports[0] = pmdevice->tx_data_ep;
-		pmadapter->usb_tx_ports[1] = pmdevice->tx_data2_ep;
-	}
-#endif
 	pmadapter->init_para.dfs53cfg = pmdevice->dfs53cfg;
 	pmadapter->init_para.dfs_offload = pmdevice->dfs_offload;
 	pmadapter->init_para.disable_11h_tpc = pmdevice->disable_11h_tpc;
-	pmadapter->init_para.tpe_ie_ignore = pmdevice->tpe_ie_ignore;
 	pmadapter->init_para.amsdu_disable = pmdevice->amsdu_disable;
 	pmadapter->priv_num = 0;
 	pmadapter->priv[0] = MNULL;
@@ -533,7 +441,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 
 	pmadapter->priv_num++;
 	// memset of pmadapter->priv[0] will not nullify pmadapter->pcard_pcie
-	//  coverity[overwrite_var:SUPPRESS]
+	// coverity[overwrite_var:SUPPRESS]
 	memset(pmadapter, pmadapter->priv[0], 0, sizeof(mlan_private));
 
 	pmadapter->priv[0]->adapter = pmadapter;
@@ -725,7 +633,7 @@ mlan_status mlan_read_meta_data(mlan_adapter *pmadapter, pmlan_fw_image pmfw)
 	if (memcmp(pmadapter, magic,
 		   (pmfw->pfw_buf + pmfw->fw_len) - META_MAGIC_OFFSET,
 		   META_MAGIC_LEN)) {
-			ret = MLAN_STATUS_SUCCESS;
+		ret = MLAN_STATUS_SUCCESS;
 
 		LEAVE();
 		return ret;
@@ -835,9 +743,8 @@ mlan_status mlan_dnld_fw(t_void *padapter, pmlan_fw_image pmfw)
 	ENTER();
 	MASSERT(padapter);
 
-	if (!pmadapter->second_mac)
-		if (mlan_read_meta_data(pmadapter, pmfw) != MLAN_STATUS_SUCCESS)
-			return ret;
+	if (mlan_read_meta_data(pmadapter, pmfw) != MLAN_STATUS_SUCCESS)
+		return ret;
 
 	/* Download helper/firmware */
 	if (pmfw) {
@@ -1052,24 +959,10 @@ mlan_status mlan_shutdown_fw(t_void *padapter)
 	while ((pmbuf = (pmlan_buffer)util_dequeue_list(
 			pmadapter->pmoal_handle, &pmadapter->rx_data_queue,
 			pcb->moal_spin_lock, pcb->moal_spin_unlock))) {
-#ifdef USB
-		if (IS_USB(pmadapter->card_type))
-			pcb->moal_recv_complete(pmadapter->pmoal_handle, pmbuf,
-						pmadapter->rx_data_ep,
-						MLAN_STATUS_FAILURE);
-#endif
-#if defined(SDIO) || defined(PCIE)
 		if (!IS_USB(pmadapter->card_type))
 			wlan_free_mlan_buffer(pmadapter, pmbuf);
-#endif
 	}
 	pmadapter->rx_pkts_queued = 0;
-#ifdef PCIE
-	if (IS_PCIE(pmadapter->card_type) &&
-	    wlan_set_drv_ready_reg(pmadapter, 0)) {
-		PRINTM(MERROR, "Failed to write driver not-ready signature\n");
-	}
-#endif
 
 	/* Notify completion */
 	ret = wlan_shutdown_fw_complete(pmadapter);
@@ -1217,7 +1110,6 @@ mlan_status mlan_rx_process(t_void *padapter, t_u8 *rx_pkts)
 	pmlan_buffer pmbuf;
 	t_u8 limit = 0;
 	t_u8 rx_num = 0;
-	t_u32 in_ts_sec, in_ts_usec;
 
 	ENTER();
 
@@ -1264,21 +1156,6 @@ rx_process_start:
 			pmadapter->pmoal_handle,
 			pmadapter->rx_data_queue.plock);
 
-		// rx_trace 6
-		if (pmadapter->tp_state_on) {
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf,
-				6 /*RX_DROP_P2*/);
-			pcb->moal_get_system_time(pmadapter->pmoal_handle,
-						  &in_ts_sec, &in_ts_usec);
-			pmbuf->extra_ts_sec = in_ts_sec;
-			pmbuf->extra_ts_usec = in_ts_usec;
-		}
-		if (pmadapter->tp_state_drop_point == 6 /*RX_DROP_P2*/) {
-			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
-			goto rx_process_start;
-		}
-
 		if (!IS_PCIE(pmadapter->card_type) &&
 		    pmadapter->delay_task_flag &&
 		    (pmadapter->rx_pkts_queued < LOW_RX_PENDING)) {
@@ -1286,17 +1163,6 @@ rx_process_start:
 			pmadapter->delay_task_flag = MFALSE;
 			mlan_queue_main_work(pmadapter);
 		}
-#ifdef PCIE
-		if (IS_PCIE(pmadapter->card_type) &&
-		    pmadapter->delay_rx_data_flag &&
-		    (pmadapter->rx_pkts_queued < LOW_RX_PENDING)) {
-			PRINTM(MEVENT, "Run\n");
-			pmadapter->delay_rx_data_flag = MFALSE;
-			wlan_recv_event(wlan_get_priv(pmadapter,
-						      MLAN_BSS_ROLE_ANY),
-					MLAN_EVENT_ID_DRV_DEFER_RX_DATA, MNULL);
-		}
-#endif
 		pmadapter->ops.handle_rx_packet(pmadapter, pmbuf);
 		if (limit && rx_num >= limit)
 			break;
@@ -1319,65 +1185,6 @@ exit_rx_proc:
 	LEAVE();
 	return ret;
 }
-
-#ifdef PCIE
-/**
- * @brief Re-fill PMBUF at pending RDs of PCIE Rx Ring
- * @param padapter A pointer to mlan_adapter structure
- *
- */
-static void mlan_refill_rx_ring(t_void *padapter)
-{
-	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
-	mlan_buffer *pmbuf;
-	t_u32 reattach_fail = 0;
-	/* Get 1st Failure RD index */
-	t_s32 refill_index =
-		util_scalar_read(pmadapter->pmoal_handle,
-				 &pmadapter->rx_refill_start_index,
-				 pmadapter->callbacks.moal_spin_lock,
-				 pmadapter->callbacks.moal_spin_unlock);
-	while (refill_index != MLAN_INVALID_TXRX_INDEX_VAL) {
-		if (MLAN_STATUS_SUCCESS ==
-		    wlan_pcie_reattach_pmbuf(pmadapter, refill_index, &pmbuf)) {
-			reattach_fail = 0;
-			/* Update WR PTR after Reattach success */
-			wlan_pcie_rx_ring_move_rdwrptr(pmadapter, refill_index,
-						       RX_WR_UPDATE);
-			/*Re-fill till the Last (current) RD-index*/
-			pmadapter->callbacks.moal_spin_lock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_refill_start_index.plock);
-			if (refill_index == pmadapter->rx_refill_last_index) {
-				util_scalar_write(
-					pmadapter->pmoal_handle,
-					&pmadapter->rx_refill_start_index,
-					MLAN_INVALID_TXRX_INDEX_VAL, MNULL,
-					MNULL);
-				refill_index = MLAN_INVALID_TXRX_INDEX_VAL;
-			} else {
-				if (refill_index ==
-				    (pmadapter->pcard_pcie->txrx_bd_size - 1))
-					refill_index = 0;
-				else
-					refill_index = (refill_index + 1);
-			}
-			pmadapter->callbacks.moal_spin_unlock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_refill_start_index.plock);
-		} else {
-			/* need to exit, if we just loop here - in extreme OOM
-			 * case need to free CPU for other works. re-fill work
-			 * can continue on next main wq schedule.
-			 */
-			reattach_fail++;
-			if (reattach_fail > 1500)
-				return;
-		}
-	}
-	return;
-}
-#endif
 
 /**
  *  @brief clean up txrx
@@ -1451,11 +1258,8 @@ process_start:
 			wlan_free_txrx(pmadapter);
 			pmadapter->pending_clean = MFALSE;
 		}
-#if defined(SDIO)
 		if (IS_SD(pmadapter->card_type)) {
 			if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
-				pcb->moal_tp_accounting_rx_param(
-					pmadapter->pmoal_handle, 2, 0);
 				PRINTM(MEVENT, "Pause\n");
 				pmadapter->delay_task_flag = MTRUE;
 				mlan_queue_rx_work(pmadapter);
@@ -1470,37 +1274,11 @@ process_start:
 					mlan_queue_rx_work(pmadapter);
 			}
 		}
-#endif
-#ifdef PCIE
-		if (IS_PCIE(pmadapter->card_type) &&
-		    pmadapter->pcie_cmd_dnld_int) {
-			pmadapter->pcie_cmd_dnld_int = MFALSE;
-			mlan_process_pcie_interrupt_cb(pmadapter, RX_CMD_DNLD);
-		}
-		if (IS_PCIE(pmadapter->card_type) &&
-		    pmadapter->pcie_event_int) {
-			pmadapter->pcie_event_int = MFALSE;
-			mlan_process_pcie_interrupt_cb(pmadapter, RX_EVENT);
-		}
-#endif
 
 		/* wake up timeout happened */
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) &&
 		    pmadapter->pm_wakeup_flag) {
 			pmadapter->pm_wakeup_flag = MFALSE;
-#if defined(SD9098) || defined(SD9177) || defined(SDAW693) || defined(SDIW610)
-			if (IS_SD9098(pmadapter->card_type) ||
-			    IS_SD9177(pmadapter->card_type) ||
-			    IS_SDAW693(pmadapter->card_type) ||
-			    IS_SDIW610(pmadapter->card_type)) {
-				if (pmadapter->pm_wakeup_timeout == 2) {
-					if (!pmadapter->ops
-						     .wakeup_timeout_recovery(
-							     pmadapter))
-						continue;
-				}
-			}
-#endif
 			if (pmadapter->pm_wakeup_timeout > 2) {
 				PRINTM(MERROR, "Wakeup card timeout!\n");
 				wlan_recv_event(
@@ -1601,24 +1379,10 @@ process_start:
 		}
 
 		/* Check for event */
-#ifdef USB
-		if (IS_USB(pmadapter->card_type))
-			wlan_request_event_lock(pmadapter);
-#endif
 		if (pmadapter->event_received) {
 			pmadapter->event_received = MFALSE;
-#ifdef USB
-			if (IS_USB(pmadapter->card_type))
-				wlan_release_event_lock(pmadapter);
-#endif
 			wlan_process_event(pmadapter);
 		}
-#ifdef USB
-		else {
-			if (IS_USB(pmadapter->card_type))
-				wlan_release_event_lock(pmadapter);
-		}
-#endif
 		if (pmadapter->driver_status)
 			continue;
 		/* Check if we need to confirm Sleep Request received previously
@@ -1699,21 +1463,6 @@ process_start:
 			break;
 		}
 #endif
-#ifdef PCIE
-		if (IS_PCIE(pmadapter->card_type)) {
-			if (pmadapter->pcard_pcie->reg->use_adma) {
-				if (wlan_is_tx_pending(pmadapter)) {
-					wlan_recv_event(
-						wlan_get_priv(pmadapter,
-							      MLAN_BSS_ROLE_ANY),
-						MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE,
-						MNULL);
-				}
-			}
-			/* Re-fill pending RDs of RxRing*/
-			mlan_refill_rx_ring(pmadapter);
-		}
-#endif
 	} while (MTRUE);
 
 	pcb->moal_spin_lock(pmadapter->pmoal_handle,
@@ -1734,77 +1483,6 @@ exit_main_proc:
 			PRINTM(MERROR, "ERR:mlan_shutdown_fw failed\n");
 	LEAVE();
 	return ret;
-}
-
-/**
- *  @brief Function to check if llde pkt type matches to defined pkt filter and
- * mark those pkts
- *
- *  @param padapter	A pointer to mlan_adapter structure
- *  @param pmbuf		A pointer to mlan_buffer structure
- *
- *  @return			void
- */
-static void mlan_check_llde_pkt_filter(mlan_adapter *pmadapter,
-				       pmlan_buffer pmbuf, t_u8 ip_protocol)
-{
-	t_u8 matched_filter = 0;
-	t_u8 i = 0;
-
-	if (!(pmadapter->llde_enabled &&
-	      (pmadapter->llde_mode == MLAN_11AXCMD_LLDE_MODE_EVENT_DRIVEN))) {
-		return;
-	}
-	/* match iphone mac addr */
-	if (pmadapter->llde_device_filter) {
-		for (i = 0; i < pmadapter->llde_totalIPhones; i++) {
-			if (memcmp(pmadapter,
-				   &pmadapter->llde_iphonefilters
-					    [i * MLAN_MAC_ADDR_LENGTH],
-				   (pmbuf->pbuf + pmbuf->data_offset),
-				   MLAN_MAC_ADDR_LENGTH) == 0) {
-				matched_filter = 1;
-				break;
-			}
-		}
-	}
-	if (matched_filter == 0) {
-		/* check mac filter if iphone device filter not matched */
-		for (i = 0; i < pmadapter->llde_totalMacFilters; i++) {
-			if (memcmp(pmadapter,
-				   &pmadapter->llde_macfilters
-					    [i * MLAN_MAC_ADDR_LENGTH],
-				   (pmbuf->pbuf + pmbuf->data_offset),
-				   MLAN_MAC_ADDR_LENGTH) == 0) {
-				matched_filter = 1;
-				break;
-			}
-		}
-	}
-
-	/* device address is matched, check packet type to mark it as special
-	 * llde packet */
-	if (matched_filter) {
-		if ((pmadapter->llde_packet_type == LLDE_FILTER_PKT_ALL) ||
-		    ((pmadapter->llde_packet_type & LLDE_FILTER_PKT_UDP) &&
-		     (ip_protocol == MLAN_IP_PROTOCOL_UDP))) {
-			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
-		} else if ((pmadapter->llde_packet_type &
-			    (LLDE_FILTER_PKT_TCP_ACK |
-			     LLDE_FILTER_PKT_TCP_DATA)) &&
-			   (ip_protocol == MLAN_IP_PROTOCOL_TCP)) {
-			/*TODO: identify TCP ACK and Data packets and set the
-			 * MLAN_BUF_FLAG_LLDE_PKT_FILTER flag accordingly */
-			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
-
-		} else if ((pmadapter->llde_packet_type &
-			    LLDE_FILTER_PKT_ICMP_PING) &&
-			   (ip_protocol == MLAN_IP_PROTOCOL_ICMP)) {
-			pmbuf->flags |= MLAN_BUF_FLAG_LLDE_PKT_FILTER;
-		}
-	}
-
-	return;
 }
 
 /**
@@ -1856,17 +1534,7 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 					   MLAN_IP_PROTOCOL_OFFSET));
 			if (ip_protocol == MLAN_IP_PROTOCOL_ICMP) {
 				pmbuf->priority = WMM_HIGHEST_PRIORITY;
-				/** If LLDE Enabled, change the ICMP Prio to 6
-				 */
-				if (pmadapter->llde_enabled &&
-				    (pmadapter->llde_mode ==
-				     MLAN_11AXCMD_LLDE_MODE_EVENT_DRIVEN))
-					pmbuf->priority =
-						WMM_SECOND_HIGHEST_PRIORITY;
 			}
-
-			mlan_check_llde_pkt_filter(pmadapter, pmbuf,
-						   ip_protocol);
 		}
 	}
 #endif
@@ -1878,10 +1546,7 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	     */
 	    || (ip_protocol == MLAN_IP_PROTOCOL_ICMP) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) ||
-	    (eth_type == MLAN_ETHER_PKT_TYPE_1905) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
-	    /* Adding the Ucast/Mcast pkt to bypass queue when flag is set*/
-	    || (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT)
 
 	) {
 		if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {
@@ -1900,29 +1565,10 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 			       MAC2STR(pmbuf->pbuf + pmbuf->data_offset));
 		}
 
-		if (eth_type == MLAN_ETHER_PKT_TYPE_1905) {
-			pmbuf->priority = 7;
-			PRINTM_NETINTF(MINFO, pmpriv);
-			PRINTM(MINFO, "wlan: Send 1905.1a pkt type: 0x%04x\n",
-			       eth_type);
-		}
-
-		if (pmadapter->tp_state_on)
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
-		if (pmadapter->tp_state_drop_point == 2)
-			return 0;
-		else
-			wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
+		wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
 	} else {
-		if (pmadapter->tp_state_on)
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
-		if (pmadapter->tp_state_drop_point == 2)
-			return 0;
-		else
-			/* Transmit the packet*/
-			wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
+		/* Transmit the packet*/
+		wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
 	}
 
 	LEAVE();
@@ -1946,6 +1592,11 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 
 	ENTER();
 
+	if (pmadapter == MNULL) {
+		LEAVE();
+		return ret;
+	}
+
 	if (pioctl_req == MNULL) {
 		PRINTM(MMSG, "set pending clean\n");
 		pmadapter->pending_clean = MTRUE;
@@ -1957,199 +1608,6 @@ exit:
 	LEAVE();
 	return ret;
 }
-
-#ifdef USB
-/**
- *  @brief Packet send completion callback
- *
- *  @param padapter	A pointer to mlan_adapter structure
- *  @param pmbuf		A pointer to mlan_buffer structure
- *  @param port			Data port
- *  @param status		Callback status
- *
- *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-mlan_status mlan_write_data_async_complete(t_void *padapter, pmlan_buffer pmbuf,
-					   t_u32 port, mlan_status status)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
-
-	ENTER();
-
-	if (port == pmadapter->tx_cmd_ep) {
-		pmadapter->cmd_sent = MFALSE;
-		PRINTM(MCMND, "mlan_write_data_async_complete: CMD\n");
-		/* pmbuf was allocated by MLAN */
-		wlan_free_mlan_buffer(pmadapter, pmbuf);
-	} else {
-		pmadapter->data_sent = MFALSE;
-		wlan_update_port_status(pmadapter, port, MFALSE);
-		PRINTM(MDATA, "mlan_write_data_async_complete: DATA(%d)\n",
-		       port);
-		ret = wlan_write_data_complete(pmadapter, pmbuf, status);
-	}
-
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Packet receive handler
- *
- *  @param padapter	A pointer to mlan_adapter structure
- *  @param pmbuf		A pointer to mlan_buffer structure
- *  @param port			Data port
- *
- *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE or
- * MLAN_STATUS_PENDING
- */
-mlan_status mlan_recv(t_void *padapter, pmlan_buffer pmbuf, t_u32 port)
-{
-	mlan_status ret = MLAN_STATUS_PENDING;
-	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
-	t_u8 *pbuf;
-	t_u32 len, recv_type;
-	t_u32 event_cause = 0;
-#ifdef DEBUG_LEVEL1
-	t_u32 sec = 0, usec = 0;
-#endif
-	t_u32 max_rx_data_size = MLAN_RX_DATA_BUF_SIZE;
-
-	ENTER();
-
-	MASSERT(padapter && pmbuf);
-
-	if (pmadapter->hs_activated == MTRUE)
-		wlan_process_hs_config(pmadapter);
-	pbuf = pmbuf->pbuf + pmbuf->data_offset;
-	len = pmbuf->data_len;
-
-	MASSERT(len >= MLAN_TYPE_LEN);
-	recv_type = read_u32_unaligned(pmadapter, pbuf);
-	;
-	recv_type = wlan_le32_to_cpu(recv_type);
-	pbuf += MLAN_TYPE_LEN;
-	len -= MLAN_TYPE_LEN;
-
-	if (port == pmadapter->rx_cmd_ep) {
-		switch (recv_type) {
-		case MLAN_USB_TYPE_CMD:
-			PRINTM_GET_SYS_TIME(MCMND, &sec, &usec);
-			PRINTM(MCMND, "mlan_recv: CMD (%lu.%06lu)\n", sec,
-			       usec);
-			if (len > MRVDRV_SIZE_OF_CMD_BUFFER) {
-				pmbuf->status_code = MLAN_ERROR_CMD_RESP_FAIL;
-				ret = MLAN_STATUS_FAILURE;
-				PRINTM(MERROR, "mlan_recv: CMD too large\n");
-			} else if (!pmadapter->curr_cmd) {
-				if (pmadapter->ps_state == PS_STATE_SLEEP_CFM) {
-					pmbuf->data_offset += MLAN_TYPE_LEN;
-					pmbuf->data_len -= MLAN_TYPE_LEN;
-					wlan_process_sleep_confirm_resp(
-						pmadapter,
-						pmbuf->pbuf +
-							pmbuf->data_offset,
-						pmbuf->data_len);
-					pmbuf->flags |=
-						MLAN_BUF_FLAG_SLEEPCFM_RESP;
-					ret = MLAN_STATUS_SUCCESS;
-
-				} else {
-					pmbuf->status_code =
-						MLAN_ERROR_CMD_RESP_FAIL;
-					ret = MLAN_STATUS_FAILURE;
-				}
-				PRINTM(MINFO, "mlan_recv: no curr_cmd\n");
-			} else {
-				wlan_request_cmd_lock(pmadapter);
-				pmadapter->upld_len = len;
-				pmbuf->data_offset += MLAN_TYPE_LEN;
-				pmbuf->data_len -= MLAN_TYPE_LEN;
-				pmadapter->curr_cmd->respbuf = pmbuf;
-				pmadapter->cmd_resp_received = MTRUE;
-				wlan_release_cmd_lock(pmadapter);
-			}
-			break;
-		case MLAN_USB_TYPE_EVENT:
-			MASSERT(len >= sizeof(t_u32));
-			memmove(pmadapter, &event_cause, pbuf, sizeof(t_u32));
-			pmadapter->event_cause = wlan_le32_to_cpu(event_cause);
-			PRINTM_GET_SYS_TIME(MEVENT, &sec, &usec);
-			PRINTM(MEVENT, "mlan_recv: EVENT 0x%x (%lu.%06lu)\n",
-			       pmadapter->event_cause, sec, usec);
-			pbuf += sizeof(t_u32);
-			len -= sizeof(t_u32);
-			if ((len > 0) && (len < MAX_EVENT_SIZE))
-				memmove(pmadapter, pmadapter->event_body, pbuf,
-					len);
-			wlan_request_event_lock(pmadapter);
-			/* remove 4 byte recv_type */
-			pmbuf->data_offset += MLAN_TYPE_LEN;
-			pmbuf->data_len -= MLAN_TYPE_LEN;
-			pmadapter->event_received = MTRUE;
-			pmadapter->pmlan_buffer_event = pmbuf;
-			wlan_release_event_lock(pmadapter);
-			/* MOAL to call mlan_main_process for processing */
-			break;
-		default:
-			pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
-			ret = MLAN_STATUS_FAILURE;
-			PRINTM(MERROR, "mlan_recv: unknown recv_type 0x%x\n",
-			       recv_type);
-			break;
-		}
-	} else if (port == pmadapter->rx_data_ep) {
-		PRINTM_GET_SYS_TIME(MDATA, &sec, &usec);
-		PRINTM(MDATA, "mlan_recv: DATA (%lu.%06lu)\n", sec, usec);
-#if defined(USB)
-		if (pmadapter->pcard_usb->usb_rx_deaggr.aggr_ctrl.enable) {
-			max_rx_data_size = pmadapter->pcard_usb->usb_rx_deaggr
-						   .aggr_ctrl.aggr_max;
-			if (pmadapter->pcard_usb->usb_rx_deaggr.aggr_ctrl
-				    .aggr_mode == MLAN_USB_AGGR_MODE_NUM) {
-				max_rx_data_size *=
-					MAX(MLAN_USB_MAX_PKT_SIZE,
-					    pmadapter->pcard_usb->usb_rx_deaggr
-						    .aggr_ctrl.aggr_align);
-				max_rx_data_size = MAX(max_rx_data_size,
-						       MLAN_RX_DATA_BUF_SIZE);
-			}
-		}
-#endif
-		if (len > max_rx_data_size) {
-			pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
-			ret = MLAN_STATUS_FAILURE;
-			PRINTM(MERROR, "mlan_recv: DATA too large\n");
-		} else {
-			pmadapter->upld_len = len;
-			pmadapter->callbacks.moal_get_system_time(
-				pmadapter->pmoal_handle, &pmbuf->in_ts_sec,
-				&pmbuf->in_ts_usec);
-			pmadapter->callbacks.moal_spin_lock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_data_queue.plock);
-			util_enqueue_list_tail(pmadapter->pmoal_handle,
-					       &pmadapter->rx_data_queue,
-					       (pmlan_linked_list)pmbuf, MNULL,
-					       MNULL);
-			pmadapter->rx_pkts_queued++;
-			pmadapter->callbacks.moal_spin_unlock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_data_queue.plock);
-			pmadapter->data_received = MTRUE;
-			mlan_queue_rx_work(pmadapter);
-		}
-	} else {
-		pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
-		ret = MLAN_STATUS_FAILURE;
-		PRINTM(MERROR, "mlan_recv: unknown port number 0x%x\n", port);
-	}
-
-	LEAVE();
-	return ret;
-}
-#endif /* USB */
 
 /**
  *  @brief Packet receive completion callback handler
@@ -2255,7 +1713,6 @@ t_void mlan_set_driver_status(t_void *adapter, t_u8 driver_status)
 	LEAVE();
 }
 
-#if defined(SDIO) || defined(PCIE)
 /**
  *  @brief This function gets interrupt status.
  *  @param msg_id only used for PCIE
@@ -2275,7 +1732,6 @@ mlan_status mlan_interrupt(t_u16 msg_id, t_void *adapter)
 	LEAVE();
 	return ret;
 }
-#endif
 
 /**
  *  @brief This function wakeup firmware.
@@ -2321,103 +1777,3 @@ t_u8 mlan_is_main_process_running(t_void *adapter)
 	LEAVE();
 	return ret;
 }
-
-#ifdef PCIE
-/**
- *  @brief This function sets the PCIE interrupt mode.
- *
- *  @param adapter  A pointer to mlan_adapter structure
- *  @param int_mode PCIE interrupt type active
- *  @param func_num PCIE function num
- *  @return         N/A
- */
-t_void mlan_set_int_mode(t_void *adapter, t_u32 int_mode, t_u8 func_num)
-{
-	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
-	ENTER();
-	pmadapter->pcard_pcie->pcie_int_mode = int_mode;
-	pmadapter->pcard_pcie->func_num = func_num;
-	LEAVE();
-}
-
-/**
- *  @brief This function handle RX/EVENT/CMDRESP/TX_COMPLETE interrupt.
- *
- *  @param adapter  A pointer to mlan_adapter structure
- *  @param type     interrupt type
- *  @return         N/A
- */
-void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
-{
-	mlan_adapter *pmadapter = (mlan_adapter *)padapter;
-	pmlan_callbacks pcb = &pmadapter->callbacks;
-
-	ENTER();
-
-	if (type == RX_DATA) {
-		if ((pmadapter->ps_state == PS_STATE_SLEEP) ||
-		    (pmadapter->ps_state == PS_STATE_SLEEP_CFM)) {
-			LEAVE();
-			return;
-		}
-
-		if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
-			pcb->moal_tp_accounting_rx_param(
-				pmadapter->pmoal_handle, 2, 0);
-			PRINTM(MEVENT, "Pause\n");
-			pmadapter->delay_rx_data_flag = MTRUE;
-			if (pmadapter->napi)
-				mlan_queue_rx_work(pmadapter);
-			else
-				mlan_rx_process(pmadapter, MNULL);
-			LEAVE();
-			return;
-		}
-	} else if (type == TX_COMPLETE && !wlan_is_tx_pending(pmadapter)) {
-		LEAVE();
-		return;
-	} else if (type == RX_DATA_DELAY) {
-		PRINTM(MEVENT, "Delay Rx DATA\n");
-		pcb->moal_spin_lock(pmadapter->pmoal_handle,
-				    pmadapter->pmlan_rx_lock);
-		pmadapter->pcard_pcie->rx_pending = MFALSE;
-		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
-				      pmadapter->pmlan_rx_lock);
-		LEAVE();
-		return;
-	}
-	pmadapter->ops.process_int_status(pmadapter, type);
-	switch (type) {
-	case RX_DATA: // Rx Data
-		if (pmadapter->rx_pkts_queued) {
-			if (pmadapter->napi)
-				mlan_queue_rx_work(pmadapter);
-			else
-				mlan_rx_process(pmadapter, MNULL);
-		}
-		break;
-	case TX_COMPLETE: // Tx data complete
-		wlan_recv_event(wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY),
-				MLAN_EVENT_ID_DRV_DEFER_HANDLING, MNULL);
-		if (pmadapter->pcard_pcie->reg->use_adma) {
-			if (wlan_is_tx_pending(pmadapter))
-				wlan_recv_event(
-					wlan_get_priv(pmadapter,
-						      MLAN_BSS_ROLE_ANY),
-					MLAN_EVENT_ID_DRV_DELAY_TX_COMPLETE,
-					MNULL);
-		}
-		break;
-	case RX_CMD_RESP: // Rx CMD Resp
-		if (mlan_main_process(pmadapter) == MLAN_STATUS_FAILURE)
-			PRINTM(MERROR, "mlan_main_process failed.\n");
-		break;
-	case RX_CMD_DNLD:
-	case RX_EVENT:
-	default:
-		break;
-	}
-	LEAVE();
-	return;
-}
-#endif

@@ -26,9 +26,6 @@ Change log:
 ********************************************************/
 
 #include "moal_main.h"
-#ifdef USB
-#include "moal_usb.h"
-#endif
 
 /********************************************************
 		Global Variables
@@ -54,13 +51,6 @@ Change log:
 /** Get moal_handle member address */
 #define item_handle_addr(n) ((t_ptr) & (((moal_handle *)0)->n))
 
-#ifdef USB
-/** Get moal card member size */
-#define item_card_size(n) (sizeof(((struct usb_card_rec *)0)->n))
-/** Get moal card member address */
-#define item_card_addr(n) ((t_ptr) & (((struct usb_card_rec *)0)->n))
-#endif
-
 #ifdef STA_SUPPORT
 static struct debug_data items[] = {
 #ifdef DEBUG_LEVEL1
@@ -78,14 +68,6 @@ static struct debug_data items[] = {
 	 item_addr(mlan_rx_processing), INFO_ADDR},
 	{"rx_pkts_queued", item_size(rx_pkts_queued), item_addr(rx_pkts_queued),
 	 INFO_ADDR},
-#ifdef PCIE
-	{"pcie_event_processing", item_size(pcie_event_processing),
-	 item_addr(pcie_event_processing), INFO_ADDR},
-	{"pcie_rx_processing", item_size(pcie_rx_processing),
-	 item_addr(pcie_rx_processing), INFO_ADDR},
-	{"pcie_tx_processing", item_size(pcie_tx_processing),
-	 item_addr(pcie_tx_processing), INFO_ADDR},
-#endif
 	{"wmm_ac_vo", item_size(wmm_ac_vo), item_addr(wmm_ac_vo), INFO_ADDR},
 	{"wmm_ac_vi", item_size(wmm_ac_vi), item_addr(wmm_ac_vi), INFO_ADDR},
 	{"wmm_ac_be", item_size(wmm_ac_be), item_addr(wmm_ac_be), INFO_ADDR},
@@ -157,7 +139,6 @@ static struct debug_data items[] = {
 	 item_addr(num_tx_host_to_card_failure), INFO_ADDR},
 	{"num_alloc_buffer_failure", item_size(num_alloc_buffer_failure),
 	 item_addr(num_alloc_buffer_failure), INFO_ADDR},
-#ifdef SDIO
 	{"num_cmdevt_c2h_fail", item_size(num_cmdevt_card_to_host_failure),
 	 item_addr(num_cmdevt_card_to_host_failure),
 	 INFO_ADDR | (INTF_SD << 8)},
@@ -177,7 +158,6 @@ static struct debug_data items[] = {
 	 item_addr(mpa_sent_last_pkt), INFO_ADDR | (INTF_SD << 8)},
 	{"mpa_sent_no_ports", item_size(mpa_sent_no_ports),
 	 item_addr(mpa_sent_no_ports), INFO_ADDR | (INTF_SD << 8)},
-#endif
 	{"num_evt_deauth", item_size(num_event_deauth),
 	 item_addr(num_event_deauth), INFO_ADDR},
 	{"num_evt_disassoc", item_size(num_event_disassoc),
@@ -204,37 +184,11 @@ static struct debug_data items[] = {
 	 INFO_ADDR},
 	{"curr_wr_port", item_size(curr_wr_port), item_addr(curr_wr_port),
 	 INFO_ADDR},
-#ifdef PCIE
-	{"txbd_rdptr", item_size(txbd_rdptr), item_addr(txbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"txbd_wrptr", item_size(txbd_wrptr), item_addr(txbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"rxbd_rdptr", item_size(rxbd_rdptr), item_addr(rxbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"rxbd_wrptr", item_size(rxbd_wrptr), item_addr(rxbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"eventbd_rdptr", item_size(eventbd_rdptr), item_addr(eventbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"eventbd_wrptr", item_size(eventbd_wrptr), item_addr(eventbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-#endif
 	{"cmd_resp_received", item_size(cmd_resp_received),
 	 item_addr(cmd_resp_received), INFO_ADDR},
 	{"event_received", item_size(event_received), item_addr(event_received),
 	 INFO_ADDR},
 
-#ifdef USB
-	{"tx_cmd_urb_pending", item_card_size(tx_cmd_urb_pending),
-	 item_card_addr(tx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-	{"tx_data_urb_pending", item_card_size(tx_data_urb_pending),
-	 item_card_addr(tx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#ifdef USB_CMD_DATA_EP
-	{"rx_cmd_urb_pending", item_card_size(rx_cmd_urb_pending),
-	 item_card_addr(rx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#endif
-	{"rx_data_urb_pending", item_card_size(rx_data_urb_pending),
-	 item_card_addr(rx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#endif /* USB */
 	{"num_tx_timeout", item_priv_size(num_tx_timeout),
 	 item_priv_addr(num_tx_timeout), PRIV_ADDR},
 	{"ioctl_pending", item_handle_size(ioctl_pending),
@@ -251,10 +205,6 @@ static struct debug_data items[] = {
 	 item_handle_addr(vmalloc_count), HANDLE_ADDR},
 	{"mbufalloc_count", item_handle_size(mbufalloc_count),
 	 item_handle_addr(mbufalloc_count), HANDLE_ADDR},
-#ifdef PCIE
-	{"malloc_cons_count", item_handle_size(malloc_cons_count),
-	 item_handle_addr(malloc_cons_count), HANDLE_ADDR},
-#endif
 	{"main_state", item_handle_size(main_state),
 	 item_handle_addr(main_state), HANDLE_ADDR},
 	{"driver_state", item_handle_size(driver_state),
@@ -265,10 +215,12 @@ static struct debug_data items[] = {
 	{"sdiocmd53r", item_handle_size(cmd53r), item_handle_addr(cmd53r),
 	 HANDLE_ADDR},
 #endif
+#if defined(SDIO_SUSPEND_RESUME)
 	{"hs_skip_count", item_handle_size(hs_skip_count),
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
 	 item_handle_addr(hs_force_count), HANDLE_ADDR},
+#endif
 #ifdef STA_CFG80211
 	{"scan_timeout", item_handle_size(scan_timeout),
 	 item_handle_addr(scan_timeout), HANDLE_ADDR},
@@ -294,14 +246,6 @@ static struct debug_data uap_items[] = {
 	 item_addr(mlan_rx_processing), INFO_ADDR},
 	{"rx_pkts_queued", item_size(rx_pkts_queued), item_addr(rx_pkts_queued),
 	 INFO_ADDR},
-#ifdef PCIE
-	{"pcie_event_processing", item_size(pcie_event_processing),
-	 item_addr(pcie_event_processing), INFO_ADDR},
-	{"pcie_rx_processing", item_size(pcie_rx_processing),
-	 item_addr(pcie_rx_processing), INFO_ADDR},
-	{"pcie_tx_processing", item_size(pcie_tx_processing),
-	 item_addr(pcie_tx_processing), INFO_ADDR},
-#endif
 	{"wmm_ac_vo", item_size(wmm_ac_vo), item_addr(wmm_ac_vo), INFO_ADDR},
 	{"wmm_ac_vi", item_size(wmm_ac_vi), item_addr(wmm_ac_vi), INFO_ADDR},
 	{"wmm_ac_be", item_size(wmm_ac_be), item_addr(wmm_ac_be), INFO_ADDR},
@@ -365,7 +309,6 @@ static struct debug_data uap_items[] = {
 	 item_addr(num_tx_host_to_card_failure), INFO_ADDR},
 	{"num_alloc_buffer_failure", item_size(num_alloc_buffer_failure),
 	 item_addr(num_alloc_buffer_failure), INFO_ADDR},
-#ifdef SDIO
 	{"num_cmdevt_c2h_fail", item_size(num_cmdevt_card_to_host_failure),
 	 item_addr(num_cmdevt_card_to_host_failure),
 	 INFO_ADDR | (INTF_SD << 8)},
@@ -385,7 +328,6 @@ static struct debug_data uap_items[] = {
 	 item_addr(mpa_sent_last_pkt), INFO_ADDR | (INTF_SD << 8)},
 	{"mpa_sent_no_ports", item_size(mpa_sent_no_ports),
 	 item_addr(mpa_sent_no_ports), INFO_ADDR | (INTF_SD << 8)},
-#endif
 	{"cmd_sent", item_size(cmd_sent), item_addr(cmd_sent), INFO_ADDR},
 	{"data_sent", item_size(data_sent), item_addr(data_sent), INFO_ADDR},
 	{"data_sent_cnt", item_size(data_sent_cnt), item_addr(data_sent_cnt),
@@ -398,37 +340,11 @@ static struct debug_data uap_items[] = {
 	 INFO_ADDR},
 	{"curr_wr_port", item_size(curr_wr_port), item_addr(curr_wr_port),
 	 INFO_ADDR},
-#ifdef PCIE
-	{"txbd_rdptr", item_size(txbd_rdptr), item_addr(txbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"txbd_wrptr", item_size(txbd_wrptr), item_addr(txbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"rxbd_rdptr", item_size(rxbd_rdptr), item_addr(rxbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"rxbd_wrptr", item_size(rxbd_wrptr), item_addr(rxbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"eventbd_rdptr", item_size(eventbd_rdptr), item_addr(eventbd_rdptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-	{"eventbd_wrptr", item_size(eventbd_wrptr), item_addr(eventbd_wrptr),
-	 INFO_ADDR | (INTF_PCIE << 8)},
-#endif
 	{"cmd_resp_received", item_size(cmd_resp_received),
 	 item_addr(cmd_resp_received), INFO_ADDR},
 	{"event_received", item_size(event_received), item_addr(event_received),
 	 INFO_ADDR},
 
-#ifdef USB
-	{"tx_cmd_urb_pending", item_card_size(tx_cmd_urb_pending),
-	 item_card_addr(tx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-	{"tx_data_urb_pending", item_card_size(tx_data_urb_pending),
-	 item_card_addr(tx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#ifdef USB_CMD_DATA_EP
-	{"rx_cmd_urb_pending", item_card_size(rx_cmd_urb_pending),
-	 item_card_addr(rx_cmd_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#endif
-	{"rx_data_urb_pending", item_card_size(rx_data_urb_pending),
-	 item_card_addr(rx_data_urb_pending), CARD_ADDR | (INTF_USB << 8)},
-#endif /* USB */
 	{"num_tx_timeout", item_priv_size(num_tx_timeout),
 	 item_priv_addr(num_tx_timeout), PRIV_ADDR},
 	{"ioctl_pending", item_handle_size(ioctl_pending),
@@ -445,10 +361,6 @@ static struct debug_data uap_items[] = {
 	 item_handle_addr(vmalloc_count), HANDLE_ADDR},
 	{"mbufalloc_count", item_handle_size(mbufalloc_count),
 	 item_handle_addr(mbufalloc_count), HANDLE_ADDR},
-#ifdef PCIE
-	{"malloc_cons_count", item_handle_size(malloc_cons_count),
-	 item_handle_addr(malloc_cons_count), HANDLE_ADDR | (INTF_PCIE << 8)},
-#endif
 	{"main_state", item_handle_size(main_state),
 	 item_handle_addr(main_state), HANDLE_ADDR},
 	{"driver_state", item_handle_size(driver_state),
@@ -459,10 +371,12 @@ static struct debug_data uap_items[] = {
 	{"sdiocmd53r", item_handle_size(cmd53r), item_handle_addr(cmd53r),
 	 HANDLE_ADDR | (INTF_SD << 8)},
 #endif
+#if defined(SDIO_SUSPEND_RESUME)
 	{"hs_skip_count", item_handle_size(hs_skip_count),
 	 item_handle_addr(hs_skip_count), HANDLE_ADDR},
 	{"hs_force_count", item_handle_size(hs_force_count),
 	 item_handle_addr(hs_force_count), HANDLE_ADDR},
+#endif
 };
 #endif /* UAP_SUPPORT */
 
@@ -593,7 +507,6 @@ static int woal_histogram_info(struct seq_file *sfp, void *data)
 	t_u8 bw = 0;
 	t_u8 mcs_index = 0;
 	t_u8 nss = 0;
-	t_u8 gi = 0;
 	wlan_hist_proc_data *hist_data = (wlan_hist_proc_data *)sfp->private;
 	moal_private *priv = (moal_private *)hist_data->priv;
 	t_u16 rx_rate_max_size = priv->phandle->card_info->rx_rate_max;
@@ -633,33 +546,6 @@ static int woal_histogram_info(struct seq_file *sfp, void *data)
 	seq_printf(
 		sfp,
 		"\t176-185: AC-MCS 0-9(VHT:BW80:NSS1:SGI) 186-195: AC-MCS 0-9(VHT:BW80:NSS2:SGI)\n\n");
-	seq_printf(
-		sfp,
-		"\t196-207: AX-MCS 0-11(BW20:NSS1)        208-219: AX-MCS 0-11(BW20:NSS2)\n");
-	seq_printf(
-		sfp,
-		"\t220-231: AX-MCS 0-11(BW40:NSS1)        232-243: AX-MCS 0-11(BW40:NSS2)\n");
-	seq_printf(
-		sfp,
-		"\t244-255: AX-MCS 0-11(BW80:NSS1)        256-267: AX-MCS 0-11(BW80:NSS2)\n");
-	seq_printf(
-		sfp,
-		"\t268-279: AX-MCS 0-11(BW20:NSS1:GI1)    280-291: AX-MCS 0-11(BW20:NSS2:GI1)\n");
-	seq_printf(
-		sfp,
-		"\t292-303: AX-MCS 0-11(BW40:NSS1:GI1)    304-315: AX-MCS 0-11(BW40:NSS2:GI1)\n");
-	seq_printf(
-		sfp,
-		"\t316-327: AX-MCS 0-11(BW80:NSS1:GI1)    328-339: AX-MCS 0-11(BW80:NSS2:GI1)\n");
-	seq_printf(
-		sfp,
-		"\t340-351: AX-MCS 0-11(BW20:NSS1:GI2)    352-363: AX-MCS 0-11(BW20:NSS2:GI2)\n");
-	seq_printf(
-		sfp,
-		"\t364-375: AX-MCS 0-11(BW40:NSS1:GI2)    376-387: AX-MCS 0-11(BW40:NSS2:GI2)\n");
-	seq_printf(
-		sfp,
-		"\t388-399: AX-MCS 0-11(BW80:NSS1:GI2)    400-411: AX-MCS 0-11(BW80:NSS2:GI2)\n");
 
 	for (i = 0; i < rx_rate_max_size; i++) {
 		value = atomic_read(&(phist_data->rx_rate[i]));
@@ -696,21 +582,6 @@ static int woal_histogram_info(struct seq_file *sfp, void *data)
 					"rx_rate[%03d] = %d (MCS:%d VHT BW:%dMHz NSS:%d%s)\n",
 					i, value, mcs_index, (1 << bw) * 20,
 					nss + 1, sgi_enable ? " SGI" : "");
-			} else if (i <= 411) {
-				gi = (i - 196) / (MAX_MCS_NUM_AX * 6); // 0,1,2
-				bw = ((i - 196) % (MAX_MCS_NUM_AX * 6)) /
-				     (MAX_MCS_NUM_AX * 2); // 0:20MHz, 1:40MHz,
-							   // 2:80MHz
-				nss = (((i - 196) % (MAX_MCS_NUM_AX * 6)) %
-				       (MAX_MCS_NUM_AX * 2)) /
-				      MAX_MCS_NUM_AX; // 0:NSS1, 1:NSS2
-				mcs_index = (i - 196) % MAX_MCS_NUM_AX;
-
-				seq_printf(
-					sfp,
-					"rx_rate[%03d] = %d (MCS:%d AX BW:%dMHz NSS:%d GI:%d)\n",
-					i, value, mcs_index, (1 << bw) * 20,
-					nss + 1, gi);
 			}
 		}
 	}
@@ -999,9 +870,7 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 	mlan_debug_info *info = NULL;
 	t_u32 intf_mask = INTF_MASK << 8;
 	unsigned int j;
-#ifdef SDIO
 	t_u8 mp_aggr_pkt_limit = 0;
-#endif
 
 	ENTER();
 
@@ -1045,16 +914,11 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, "\n");
 			continue;
 		}
-		if (strstr(d[i].name, "id") || strstr(d[i].name, "bitmap")
-#ifdef PCIE
-		    || strstr(d[i].name, "ptr")
-#endif
-		)
+		if (strstr(d[i].name, "id") || strstr(d[i].name, "bitmap"))
 			seq_printf(sfp, "%s=0x%x\n", d[i].name, val);
 		else
 			seq_printf(sfp, "%s=%d\n", d[i].name, val);
 	}
-#ifdef SDIO
 	if (IS_SD(priv->phandle->card_type)) {
 		mp_aggr_pkt_limit = info->mp_aggr_pkt_limit;
 		seq_printf(sfp, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
@@ -1090,20 +954,6 @@ static int woal_debug_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, "%d ", info->mp_update[i]);
 		seq_printf(sfp, "\n");
 	}
-#endif
-#ifdef PCIE
-	if (IS_PCIE(priv->phandle->card_type)) {
-		seq_printf(sfp, "txbd_rdptr=0x%x txbd_wrptr=0x%x\n",
-			   info->txbd_rdptr, info->txbd_wrptr);
-		seq_printf(sfp, "rxbd_rdptr=0x%x rxbd_wrptr=0x%x\n",
-			   info->rxbd_rdptr, info->rxbd_wrptr);
-		seq_printf(sfp, "eventbd_rdptr=0x%x event_wrptr=0x%x\n",
-			   info->eventbd_rdptr, info->eventbd_wrptr);
-		seq_printf(sfp, "last_wr_index:%d\n",
-			   info->txbd_wrptr & (info->txrx_bd_size - 1));
-		seq_printf(sfp, "txrx bd size:%d\n", info->txrx_bd_size);
-	}
-#endif
 	seq_printf(sfp, "tcp_ack_drop_cnt=%d\n", priv->tcp_ack_drop_cnt);
 	seq_printf(sfp, "tcp_ack_cnt=%d\n", priv->tcp_ack_cnt);
 	seq_printf(sfp, "tcp_ack_payload=%d\n", priv->tcp_ack_payload);

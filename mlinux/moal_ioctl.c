@@ -27,12 +27,7 @@ Change log:
 
 #include "moal_main.h"
 #include "moal_eth_ioctl.h"
-#ifdef SDIO
 #include "moal_sdio.h"
-#endif
-#ifdef USB
-#include "moal_usb.h"
-#endif
 #ifdef UAP_SUPPORT
 #include "moal_uap.h"
 #endif
@@ -272,7 +267,7 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info))
 		return chan2Offset;
-	if (bss_info.region_code != COUNTRY_CODE_US && chan == 165)
+	if (chan == 165)
 		return chan2Offset;
 
 	switch (chan) {
@@ -288,8 +283,6 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	case 140:
 	case 149:
 	case 157:
-	case 165:
-	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -304,8 +297,6 @@ t_u8 woal_get_second_channel_offset(moal_private *priv, int chan)
 	case 144:
 	case 153:
 	case 161:
-	case 169:
-	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
 	}
@@ -675,11 +666,13 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
+#if defined(SDIO_SUSPEND_RESUME)
 		if (priv->phandle->is_suspended == MTRUE) {
 			PRINTM(MCMND, "IOCTL is not allowed while suspended\n");
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
+#endif
 #ifdef MFG_CMD_SUPPORT
 		if (mfg_mode && sub_command != MLAN_OID_MISC_HOST_CMD) {
 			PRINTM(MCMND, "Only HOST_CMD allowed in MFG mode\n");
@@ -911,70 +904,6 @@ done:
 }
 
 /**
- *  @brief Set PSK
- *
- *  @param priv                 A pointer to moal_private structure
- *  @param wait_option          Wait option
- *  @param ssid_bssid           A pointer to mlan_ssid_bssid structure
- *
- *  @return                     MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --
- * success, otherwise fail
- */
-
-mlan_status woal_set_psk_11ai(moal_private *priv, t_u8 wait_option,
-			      const t_u8 *addr, const t_u8 *key, int key_len)
-{
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_sec_cfg *sec = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	if (key_len) {
-		/* Allocate an IOCTL request buffer */
-		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
-		if (req == NULL) {
-			status = MLAN_STATUS_FAILURE;
-			goto error;
-		}
-		/* Fill request buffer */
-		sec = (mlan_ds_sec_cfg *)req->pbuf;
-		sec->sub_command = MLAN_OID_SEC_CFG_PASSPHRASE;
-		req->req_id = MLAN_IOCTL_SEC_CFG;
-		req->action = MLAN_ACT_SET;
-
-		/* Try Get All */
-		memset(&sec->param.passphrase, 0, sizeof(mlan_ds_passphrase));
-
-		if (addr)
-			moal_memcpy_ext(priv->phandle,
-					&sec->param.passphrase.bssid, addr,
-					MLAN_MAC_ADDR_LENGTH,
-					sizeof(mlan_802_11_mac_addr));
-
-		sec->param.passphrase.psk_type = MLAN_PSK_PMK;
-
-		moal_memcpy_ext(priv->phandle,
-				&(sec->param.passphrase.psk.pmk.pmk), key,
-				MLAN_MAX_KEY_LENGTH,
-				sizeof(sec->param.passphrase.psk.pmk.pmk));
-
-		/* Send IOCTL request to MLAN */
-		status = woal_request_ioctl(priv, req, wait_option);
-		if (status != MLAN_STATUS_SUCCESS) {
-			PRINTM(MERROR, "11AI: Failed to set PSK\n");
-			goto error;
-		}
-	}
-
-error:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return status;
-}
-
-/**
  *  @brief Send multicast list request to MLAN
  *
  *  @param priv   A pointer to moal_private structure
@@ -1130,209 +1059,6 @@ done:
 }
 #endif
 
-#ifdef UAP_SUPPORT
-/**
- *  @brief Check current uap/go connection status
- *         Need handle channel switch if current channel is DFS channel
- *
- *  @param priv          A pointer to moal_private structure
- *  @param wait_option          Wait option
- *  @param new channel          new channel
- *  @return              N/A
- */
-static void woal_check_uap_dfs_status(moal_private *priv, t_u8 wait_option,
-				      t_u8 new_channel)
-{
-	chan_band_info channel;
-	mlan_bss_info bss_info;
-#if defined(UAP_SUPPORT)
-	IEEEtypes_ChanSwitchAnn_t *chan_switch = NULL;
-	IEEEtypes_ExtChanSwitchAnn_t *ext_chan_switch = NULL;
-	custom_ie *pcust_chansw_ie = NULL;
-	mlan_ioctl_req *ioctl_req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	t_u8 bw = 0, oper_class = 0;
-#endif
-
-	/* Get BSS information */
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_get_bss_info(priv, wait_option, &bss_info))
-		goto done;
-	if (MLAN_STATUS_SUCCESS !=
-	    woal_set_get_ap_channel(priv, MLAN_ACT_GET, wait_option, &channel))
-		goto done;
-	PRINTM(MCMND, "is_11h_active=%d dfs_check_channel=%d\n",
-	       bss_info.is_11h_active, bss_info.dfs_check_channel);
-	PRINTM(MCMND, "uap current channel=%d new_channel=%d\n",
-	       channel.channel, new_channel);
-#if defined(UAP_SUPPORT)
-	if (new_channel == channel.channel)
-		goto done;
-	if (bss_info.is_11h_active &&
-	    (bss_info.dfs_check_channel == channel.channel)) {
-		if (new_channel < MAX_BG_CHANNEL) {
-			bw = 20;
-		} else {
-			switch (channel.bandcfg.chanWidth) {
-			case CHAN_BW_20MHZ:
-				bw = 20;
-				break;
-			case CHAN_BW_40MHZ:
-				bw = 40;
-				break;
-			case CHAN_BW_80MHZ:
-				bw = 80;
-				break;
-			default:
-				break;
-			}
-		}
-		woal_priv_get_nonglobal_operclass_by_bw_channel(
-			priv, bw, new_channel, &oper_class);
-		PRINTM(MCMND,
-		       "Switch the uap channel from %d to %d, oper_class=%d bw=%d\n",
-		       channel.channel, new_channel, oper_class, bw);
-		ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-		if (ioctl_req) {
-			misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
-			misc->sub_command = MLAN_OID_MISC_CUSTOM_IE;
-			ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
-			ioctl_req->action = MLAN_ACT_SET;
-			misc->param.cust_ie.type = TLV_TYPE_MGMT_IE;
-			misc->param.cust_ie.len =
-				sizeof(custom_ie) - MAX_IE_SIZE;
-			pcust_chansw_ie = (custom_ie *)&misc->param.cust_ie
-						  .ie_data_list[0];
-			pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
-			if (!oper_class) {
-				pcust_chansw_ie->ie_length =
-					sizeof(IEEEtypes_ChanSwitchAnn_t);
-				pcust_chansw_ie->mgmt_subtype_mask =
-					MGMT_MASK_BEACON |
-					MGMT_MASK_PROBE_RESP; /*Add IE for
-								 BEACON/probe
-								 resp*/
-				chan_switch =
-					(IEEEtypes_ChanSwitchAnn_t *)
-						pcust_chansw_ie->ie_buffer;
-				chan_switch->element_id = CHANNEL_SWITCH_ANN;
-				chan_switch->len =
-					sizeof(IEEEtypes_ChanSwitchAnn_t) -
-					sizeof(IEEEtypes_Header_t);
-				chan_switch->chan_switch_mode = 1; /* STA should
-								      not
-								      transmit
-								    */
-				chan_switch->new_channel_num = new_channel;
-				chan_switch->chan_switch_count =
-					DEF_CHAN_SWITCH_COUNT;
-				DBG_HEXDUMP(MCMD_D, "CSA IE",
-					    (t_u8 *)pcust_chansw_ie->ie_buffer,
-					    pcust_chansw_ie->ie_length);
-			} else {
-				pcust_chansw_ie->ie_length =
-					sizeof(IEEEtypes_ExtChanSwitchAnn_t);
-				pcust_chansw_ie->mgmt_subtype_mask =
-					MGMT_MASK_BEACON |
-					MGMT_MASK_PROBE_RESP; /*Add IE for
-								 BEACON/probe
-								 resp*/
-				ext_chan_switch =
-					(IEEEtypes_ExtChanSwitchAnn_t *)
-						pcust_chansw_ie->ie_buffer;
-				ext_chan_switch->element_id =
-					EXTEND_CHANNEL_SWITCH_ANN;
-				ext_chan_switch->len =
-					sizeof(IEEEtypes_ExtChanSwitchAnn_t) -
-					sizeof(IEEEtypes_Header_t);
-				ext_chan_switch->chan_switch_mode =
-					1; /* STA should not transmit */
-				ext_chan_switch->new_channel_num = new_channel;
-				ext_chan_switch->chan_switch_count =
-					DEF_CHAN_SWITCH_COUNT;
-				ext_chan_switch->new_oper_class = oper_class;
-				DBG_HEXDUMP(MCMD_D, "ECSA IE",
-					    (t_u8 *)pcust_chansw_ie->ie_buffer,
-					    pcust_chansw_ie->ie_length);
-			}
-			status = woal_request_ioctl(priv, ioctl_req,
-						    wait_option);
-			if (status != MLAN_STATUS_SUCCESS) {
-				PRINTM(MERROR, "Failed to set CSA IE\n");
-				goto done;
-			}
-			PRINTM(MCMND, "CSA/ECSA ie index=%d\n",
-			       pcust_chansw_ie->ie_index);
-			priv->phandle->chsw_wait_q_woken = MFALSE;
-			/* wait for channel switch to complete  */
-			wait_event_interruptible_timeout(
-				priv->phandle->chsw_wait_q,
-				priv->phandle->chsw_wait_q_woken,
-				(u32)HZ * (DEF_CHAN_SWITCH_COUNT + 2) * 110 /
-					1000);
-
-			pcust_chansw_ie->ie_index = 0xffff;
-			pcust_chansw_ie->mgmt_subtype_mask =
-				MLAN_CUSTOM_IE_DELETE_MASK;
-			status = woal_request_ioctl(priv, ioctl_req,
-						    MOAL_IOCTL_WAIT);
-			if (status != MLAN_STATUS_SUCCESS) {
-				PRINTM(MERROR, "Failed to clear CSA/ECSA IE\n");
-			}
-		}
-	}
-#endif
-done:
-#if defined(UAP_SUPPORT)
-	if (status != MLAN_STATUS_PENDING)
-		kfree(ioctl_req);
-#endif
-	return;
-}
-
-/**
- *  @brief Check current multi-channel connections
- *
- *  @param priv          A pointer to moal_private structure
- *  @param wait_option          Wait option
- *  @param new channel  new channel
- *
- *  @return              N/A
- */
-void woal_check_mc_connection(moal_private *priv, t_u8 wait_option,
-			      t_u8 new_channel)
-{
-	moal_handle *handle = priv->phandle;
-#ifdef UAP_SUPPORT
-	int i;
-#endif
-	t_u16 enable = 0;
-	if (priv->phandle->card_info->drcs &&
-	    moal_extflg_isset(priv->phandle, EXT_CFG80211_DRCS)) {
-		if (woal_mc_policy_cfg(priv, &enable, wait_option,
-				       MLAN_ACT_GET)) {
-			PRINTM(MERROR, "Get multi-channel policy failed\n");
-		}
-	}
-
-	if (!enable)
-		return;
-#ifdef UAP_SUPPORT
-	for (i = 0; i < handle->priv_num; i++) {
-		if (handle->priv[i] &&
-		    GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_UAP) {
-			if (handle->priv[i]->bss_started == MTRUE)
-				woal_check_uap_dfs_status(handle->priv[i],
-							  wait_option,
-							  new_channel);
-		}
-	}
-#endif
-	return;
-}
-#endif
-
 /**
  *  @brief Send bss_start command to MLAN
  *
@@ -1349,9 +1075,6 @@ mlan_status woal_bss_start(moal_private *priv, t_u8 wait_option,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_bss *bss = NULL;
 	mlan_status status;
-#ifdef UAP_SUPPORT
-	mlan_ssid_bssid *temp_ssid_bssid = NULL;
-#endif
 
 	ENTER();
 
@@ -1361,26 +1084,6 @@ mlan_status woal_bss_start(moal_private *priv, t_u8 wait_option,
 		if (netif_carrier_ok(priv->netdev))
 			netif_carrier_off(priv->netdev);
 	}
-#ifdef UAP_SUPPORT
-	if (!ssid_bssid) {
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-	temp_ssid_bssid = kzalloc(sizeof(mlan_ssid_bssid), GFP_ATOMIC);
-	if (!temp_ssid_bssid) {
-		PRINTM(MERROR, "Fail to allocate ssid_bssid buffer\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	moal_memcpy_ext(priv->phandle, temp_ssid_bssid, ssid_bssid,
-			sizeof(mlan_ssid_bssid), sizeof(mlan_ssid_bssid));
-	if (MLAN_STATUS_SUCCESS ==
-	    woal_find_best_network(priv, wait_option, temp_ssid_bssid))
-		woal_check_mc_connection(priv, wait_option,
-					 temp_ssid_bssid->channel);
-	kfree(temp_ssid_bssid);
-#endif
 
 	if (MOAL_ACQ_SEMAPHORE_BLOCK(&priv->phandle->async_sem)) {
 		PRINTM(MERROR, "Acquire semaphore error, woal_bss_start\n");
@@ -1630,16 +1333,6 @@ int woal_pre_warmreset(moal_private *priv)
 #endif /* WIFI_DIRECT_SUPPORT */
 
 	ENTER();
-#ifdef USB
-#ifdef CONFIG_USB_SUSPEND
-	if (IS_USB(handle->card_type) && handle->is_suspended &&
-	    woal_exit_usb_suspend(handle)) {
-		PRINTM(MERROR, "Failed to resume the suspended device\n");
-		LEAVE();
-		return -EFAULT;
-	}
-#endif /* CONFIG_USB_SUSPEND */
-#endif
 	woal_cancel_cac_block(priv);
 	/* Reset all interfaces */
 	woal_reset_intf(priv, MOAL_IOCTL_WAIT, MTRUE);
@@ -1713,25 +1406,6 @@ int woal_warmreset(moal_private *priv)
 			goto done;
 		}
 		kfree(req);
-	}
-#ifdef USB
-	if (IS_USB(handle->card_type) && handle->params.usb_aggr == 1) {
-		/* Enable USB aggregation in FW */
-		if (woal_usb_aggr_init(handle)) {
-			PRINTM(MERROR, "usb aggr init fail\n");
-			ret = -EFAULT;
-			goto done;
-		}
-	}
-#endif
-
-	if (moal_extflg_isset(handle, EXT_AGGR_CTRL)) {
-		/* Enable aggregation in FW */
-		if (woal_init_aggr_ctrl(handle, MOAL_IOCTL_WAIT)) {
-			PRINTM(MERROR, "Fail to init aggr ctrl\n");
-			ret = -EFAULT;
-			goto done;
-		}
 	}
 
 	/* Enable interfaces */
@@ -2947,11 +2621,8 @@ int woal_send_host_packet(struct net_device *dev, struct ifreq *req)
 				  PACKET_HEADER_LEN + FRAME_LEN);
 	if (priv->phandle->cmd_tx_data &&
 	    (((mgmt->frame_control & IEEE80211_FC_MGMT_FRAME_TYPE_MASK) == 0)
-// Nighthawk CSI need to send qos null packets via cmd 0x283
-#if defined(SDIW610) || defined(USBIW610)
-	     || (mgmt->frame_control == 0xc8)
-#endif
-		     )) {
+	     // Nighthawk CSI need to send qos null packets via cmd 0x283
+	     )) {
 		status = woal_send_mgmt_packet(priv, pmbuf);
 		woal_free_mlan_buffer(priv->phandle, pmbuf);
 		goto done;
@@ -3570,6 +3241,7 @@ done:
 }
 #endif
 
+#if defined(SDIO_SUSPEND_RESUME)
 /**
  *  @brief Set auto arp resp
  *
@@ -3733,6 +3405,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 /**
  *  @brief Set/Get DTIM period
@@ -4004,6 +3677,7 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 		woal_set_wake_on_mdns(priv->phandle, MFALSE);
 	}
 
+#if defined(SDIO_SUSPEND_RESUME)
 	if (priv->phandle->hs_auto_arp) {
 		PRINTM(MIOCTL, "Cancel Host Sleep... remove FW auto arp\n");
 		/* remove auto arp from FW */
@@ -4011,6 +3685,7 @@ mlan_status woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 		/* remove auto arp from FW */
 		woal_set_auto_arp_ext(priv->phandle, MFALSE);
 	}
+#endif
 
 #ifdef STA_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
@@ -4222,6 +3897,7 @@ mlan_status woal_set_rgpower_table(moal_handle *handle)
 	return ret;
 }
 
+#if defined(SDIO_SUSPEND_RESUME)
 /**  @brief This function enables the host sleep
  *
  *  @param priv     A Pointer to the moal_private structure
@@ -4238,7 +3914,6 @@ int woal_enable_hs(moal_private *priv)
 	mlan_ds_ps_info pm_info;
 #endif
 	pmlan_ds_misc_keep_alive keep_alive = NULL;
-	pmlan_ds_misc_keep_alive_rx keep_alive_rx = NULL;
 	t_u8 media_connected = MFALSE;
 
 	ENTER();
@@ -4401,21 +4076,6 @@ int woal_enable_hs(moal_private *priv)
 			memset(keep_alive->packet, 0, MKEEP_ALIVE_IP_PKT_MAX);
 		}
 	}
-	for (i = 0; i < MAX_KEEP_ALIVE_RX_ID; i++) {
-		keep_alive_rx = &handle->keep_alive_rx[i];
-		if (keep_alive_rx && keep_alive_rx->cached &&
-		    keep_alive_rx->enable) {
-			keep_alive_rx->cached = MFALSE;
-			woal_start_mkeep_alive_rx(
-				woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
-				keep_alive_rx->mkeep_alive_id,
-				keep_alive_rx->packet, keep_alive_rx->pkt_len,
-				keep_alive_rx->src_mac, keep_alive_rx->dst_mac);
-			keep_alive_rx->pkt_len = 0;
-			memset(keep_alive_rx->packet, 0,
-			       MKEEP_ALIVE_ACK_PKT_MAX);
-		}
-	}
 	/* Enable Host Sleep */
 	handle->hs_activate_wait_q_woken = MFALSE;
 	memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
@@ -4428,11 +4088,9 @@ int woal_enable_hs(moal_private *priv)
 	timeout = wait_event_timeout(handle->hs_activate_wait_q,
 				     handle->hs_activate_wait_q_woken,
 				     HS_ACTIVE_TIMEOUT);
-#ifdef SDIO_MMC
 	if (IS_SD(handle->card_type)) {
 		sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
 	}
-#endif
 
 #ifdef SDIO_SUSPEND_RESUME
 	memset(&pm_info, 0, sizeof(mlan_ds_ps_info));
@@ -4459,11 +4117,9 @@ int woal_enable_hs(moal_private *priv)
 		}
 	}
 #endif /* SDIO_SUSPEND_RESUME*/
-#ifdef SDIO_MMC
 	if (IS_SD(handle->card_type)) {
 		sdio_release_host(((sdio_mmc_card *)handle->card)->func);
 	}
-#endif
 	if (hs_actived != MTRUE) {
 		handle->hs_skip_count++;
 #ifdef SDIO_SUSPEND_RESUME
@@ -4483,6 +4139,7 @@ done:
 	LEAVE();
 	return hs_actived;
 }
+#endif
 
 #ifdef CONFIG_PROC_FS
 /**
@@ -5173,10 +4830,6 @@ int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
-#ifdef UAP_SUPPORT
-	chan_band_info chan;
-	chan_band_info uapchan;
-#endif
 
 	ENTER();
 
@@ -5197,41 +4850,6 @@ int woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	}
 
 	if (woal_is_any_interface_active(priv->phandle)) {
-#ifdef UAP_SUPPORT
-		/* When any other interface is active
-		 * Get rid of CAC timer when drcs is disabled */
-		t_u16 enable = 0;
-		if (priv->phandle->card_info->drcs)
-			ret = woal_mc_policy_cfg(priv, &enable, wait_option,
-						 MLAN_ACT_GET);
-		if (!enable) {
-			LEAVE();
-			return ret;
-		} else {
-			woal_get_active_intf_channel(priv, &chan);
-			woal_set_get_ap_channel(priv, MLAN_ACT_GET,
-						MOAL_IOCTL_WAIT, &uapchan);
-			if (chan.channel != uapchan.channel) {
-				if (uapchan.is_dfs_chan) {
-					PRINTM(MERROR,
-					       "DFS channel is not allowed when another connection exists on different channel\n");
-					PRINTM(MERROR,
-					       "Another connection's channel=%d, dfs channel=%d\n",
-					       chan.channel, uapchan.channel);
-					return -EINVAL;
-				} else {
-					// check if we need move first uap0 from
-					// DFS channel to new non dfs channel
-					woal_check_mc_connection(
-						priv, wait_option,
-						uapchan.channel);
-				}
-			}
-		}
-#else
-		LEAVE();
-		return status;
-#endif
 	}
 
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
@@ -7129,155 +6747,6 @@ done:
 }
 
 /**
- *  @brief Set FILS PSK
- *
- *  @param priv                 A pointer to moal_private structure
- *  @param data          	 A pointer to a buffer
- *
- *  @return                     MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --
- * success, otherwise fail
- */
-mlan_status woal_set_fils_psk(moal_private *priv, char *data)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_802_11_mac_addr mac = {0x00};
-	t_u8 key[MLAN_MAX_KEY_LENGTH] = {0};
-	char *begin, *end, *opt;
-
-	ENTER();
-	begin = data;
-
-	/* Parse command arguments */
-	while (begin) {
-		end = woal_strsep(&begin, ';', '/');
-		if (!end || !end[0])
-			break;
-
-		opt = woal_strsep(&end, '=', '/');
-		if (!opt || !end) {
-			PRINTM(MERROR, "Invalid option\n");
-			LEAVE();
-			return -EINVAL;
-		}
-
-		if (!strncmp(opt, FILS_KEY, strlen(FILS_KEY))) {
-			memset(key, 0, sizeof(key));
-			woal_ascii2hex((t_u8 *)key, end, MLAN_MAX_KEY_LENGTH);
-		} else if (!strncmp(opt, FILS_BSSID, strlen(FILS_BSSID))) {
-			woal_mac2u8(mac, end);
-		}
-	}
-
-	ret = woal_set_psk_11ai(priv, MOAL_IOCTL_WAIT, (t_u8 *)mac, (t_u8 *)key,
-				MLAN_MAX_KEY_LENGTH);
-
-	priv->enable_fils = MTRUE;
-	return ret;
-}
-
-#ifdef UAP_SUPPORT
-/**
- *  @brief Set FILS IP Config
- *
- *  @param priv                 A pointer to moal_private structure
- *  @param data                 A pointer to a buffer
- *
- *  @return                     MLAN_STATUS_SUCCESS on success, otherwise fail
- */
-mlan_status woal_set_fils_ip_cfg(moal_private *priv, char *data)
-{
-	char *begin, *end, *opt;
-	ip_addr_cfg_t ip_cfg;
-	int maxClients = 0;
-	u8 ip[MAX_IPADDR];
-	u32 ip_address;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_bss *bss = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-	begin = data;
-
-	memset(&ip_cfg, 0, sizeof(ip_cfg));
-
-	/* Parse command arguments */
-	while (begin) {
-		end = woal_strsep(&begin, ';', '/');
-		if (!end || !end[0])
-			break;
-
-		opt = woal_strsep(&end, '=', '/');
-		if (!opt || !end) {
-			PRINTM(MERROR, "Invalid option\n");
-			LEAVE();
-			return -EINVAL;
-		}
-
-		if (!strncmp(opt, FILS_COUNT_STR, strlen(FILS_COUNT_STR))) {
-			maxClients = ip_cfg.maxClients;
-			if (woal_atoi(&maxClients, end) !=
-			    MLAN_STATUS_SUCCESS) {
-				LEAVE();
-				return -EINVAL;
-			}
-			continue;
-		}
-
-		/* Parse and store the IP address */
-		in4_pton(end, strlen(end), ip, ' ', NULL);
-
-		ip_address =
-			ip[3] | (ip[2] << 8) | (ip[1] << 16) | (ip[0] << 24);
-
-		if (!strncmp(opt, FILS_IP_STR, strlen(FILS_IP_STR))) {
-			ip_cfg.ip = ip_address;
-		} else if (!strncmp(opt, FILS_MASK_STR,
-				    strlen(FILS_MASK_STR))) {
-			ip_cfg.subnetMask = ip_address;
-		} else if (!strncmp(opt, FILS_BASE_IP_STR,
-				    strlen(FILS_BASE_IP_STR))) {
-			ip_cfg.baseIp = ip_address;
-		} else if (!strncmp(opt, FILS_DNS_STR, strlen(FILS_DNS_STR))) {
-			ip_cfg.dnsIp = ip_address;
-		}
-	}
-
-	/* Allocate an IOCTL request buffer */
-	req = (mlan_ioctl_req *)woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	/* Fill request buffer */
-	bss = (mlan_ds_bss *)req->pbuf;
-	bss->sub_command = MLAN_OID_FILS_IP_CFG;
-	req->req_id = MLAN_IOCTL_BSS;
-	req->action = MLAN_ACT_SET;
-
-	/* Fill IP configuration */
-	moal_memcpy_ext(priv->phandle, &(bss->param.bss_config.ip_cfg), &ip_cfg,
-			sizeof(ip_cfg), sizeof(bss->param.bss_config.ip_cfg));
-
-	/* Send IOCTL request to MLAN */
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	priv->enable_fils = MTRUE;
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-#endif
-
-/**
  *  @brief set power mode
  *
  *  @param priv                 A pointer to moal_private structure
@@ -7601,175 +7070,6 @@ done:
 }
 
 /**
- *  @brief set bandctrl
- *
- *  @param priv             A pointer to moal_private structure
- *  @param bandctrl         new bandctrl
- *
- *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_set_bandctrl(moal_private *priv, t_u32 bandctrl)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	int band = 0;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_radio_cfg *radio_cfg = NULL;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-	int cfg80211_wext;
-#endif
-
-	ENTER();
-
-	if (priv == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		LEAVE();
-		return ret;
-	}
-
-	if (priv->band_ctrl == bandctrl) {
-		LEAVE();
-		return ret;
-	}
-
-	if (bandctrl == BANDCTRL_BLOCK_SCAN) {
-		priv->fake_scan_complete = MTRUE;
-		woal_flush_scan_table(priv, BAND_SELECT_ALL);
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
-		/* Clear the internal BSS list maintained by the cfg80211
-		 * subsystem */
-		if (priv->wdev && priv->wdev->wiphy) {
-			cfg80211_bss_flush(priv->wdev->wiphy);
-		}
-#endif
-		/** deauth ext-ap */
-		if (priv->media_connected && !priv->cfg_disconnect) {
-			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
-			       MAC2STR(priv->cfg_bssid));
-			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
-					priv->cfg_bssid,
-					DEF_DEAUTH_REASON_CODE);
-		}
-	} else if (bandctrl == BANDCTRL_SET_BANDCFG) {
-		priv->fake_scan_complete = MFALSE;
-	} else if (bandctrl == BANDCTRL_2G_ONLY) {
-		/** deauth ext-5g ap */
-		if (priv->media_connected && !priv->cfg_disconnect &&
-		    (priv->channel > 14)) {
-			PRINTM(MMSG, "Disconnect STA " MACSTR "\n",
-			       MAC2STR(priv->cfg_bssid));
-			woal_disconnect(priv, MOAL_IOCTL_WAIT_TIMEOUT,
-					priv->cfg_bssid,
-					DEF_DEAUTH_REASON_CODE);
-		}
-		woal_flush_scan_table(priv, BAND_SELECT_2G_ONLY);
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
-		/* Clear the internal BSS list maintained by the cfg80211
-		 * subsystem */
-		if (priv->wdev && priv->wdev->wiphy) {
-			cfg80211_bss_flush(priv->wdev->wiphy);
-		}
-#endif
-		priv->fake_scan_complete = MFALSE;
-	}
-	priv->band_ctrl = bandctrl;
-	if (priv->band_ctrl == BANDCTRL_SET_BANDCFG ||
-	    priv->band_ctrl == BANDCTRL_2G_ONLY) {
-		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
-		if (req == NULL) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-		radio_cfg = (mlan_ds_radio_cfg *)req->pbuf;
-		radio_cfg->sub_command = MLAN_OID_BAND_CFG;
-		req->req_id = MLAN_IOCTL_RADIO_CFG;
-
-		/* Get fw supported values from MLAN */
-		req->action = MLAN_ACT_GET;
-		ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-		if (ret != MLAN_STATUS_SUCCESS)
-			goto done;
-		if (priv->band_ctrl == BANDCTRL_SET_BANDCFG) {
-			band = radio_cfg->param.band_cfg.fw_bands;
-		} else {
-			band = BAND_B | BAND_G;
-			band |= BAND_GN;
-			band |= BAND_GAX;
-		}
-
-		/* Set config_bands to MLAN */
-		req->action = MLAN_ACT_SET;
-		memset(&radio_cfg->param.band_cfg, 0, sizeof(mlan_ds_band_cfg));
-		radio_cfg->param.band_cfg.config_bands = band;
-		ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	}
-done:
-	if (req && (ret != MLAN_STATUS_PENDING))
-		kfree(req);
-
-	/* Stopping the previous background scan */
-	if (priv->sched_scanning == MTRUE) {
-		PRINTM(MMSG, "wlan: %s %s stop sch scan\n", __func__,
-		       priv->netdev->name);
-		priv->bg_scan_start = MFALSE;
-		priv->bg_scan_reported = MFALSE;
-		woal_stop_bg_scan(priv, MOAL_IOCTL_WAIT);
-#ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
-		cfg80211_wext = priv->phandle->params.cfg80211_wext;
-		if (IS_STA_CFG80211(cfg80211_wext)) {
-			woal_bgscan_stop_event(priv);
-		}
-#endif
-#endif
-	}
-
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief flush scan table
- *
- *  @param priv             A pointer to moal_private structure
- *  @param band_select      BAND_SELECT_2G_ONLY/BAND_SELECT_ALL
- *
- *  @return                 MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_flush_scan_table(moal_private *priv, t_u32 band_select)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_scan *scan = NULL;
-
-	ENTER();
-
-	/* Allocate an IOCTL request buffer */
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_scan));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	scan = (mlan_ds_scan *)req->pbuf;
-	if (band_select == BAND_SELECT_2G_ONLY) {
-		scan->sub_command = MLAN_OID_SCAN_TABLE_FLUSH_WITH_BAND;
-		scan->param.band = BAND_A;
-		scan->param.band |= BAND_6G;
-	} else {
-		scan->sub_command = MLAN_OID_SCAN_TABLE_FLUSH;
-	}
-	req->req_id = MLAN_IOCTL_SCAN;
-	req->action = MLAN_ACT_SET;
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Add RX Filter
  *
  *  @param priv                 A pointer to moal_private structure
@@ -8060,234 +7360,6 @@ done:
 
 #endif /* STA_SUPPORT */
 
-#ifdef USB
-/**
- * @brief Initialize USB packet aggregation control
- *
- * @param handle    A pointer to moal_private structure
- *
- * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_usb_aggr_init(moal_handle *handle)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	moal_private *priv = NULL;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *pcfg_misc = NULL;
-	mlan_ds_misc_usb_aggr_ctrl *aggr_param = NULL;
-	t_u8 usb_aggr_enable;
-	struct usb_card_rec *cardp = NULL;
-	int i = 0, resubmit_urbs = 0;
-
-	ENTER();
-
-	if (!handle) {
-		PRINTM(MERROR, "Handle is null\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-	priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
-	if (!priv) {
-		PRINTM(MERROR, "STA priv is null\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	if (handle->card == NULL) {
-		PRINTM(MERROR, "Card is null in %s()\n", __func__);
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	cardp = (struct usb_card_rec *)handle->card;
-
-	/* Check module parameter */
-	if (handle->params.usb_aggr == 0 || handle->params.usb_aggr == 2) {
-		usb_aggr_enable = MFALSE;
-	} else if (handle->params.usb_aggr == 1) {
-		usb_aggr_enable = MTRUE;
-	} else {
-		PRINTM(MWARN,
-		       "Invalid module param (usb_aggr) value %d, "
-		       "using MLAN default\n",
-		       handle->params.usb_aggr);
-		handle->params.usb_aggr = 0;
-		usb_aggr_enable = MFALSE;
-	}
-
-	/* Allocate an IOCTL request buffer */
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill request buffer */
-	pcfg_misc = (mlan_ds_misc_cfg *)req->pbuf;
-	pcfg_misc->sub_command = MLAN_OID_MISC_USB_AGGR_CTRL;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = MLAN_ACT_SET;
-
-	aggr_param = &pcfg_misc->param.usb_aggr_params;
-	/* Initialize TX aggr default values */
-	aggr_param->tx_aggr_ctrl.enable = usb_aggr_enable;
-	aggr_param->tx_aggr_ctrl.aggr_mode = MLAN_USB_AGGR_MODE_NUM;
-	aggr_param->tx_aggr_ctrl.aggr_align =
-		MAX(handle->params.max_tx_buf, MLAN_USB_TX_AGGR_ALIGN);
-	aggr_param->tx_aggr_ctrl.aggr_max = MLAN_USB_TX_MAX_AGGR_NUM;
-	aggr_param->tx_aggr_ctrl.aggr_tmo =
-		MLAN_USB_TX_AGGR_TIMEOUT_MSEC * 1000;
-
-	/* Initialize RX deaggr default values */
-	aggr_param->rx_deaggr_ctrl.enable = usb_aggr_enable;
-	aggr_param->rx_deaggr_ctrl.aggr_mode = MLAN_USB_AGGR_MODE_NUM;
-	aggr_param->rx_deaggr_ctrl.aggr_align = MLAN_USB_RX_ALIGN_SIZE;
-	aggr_param->rx_deaggr_ctrl.aggr_max = MLAN_USB_RX_MAX_AGGR_NUM;
-	aggr_param->rx_deaggr_ctrl.aggr_tmo = MLAN_USB_RX_DEAGGR_TIMEOUT_USEC;
-
-	/* Do not fail driver init due to command failure */
-	ret = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	/* Disable the feature if FW return failure/unsupported */
-	if (req->status_code)
-		cardp->tx_aggr_ctrl.enable = MFALSE;
-	else
-		moal_memcpy_ext(handle, &cardp->tx_aggr_ctrl,
-				&aggr_param->tx_aggr_ctrl,
-				sizeof(usb_aggr_ctrl_cfg),
-				sizeof(usb_aggr_ctrl_cfg));
-
-	if (req->status_code) {
-		/* Disable the feature if FW return failure/unsupported */
-		cardp->rx_deaggr_ctrl.enable = MFALSE;
-	} else {
-		/* Default is disable, resubmit URBs only for enable */
-		if (cardp->rx_deaggr_ctrl.enable != usb_aggr_enable)
-			resubmit_urbs = 1;
-	}
-	if (resubmit_urbs) {
-		/* Indicate resubmition from here */
-		cardp->resubmit_urbs = 1;
-		/* Rx SG feature is disabled due to FW failure/unsupported,
-		 * kill the URBs, they will be resubmitted after saving the
-		 * parameters to USB card */
-		if (atomic_read(&cardp->rx_data_urb_pending)) {
-			for (i = 0; i < MVUSB_RX_DATA_URB; i++) {
-				if (cardp->rx_data_list[i].urb) {
-					usb_kill_urb(
-						cardp->rx_data_list[i].urb);
-				}
-			}
-		}
-
-		/* Default is disable, update only for enable case */
-		moal_memcpy_ext(handle, &cardp->rx_deaggr_ctrl,
-				&aggr_param->rx_deaggr_ctrl,
-				sizeof(usb_aggr_ctrl_cfg),
-				sizeof(usb_aggr_ctrl_cfg));
-
-		/* Ensure the next data URBs will use the modified parameters */
-		if (!atomic_read(&cardp->rx_data_urb_pending)) {
-			/* Submit multiple Rx data URBs */
-			woal_usb_submit_rx_data_urbs(handle);
-		}
-		cardp->resubmit_urbs = 0;
-	}
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-#endif
-
-/**
- * @brief Set/Get configure multi-channel policy
- *
- * @param priv		A pointer to moal_private structure
- * @param enable	A pointer to enable
- * @param wait_option	wait_option of ioctl
- * @param action	action of ioctl
- *
- * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_mc_policy_cfg(moal_private *priv, t_u16 *enable,
-			       t_u8 wait_option, t_u8 action)
-{
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *cfg = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		status = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	cfg = (mlan_ds_misc_cfg *)req->pbuf;
-	cfg->sub_command = MLAN_OID_MISC_MULTI_CHAN_POLICY;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = action;
-	if (MLAN_ACT_SET == action)
-		cfg->param.multi_chan_policy = *enable;
-	status = woal_request_ioctl(priv, req, wait_option);
-	if (status != MLAN_STATUS_SUCCESS)
-		goto done;
-	if (MLAN_ACT_GET == action)
-		*enable = cfg->param.multi_chan_policy;
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return status;
-}
-
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-/**
- * @brief Set multi ap flag to mlan layer
- *
- * @param priv		A pointer to moal_private structure
- * @param wait_option	wait_option of ioctl
- * @param flag	    multi ap flag
- *
- * @return          MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_multi_ap_cfg(moal_private *priv, t_u8 wait_option, t_u8 flag)
-{
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *cfg = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		status = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	cfg = (mlan_ds_misc_cfg *)req->pbuf;
-	cfg->param.multi_ap_flag = flag;
-	cfg->sub_command = MLAN_OID_MISC_MULTI_AP_CFG;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = MLAN_ACT_SET;
-
-	status = woal_request_ioctl(priv, req, wait_option);
-	if (status != MLAN_STATUS_SUCCESS)
-		goto done;
-
-	PRINTM(MCMND, "%s: %s 4addr mode\n", priv->netdev->name,
-	       flag ? "Enable" : "Disable");
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return status;
-}
-#endif
-
 /**
  *  @brief Set hotspot configuration value to mlan layer
  *
@@ -8330,73 +7402,6 @@ done:
 	LEAVE();
 	return ret;
 }
-
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-/**
- * @brief               Set/Get network monitor configurations
- *
- * @param priv          Pointer to moal_private structure
- * @param wait_option  wait option
- * @param enable	    Enable/Disable
- * @param filter	    Filter flag - Management/Control/Data
- * @param band_chan_cfg           Network monitor band channel config
- *
- * @return             MLAN_STATUS_SUCCESS -- success, otherwise fail
- */
-mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
-				 t_u8 enable, t_u8 filter,
-				 netmon_band_chan_cfg *band_chan_cfg)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ds_misc_net_monitor *net_mon = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	net_mon = (mlan_ds_misc_net_monitor *)&misc->param.net_mon;
-	misc->sub_command = MLAN_OID_MISC_NET_MONITOR;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	req->action = MLAN_ACT_SET;
-	net_mon->enable_net_mon = enable;
-	if (net_mon->enable_net_mon) {
-		net_mon->filter_flag = filter;
-		if (band_chan_cfg && band_chan_cfg->channel) {
-			net_mon->band = band_chan_cfg->band;
-			net_mon->channel = band_chan_cfg->channel;
-			net_mon->chan_bandwidth = band_chan_cfg->chan_bandwidth;
-		}
-	}
-
-	status = woal_request_ioctl(priv, req, wait_option);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* update chan band values from response in band_chan_cfg */
-	if (net_mon->enable_net_mon) {
-		if (band_chan_cfg) {
-			band_chan_cfg->band = net_mon->band;
-			band_chan_cfg->channel = net_mon->channel;
-			band_chan_cfg->chan_bandwidth = net_mon->chan_bandwidth;
-		}
-	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-
-	LEAVE();
-	return ret;
-}
-#endif
 
 /**
  *  @brief Send delelte all BA command to MLAN
@@ -8442,279 +7447,6 @@ mlan_status woal_delba_all(moal_private *priv, t_u8 wait_option)
 
 done:
 	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief config RTT to mlan layer
- *
- *  @param priv         A pointer to moal_private structure
- *  @param ch_info   A pointer to wifi_channel_info
- *  @param bandcfg  A pointer to Band_Config_t
- *
- *  @return            void
- */
-void woal_channel_info_to_bandcfg(moal_private *priv,
-				  wifi_channel_info *ch_info,
-				  Band_Config_t *bandcfg)
-{
-	t_u8 channel = 0;
-
-	if (!ch_info || !bandcfg)
-		return;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-	channel = ieee80211_frequency_to_channel(ch_info->center_freq);
-#endif
-
-	switch (ch_info->width) {
-	case WIFI_CHAN_WIDTH_10:
-		bandcfg->chanWidth = CHAN_BW_10MHZ;
-		break;
-	case WIFI_CHAN_WIDTH_20:
-		bandcfg->chanWidth = CHAN_BW_20MHZ;
-		break;
-	case WIFI_CHAN_WIDTH_40:
-		bandcfg->chanWidth = CHAN_BW_40MHZ;
-		break;
-	case WIFI_CHAN_WIDTH_80:
-		bandcfg->chanWidth = CHAN_BW_80MHZ;
-		break;
-	default:
-		bandcfg->chanWidth = CHAN_BW_20MHZ;
-		break;
-	}
-	bandcfg->chan2Offset = SEC_CHAN_NONE;
-	if (bandcfg->chanWidth == CHAN_BW_40MHZ) {
-		if (ch_info->center_freq0 < ch_info->center_freq)
-			bandcfg->chan2Offset = SEC_CHAN_BELOW;
-		else
-			bandcfg->chan2Offset = SEC_CHAN_ABOVE;
-	} else if (bandcfg->chanWidth == CHAN_BW_80MHZ)
-		bandcfg->chan2Offset =
-			woal_get_second_channel_offset(priv, channel);
-	bandcfg->chanBand = (channel <= MAX_BG_CHANNEL) ? BAND_2GHZ : BAND_5GHZ;
-	bandcfg->scanMode = SCAN_MODE_MANUAL;
-
-	return;
-}
-
-/**
- *  @brief config RTT to mlan layer
- *
- *  @param priv         A pointer to moal_private structure
- *  @param ch_info   A pointer to wifi_channel_info
- *  @param bandcfg  A pointer to Band_Config_t
- *
- *  @return            void
- */
-void woal_bandcfg_to_channel_info(moal_private *priv, Band_Config_t *bandcfg,
-				  t_u8 channel, wifi_channel_info *ch_info)
-{
-	if (!ch_info || !bandcfg)
-		return;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-	ch_info->center_freq = ieee80211_channel_to_frequency(
-		channel, (channel <= MAX_BG_CHANNEL) ? NL80211_BAND_2GHZ :
-						       NL80211_BAND_5GHZ);
-#endif
-
-	switch (bandcfg->chanWidth) {
-	case CHAN_BW_10MHZ:
-		ch_info->width = WIFI_CHAN_WIDTH_10;
-		break;
-	case CHAN_BW_20MHZ:
-		ch_info->width = WIFI_CHAN_WIDTH_20;
-		break;
-	case CHAN_BW_40MHZ:
-		ch_info->width = WIFI_CHAN_WIDTH_40;
-		break;
-	case CHAN_BW_80MHZ:
-		ch_info->width = WIFI_CHAN_WIDTH_80;
-		break;
-	default:
-		ch_info->width = WIFI_CHAN_WIDTH_20;
-		break;
-	}
-
-	return;
-}
-
-/**
- *  @brief config RTT to mlan layer
- *
- *  @param priv         A pointer to moal_private structure
- *  @param wait_option  wait option
- *  @param hotspotcfg   A pointer to rtt_config_params_t
- *
- *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success,
- * otherwise fail
- */
-mlan_status woal_config_rtt(moal_private *priv, t_u8 wait_option,
-			    wifi_rtt_config_params_t *rtt_params_in)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_rtt_config_params *rtt_params = NULL;
-	t_u32 i = 0;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	req->action = MLAN_ACT_SET;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	misc->sub_command = MLAN_OID_MISC_CONFIG_RTT;
-	rtt_params = &(misc->param.rtt_params);
-	rtt_params->rtt_config_num = rtt_params_in->rtt_config_num;
-	for (i = 0; i < MIN(rtt_params->rtt_config_num, MAX_RTT_CONFIG_NUM);
-	     i++) {
-		moal_memcpy_ext(priv->phandle, rtt_params->rtt_config[i].addr,
-				rtt_params_in->rtt_config[i].addr,
-				sizeof(rtt_params->rtt_config[i].addr),
-				sizeof(rtt_params->rtt_config[i].addr));
-		rtt_params->rtt_config[i].type =
-			rtt_params_in->rtt_config[i].type;
-		rtt_params->rtt_config[i].peer =
-			rtt_params_in->rtt_config[i].peer;
-#if defined(STA_CFG80211) || defined(UAP_CFG80211)
-		rtt_params->rtt_config[i]
-			.channel = ieee80211_frequency_to_channel(
-			rtt_params_in->rtt_config[i].channel.center_freq);
-#endif
-		woal_channel_info_to_bandcfg(
-			priv, &(rtt_params_in->rtt_config[i].channel),
-			&(rtt_params->rtt_config[i].bandcfg));
-		rtt_params->rtt_config[i].burst_period =
-			rtt_params_in->rtt_config[i].burst_period;
-		rtt_params->rtt_config[i].num_burst =
-			rtt_params_in->rtt_config[i].num_burst;
-		rtt_params->rtt_config[i].num_frames_per_burst =
-			rtt_params_in->rtt_config[i].num_frames_per_burst;
-		rtt_params->rtt_config[i].num_retries_per_rtt_frame =
-			rtt_params_in->rtt_config[i].num_retries_per_rtt_frame;
-		rtt_params->rtt_config[i].num_retries_per_ftmr =
-			rtt_params_in->rtt_config[i].num_retries_per_ftmr;
-		rtt_params->rtt_config[i].LCI_request =
-			rtt_params_in->rtt_config[i].LCI_request;
-		rtt_params->rtt_config[i].LCR_request =
-			rtt_params_in->rtt_config[i].LCR_request;
-		rtt_params->rtt_config[i].burst_duration =
-			rtt_params_in->rtt_config[i].burst_duration;
-		rtt_params->rtt_config[i].preamble =
-			rtt_params_in->rtt_config[i].preamble;
-		rtt_params->rtt_config[i].bw = rtt_params_in->rtt_config[i].bw;
-	}
-
-	ret = woal_request_ioctl(priv, req, wait_option);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief cancel RTT to mlan layer
- *
- *  @param priv         A pointer to moal_private structure
- *  @param wait_option  wait option
- *  @param hotspotcfg   A pointer to rtt_config_params_t
- *
- *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success,
- * otherwise fail
- */
-mlan_status woal_cancel_rtt(moal_private *priv, t_u8 wait_option,
-			    t_u32 addr_num, t_u8 addr[][MLAN_MAC_ADDR_LENGTH])
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_rtt_cancel_params *rtt_cancel = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	req->action = MLAN_ACT_SET;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	misc->sub_command = MLAN_OID_MISC_CANCEL_RTT;
-	rtt_cancel = &(misc->param.rtt_cancel);
-	rtt_cancel->rtt_cancel_num = addr_num;
-	moal_memcpy_ext(priv->phandle, rtt_cancel->rtt_cancel, addr,
-			sizeof(rtt_cancel->rtt_cancel[0]) *
-				rtt_cancel->rtt_cancel_num,
-			sizeof(rtt_cancel->rtt_cancel[0]) * MAX_RTT_CONFIG_NUM);
-	ret = woal_request_ioctl(priv, req, wait_option);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief cancel RTT to mlan layer
- *
- *  @param priv         A pointer to moal_private structure
- *  @param wait_option  wait option
- *  @param hotspotcfg   A pointer to rtt_config_params_t
- *
- *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING -- success,
- * otherwise fail
- */
-mlan_status woal_rtt_responder_cfg(moal_private *priv, t_u8 wait_option,
-				   mlan_rtt_responder *rtt_rsp_cfg)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	req->action = MLAN_ACT_SET;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	misc->sub_command = MLAN_OID_MISC_RTT_RESPONDER_CFG;
-	moal_memcpy_ext(priv->phandle, &(misc->param.rtt_rsp_cfg), rtt_rsp_cfg,
-			sizeof(misc->param.rtt_rsp_cfg),
-			sizeof(misc->param.rtt_rsp_cfg));
-
-	ret = woal_request_ioctl(priv, req, wait_option);
-	if (ret != MLAN_STATUS_SUCCESS)
-		goto done;
-	moal_memcpy_ext(priv->phandle, rtt_rsp_cfg, &(misc->param.rtt_rsp_cfg),
-			sizeof(*rtt_rsp_cfg), sizeof(*rtt_rsp_cfg));
-
-done:
-	if (ret != MLAN_STATUS_PENDING)
 		kfree(req);
 	LEAVE();
 	return ret;
@@ -9688,7 +8420,7 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_BAND_AG:
-		if (val != 0 && val != 1 && val != 2)
+		if (val != 0 && val != 1)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_CHANNELBW:
@@ -9786,8 +8518,6 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			handle->rf_data->channel = 6;
 		else if (handle->rf_data->band == BAND_5GHZ)
 			handle->rf_data->channel = 36;
-		else if (handle->rf_data->band == BAND_6GHZ)
-			handle->rf_data->channel = 1;
 		break;
 	case MFG_CMD_RF_CHANNELBW:
 		handle->rf_data->bandwidth = misc->param.mfg_generic_cfg.data1;

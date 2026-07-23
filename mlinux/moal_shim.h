@@ -42,19 +42,11 @@ mlan_status moal_alloc_mlan_buffer(t_void *pmoal, t_u32 size,
 mlan_status moal_free_mlan_buffer(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				      mlan_status status);
-#ifdef USB
-mlan_status moal_recv_complete(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
-			       mlan_status status);
-mlan_status moal_write_data_async(t_void *pmoal, pmlan_buffer pmbuf,
-				  t_u32 port);
-#endif
 
-#if defined(SDIO) || defined(PCIE)
 /** moal_write_reg */
 mlan_status moal_write_reg(t_void *pmoal, t_u32 reg, t_u32 data);
 /** moal_read_reg */
 mlan_status moal_read_reg(t_void *pmoal, t_u32 reg, t_u32 *data);
-#endif /* SDIO || PCIE */
 mlan_status moal_write_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 				 t_u32 timeout);
 mlan_status moal_read_data_sync(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
@@ -66,25 +58,6 @@ mlan_status moal_malloc(t_void *pmoal, t_u32 size, t_u32 flag, t_u8 **ppbuf);
 mlan_status moal_mfree(t_void *pmoal, t_u8 *pbuf);
 mlan_status moal_vmalloc(t_void *pmoal, t_u32 size, t_u8 **ppbuf);
 mlan_status moal_vfree(t_void *pmoal, t_u8 *pbuf);
-#ifdef PCIE
-mlan_status moal_malloc_consistent(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
-				   t_pu64 pbuf_pa);
-mlan_status moal_mfree_consistent(t_void *pmoal, t_u32 size, t_u8 *pbuf,
-				  t_u64 buf_pa);
-
-mlan_status moal_malloc_cached(t_void *pmoal, t_u32 size, t_u8 **ppbuf,
-			       t_pu64 pbuf_pa);
-mlan_status moal_mfree_cached(t_void *pmoal, t_u32 size, t_u8 *pbuf,
-			      t_u64 buf_pa);
-mlan_status moal_dma_sync_to_cpu(t_void *pmoal, t_u32 size, t_u64 buf_pa,
-				 moal_dma_sync_direction_t direction);
-mlan_status moal_dma_sync_to_device(t_void *pmoal, t_u32 size, t_u64 buf_pa,
-				    moal_dma_sync_direction_t direction);
-mlan_status moal_map_memory(t_void *pmoal, t_u8 *pbuf, t_u64 *pbuf_pa,
-			    t_u32 size, t_u32 flag);
-mlan_status moal_unmap_memory(t_void *pmoal, t_u8 *pbuf, t_u64 buf_pa,
-			      t_u32 size, t_u32 flag);
-#endif /* PCIE */
 t_void *moal_memset(t_void *pmoal, t_void *pmem, t_u8 byte, t_u32 num);
 t_void *moal_memcpy(t_void *pmoal, t_void *pdest, const t_void *psrc,
 		    t_u32 num);
@@ -112,7 +85,6 @@ t_void moal_hist_data_add(t_void *pmoal, t_u32 bss_index, t_u16 rx_rate,
 
 t_void moal_updata_peer_signal(t_void *pmoal, t_u32 bss_index, t_u8 *peer_addr,
 			       t_s8 snr, t_s8 nflr);
-mlan_status moal_get_host_time_ns(t_u64 *time);
 t_u64 moal_do_div(t_u64 num, t_u32 base);
 
 mlan_status moal_init_timer(t_void *pmoal, t_void **pptimer,
@@ -122,21 +94,12 @@ mlan_status moal_free_timer(t_void *pmoal, t_void *ptimer);
 mlan_status moal_start_timer(t_void *pmoal, t_void *ptimer, t_u8 periodic,
 			     t_u32 msec);
 mlan_status moal_stop_timer(t_void *pmoal, t_void *ptimer);
-void moal_tp_accounting(t_void *pmoal, void *buf, t_u32 drop_point);
-void moal_tp_accounting_rx_param(t_void *pmoal, unsigned int type,
-				 unsigned int rsvd1);
-void moal_amsdu_tp_accounting(t_void *pmoal, t_s32 amsdu_process_delay,
-			      t_s32 amsdu_copy_delay);
 
 void moal_connection_status_check_pmqos(t_void *pmoal);
-#if defined(PCIE) || defined(SDIO)
 /* pmqos busfreq add request handler*/
 void woal_request_busfreq_pmqos_add(t_void *pmhandle);
 /* pmqos busfreq remove handler*/
 void woal_release_busfreq_pmqos_remove(t_void *pmhandle);
-#endif
-mlan_status moal_calc_short_ssid(t_u8 *pssid, t_u32 ssid_len,
-				 t_u32 *pshort_ssid);
 
 inline t_u16 moal_read_unaligned_u16(const void *src);
 inline t_u32 moal_read_unaligned_u32(const void *src);

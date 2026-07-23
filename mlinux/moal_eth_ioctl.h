@@ -83,9 +83,6 @@ Change log:
 #define PRIV_CMD_PRINT_LINK_STATS "plinkstats"
 #define PRIV_CMD_BSS_CONFIG "bssconfig"
 #endif
-#if defined(UAP_SUPPORT)
-#define PRIV_CMD_SETMODE "setmode"
-#endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 #define PRIV_CMD_BSSROLE "bssrole"
@@ -128,12 +125,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_HSSETPARA "hssetpara"
 #define PRIV_CMD_MGMT_FILTER "mgmtfilter"
 #define PRIV_CMD_SCANCFG "scancfg"
-#define PRIV_CMD_6GSCANCFG "6gscancfg"
 #define PRIV_CMD_GETNLNUM "getnlnum"
-#define PRIV_CMD_AGGRCTRL "aggrctrl"
-#ifdef USB
-#define PRIV_CMD_USBAGGRCTRL "usbaggrctrl"
-#endif
 #define PRIV_CMD_SET_BSS_MODE "setbssmode"
 #ifdef STA_SUPPORT
 #define PRIV_CMD_SET_AP "setap"
@@ -154,9 +146,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_RDEEPROM "rdeeprom"
 #define PRIV_CMD_MEMRDWR "memrdwr"
 #define PRIV_CMD_GPIOCFG "gpiocfg"
-#ifdef SDIO
 #define PRIV_CMD_SDCMD52RW "sdcmd52rw"
-#endif
 #define PRIV_CMD_ARPFILTER "arpfilter"
 #define PRIV_CMD_HOTSPOTCFG "hotspotcfg"
 #define PRIV_CMD_MGMT_FRAME_CTRL "mgmtframectrl"
@@ -175,10 +165,6 @@ typedef struct _chan_stats {
 #define PRIV_CMD_DSCP_MAP "dscpmap"
 /** Private command: Verext */
 #define PRIV_CMD_VEREXT "verext"
-#ifdef CONFIG_USB_SUSPEND
-#define PRIV_CMD_USB_SUSPEND "usbsuspend"
-#define PRIV_CMD_USB_RESUME "usbresume"
-#endif /* CONFIG_USB_SUSPEND */
 #if defined(STA_SUPPORT) && defined(STA_WEXT)
 #define PRIV_CMD_RADIO_CTRL "radioctrl"
 #endif
@@ -215,15 +201,10 @@ typedef struct _chan_stats {
 #define PRIV_CMD_INACTIVITYTO "inactivityto"
 #define PRIV_CMD_AMSDU_AGGR_CTRL "amsduaggrctrl"
 #define PRIV_CMD_TX_BF_CAP "httxbfcap"
-#ifdef SDIO
 #define PRIV_CMD_SDIO_CLOCK "sdioclock"
 #define PRIV_CMD_SDIO_BUSWIDTH "sdiobuswidth"
-#endif
-#ifdef SDIO
 #define PRIV_CMD_MPA_CTRL "mpactrl"
-#endif
 #define PRIV_CMD_SLEEP_PARAMS "sleepparams"
-#define PRIV_CMD_NET_MON "netmon"
 #define PRIV_CMD_DFS_TESTING "dfstesting"
 #define PRIV_CMD_CLEAR_NOP "clear_nop"
 #define PRIV_CMD_NOP_LIST "nop_list"
@@ -241,12 +222,7 @@ typedef struct _chan_stats {
 #define PRIV_CMD_PORT_CTRL "port_ctrl"
 #define PRIV_CMD_PB_BYPASS "pb_bypass"
 #define PRIV_CMD_FW_WAKEUP_METHOD "fwwakeupmethod"
-#ifdef SDIO
 #define PRIV_CMD_SD_CMD53_RW "sdcmd53rw"
-#endif
-#define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
-#define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
-#define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(UAP_CFG80211)
 #define PRIV_CMD_CFG_NOA "cfg_noa"
@@ -268,11 +244,6 @@ typedef struct _chan_stats {
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS "autotdls"
 
-#ifdef PCIE
-#define PRIV_CMD_PCIE_REG_RW "pcieregrw"
-#define PRIV_CMD_PCIE_BAR0_REG_RW "pciebar0regrw"
-#endif
-
 #define PRIV_CMD_GET_SENSOR_TEMP "get_sensor_temp"
 
 #define PRIV_CMD_GET_CHNRGPWR "get_chnrgpwr"
@@ -291,28 +262,23 @@ typedef struct _chan_stats {
 #define PRIV_CMD_DFS_OFFLOAD "dfs_offload"
 #endif
 
+#if defined(SDIO_SUSPEND_RESUME)
 #define PRIV_CMD_AUTO_ARP "auto_arp"
+#endif
 
 #define PRIV_CMD_PER_PKT_CFG "per_pkt_cfg"
 
 #define PRIV_CMD_DEAUTH_CTRL "ctrldeauth"
 
-#define PRIV_CMD_TX_RX_HISTOGRAM "txrxhistogram"
-
 /**Private command ID to set/get independent reset*/
 #define PRIV_CMD_IND_RST_CFG "indrstcfg"
 
-#define PRIV_CMD_MCAST_AGGR_GROUP "mcast_aggr_group"
-#define PRIV_CMD_MC_AGGR_CFG "mc_aggr_cfg"
-#define PRIV_CMD_STATS "stats"
 #define PRIV_CMD_CH_LOAD "getchload"
 #define PRIV_CMD_CH_LOAD_RESULTS "getloadresults"
 #define PRIV_CMD_CROSS_CHIP_SYNCH "crosssynch"
-#define PRIV_CMD_TSP_CFG "wlan_tsp_cfg"
 
 #define PRIV_CMD_ARB_CFG "arb"
 
-#define PRIV_CMD_FOUNDRY_TYPE "foundry_type"
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
 /**Private command to configure static OFDM DESENSE config */
@@ -361,39 +327,8 @@ typedef struct _chan_stats {
 /** Private command ID to get BSS type */
 #define WOAL_GET_BSS_TYPE (SIOCDEVPRIVATE + 15)
 
-/** Private command ID for robustcoex */
-#define PRIV_CMD_ROBUSTCOEX "robustcoex"
-
-#define PRIV_CMD_DMCS "dmcs"
-
 /**Private command to configure per_band_txpwr_cap */
 #define PRIV_CMD_PER_BAND_TXPWR_CAP "per_band_txpwr_cap"
-
-#if defined(PCIE)
-#define PRIV_CMD_SSU "ssu"
-/** ssu_params_ctrl */
-typedef struct _ssu_params_cfg {
-	/* ssu mode */
-	t_u8 ssu_mode;
-	/* 0-3; # of FFT samples to skip*/
-	t_u32 nskip;
-	/* 0-3: # of FFT samples selected to dump */
-	t_u32 nsel;
-	/* 0-3: Down sample ADC input for buffering*/
-	t_u32 adcdownsample;
-	/* 0-1: Mask out ADC Data from spectral packet */
-	t_u32 mask_adc_pkt;
-	/* 0-1: Enable 16-Bit FFT output data precision in spectral packet */
-	t_u32 out_16bits;
-	/* 0-1: Enable power spectrum in dB for spectral packe */
-	t_u32 spec_pwr_enable;
-	/* 0-1: Enable spectral packet rate reduction in DB output format */
-	t_u32 rate_deduction;
-	/* 0-7: Number of spectral packets over which spectral data is to be
-	 * averaged. */
-	t_u32 n_pkt_avg;
-} __attribute__((packed)) ssu_params_cfg;
-#endif
 
 #define PRIV_CMD_CSI "csi"
 
@@ -404,40 +339,6 @@ typedef struct _ssu_params_cfg {
 
 /** Private command to get secure boot uuid */
 #define PRIV_CMD_GET_SB_UUID "getuuid"
-
-#define FILS_IP_CONFIG "FILSIPCONFIG"
-#define FILS_PSK_CONFIG "FILSPSKCONFIG"
-#define FILS_IP_STR "ip"
-#define FILS_MASK_STR "mask"
-#define FILS_BASE_IP_STR "base_ip"
-#define FILS_DNS_STR "dns"
-#define FILS_COUNT_STR "max"
-#define FILS_KEY "key"
-#define FILS_BSSID "bssid"
-
-mlan_status woal_set_fils_psk(moal_private *priv, char *data);
-#ifdef UAP_SUPPORT
-mlan_status woal_set_fils_ip_cfg(moal_private *priv, char *data);
-#endif
-
-/** Private command: 11AX Cfg */
-#define PRIV_CMD_11AXCFG "11axcfg"
-/** Private command: 11AX Cmd */
-#define PRIV_CMD_11AXCMDCFG "11axcmd"
-/** Private command: Range ext Cmd */
-#define PRIV_CMD_RANGE_EXT "range_ext"
-/** Private command: TWT Setup Cfg */
-#define PRIV_CMD_TWT_SETUP "twt_setup"
-/** Private command: TWT Teardown Cfg */
-#define PRIV_CMD_TWT_TEARDOWN "twt_teardown"
-/** Private command: TWT report Cfg */
-#define PRIV_CMD_TWT_REPORT "twt_report"
-/** Private command: TWT Information Cfg */
-#define PRIV_CMD_TWT_INFORMATION "twt_information"
-/** Private command: BTWT AP Cfg Set */
-#define PRIV_CMD_BTWT_AP_CONFIG_SET "btwt_AP_config_set"
-/** Private command: BTWT AP Cfg Get */
-#define PRIV_CMD_BTWT_AP_CONFIG_GET "btwt_AP_config_get"
 
 #define PRIV_CMD_LPM "lpm"
 /** Private command: auth/assoc timeout cfg*/
@@ -586,106 +487,6 @@ typedef struct woal_priv_addba {
 	t_u32 rx_amsdu;
 } woal_addba;
 
-/** Action field value : get */
-#define ACTION_GET 0
-/** Action field value : set */
-#define ACTION_SET 1
-/** Action field value:  add */
-#define ACTION_ADD 2
-/** Action field value:  remove */
-#define ACTION_REMOVE 3
-
-#define MC_AGGR_CTRL MBIT(0)
-#define UC_NONAGGR_CTRL MBIT(6)
-/* mcast_aggr_group */
-typedef struct _mcast_aggr_group {
-	/** action */
-	t_u32 action;
-	/** mcast addr */
-	t_u8 mcast_addr[ETH_ALEN];
-	/** Number of multicast addresses in the list */
-	t_u32 num_mcast_addr;
-	/** Multicast address list */
-	mlan_802_11_mac_addr mac_list[MLAN_MAX_MULTICAST_LIST_SIZE];
-} mcast_aggr_group, *pmcast_aggr_group;
-
-typedef struct _txrate_setting {
-	t_u16 preamble : 2; /*BIT1-BIT0:
-			     *  For legacy 11b: preamble type
-			     *    00    = long
-			     *    01    = short
-			     *    10/11  = reserved
-			     *  For legacy 11g: reserved
-			     *  For 11n: Green field PPDU indicator
-			     *    00 = HT-mix
-			     *    01 = HT-GF
-			     *    10/11 = reserved.
-			     *  For 11ac: reserved.
-			     *  For 11ax:
-			     *    00 = HE-SU
-			     *    01 = HE-EXT-SU
-			     *    10 = HE-MU
-			     *    11 = HE trigger based
-			     */
-	t_u16 bandwidth : 3; /* BIT2- BIT4
-			      * For 11n and 11ac traffic: Bandwidth
-			      *    0 = 20Mhz
-			      *    1 = 40Mhz
-			      *    2 = 80 Mhz
-			      *    3 = 160 Mhz
-			      *    4-7 = reserved
-			      *  For legacy rate : BW>0 implies non-HT
-			      * duplicates. For HE SU PPDU: 0 = 20Mhz 1 = 40Mhz
-			      *    2 = 80 Mhz
-			      *    3 = 160 Mhz
-			      *    4-7 = reserved
-			      *  For HE ER SU PPDU:
-			      *    0 = 242-tone RU
-			      *    1 = upper frequency 106 tone RU within the
-			      * primary 20 Mhz. For HE MU PPDU: 0 = 20Mhz. 1 =
-			      * 40Mhz. 2 = 80Mhz non-preamble puncturing mode 3
-			      * = 160Mhz and 80+80 Mhz non-preamble. 4 = for
-			      * preemble puncturing in 80 Mhz , where in the
-			      * preamble only the secondary 20Mhz is punctured.
-			      *    5 = for preemble puncturing in 80 Mhz ,
-			      *        where in the preamble only one of the two
-			      * 20Mhz subchannels in the secondary 40Mhz is
-			      * punctured. 6 = for preemble puncturing in 160
-			      * Mhz or 80 Mhz + 80 Mhz, where in the primary 80
-			      * Mhz of the preamble only the secondary 20 Mhz is
-			      * punctured. 7 = for preemble puncturing in 160
-			      * Mhz or 80 Mhz + 80 Mhz, where in the primary 80
-			      * Mhz of the preamble the primary 40 Mhz is
-			      * present.
-			      */
-	t_u16 shortGI : 2; /*BIT5- BIT6
-			    *  For legacy: not used
-			    *  For 11n: 00 = normal, 01 =shortGI, 10/11 =
-			    * reserved For 11ac: SGI map to VHT-SIG-A2[0]
-			    *           VHT-SIG-A2[1] is set to 1 if short guard
-			    * interval is used and NSYM mod 10 = 9, otherwise
-			    * set to 0. For 11ax: 00 = 1xHELTF+GI0.8usec 01 =
-			    * 2xHELTF+GI0.8usec 10 = 2xHELTF+GI1.6usec 11 =
-			    * 4xHELTF+GI0.8 usec if both DCM and STBC are 1
-			    *                4xHELTF+GI3.2 usec otherwise
-			    */
-	t_u16 stbc : 1; // BIT7, 0: no STBC; 1: STBC
-	t_u16 dcm : 1; // BIT8, 0: no DCM; 1: DCM used.
-	t_u16 adv_coding : 1; // BIT9, 0: BCC; 1: LDPC.
-	t_u16 doppler : 2; /* BIT11-BIT10,
-			      00: Doppler0
-			      01: Doppler 1 with Mma =10
-			      10: Doppler 1 with Mma =20
-			   */
-	t_u16 max_pktext : 2; /*BIT12-BIT13:
-			       * Max packet extension
-			       *  0 - 0 usec
-			       *  1 - 8 usec
-			       *  2 - 16 usec.
-			       */
-	t_u16 reserverd : 2; // BIT14-BIT15
-} __ATTRIB_PACK__ txrate_setting;
-
 /** data structure for cmd txratecfg */
 typedef struct woal_priv_tx_rate_cfg {
 	/* LG rate: 0, HT rate: 1, VHT rate: 2 */
@@ -739,44 +540,10 @@ typedef struct _cloud_keep_alive {
 	/** packet content */
 	t_u8 pkt[255];
 } __ATTRIB_PACK__ cloud_keep_alive;
-/** cloud keep alive parameters */
-#define PRIV_CMD_CLOUD_KEEP_ALIVE_RX "cloud_keep_alive_rx"
-typedef struct _cloud_keep_alive_rx {
-	/** id */
-	t_u8 mkeep_alive_id;
-	/** enable/disable of this id */
-	t_u8 enable;
-	/** enable/disable reset*/
-	t_u8 reset;
-	/** Reserved */
-	t_u8 reserved;
-	/** Destination MAC address */
-	t_u8 dst_mac[ETH_ALEN];
-	/** Source MAC address */
-	t_u8 src_mac[ETH_ALEN];
-	/** packet length */
-	t_u8 pkt_len;
-	/** packet content */
-	t_u8 pkt[100];
-} __ATTRIB_PACK__ cloud_keep_alive_rx;
 
 #define TLV_TYPE_PER_PKT_CFG 0x0001
 #define TX_PKT_CTRL MBIT(0)
 #define RX_PKT_INFO MBIT(1)
-
-#define FLAG_TX_HISTOGRAM 0x01
-#define FLAG_RX_HISTOGRAM 0x02
-#define DISABLE_TX_RX_HISTOGRAM 0x00
-#define ENABLE_TX_RX_HISTOGRAM 0x01
-#define GET_TX_RX_HISTOGRAM 0x02
-#define PRIV_CMD_TX_RX_HISTOGRAM "txrxhistogram"
-/** TX and RX histogram statistic parameters*/
-typedef struct _tx_rx_histogram {
-	/** Enable or disable get tx/rx histogram statistic */
-	t_u8 enable;
-	/** Choose to get TX, RX or both histogram statistic */
-	t_u8 action;
-} __ATTRIB_PACK__ tx_rx_histogram;
 
 /** wlan_ieee80211_chan */
 typedef struct {
@@ -799,8 +566,6 @@ typedef struct {
 	/** chan_list */
 	wlan_ieee80211_chan chan_list[];
 } __ATTRIB_PACK__ wlan_ieee80211_chan_list;
-
-#define PRIV_CMD_TP_STATE "tp_state"
 
 #ifdef UAP_SUPPORT
 #define PRIV_CMD_AGCS "agcs"

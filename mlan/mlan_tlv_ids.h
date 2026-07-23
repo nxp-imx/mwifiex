@@ -315,19 +315,10 @@
 								     */
 /** TLV type: BG scan repeat count */
 #define TLV_TYPE_REPEAT_COUNT (PROPRIETARY_TLV_BASE_ID + 176) /* 0x01b0 */
-#ifdef USB
-/** TLV ID : USB Aggregation parameters */
-#define NXP_USB_AGGR_PARAM_TLV_ID (PROPRIETARY_TLV_BASE_ID + 177) /* 0x01b1 */
-#endif /* USB */
 /** TLV type: ps params in hs */
 #define TLV_TYPE_PS_PARAMS_IN_HS (PROPRIETARY_TLV_BASE_ID + 181) /* 0x01b5 */
 /** TLV type: hs wake hold off */
 #define TLV_TYPE_HS_WAKE_HOLDOFF (PROPRIETARY_TLV_BASE_ID + 182) /* 0x01b6 */
-/** TLV ID for multi chan info */
-#define TLV_TYPE_MULTI_CHAN_INFO (PROPRIETARY_TLV_BASE_ID + 183) /* 0x01b7 */
-/** TLV ID for multi chan group info */
-#define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID                                  \
-	(PROPRIETARY_TLV_BASE_ID + 184) /* 0x01b8 */
 /** TLV type : TDLS IDLE TIMEOUT */
 #define TLV_TYPE_TDLS_IDLE_TIMEOUT (PROPRIETARY_TLV_BASE_ID + 194) /* 0x01c2   \
 								    */
@@ -360,8 +351,6 @@
 /** TLV rssi info */
 #define TLV_TYPE_RSSI_INFO (PROPRIETARY_TLV_BASE_ID + 229) /* 0x01e5 */
 #define TLV_TYPE_IPV6_RA_OFFLOAD (PROPRIETARY_TLV_BASE_ID + 230) /* 0x01e6 */
-/** TLV type :  FILS IP config params */
-#define TLV_TYPE_AP_FILS_IP_CFG (PROPRIETARY_TLV_BASE_ID + 231) /* 0x01e7 */
 /** TLV to indicate firmware only keep probe response while scan */
 #define TLV_TYPE_ONLYPROBERESP (PROPRIETARY_TLV_BASE_ID + 233) /* 0x01e9 */
 #define TLV_TYPE_RANDOM_MAC (PROPRIETARY_TLV_BASE_ID + 236) /* 0x01ec */
@@ -385,9 +374,6 @@
 #define TLV_TYPE_HS_WAKEUP_SOURCE_GPIO                                         \
 	(PROPRIETARY_TLV_BASE_ID + 261) /* 0x0205 */
 #define TLV_TYPE_POWER_TABLE (PROPRIETARY_TLV_BASE_ID + 262) /* 0x0206 */
-/** TLV ID for DRCS TimeSlice */
-#define NXP_DRCS_TIME_SLICE_TLV_ID (PROPRIETARY_TLV_BASE_ID + 263) /* 0x0207   \
-								    */
 /** TLV type : TRIGGER CONDITION*/
 #define TLV_TYPE_ROM_TRIGGER (PROPRIETARY_TLV_BASE_ID + 264) /* 0x0208 */
 /** TLV type : RETRY_COUNT*/
@@ -403,10 +389,6 @@
 #define TLV_TYPE_MAX_CONN (PROPRIETARY_TLV_BASE_ID + 279) /* 0x0217 */
 /** TLV type: extend wakeup source */
 #define TLV_TYPE_WAKEUP_EXTEND (PROPRIETARY_TLV_BASE_ID + 280) /* 0x0218 */
-/** TLV type: HS antenna mode */
-#define TLV_TYPE_HS_ANTMODE (PROPRIETARY_TLV_BASE_ID + 281) /* 0x0219 */
-/** TLV type: robustcoex mode */
-#define TLV_TYPE_ROBUSTCOEX (PROPRIETARY_TLV_BASE_ID + 283) /* 0x021b */
 /** TLV type : BSSID blacklist*/
 #define TLV_TYPE_BLACKLIST_BSSID (PROPRIETARY_TLV_BASE_ID + 285) /* 0x021d */
 /** TLV type : BAND & RSSI*/
@@ -421,23 +403,6 @@
 /** TLV type : KEY params*/
 #define TLV_TYPE_ROAM_OFFLOAD_USER_SET_PMK                                     \
 	(PROPRIETARY_TLV_BASE_ID + 291) /* 0x0223 */
-/** TLV for RTT Range Request */
-#define TLV_TYPE_RTT_RANGE_REQUEST (PROPRIETARY_TLV_BASE_ID + 293) /* 0x0225   \
-								    */
-/** TLV for RTT Range Cancel */
-#define TLV_TYPE_RTT_RANGE_CANCEL (PROPRIETARY_TLV_BASE_ID + 294) /* 0x0226 */
-/** TLV for RTT Result */
-#define TLV_TYPE_RTT_RESULT (PROPRIETARY_TLV_BASE_ID + 295) /* 0x0227 */
-/** TLV for RTTResponderInfo */
-#define TLV_TYPE_RTT_RESPONDER_INFO (PROPRIETARY_TLV_BASE_ID + 296) /* 0x0228  \
-								     */
-/** TLV for RTTResponderEnCfg */
-#define TLV_TYPE_RTT_RESPONDER_EN_CFG                                          \
-	(PROPRIETARY_TLV_BASE_ID + 297) /* 0x0229 */
-/** TLV for RTTLCICfg */
-#define TLV_TYPE_RTT_LCI_CFG (PROPRIETARY_TLV_BASE_ID + 298) /* 0x022a */
-/** TLV for RTTLCRCfg */
-#define TLV_TYPE_RTT_LCR_CFG (PROPRIETARY_TLV_BASE_ID + 299) /* 0x022b */
 #define TLV_TYPE_LL_STAT_IFACE (PROPRIETARY_TLV_BASE_ID + 300) /* 0x022c */
 #define TLV_TYPE_LL_STAT_RADIO (PROPRIETARY_TLV_BASE_ID + 301) /* 0x022d */
 /**TLV type : Host MLME Flag*/
@@ -446,17 +411,9 @@
 /** TLV id: station flag */
 #define TLV_TYPE_UAP_STA_FLAGS (PROPRIETARY_TLV_BASE_ID + 313) /* 0x0239 */
 #endif /* UAP_SUPPORT */
-#define TLV_TYPE_DMCS_STATUS (PROPRIETARY_TLV_BASE_ID + 314) /* 0x023a */
 /** TLV type : ZERO DFS Operation */
 #define TLV_TYPE_ZERO_DFS_OPERATION (PROPRIETARY_TLV_BASE_ID + 315) /* 0x023b  \
 								     */
-#if defined(PCIE9098) || defined(SDAW693) || defined(SD9098) ||                \
-	defined(USB9098) || defined(PCIE9097) || defined(USB9097) ||           \
-	defined(SDIW624) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
-	defined(USBIW624) || defined(SD9097)
-/* TLV type: reg type */
-#define TLV_TYPE_REG_ACCESS_CTRL (PROPRIETARY_TLV_BASE_ID + 316) /* 0x023c*/
-#endif
 #define TLV_TYPE_POWER_TABLE_ATTR (PROPRIETARY_TLV_BASE_ID + 317) /* 0x023d */
 /** TLV type: fw cap info */
 #define TLV_TYPE_FW_CAP_INFO (PROPRIETARY_TLV_BASE_ID + 318) /* 0x023e */
@@ -471,8 +428,6 @@
 #define TLV_TYPE_SAE_PASSWORD (PROPRIETARY_TLV_BASE_ID + 321) /* 0x0241 */
 /** TLV type : DFS W53 Configuration */
 #define TLV_TYPE_DFS_W53_CFG (PROPRIETARY_TLV_BASE_ID + 325) /* 0x0245 */
-/** TLV type: MULTI AP Flag */
-#define TLV_TYPE_MULTI_AP (PROPRIETARY_TLV_BASE_ID + 326) /* 0x0246 */
 /** TLV type : AP wacp mode */
 #define TLV_TYPE_UAP_WACP_MODE (PROPRIETARY_TLV_BASE_ID + 327) /* 0x0247 */
 #define TLV_TYPE_PREV_BSSID (PROPRIETARY_TLV_BASE_ID + 330) /* 0x024a */
@@ -488,16 +443,9 @@
 #define NXP_ACTION_CHAN_SWITCH_ANNOUNCE                                        \
 	(PROPRIETARY_TLV_BASE_ID + 342) /* 0x0256 */
 #ifdef UAP_SUPPORT
-#define NXP_802_11_PER_PEER_STATS_CFG_TLV_ID                                   \
-	(PROPRIETARY_TLV_BASE_ID + 346) /* 0x025a */
-#define NXP_802_11_PER_PEER_STATS_ENTRY_TLV_ID                                 \
-	(PROPRIETARY_TLV_BASE_ID + 347) /* 0x025b */
 #endif /* UAP_SUPPORT */
 /** TLV type: secure boot uuid */
 #define TLV_TYPE_SECURE_BOOT_UUID (PROPRIETARY_TLV_BASE_ID + 348) /* 0x025c */
-#define TLV_TYPE_CLOUD_KEEP_ALIVE_ACK                                          \
-	(PROPRIETARY_TLV_BASE_ID + 349) /* 0x025d */
-#define TLV_TYPE_6G_SCAN_PARAMS (PROPRIETARY_TLV_BASE_ID + 350) /* 0x025e */
 /** TLV type: ps_ext_param */
 #define TLV_TYPE_PS_EXT_PARAM (PROPRIETARY_TLV_BASE_ID + 351) /* 0x025f */
 #define TLV_TYPE_MCLIENT_FW_CAPS (PROPRIETARY_TLV_BASE_ID + 352) /* 0x0260 */

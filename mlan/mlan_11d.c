@@ -112,77 +112,13 @@ static chan_freq_power_t channel_freq_power_UN_AJ[] = {
 	{153, 5765, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{157, 5785, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
 	{161, 5805, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{165, 5825, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{169, 5845, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{173, 5865, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{177, 5885, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}
+	{165, 5825, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}
 	/*  {240, 4920, TX_PWR_DEFAULT},
 	    {244, 4940, TX_PWR_DEFAULT},
 	    {248, 4960, TX_PWR_DEFAULT},
 	    {252, 4980, TX_PWR_DEFAULT},
 	channels for 11J JP 10M channel gap */
 };
-/** Channels for 802.116G */
-static chan_freq_power_t channel_freq_power_UN_6G[] = {
-	{1, 5955, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{5, 5975, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{9, 5995, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{13, 6015, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{17, 6035, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{21, 6055, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{25, 6075, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{29, 6095, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{33, 6115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{37, 6135, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{41, 6155, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{45, 6175, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{49, 6195, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{53, 6215, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{57, 6235, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{61, 6255, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{65, 6275, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{69, 6295, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{73, 6315, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{77, 6335, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{81, 6355, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{85, 6375, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{89, 6395, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{94, 6415, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{97, 6435, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{101, 6455, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{105, 6475, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{109, 6495, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{113, 6515, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{117, 6535, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{121, 6555, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{125, 6575, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{129, 6595, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{133, 6615, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{137, 6635, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{141, 6655, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{145, 6675, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{149, 6695, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{153, 6715, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{157, 6735, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{161, 6755, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{165, 6775, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{169, 6795, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{173, 6815, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{177, 6835, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{181, 6855, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{185, 6875, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{189, 6895, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{193, 6915, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{197, 6935, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{201, 6955, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{205, 6975, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{209, 6995, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{213, 7015, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{217, 7035, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{221, 7055, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{225, 7075, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{229, 7095, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}},
-	{233, 7115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}};
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -498,9 +434,6 @@ static t_u8 wlan_11d_get_chan(pmlan_adapter pmadapter, t_u16 band,
 	} else if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cfp = channel_freq_power_UN_AJ;
 		cfp_no = NELEMENTS(channel_freq_power_UN_AJ);
-	} else if (band & BAND_6G) {
-		cfp = channel_freq_power_UN_6G;
-		cfp_no = NELEMENTS(channel_freq_power_UN_6G);
 	} else {
 		PRINTM(MERROR, "11D: Wrong Band[%d]\n", band);
 		LEAVE();
@@ -919,7 +852,6 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 	t_u8 no_of_sub_band = pmadapter->domain_reg.no_of_sub_band;
 	MrvlIEtypes_Rgn_dom_code_t *rgn = MNULL;
 	t_u8 *tlv = MNULL;
-	MrvlIEtypes_channel_band_t *tlv_chan_band = MNULL;
 
 	t_u8 i;
 
@@ -985,15 +917,6 @@ mlan_status wlan_cmd_802_11d_domain_info(mlan_private *pmpriv,
 			tlv += sizeof(MrvlIEtypes_Rgn_dom_code_t);
 		}
 
-		tlv_chan_band = (MrvlIEtypes_channel_band_t *)tlv;
-		tlv_chan_band->header.type =
-			wlan_cpu_to_le16(TLV_TYPE_UAP_CHAN_BAND_CONFIG);
-		tlv_chan_band->header.len =
-			wlan_cpu_to_le16(sizeof(MrvlIEtypes_channel_band_t) -
-					 sizeof(MrvlIEtypesHeader_t));
-		tlv_chan_band->bandcfg.chanBand = pmadapter->domain_reg.band;
-		tlv_chan_band->channel = 0;
-		pcmd->size += sizeof(MrvlIEtypes_channel_band_t);
 	} else {
 		pcmd->size = sizeof(pdomain_info->action) + S_DS_GEN;
 	}
@@ -1029,9 +952,9 @@ mlan_status wlan_ret_802_11d_domain_info(mlan_private *pmpriv,
 	/* Dump domain info response data */
 	HEXDUMP("11D: DOMAIN Info Rsp Data", (t_u8 *)resp, resp->size);
 
-	no_of_sub_band = (t_u8)((wlan_le16_to_cpu(domain->header.len) -
-				 COUNTRY_CODE_LEN) /
-				sizeof(IEEEtypes_SubbandSet_t));
+	no_of_sub_band = (t_u8)(
+		(wlan_le16_to_cpu(domain->header.len) - COUNTRY_CODE_LEN) /
+		sizeof(IEEEtypes_SubbandSet_t));
 
 	PRINTM(MINFO, "11D Domain Info Resp: number of sub-band=%d\n",
 	       no_of_sub_band);
@@ -1171,9 +1094,9 @@ wlan_ret_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
 	/* Dump domain info response data */
 	HEXDUMP("BCN Country ie:  Info Rsp Data", (t_u8 *)resp, resp->size);
 
-	no_of_sub_band = (t_u8)((wlan_le16_to_cpu(domain->header.len) -
-				 COUNTRY_CODE_LEN) /
-				sizeof(IEEEtypes_SubbandSet_t));
+	no_of_sub_band = (t_u8)(
+		(wlan_le16_to_cpu(domain->header.len) - COUNTRY_CODE_LEN) /
+		sizeof(IEEEtypes_SubbandSet_t));
 
 	PRINTM(MINFO, "BCN Country ie Resp: number of sub-band=%d\n",
 	       no_of_sub_band);
@@ -1215,9 +1138,6 @@ t_u32 wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u16 band)
 	else if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cf = channel_freq_power_UN_AJ;
 		cnt = NELEMENTS(channel_freq_power_UN_AJ);
-	} else if (band & BAND_6G) {
-		cf = channel_freq_power_UN_6G;
-		cnt = NELEMENTS(channel_freq_power_UN_6G);
 	} else {
 		PRINTM(MERROR, "11D: Wrong Band [%d]\n", band);
 		LEAVE();
@@ -1388,26 +1308,6 @@ mlan_status wlan_11d_set_universaltable(mlan_private *pmpriv, t_u16 band)
 		pmadapter->universal_channel[i].band = BAND_A;
 		i++;
 	}
-	if (band & BAND_6G) {
-		/* If band 6G */
-
-		/* Set channel-frequency-power */
-		pmadapter->universal_channel[i].num_cfp =
-			NELEMENTS(channel_freq_power_UN_6G);
-		PRINTM(MINFO, "11D: 6G-band num_cfp=%d\n",
-		       pmadapter->universal_channel[i].num_cfp);
-
-		pmadapter->universal_channel[i].pcfp = channel_freq_power_UN_6G;
-
-		pmadapter->universal_channel[i].valid = MTRUE;
-
-		/* Set region code */
-		pmadapter->universal_channel[i].region = UNIVERSAL_REGION_CODE;
-
-		/* Set band */
-		pmadapter->universal_channel[i].band = BAND_6G;
-		i++;
-	}
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -1509,14 +1409,6 @@ mlan_status wlan_11d_create_dnld_countryinfo(mlan_private *pmpriv, t_u16 band)
 				case BAND_AN:
 				case BAND_A | BAND_AN:
 				case BAND_A | BAND_AN | BAND_AAC:
-					break;
-				default:
-					continue;
-				}
-				break;
-			case BAND_6G:
-				switch (band) {
-				case BAND_6G:
 					break;
 				default:
 					continue;

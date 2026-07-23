@@ -30,9 +30,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : 802.11 get log */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_GET_LOG, 0x000b),
 
-	/** Host Command id: GET_TX_RX_PKT_STATS */
-	ENUM_ELEMENT(HostCmd_CMD_TX_RX_PKT_STATS, 0x008d),
-
 	/** Host Command ID : 802.11 get/set link layer statistic */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_LINK_STATS, 0x0256),
 
@@ -145,10 +142,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : Memory access */
 	ENUM_ELEMENT(HostCmd_CMD_MEM_ACCESS, 0x0086),
 
-#if defined(SDIO)
 	/** Host Command ID : SDIO GPIO interrupt configuration */
 	ENUM_ELEMENT(HostCmd_CMD_SDIO_GPIO_INT_CONFIG, 0x0088),
-#endif
 
 	/** Host Command ID : Mfg command */
 	ENUM_ELEMENT(HostCmd_CMD_MFG_COMMAND, 0x0089),
@@ -186,9 +181,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_OPCHAN_CHANGROUP_CONFIG, 0x00f9),
 #endif
 
-	/** Host Command ID : Robustcoex */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_ROBUSTCOEX, 0x00e0),
-
 	/** Host Command ID :EAPOL PKT */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_EAPOL_PKT, 0x012e),
 
@@ -201,13 +193,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_RSSI_INFO_EXT, 0x0237),
 	/** Host Command ID : ROAMING OFFLOAD TO FW*/
 	ENUM_ELEMENT(HostCmd_CMD_ROAM_OFFLOAD, 0x0245),
-
-	/** Host Command ID: Multi chan config */
-	ENUM_ELEMENT(HostCmd_CMD_MULTI_CHAN_CONFIG, 0x011e),
-	/** Host Command ID: Multi chan policy */
-	ENUM_ELEMENT(HostCmd_CMD_MULTI_CHAN_POLICY, 0x0121),
-	/** Host Command ID: DRCS config */
-	ENUM_ELEMENT(HostCmd_CMD_DRCS_CONFIG, 0x024a),
 
 	/** Host Command ID : Channel report request */
 	ENUM_ELEMENT(HostCmd_CMD_CHAN_REPORT_REQUEST, 0x00dd),
@@ -256,39 +241,24 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_MGMT_IE_LIST, 0x00f2),
 
 	ENUM_ELEMENT(HostCmd_CMD_802_11_BAND_STEERING, 0x026f),
-	/*** Host Command ID " MC_AGGR_CFG */
-	ENUM_ELEMENT(HostCmd_CMD_MC_AGGR_CFG, 0x027a),
-	ENUM_ELEMENT(HostCmd_CMD_802_11_STATS, 0x0014),
 	ENUM_ELEMENT(HostCmd_CMD_GET_CH_LOAD, 0x027b),
 
 	/** Host Command ID: CROSS CHIP SYNCH */
 	ENUM_ELEMENT(HostCmd_CMD_CROSS_CHIP_SYNCH, 0x027d),
-
-	ENUM_ELEMENT(HostCmd_CMD_TSP_CFG, 0x0280),
 
 	/** Host Command ID : TDLS configuration */
 	ENUM_ELEMENT(HostCmd_CMD_TDLS_CONFIG, 0x0100),
 	/** Host Command ID : TDLS operation */
 	ENUM_ELEMENT(HostCmd_CMD_TDLS_OPERATION, 0x0122),
 
-	/** Host Command ID : Packet aggregation over host interface */
-	ENUM_ELEMENT(HostCmd_CMD_PACKET_AGGR_OVER_HOST_INTERFACE, 0x0117),
-
-#ifdef SDIO
 	/** Host Command ID : SDIO single port RX aggr */
 	ENUM_ELEMENT(HostCmd_CMD_SDIO_SP_RX_AGGR_CFG, 0x0223),
-#endif
 
 	/** Host Command ID : Extended scan support */
 	ENUM_ELEMENT(HostCmd_CMD_802_11_SCAN_EXT, 0x0107),
 
 	/** Host Command ID : Forward mgmt frame */
 	ENUM_ELEMENT(HostCmd_CMD_RX_MGMT_IND, 0x010c),
-
-#ifdef PCIE
-	/** Host Command ID: Host buffer description */
-	ENUM_ELEMENT(HostCmd_CMD_PCIE_HOST_BUF_DETAILS, 0x00fa),
-#endif
 
 	/** Host Command ID : Set BSS_MODE */
 	ENUM_ELEMENT(HostCmd_CMD_SET_BSS_MODE, 0x00f7),
@@ -317,9 +287,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command id: PMIC CONFIGURE*/
 	ENUM_ELEMENT(HostCmd_CMD_PMIC_CONFIGURE, 0x23E),
-
-	/** Host Command ID: 802.11 Network Monitor */
-	ENUM_ELEMENT(HostCmd_CMD_802_11_NET_MONITOR, 0x0102),
 
 	/** Host Command ID: Tx data pause */
 	ENUM_ELEMENT(HostCmd_CMD_CFG_TX_DATA_PAUSE, 0x0103),
@@ -355,8 +322,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	ENUM_ELEMENT(HostCmd_CMD_FW_DUMP_EVENT, 0x0125),
 
-	ENUM_ELEMENT(HostCmd_CMD_CONFIG_LOW_POWER_MODE, 0x0128),
-
 	/** Host Command ID : Target device access */
 	ENUM_ELEMENT(HostCmd_CMD_TARGET_ACCESS, 0x012a),
 
@@ -368,22 +333,8 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID: DFS repeater mode */
 	ENUM_ELEMENT(HostCmd_CMD_DFS_REPEATER_MODE, 0x012b),
 
-	/** Host Command ID: ACS scan */
-	ENUM_ELEMENT(HostCmd_CMD_APCMD_ACS_SCAN, 0x0224),
-
 	/** Host Command ID: Get sensor temp*/
 	ENUM_ELEMENT(HostCmd_CMD_DS_GET_SENSOR_TEMP, 0x0227),
-
-	/** Host Command ID: NAN Parameters cofiguration */
-	ENUM_ELEMENT(HostCmd_CMD_NAN_PARAMS_CONFIG, 0x0228),
-	/** Host Command ID: NAN mode cofiguration */
-	ENUM_ELEMENT(HostCmd_CMD_NAN_MODE_CONFIG, 0x0229),
-	/** Host Command ID: NAN service discovery functionality */
-	ENUM_ELEMENT(HostCmd_CMD_NAN_SDF, 0x022a),
-	/** Host Command ID: NAN service hash */
-	ENUM_ELEMENT(HostCmd_CMD_NAN_SERVICE_HASH, 0x022b),
-	/** Host Command ID: NAN service state info (get/set) */
-	ENUM_ELEMENT(HostCmd_CMD_NAN_STATE_INFO, 0x022c),
 
 	/** Host Command ID : Configure ADHOC_OVER_IP parameters */
 	ENUM_ELEMENT(HostCmd_CMD_WMM_PARAM_CONFIG, 0x023a),
@@ -403,9 +354,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** used in hostcmd to download region power cfg setting to firmware */
 	ENUM_ELEMENT(HostCmd_CMD_REGION_POWER_CFG, 0x0249),
 
-	/** Host Command ID : Packet aggregation CTRL */
-	ENUM_ELEMENT(HostCmd_CMD_PACKET_AGGR_CTRL, 0x0251),
-
 	ENUM_ELEMENT(HostCmd_CMD_DYN_BW, 0x0252),
 
 	ENUM_ELEMENT(HostCmd_CMD_BOOT_SLEEP, 0x0258),
@@ -416,34 +364,13 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_RATE_ADAPT_CFG, 0x0264),
 	ENUM_ELEMENT(HostCmd_CMD_CCK_DESENSE_CFG, 0x0265),
 
-	ENUM_ELEMENT(HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS, 0x024d),
-	ENUM_ELEMENT(HostCmd_CMD_FTM_SESSION_CTRL, 0x024e),
-	ENUM_ELEMENT(HostCmd_CMD_FTM_FEATURE_CTRL, 0x024f),
-	ENUM_ELEMENT(HostCmd_CMD_WLS_REQ_FTM_RANGE, 0x0250),
-
-	ENUM_ELEMENT(HostCmd_CMD_FTM_CONFIG_RESPONDER, 0x0255),
-
 	ENUM_ELEMENT(HostCmd_CMD_VDLL, 0x0240),
-#if defined(PCIE)
-	ENUM_ELEMENT(HostCmd_CMD_SSU, 0x0259),
-#endif
 	ENUM_ELEMENT(HostCmd_CMD_CSI, 0x025b),
 
 #if defined(UAP_SUPPORT)
 	/** Host Command ID : Add New Station */
 	ENUM_ELEMENT(HostCmd_CMD_ADD_NEW_STATION, 0x025f),
 #endif
-
-	ENUM_ELEMENT(HostCmd_CMD_DMCS_CONFIG, 0x0260),
-
-	/** Host Command ID: 11AX config */
-	ENUM_ELEMENT(HostCmd_CMD_11AX_CFG, 0x0266),
-	/** Host Command ID: 11AX command */
-	ENUM_ELEMENT(HostCmd_CMD_11AX_CMD, 0x026d),
-	/** Host Command ID: Range ext command */
-	ENUM_ELEMENT(HostCmd_CMD_RANGE_EXT, 0x0274),
-	/** Host Command ID: TWT cfg command */
-	ENUM_ELEMENT(HostCmd_CMD_TWT_CFG, 0x0270),
 
 	ENUM_ELEMENT(HostCmd_CMD_LOW_POWER_MODE_CFG, 0x026e),
 	ENUM_ELEMENT(HostCmd_CMD_UAP_BEACON_STUCK_CFG, 0x0271),
@@ -481,8 +408,6 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : HS Event masking configuration */
 	ENUM_ELEMENT(HostCmd_CMD_HS_EVENT_MASK, 0x028a),
-	/** Host Command ID : Get foundry type */
-	ENUM_ELEMENT(HostCmd_CMD_DS_GET_FOUNDRY_TYPE, 0X028c),
 
 #ifdef UAP_SUPPORT
 	/** Host Command ID : Agiled channel switch configuration */

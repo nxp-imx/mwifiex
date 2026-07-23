@@ -26,14 +26,9 @@ Change log:
 ************************************************************************/
 
 #include "moal_main.h"
-#ifdef SDIO
 #include "moal_sdio.h"
-#endif /* SDIO */
 
 #include "moal_eth_ioctl.h"
-#ifdef USB
-#include "moal_usb.h"
-#endif
 
 /********************************************************
 			Local Variables
@@ -208,25 +203,10 @@ static inline int woal_copy_rates(t_u8 *dest, int pos, t_u8 *src, int len)
 static int woal_warm_reset(moal_private *priv)
 {
 	int ret = 0;
-	moal_handle *handle = priv->phandle;
-	moal_handle *ref_handle;
-	moal_private *ref_priv;
 	ENTER();
 	ret = woal_pre_warmreset(priv);
 	if (ret)
 		goto done;
-	ref_handle = (moal_handle *)handle->pref_mac;
-	if (ref_handle) {
-		ref_priv = woal_get_priv(ref_handle, MLAN_BSS_ROLE_ANY);
-		if (ref_priv) {
-			ret = woal_pre_warmreset(ref_priv);
-			if (ret)
-				goto done;
-			ret = woal_warmreset(ref_priv);
-			if (ret)
-				goto done;
-		}
-	}
 	ret = woal_warmreset(priv);
 done:
 	LEAVE();
@@ -2252,7 +2232,6 @@ done:
 	return ret;
 }
 
-#ifdef SDIO
 /**
  *  @brief Turn on/off the sdio clock
  *
@@ -2307,7 +2286,6 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif /* SDIO */
 
 /**
  *  @brief Set/Get beacon interval
@@ -4791,7 +4769,6 @@ done:
 	return status;
 }
 
-#ifdef SDIO
 /**
  *  @brief Cmd52 read/write register
  *
@@ -4839,7 +4816,6 @@ static int woal_cmd52rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 	}
 
 	if (!rw) {
-#ifdef SDIO_MMC
 		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			data = sdio_readb(
@@ -4856,18 +4832,7 @@ static int woal_cmd52rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 			       reg);
 			goto done;
 		}
-#else
-		if (sdio_read_ioreg(priv->phandle->card, func, reg, &data) <
-		    0) {
-			PRINTM(MERROR,
-			       "sdio_read_ioreg: reading register 0x%X failed\n",
-			       reg);
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-#endif
 	} else {
-#ifdef SDIO_MMC
 		sdio_claim_host(((sdio_mmc_card *)priv->phandle->card)->func);
 		if (func)
 			sdio_writeb(
@@ -4884,16 +4849,6 @@ static int woal_cmd52rdwr_ioctl(moal_private *priv, struct iwreq *wrq)
 			       reg);
 			goto done;
 		}
-#else
-		if (sdio_write_ioreg(priv->phandle->card, func, reg, data) <
-		    0) {
-			PRINTM(MERROR,
-			       "sdio_write_ioreg: writing register 0x%X failed\n",
-			       reg);
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-#endif
 	}
 
 	buf[0] = data;
@@ -5013,9 +4968,7 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif /* SDIO */
 
-#ifdef SDIO
 /**
  * @brief Set SDIO Multi-point aggregation control parameters
  *
@@ -5132,7 +5085,6 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif
 
 /**
  * @brief Set/Get scan configuration parameters
@@ -6329,30 +6281,18 @@ static int woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 
-		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-			radio->param.ant_cfg.tx_antenna = data[0];
-			if (data[0] == RF_ANTENNA_AUTO) {
-				radio->param.ant_cfg.rx_antenna = 0;
-				if (data[1] > 0xffff) {
-					ret = -EINVAL;
-					goto done;
-				}
-			} else {
-				radio->param.ant_cfg.rx_antenna = data[0];
+		radio->param.ant_cfg.tx_antenna = data[0];
+		if (data[0] == RF_ANTENNA_AUTO) {
+			radio->param.ant_cfg.rx_antenna = 0;
+			if (data[1] > 0xffff) {
+				ret = -EINVAL;
+				goto done;
 			}
-			if (wrq->u.data.length == 2)
-				radio->param.ant_cfg.rx_antenna = data[1];
 		} else {
-			radio->param.ant_cfg_1x1.antenna = data[0];
-			if (wrq->u.data.length == 2) {
-				if (data[1] > 0xffff) {
-					ret = -EINVAL;
-					goto done;
-				}
-				radio->param.ant_cfg_1x1.evaluate_time =
-					data[1];
-			}
+			radio->param.ant_cfg.rx_antenna = data[0];
 		}
+		if (wrq->u.data.length == 2)
+			radio->param.ant_cfg.rx_antenna = data[1];
 		req->action = MLAN_ACT_SET;
 	} else
 		req->action = MLAN_ACT_GET;
@@ -6363,20 +6303,10 @@ static int woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 	}
 	if (!wrq->u.data.length) {
 		wrq->u.data.length = 1;
-		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-			data[0] = radio->param.ant_cfg.tx_antenna;
-			data[1] = radio->param.ant_cfg.rx_antenna;
-			if (data[0] && data[1] && (data[0] != data[1]))
-				wrq->u.data.length = 2;
-		} else {
-			data[0] = (int)radio->param.ant_cfg_1x1.antenna;
-			data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
-			data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
-			if (data[0] == 0xffff && data[2] > 0)
-				wrq->u.data.length = 3;
-			else if (data[0] == 0xffff)
-				wrq->u.data.length = 2;
-		}
+		data[0] = radio->param.ant_cfg.tx_antenna;
+		data[1] = radio->param.ant_cfg.rx_antenna;
+		if (data[0] && data[1] && (data[0] != data[1]))
+			wrq->u.data.length = 2;
 		if (copy_to_user(wrq->u.data.pointer, data,
 				 wrq->u.data.length * sizeof(int))) {
 			ret = -EFAULT;
@@ -6528,16 +6458,6 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_WARMRESET:
 			ret = woal_warm_reset(priv);
 			break;
-#ifdef USB
-#ifdef CONFIG_USB_SUSPEND
-		case WOAL_USB_SUSPEND:
-			ret = woal_enter_usb_suspend(priv->phandle);
-			break;
-		case WOAL_USB_RESUME:
-			ret = woal_exit_usb_suspend(priv->phandle);
-			break;
-#endif /* CONFIG_USB_SUSPEND */
-#endif
 		case WOAL_11D_CLR_CHAN_TABLE:
 			ret = woal_11d_clr_chan_table(priv, wrq);
 			break;
@@ -6671,7 +6591,6 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_INACTIVITY_TIMEOUT_EXT:
 			ret = woal_inactivity_timeout_ext(priv, wrq);
 			break;
-#ifdef SDIO
 		case WOAL_SDIO_CLOCK:
 			ret = woal_sdio_clock_ioctl(priv, wrq);
 			break;
@@ -6681,7 +6600,6 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_SDIO_MPA_CTRL:
 			ret = woal_do_sdio_mpa_ctrl(priv, wrq);
 			break;
-#endif
 		case WOAL_BAND_CFG:
 			ret = woal_band_cfg(priv, wrq);
 			break;
@@ -6816,11 +6734,9 @@ int woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		break;
 	case WOAL_SET_GET_2K_BYTES:
 		switch ((int)wrq->u.data.flags) {
-#ifdef SDIO
 		case WOAL_CMD_53RDWR:
 			ret = woal_cmd53rdwr_ioctl(priv, wrq);
 			break;
-#endif
 		case WOAL_SET_USER_SCAN:
 			ret = woal_set_user_scan_ioctl(priv, wrq);
 			break;

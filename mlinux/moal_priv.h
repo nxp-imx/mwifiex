@@ -67,12 +67,6 @@ Change log:
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 #endif
 
-#ifdef CONFIG_USB_SUSPEND
-/** Private command ID for usb suspend */
-#define WOAL_USB_SUSPEND 2
-/** Private command ID for usb resume */
-#define WOAL_USB_RESUME 3
-#endif /* CONFIG_USB_SUSPEND */
 /** Private command ID to clear 11d chan table */
 #define WOAL_11D_CLR_CHAN_TABLE 4
 
@@ -110,28 +104,22 @@ Change log:
 #define WOAL_11N_AMSDU_AGGR_CTRL 17
 /** Private command ID to set/get Inactivity timeout */
 #define WOAL_INACTIVITY_TIMEOUT_EXT 18
-#ifdef SDIO
 /** Private command ID to turn on/off sdio clock */
 #define WOAL_SDIO_CLOCK 19
 /** Private command ID to read/write Command 52 */
 #define WOAL_CMD_52RDWR 20
-#endif
 /** Private command ID to set/get scan configuration parameter */
 #define WOAL_SCAN_CFG 21
 /** Private command ID to set/get PS configuration parameter */
 #define WOAL_PS_CFG 22
 /** Private command ID to read/write memory */
 #define WOAL_MEM_READ_WRITE 23
-#ifdef SDIO
 /** Private command ID to control SDIO MP-A */
 #define WOAL_SDIO_MPA_CTRL 25
-#endif
 /** Private command ID for Updating ADDBA variables */
 #define WOAL_ADDBA_REJECT 27
 /** Private command ID to set/get sleep parameters */
 #define WOAL_SLEEP_PARAMS 28
-/** Private command ID to set/get network monitor */
-#define WOAL_NET_MONITOR 30
 /** Private command ID to set/get TX BF capabilities */
 #define WOAL_TX_BF_CAP 31
 /** Private command ID to set/get dfs testing settings */
@@ -250,10 +238,8 @@ Change log:
 /** Private command ID to set/get 2K bytes */
 #define WOAL_SET_GET_2K_BYTES (WOAL_IOCTL + 23)
 
-#ifdef SDIO
 /** Private command ID to read/write Command 53 */
 #define WOAL_CMD_53RDWR 2
-#endif
 
 /** Private command ID for setuserscan */
 #define WOAL_SET_USER_SCAN 3

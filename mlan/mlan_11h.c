@@ -118,8 +118,6 @@ static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_1 = {
 /** U-NII sub-band config : Start Channel = 149, NumChans = 5 */
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_upper_band = {149,
 									 5};
-/** U-NII sub-band config : Start Channel = 169, NumChans = 3 */
-static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_4_band = {169, 3};
 
 /** Internally passed structure used to send a CMD_802_11_TPC_INFO command */
 typedef struct {
@@ -339,17 +337,6 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv, t_u16 band,
 		 */
 		switch (cfp_a) {
 		case 0x10: /* USA FCC   */
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_lower_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_middle_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_mid_upper_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_upper_band;
-			psup_chan->subband[num_subbands++] =
-				wlan_11h_unii_4_band;
-			break;
 		case 0x20: /* Canada IC */
 		case 0x30: /* Europe ETSI */
 		default:
@@ -1287,8 +1274,6 @@ static t_bool wlan_11h_is_band_valid(mlan_private *priv, t_u8 start_chn,
 	 * return MFALSE, 165 is not allowed in bands other than 20MHZ
 	 */
 	if (start_chn == 165) {
-		if (priv->adapter->region_code == COUNTRY_CODE_US)
-			return MTRUE;
 		if (uap_band_cfg.chanWidth != CHAN_BW_20MHZ)
 			return MFALSE;
 	}
@@ -2751,10 +2736,7 @@ mlan_status wlan_11h_handle_event_chanswann(mlan_private *priv)
 
 	ENTER();
 #ifdef UAP_SUPPORT
-	/** No need handle AP if mc_policy is disabled, FW will move the AP to
-	 * client's new channel */
-	if (pmadapter->mc_policy &&
-	    priv->adapter->state_11h.is_master_radar_det_active) {
+	if (priv->adapter->state_11h.is_master_radar_det_active) {
 		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM);
 		     i++) {
 			if (pmadapter->priv[i] &&

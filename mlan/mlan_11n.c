@@ -33,7 +33,6 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
 #include "mlan_11ac.h"
-#include "mlan_11ax.h"
 
 /********************************************************
 			Local Variables
@@ -62,24 +61,9 @@ static mlan_status wlan_11n_ioctl_max_tx_buf_size(pmlan_adapter pmadapter,
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_11n_cfg *cfg = MNULL;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 	ENTER();
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_SET) {
-		if (cfg->param.tx_buf_size == 0xffff) {
-			PRINTM(MIOCTL, "Send reconfigure tx buf to FW\n");
-			ret = wlan_prepare_cmd(pmpriv,
-					       HostCmd_CMD_RECONFIGURE_TX_BUFF,
-					       HostCmd_ACT_GEN_SET, 0,
-					       (t_void *)pioctl_req,
-					       &cfg->param.tx_buf_size);
-			if (ret == MLAN_STATUS_SUCCESS)
-				ret = MLAN_STATUS_PENDING;
-			LEAVE();
-			return ret;
-		}
-	}
 	cfg->param.tx_buf_size = (t_u32)pmadapter->max_tx_buf_size;
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
 
@@ -511,14 +495,7 @@ static mlan_status wlan_11n_ioctl_addba_param(pmlan_adapter pmadapter,
 		cfg->param.addba_param.rxamsdu = pmpriv->add_ba_param.rx_amsdu;
 	} else {
 		timeout = pmpriv->add_ba_param.timeout;
-		/* WACP supports the MAX TX ba timeout */
-		if (pmadapter->tx_ba_timeout_support ||
-		    pmadapter->init_para.wacp_mode) {
-			pmpriv->add_ba_param.timeout =
-				cfg->param.addba_param.timeout;
-		} else {
-			pmpriv->add_ba_param.timeout = 0;
-		}
+		pmpriv->add_ba_param.timeout = cfg->param.addba_param.timeout;
 		pmpriv->add_ba_param.tx_win_size =
 			cfg->param.addba_param.txwinsize;
 
@@ -1010,7 +987,7 @@ static void wlan_update_all_stations_ampdu(mlan_private *priv)
 	}
 	while (sta_ptr != (sta_node *)&priv->sta_list) {
 		for (i = 0; i < MAX_NUM_TID; i++) {
-			if (sta_ptr->is_11n_enabled || sta_ptr->is_11ax_enabled)
+			if (sta_ptr->is_11n_enabled)
 				sta_ptr->ampdu_sta[i] =
 					priv->aggr_prio_tbl[i].ampdu_user;
 		}
@@ -1475,24 +1452,6 @@ void wlan_fill_ht_cap_tlv(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
 			 pmadapter->hw_mpdu_density);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
-#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
-	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
-	defined(USBIW624) || defined(SD9097)
-	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDIW624(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type) ||
-	    IS_CARDAW693(pmadapter->card_type)) {
-		if (bands & BAND_A)
-			rx_mcs_supp = MIN(
-				rx_mcs_supp,
-				GET_RXMCSSUPP(pmadapter->user_htstream >> 8));
-		else
-			rx_mcs_supp =
-				MIN(rx_mcs_supp,
-				    GET_RXMCSSUPP(pmadapter->user_htstream));
-	}
-#endif
 	memset(pmadapter, (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
 	       rx_mcs_supp);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP
@@ -1554,24 +1513,6 @@ void wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap,
 	SETAMPDU_SPACING(pht_cap->ht_cap.ampdu_param, 0);
 
 	rx_mcs_supp = GET_RXMCSSUPP(priv->usr_dev_mcs_support);
-#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
-	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
-	defined(USBIW624) || defined(SD9097)
-	if (IS_CARD9098(pmadapter->card_type) ||
-	    IS_CARDIW624(pmadapter->card_type) ||
-	    IS_CARD9097(pmadapter->card_type) ||
-	    IS_CARDAW693(pmadapter->card_type)) {
-		if (bands & BAND_A)
-			rx_mcs_supp = MIN(
-				rx_mcs_supp,
-				GET_RXMCSSUPP(pmadapter->user_htstream >> 8));
-		else
-			rx_mcs_supp =
-				MIN(rx_mcs_supp,
-				    GET_RXMCSSUPP(pmadapter->user_htstream));
-	}
-#endif
 	memset(pmadapter, (t_u8 *)pht_cap->ht_cap.supported_mcs_set, 0xff,
 	       rx_mcs_supp);
 	/* Clear all the other values to get the minimum mcs set btw STA and AP
@@ -2112,6 +2053,8 @@ mlan_status wlan_cmd_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	HostCmd_DS_TX_BF_CFG *txbfcfg = &cmd->params.tx_bf_cfg;
 	mlan_ds_11n_tx_bf_cfg *txbf = (mlan_ds_11n_tx_bf_cfg *)pdata_buf;
+	mlan_tx_sounding_cfg_args *mlan_tx_sounding_cfg = MNULL;
+	tx_sounding_cfg_args_t *tx_sounding_cfg = MNULL;
 
 	ENTER();
 
@@ -2170,10 +2113,29 @@ mlan_status wlan_cmd_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			txbfcfg->body.bf_snr.snr = txbf->body.bf_snr[0].snr;
 			break;
+		case TX_SOUNDING_CFG:
+			mlan_tx_sounding_cfg = &txbf->body.tx_sounding_cfg;
+			tx_sounding_cfg = &txbfcfg->body.tx_sounding_cfg;
+			tx_sounding_cfg->tx_sounding_enbl =
+				mlan_tx_sounding_cfg->tx_sounding_enbl;
+			tx_sounding_cfg->sounding_type =
+				mlan_tx_sounding_cfg->sounding_type;
+			tx_sounding_cfg->sounding_interval = wlan_cpu_to_le16(
+				mlan_tx_sounding_cfg->sounding_interval);
+			break;
 		default:
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
+	}
+	switch (txbf->bf_action) {
+	case TX_SOUNDING_CFG:
+		cmd->size = wlan_cpu_to_le16(sizeof(tx_sounding_cfg_args_t) +
+					     4 + S_DS_GEN);
+		break;
+	default:
+		cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_TX_BF_CFG) +
+					     S_DS_GEN);
 	}
 
 	LEAVE();
@@ -2200,6 +2162,8 @@ mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	bf_peer_args *tx_bf_peer;
 	bf_snr_thr_t *bf_snr;
 	int i;
+	mlan_tx_sounding_cfg_args *mlan_tx_sounding_cfg = MNULL;
+	tx_sounding_cfg_args_t *tx_sounding_cfg = MNULL;
 
 	ENTER();
 
@@ -2271,6 +2235,17 @@ mlan_status wlan_ret_tx_bf_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 				bf_snr++;
 			}
 			break;
+		case TX_SOUNDING_CFG:
+			mlan_tx_sounding_cfg = &txbf->body.tx_sounding_cfg;
+			tx_sounding_cfg = &txbfcfg->body.tx_sounding_cfg;
+			mlan_tx_sounding_cfg->tx_sounding_enbl =
+				tx_sounding_cfg->tx_sounding_enbl;
+			mlan_tx_sounding_cfg->sounding_type =
+				tx_sounding_cfg->sounding_type;
+			mlan_tx_sounding_cfg->sounding_interval =
+				wlan_le16_to_cpu(
+					tx_sounding_cfg->sounding_interval);
+			break;
 		default:
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
@@ -2292,7 +2267,7 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	t_u8 chan2Offset = SEC_CHAN_NONE;
 
 	/* Special Case: 20Mhz-only Channel */
-	if (priv->adapter->region_code != COUNTRY_CODE_US && chan == 165)
+	if (chan == 165)
 		return chan2Offset;
 
 	switch (chan) {
@@ -2308,8 +2283,6 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 140:
 	case 149:
 	case 157:
-	case 165:
-	case 173:
 		chan2Offset = SEC_CHAN_ABOVE;
 		break;
 	case 40:
@@ -2324,8 +2297,6 @@ t_u8 wlan_get_second_channel_offset(mlan_private *priv, int chan)
 	case 144:
 	case 153:
 	case 161:
-	case 169:
-	case 177:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
 	}
@@ -2628,14 +2599,10 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			   (t_u8 *)pext_cap + sizeof(MrvlIEtypesHeader_t),
 			   (t_u8 *)&pmpriv->ext_cap, sizeof(ExtCap_t),
 			   pext_cap->header.len);
-		if (pbss_desc && pbss_desc->multi_bssid_ap)
-			SET_EXTCAP_MULTI_BSSID(pext_cap->ext_cap);
 		if (!pmadapter->ecsa_enable)
 			RESET_EXTCAP_EXT_CHANNEL_SWITCH(pext_cap->ext_cap);
 		else
 			SET_EXTCAP_EXT_CHANNEL_SWITCH(pext_cap->ext_cap);
-		if (wlan_check_11ax_twt_supported(pmpriv, pbss_desc))
-			SET_EXTCAP_TWT_REQ(pext_cap->ext_cap);
 
 		HEXDUMP("Extended Capabilities IE", (t_u8 *)pext_cap,
 			sizeof(MrvlIETypes_ExtCap_t));
@@ -2980,11 +2947,10 @@ int wlan_send_addba(mlan_private *priv, int tid, t_u8 *peer_mac)
 	PRINTM(MCMND, "Send addba: TID %d, " MACSTR "\n", tid,
 	       MAC2STR(peer_mac));
 
-	add_ba_req.block_ack_param_set =
-		(t_u16)((tid << BLOCKACKPARAM_TID_POS) |
-			(priv->add_ba_param.tx_win_size
-			 << BLOCKACKPARAM_WINSIZE_POS) |
-			IMMEDIATE_BLOCK_ACK);
+	add_ba_req.block_ack_param_set = (t_u16)(
+		(tid << BLOCKACKPARAM_TID_POS) |
+		(priv->add_ba_param.tx_win_size << BLOCKACKPARAM_WINSIZE_POS) |
+		IMMEDIATE_BLOCK_ACK);
 	/** enable AMSDU inside AMPDU */
 	if (priv->add_ba_param.tx_amsdu &&
 	    (priv->aggr_prio_tbl[tid].amsdu != BA_STREAM_NOT_ALLOWED))
@@ -3191,9 +3157,6 @@ int wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
  */
 t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 {
-	if (bss_band & BAND_6G)
-		return 0;
-
 	{
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);

@@ -1564,9 +1564,6 @@ static void wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 					priv->add_ba_param.rx_win_size =
 						MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE;
 #endif
-				if (priv->bss_type == MLAN_BSS_TYPE_NAN)
-					priv->add_ba_param.rx_win_size =
-						MLAN_NAN_COEX_AMPDU_DEF_RXWINSIZE;
 #ifdef UAP_SUPPORT
 				if (priv->bss_type == MLAN_BSS_TYPE_UAP)
 					priv->add_ba_param.rx_win_size =

@@ -339,9 +339,6 @@ static INLINE t_u32 wlan_get_bastream_limit(mlan_adapter *pmadapter)
 {
 	t_u32 bastreams = ISSUPP_GETTXBASTREAM(pmadapter->hw_dot_11n_dev_cap);
 
-	if (pmadapter->mclient_tx_supported)
-		return pmadapter->tx_ba_stream_limit;
-
 	return bastreams;
 }
 
