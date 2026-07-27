@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_uap.h
  *
  * @brief This file contains uap driver specific defines etc.
@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 02/02/2009: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MOAL_UAP_H

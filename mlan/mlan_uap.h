@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_uap.h
  *
  *  @brief This file contains related macros, enum, and struct
@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 02/05/2009: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MLAN_UAP_H_

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_ieee.h
  *
  *  @brief This file contains IEEE information element related
@@ -25,7 +25,7 @@
 /******************************************************
  * Change log:
  * 11/03/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #ifndef _MLAN_IEEE_H_
@@ -147,7 +147,57 @@ static const struct center_freq_desc center_freq_idx_map_6g[] = {
 	{.pri_chan = 0, .ch_40 = 37 /* terminator with default cfreq */}};
 
 /** WLAN header size */
-#define IEEE80211_HEADER_SIZE 24
+#define FCS_SIZE (4)
+
+#define IV_SIZE (4)
+#define EIV_SIZE (4)
+#define MIC_SIZE (8)
+#define MIC_KEY_SIZE (8)
+#define ICV_SIZE (4)
+#define HTC_SIZE (4)
+#define EXT_IV (0x20)
+
+#define IEEE80211_HEADER_SIZE (24)
+#define QOS_CTRL_SIZE (2)
+#define IEEE80211_QOSHEADER_SIZE (IEEE80211_HEADER_SIZE + QOS_CTRL_SIZE)
+
+#define MACHDR_n_FCS_SIZE (IEEE80211_HEADER_SIZE + FCS_SIZE)
+#define QOS_MACHDR_n_FCS_SIZE (IEEE80211_QOSHEADER_SIZE + FCS_SIZE)
+
+/** 802.11 PHY Types */
+typedef enum MLAN_PACK_START _IEEEtypes_MsgType_e {
+	IEEE_TYPE_MANAGEMENT = 0,
+	IEEE_TYPE_CONTROL,
+	IEEE_TYPE_DATA
+} MLAN_PACK_END IEEEtypes_MsgType_e;
+
+/** 802.11 Data Frame SubTypes */
+typedef enum MLAN_PACK_START _IEEEtypes_DataSubType_e {
+	DATA = 0,
+	DATA_CF_ACK = 1,
+	DATA_CF_POLL = 2,
+	DATA_CF_ACK_CF_POLL = 3,
+	NULL_DATA = 4,
+	CF_ACK = 5,
+	CF_POLL = 6,
+	CF_ACK_CF_POLL = 7,
+	QOS_DATA = 8,
+	QOS_DATA_CF_ACK = 9,
+	QOS_DATA_CF_POLL = 10,
+	QOS_DATA_CF_ACK_CF_POLL = 11,
+	QOS_NULL = 12,
+	RESERVED_13 = 13,
+	QOS_CF_POLL_NO_DATA = 14,
+	QOS_CF_ACK_CF_POLL_NO_DATA = 15
+} MLAN_PACK_END IEEEtypes_DataSubType_e;
+
+typedef enum MLAN_PACK_START _IEEEtypes_AckPolicy_e {
+	AckPolicy_ImmediateAck = 0,
+	AckPolicy_NoAck = 1,
+	AckPolicy_ExplicitAck = 2,
+	AckPolicy_BlockAck = 3,
+
+} MLAN_PACK_END IEEEtypes_AckPolicy_e;
 
 /** FIX IES size in beacon buffer */
 #define WLAN_802_11_FIXED_IE_SIZE 12
@@ -191,7 +241,11 @@ typedef enum _IEEEtypes_Ext_ElementId_e {
 	MU_EDCA_PARAM_SET = 38,
 	MBSSID_CONFIG = 55,
 	NON_INHERITANCE = 56,
-	HE_6G_CAPABILITY = 59
+	HE_6G_CAPABILITY = 59,
+	EHT_OPERATION = 106,
+	MULTI_LINK = 107,
+	EHT_CAPABILITY = 108,
+	TID_TO_LINK_MAP = 109,
 } IEEEtypes_Ext_ElementId_e;
 
 /** IEEE Type definitions  */
@@ -559,6 +613,58 @@ typedef MLAN_PACK_START struct _IEEEtypes_CapInfo_t {
 	t_u8 rsrvd1 : 2;
 } MLAN_PACK_END IEEEtypes_CapInfo_t, *pIEEEtypes_CapInfo_t;
 #endif /* BIG_ENDIAN_SUPPORT */
+
+/** IEEEtypes_QosCtl_t */
+typedef MLAN_PACK_START struct _IEEEtypes_QosCtl_t {
+	/** user priority */
+	t_u16 user_priority : 3;
+	/** reserved1 */
+	t_u16 reserved1 : 1;
+	/** eosp */
+	t_u16 eosp : 1;
+	/** ack_policy */
+	t_u16 ack_policy : 2;
+	/** amsdu */
+	t_u16 amsdu : 1;
+	/** reserved2 */
+	t_u16 reserved2 : 8;
+} MLAN_PACK_END IEEEtypes_QosCtl_t;
+
+/** IEEEtypes_LinkAdaptCtrl_t */
+typedef MLAN_PACK_START struct _IEEEtypes_LinkAdaptCtrl_t {
+	/** Bit 0: Reserved */
+	t_u16 reserved : 1;
+	/** Bit 1: Training Request */
+	t_u16 trq : 1;
+	/** Bits 2-5: MCS Request or ASEL Indication */
+	t_u16 mai : 4;
+	/** Bits 6-8: MCS Feedback Sequence Identifier */
+	t_u16 mfsi : 3;
+	/** Bits 9-15: MCS Feedback or ASEL Command */
+	t_u16 mfb_aselc : 7;
+} MLAN_PACK_END IEEEtypes_LinkAdaptCtrl_t;
+
+/** IEEEtypes_HTCtrl_t */
+typedef MLAN_PACK_START struct _IEEEtypes_HTCtrl_t {
+	/** Bits 0-15: Link Adaptation Control */
+	IEEEtypes_LinkAdaptCtrl_t la_ctrl;
+	/** Bits 16-17: Calibration Position */
+	t_u16 calib_pos : 2;
+	/** Bits 18-19: Calibration Sequence */
+	t_u16 calib_seq : 2;
+	/** Bits 20-21: Reserved */
+	t_u16 reserved : 2;
+	/** Bits 22-23: CSI/Steering */
+	t_u16 csi : 2;
+	/** Bit 24: NDP Announcement */
+	t_u16 ndp_announce : 1;
+	/** Bits 25-29: Reserved */
+	t_u16 reserved2 : 5;
+	/** Bit 30: AC Constraint */
+	t_u16 ac_const : 1;
+	/** Bit 31: RDG/More PPDU */
+	t_u16 rdg_more_ppdu : 1;
+} MLAN_PACK_END IEEEtypes_HTCtrl_t;
 
 /** IEEEtypes_Ssid_t */
 typedef MLAN_PACK_START struct _IEEEtypes_Ssid_t {

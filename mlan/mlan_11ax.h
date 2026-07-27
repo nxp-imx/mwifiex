@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_11ax.h
  *
  *  @brief This file contains the functions for station ioctl.
@@ -68,7 +68,8 @@ t_u16 wlan_116e_bandconfig_allowed(mlan_private *pmpriv,
 				   BSSDescriptor_t *pbss_desc);
 int wlan_cmd_append_116e_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
-t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
+t_u8 wlan_get_6g_ap_bandconfig(pmlan_adapter pmadapter,
+			       BSSDescriptor_t *pbss_desc,
 			       Band_Config_t *bandcfg);
 
 int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,

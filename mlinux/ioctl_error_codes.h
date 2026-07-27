@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file ioctl_error_codes.h
  *
  *  @brief This file contains IOCTL error code ID definitions.

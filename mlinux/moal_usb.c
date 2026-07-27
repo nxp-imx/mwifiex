@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "moal_main.h"
@@ -34,7 +34,7 @@ extern struct semaphore AddRemoveCardSem;
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
@@ -183,12 +183,12 @@ static moal_if_ops usb_ops;
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
@@ -492,7 +492,7 @@ rx_ret:
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
@@ -1180,7 +1180,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 	}
 error:
 	kfree(usb_cardp);
-	usb_cardp = NULL;
 	LEAVE();
 	return -ENXIO;
 }
@@ -1283,6 +1282,7 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	mlan_ds_ps_info pm_info;
 	int i;
 	int ret = 0;
+	int hs_actived = 0;
 
 	ENTER();
 
@@ -1325,9 +1325,29 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		goto done;
 	}
 
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			netif_device_detach(handle->priv[i]->netdev);
+		}
+	}
+
 	woal_sched_timeout(200);
 	/* Enable Host Sleep */
-	woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
+	hs_actived = woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
+
+	if (hs_actived) {
+		PRINTM(MCMND, "%s: HS actived!", __FUNCTION__);
+	} else {
+		PRINTM(MMSG, "HS not actived, suspend fail!");
+		handle->suspend_fail = MTRUE;
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i]) {
+				netif_device_attach(handle->priv[i]->netdev);
+			}
+		}
+		ret = -EBUSY;
+		goto done;
+	}
 
 	/* Indicate device suspended */
 	/* The flag must be set here before the usb_kill_urb() calls.
@@ -1336,10 +1356,6 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	 * between a suspended state and a 'disconnect' one.
 	 */
 	handle->is_suspended = MTRUE;
-	for (i = 0; i < handle->priv_num; i++) {
-		if (handle->priv[i])
-			netif_carrier_off(handle->priv[i]->netdev);
-	}
 
 	/* Unlink Rx cmd URB */
 	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb)
@@ -1417,10 +1433,11 @@ static int woal_usb_resume(struct usb_interface *intf)
 					       MLAN_RX_CMD_BUF_SIZE);
 	}
 
-	for (i = 0; i < handle->priv_num; i++)
-		if (handle->priv[i] &&
-		    handle->priv[i]->media_connected == MTRUE)
-			netif_carrier_on(handle->priv[i]->netdev);
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			netif_device_attach(handle->priv[i]->netdev);
+		}
+	}
 
 	/* Disable Host Sleep */
 	if (handle->hs_activated)

@@ -25,7 +25,7 @@
 /*************************************************************
  * Change Log:
  * 05/11/2009: initial version
- * **********************************************************
+ *************************************************************
  */
 
 #include "mlan.h"
@@ -39,22 +39,22 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *   @brief This function processes the received buffer
@@ -78,7 +78,7 @@ mlan_status wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 
 	/* Get the BSS number from RxPD, get corresponding priv */
-	priv = wlan_get_priv_by_id(pmadapter, prx_pd->bss_num & BSS_NUM_MASK,
+	priv = wlan_get_priv_by_id(pmadapter, RxPD_GET_BSS_NO(prx_pd->bss_num),
 				   prx_pd->bss_type);
 	if (!priv)
 		priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
@@ -97,6 +97,7 @@ done:
 	LEAVE();
 	return ret;
 }
+
 Stats_mcast_drv_t gmcast_stats = {0};
 /* This flag is used to protect the mcast drv stat update
  * when it's value is copied to provide to mlanutl
@@ -177,18 +178,20 @@ static void wlan_drv_mcast_cycle_delay_calulation(pmlan_adapter pmadapter,
 	prev_mcast_sec = pmbuf->in_ts_sec;
 	prev_mcast_usec = pmbuf->in_ts_usec;
 }
+
 /**
  *  @brief This function checks the conditions and sends packet to device
  *
  *  @param priv	   A pointer to mlan_private structure
  *  @param pmbuf   A pointer to the mlan_buffer for process
  *  @param tx_param A pointer to mlan_tx_param structure
+ *  @param ra_list     A pointer to raListTbl
  *
  *  @return         MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING --success, otherwise
  * failure
  */
 mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
-			    mlan_tx_param *tx_param)
+			    mlan_tx_param *tx_param, raListTbl *ra_list)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_adapter pmadapter = priv->adapter;
@@ -200,9 +203,17 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 	PTxPD plocal_tx_pd = MNULL;
 #endif
 	t_u8 dest_mac_first_octet = 0;
+	t_u8 process_txpd = MTRUE;
+	t_u8 type = MLAN_TYPE_DATA;
 
 	ENTER();
-	head_ptr = (t_u8 *)priv->ops.process_txpd(priv, pmbuf);
+
+	/* coverity[UNREACHABLE] */
+	/* coverity[DEADCODE] */
+	head_ptr = process_txpd ?
+			   ((t_u8 *)priv->ops.process_txpd(priv, pmbuf)) :
+			   (pmbuf->pbuf + pmbuf->data_offset);
+
 	if (!head_ptr) {
 		pmbuf->status_code = MLAN_ERROR_PKT_INVALID;
 		ret = MLAN_STATUS_FAILURE;
@@ -223,8 +234,7 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 	if (pmadapter->tp_state_drop_point == 4)
 		goto done;
 	else {
-		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
-						  tx_param);
+		ret = pmadapter->ops.host_to_card(priv, type, pmbuf, tx_param);
 	}
 done:
 	switch (ret) {
@@ -443,6 +453,40 @@ INLINE t_u8 wlan_bypass_tx_list_empty(mlan_adapter *pmadapter)
 }
 
 /**
+ *  @brief Check if data pending
+ *
+ *  @param pmadapter  Pointer to the mlan_adapter driver data struct
+ *
+ *  @return         MTUE if data pending; MFALSE no data pending
+ */
+t_u8 wlan_is_data_pending(mlan_adapter *pmadapter)
+{
+	ENTER();
+	if (!pmadapter->data_sent && !wlan_bypass_tx_list_empty(pmadapter))
+		return MTRUE;
+	if (!wlan_wmm_lists_empty(pmadapter))
+		return MTRUE;
+	PRINTM(MINFO, "data_pending = MFALSE\n");
+	LEAVE();
+	return MFALSE;
+}
+
+/**
+ *  @brief Check if ra_list ready to send
+ *
+ *  @param pmadapter  Pointer to the mlan_adapter driver data struct
+ *  @param ra_list    Pointer to raListTbl
+ *
+ *  @return         MTUE if data pending; MFALSE no data pending
+ */
+t_u8 wlan_is_ralist_ready_to_send(mlan_adapter *pmadapter, raListTbl *ra_list)
+{
+	if (ra_list->tx_pause)
+		return MFALSE;
+	return MTRUE;
+}
+
+/**
  *  @brief Clean up the By-pass TX queue
  *
  *  @param priv     Pointer to the mlan_private data struct
@@ -520,9 +564,10 @@ t_void wlan_process_bypass_tx(pmlan_adapter pmadapter)
 					else
 						tx_param.next_pkt_len =
 							pmbuf->data_len;
+
 					status = wlan_process_tx(
 						pmadapter->priv[pmbuf->bss_index],
-						pmbuf, &tx_param);
+						pmbuf, &tx_param, MNULL);
 
 					if (status == MLAN_STATUS_RESOURCE) {
 						/* Queue the packet again so

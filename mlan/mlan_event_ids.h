@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_event_ids.h
  *
  *  @brief This file contains FW event ID definitions.
@@ -185,7 +185,7 @@ ENUM_ELEMENT(EVENT_DUMMY_HOST_WAKEUP_SIGNAL, 0x0001),
 
 	ENUM_ELEMENT(EVENT_VDLL_IND, 0x0081),
 
-	ENUM_ELEMENT(EVENT_WLS_FTM_COMPLETE, 0x0086),
+	ENUM_ELEMENT(EVENT_WLS_FTM_GENERIC, 0x0086),
 
 	ENUM_ELEMENT(EVENT_EXCEED_MAX_P2P_CONN, 0x0089),
 

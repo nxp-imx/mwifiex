@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_hostcmd_ids.h
  *
  *  @brief This file contains host command ID definitions.
@@ -165,8 +165,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : Cal data dnld */
 	ENUM_ELEMENT(HostCmd_CMD_CFG_DATA, 0x008f),
 
+#ifdef SDIO
 	/** Host Command ID : SDIO pull control */
 	ENUM_ELEMENT(HostCmd_CMD_SDIO_PULL_CTRL, 0x0093),
+#endif
 
 	/** Host Command ID : ECL system clock configuration */
 	ENUM_ELEMENT(HostCmd_CMD_ECL_SYSTEM_CLOCK_CONFIG, 0x0094),
@@ -418,7 +420,7 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_RATE_ADAPT_CFG, 0x0264),
 	ENUM_ELEMENT(HostCmd_CMD_CCK_DESENSE_CFG, 0x0265),
 
-	ENUM_ELEMENT(HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS, 0x024d),
+	ENUM_ELEMENT(HostCmd_CMD_FTM_SESSION_CFG, 0x024d),
 	ENUM_ELEMENT(HostCmd_CMD_FTM_SESSION_CTRL, 0x024e),
 	ENUM_ELEMENT(HostCmd_CMD_FTM_FEATURE_CTRL, 0x024f),
 	ENUM_ELEMENT(HostCmd_CMD_WLS_REQ_FTM_RANGE, 0x0250),
@@ -506,6 +508,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : Channel switch count configuration */
 	ENUM_ELEMENT(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG, 0x0298),
+#if defined(PCIE)
+	/** Host Command ID : VDLL ENTRYS DETAILS */
+	ENUM_ELEMENT(HostCmd_CMD_VDLL_ENTRYS_DETAILS, 0X0299),
+#endif
 
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)

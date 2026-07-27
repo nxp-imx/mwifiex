@@ -4,7 +4,7 @@
  *  @brief This file contains the functions for station ioctl.
  *
  *
- *  Copyright 2011-2026 NXP
+ *  Copyright 2011-2021, 2025-2026 NXP
  *
  *  This software file (the File) is distributed by NXP
  *  under the terms of the GNU General Public License Version 2, June 1991
@@ -32,17 +32,17 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
 				     t_u16 mcs_map);
@@ -152,9 +152,9 @@ static void wlan_fill_cap_info(mlan_private *priv, VHT_capa_t *vht_cap,
 
 	RESET_VHTCAP_MAXMPDULEN(vht_cap->vht_cap_info);
 	/*
-	 * Set to 0 for 3895 octets.
-	 * Set to 1 for 7991 octets.
-	 * Set to 2 for 11 454 octets.
+	   Set to 0 for 3895 octets.
+	   Set to 1 for 7991 octets.
+	   Set to 2 for 11 454 octets.
 	 */
 	cfg_value = GET_VHTCAP_MAXMPDULEN(usr_dot_11ac_dev_cap);
 	if (cfg_value &&
@@ -194,8 +194,9 @@ static mlan_status wlan_11ac_ioctl_vhtcfg(pmlan_adapter pmadapter,
 	ENTER();
 
 #define VHT_CAP_INFO_BIT_FIELDS                                                \
-	(MBIT(4) | MBIT(5) | MBIT(6) | MBIT(7) | MBIT(11) | MBIT(12) |         \
-	 MBIT(19) | MBIT(20) | MBIT(21) | MBIT(22) | MBIT(28) | MBIT(29))
+	(MBIT(2) | MBIT(3) | MBIT(4) | MBIT(5) | MBIT(6) | MBIT(7) |           \
+	 MBIT(11) | MBIT(12) | MBIT(19) | MBIT(20) | MBIT(21) | MBIT(22) |     \
+	 MBIT(28) | MBIT(29))
 
 	cfg = (mlan_ds_11ac_cfg *)pioctl_req->pbuf;
 
@@ -544,7 +545,7 @@ static mlan_status wlan_11ac_ioctl_supported_mcs_set(pmlan_adapter pmadapter,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -754,11 +755,11 @@ t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u16 bands,
  *  @param bands        Band configuration
  *  @param flag         TREU--pvht_cap has the setting for resp
  *                      MFALSE -- pvht_cap is clean
- *  @param bw_80p80     TRUE -- enable 80p80
+ *  @param bw_160or8080     TRUE -- enable bw160 or 80p80
  *  @return             N/A
  */
 void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
-			   t_u16 bands, t_u8 flag, t_u8 bw_80p80)
+			   t_u16 bands, t_u8 flag, t_u8 bw_160or8080)
 {
 	t_u16 mcs_map_user = 0;
 	t_u16 mcs_map_resp = 0;
@@ -776,9 +777,10 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 
 	/* Fill VHT cap info */
 	wlan_fill_cap_info(priv, &pvht_cap->vht_cap, bands);
-	/* clear 80p80 in vht_cap_info */
-	if (!bw_80p80)
+	/* clear bw160 and 80p80 in vht_cap_info */
+	if (!bw_160or8080)
 		pvht_cap->vht_cap.vht_cap_info &= ~(MBIT(2) | MBIT(3));
+
 	pvht_cap->vht_cap.vht_cap_info =
 		wlan_cpu_to_le32(pvht_cap->vht_cap.vht_cap_info);
 
@@ -809,7 +811,7 @@ void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 				 0x0f;
 		}
 		/** force 1x1 when enable 80P80 */
-		if (bw_80p80)
+		if (bw_160or8080)
 			rx_nss = tx_nss = 1;
 	}
 #endif
@@ -1018,7 +1020,7 @@ void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
 		vht_oprat->chan_width = VHT_OPER_CHWD_80MHZ;
 		break;
 	case VHT_CAP_CHWD_160MHZ:
-		vht_oprat->chan_width = VHT_OPER_CHWD_160MHZ;
+		vht_oprat->chan_width = VHT_OPER_CHWD_80MHZ;
 		break;
 	case VHT_CAP_CHWD_80_80MHZ:
 		vht_oprat->chan_width = VHT_OPER_CHWD_80_80MHZ;
@@ -1042,20 +1044,27 @@ void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
 	}
 	/* Basic MCS map */
 	vht_oprat->basic_MCS_map = mcs_map_result;
-	switch (vht_oprat->chan_width) {
-	case VHT_OPER_CHWD_80MHZ:
+	switch (supp_chwd_set) {
+	case VHT_CAP_CHWD_80MHZ:
 		chan_bw = CHANNEL_BW_80MHZ;
+		vht_oprat->chan_center_freq_1 = wlan_get_center_freq_idx(
+			priv, BAND_5GHZ, pbss_desc->channel, chan_bw);
 		break;
-	case VHT_OPER_CHWD_160MHZ:
+	case VHT_CAP_CHWD_160MHZ:
 		chan_bw = CHANNEL_BW_160MHZ;
+		vht_oprat->chan_center_freq_2 = wlan_get_center_freq_idx(
+			priv, BAND_5GHZ, pbss_desc->channel, chan_bw);
+		if (pbss_desc->channel < vht_oprat->chan_center_freq_2)
+			vht_oprat->chan_center_freq_1 =
+				vht_oprat->chan_center_freq_2 - 8;
+		else
+			vht_oprat->chan_center_freq_1 =
+				vht_oprat->chan_center_freq_2 + 8;
 		break;
-	case VHT_OPER_CHWD_80_80MHZ:
+	case VHT_CAP_CHWD_80_80MHZ:
 		chan_bw = CHANNEL_BW_80MHZ;
 		break;
 	}
-	vht_oprat->chan_center_freq_1 = wlan_get_center_freq_idx(
-		priv, BAND_5GHZ, pbss_desc->channel, chan_bw);
-
 	LEAVE();
 	return;
 }
@@ -1066,27 +1075,27 @@ void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
  *  @param pmpriv A pointer to mlan_private structure
  *  @param pbss_desc   A pointer to BSSDescriptor_t structure
  *
- *  @return  ret  suport 80+80Mhz or not
+ *  @return  MTRUE: suport bw160 or 80+80Mhz
  */
-t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
+t_u8 wlan_is_bw_160or8080_support(mlan_private *pmpriv,
+				  BSSDescriptor_t *pbss_desc)
 {
 	t_u8 ret = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
 	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
 	defined(USBIW624) || defined(SD9097)
+	t_u8 user_bw_160or8080 = 0;
+	t_u8 ap_bw_160or8080 = 0;
+	t_u8 user_he_bw_160or8080 = 0;
+	t_u8 ap_he_bw_160or8080 = 0;
 	t_u16 rx_nss = 0, tx_nss = 0;
 	IEEEtypes_VHTCap_t *pvht_cap = pbss_desc->pvht_cap;
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	IEEEtypes_HECap_t *pBsshecap = MNULL;
-#endif
 
 	ENTER();
 
-#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
-	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
-	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
-	defined(USBIW624) || defined(SD9097)
 	if (!IS_CARD9098(pmpriv->adapter->card_type) &&
 	    !IS_CARDIW624(pmpriv->adapter->card_type) &&
 	    !IS_CARD9097(pmpriv->adapter->card_type) &&
@@ -1102,16 +1111,24 @@ t_u8 wlan_is_80_80_support(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 	/** check if support 2*2 */
 	if (rx_nss != 2 || tx_nss != 2)
 		return ret;
-	/** check if AP support AC 80P80 */
-	if (ISSUPP_11ACBW8080(pmpriv->usr_dot_11ac_dev_cap_a) && pvht_cap &&
-	    ISSUPP_11ACBW8080(pvht_cap->vht_cap.vht_cap_info))
+	/** check if AP support AC 160 or 80P80 */
+	user_bw_160or8080 = GET_VHTCAP_CHWDSET(pmpriv->usr_dot_11ac_dev_cap_a);
+	if (pvht_cap)
+		ap_bw_160or8080 =
+			GET_VHTCAP_CHWDSET(pvht_cap->vht_cap.vht_cap_info);
+	if (user_bw_160or8080 & ap_bw_160or8080)
 		ret = MTRUE;
-	/** check if AP support AX 80P80 */
+/* channel width 160 or 80p80 mask */
+#define PHY_CAP0_BW_160_MASK (MBIT(3) | MBIT(4))
+	/** check if AP support AX 160 or 80P80 */
 	if (pbss_desc->phe_cap) {
 		pBsshecap = (IEEEtypes_HECap_t *)pbss_desc->phe_cap;
 		phecap = (MrvlIEtypes_He_cap_t *)pmpriv->user_he_cap;
-		if (ret && (phecap->he_phy_cap[0] & MBIT(4)) &&
-		    (pBsshecap->he_phy_cap[0] & MBIT(4)))
+		ap_he_bw_160or8080 =
+			pBsshecap->he_phy_cap[0] & PHY_CAP0_BW_160_MASK;
+		user_he_bw_160or8080 =
+			phecap->he_phy_cap[0] & PHY_CAP0_BW_160_MASK;
+		if (ret && (ap_he_bw_160or8080 & user_he_bw_160or8080))
 			ret = MTRUE;
 		else
 			ret = MFALSE;
@@ -1139,7 +1156,7 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	t_u16 mcs_map_user = 0;
 	t_u16 nss;
 	int ret_len = 0;
-	t_u8 bw_80p80 = MFALSE;
+	t_u8 bw_160or8080 = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
 	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
@@ -1172,9 +1189,11 @@ int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			   (t_u8 *)pbss_desc->pvht_cap +
 				   sizeof(IEEEtypes_Header_t),
 			   pvht_cap->header.len, sizeof(VHT_capa_t));
-		bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
+
+		// coverity[CHECKED_RETURN:SUPPRESS]
+		bw_160or8080 = wlan_is_bw_160or8080_support(pmpriv, pbss_desc);
 		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band,
-				      MFALSE, bw_80p80);
+				      MFALSE, bw_160or8080);
 
 		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));
@@ -1442,4 +1461,62 @@ t_u8 wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u16 bss_band)
 			return (pmpriv->config_bands & BAND_AAC);
 	}
 	return 0;
+}
+
+/**
+ *  @brief This function get the channel bandwidth from vht_oprat info
+ *
+ *  @param pmadapter    A pointer to mlan_adapter
+ *  @param pbss_desc    A pointer to BSSDescriptor_t
+ *  @param bandcfg      A pointer to Band_Config_t
+ *
+ *  @return band_width
+ */
+t_u8 wlan_get_ac_ap_bandconfig(pmlan_adapter pmadapter,
+			       BSSDescriptor_t *pbss_desc,
+			       Band_Config_t *bandcfg)
+{
+	t_u8 bandwidth = 0;
+	if (!pbss_desc || !pbss_desc->pvht_oprat || !bandcfg)
+		return 0;
+	pbss_desc->curr_bandwidth = BW_80MHZ;
+	bandwidth = CHAN_BW_80MHZ;
+	switch (pbss_desc->pvht_oprat->chan_width) {
+	case VHT_OPER_CHWD_80MHZ:
+		/* New-Style (802.11-2016, current) */
+		if (pbss_desc->pvht_oprat->chan_center_freq_2 &&
+		    IS_FW_SUPPORT_BW160MHZ(pmadapter)) {
+			if (((pbss_desc->pvht_oprat->chan_center_freq_2 >
+			      pbss_desc->pvht_oprat->chan_center_freq_1) &&
+			     (pbss_desc->pvht_oprat->chan_center_freq_2 -
+			      pbss_desc->pvht_oprat->chan_center_freq_1) ==
+				     8) ||
+			    ((pbss_desc->pvht_oprat->chan_center_freq_2 <
+			      pbss_desc->pvht_oprat->chan_center_freq_1) &&
+			     (pbss_desc->pvht_oprat->chan_center_freq_1 -
+			      pbss_desc->pvht_oprat->chan_center_freq_2) ==
+				     8)) {
+				pbss_desc->curr_bandwidth = BW_160MHZ;
+				bandwidth = CHAN_BW_160MHZ;
+			}
+		}
+		break;
+	case VHT_OPER_CHWD_160MHZ:
+		if (IS_FW_SUPPORT_BW160MHZ(pmadapter)) {
+			pbss_desc->curr_bandwidth = BW_160MHZ;
+			bandwidth = CHAN_BW_160MHZ;
+		}
+		break;
+	case VHT_OPER_CHWD_80_80MHZ:
+		if (!IS_FW_SUPPORT_NO_80MHz_PLUS_80MHz(pmadapter)) {
+			pbss_desc->curr_bandwidth = BW_8080MHZ;
+			bandwidth = CHAN_BW_8080MHZ;
+		}
+		break;
+	default:
+		break;
+	}
+	bandcfg->chanWidth = BANDCFG_SET_CHANWIDTH(bandwidth);
+	bandcfg->chanWidthExt = BANDCFG_SET_CHANWIDTH_EXT(bandwidth);
+	return bandwidth;
 }

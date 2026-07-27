@@ -23,9 +23,9 @@
  */
 
 /******************************************************
- * Change log:
- *   10/21/2008: initial version
- * ****************************************************
+ * * Change log:
+ * *   10/21/2008: initial version
+ ******************************************************
  */
 
 #include "mlan.h"
@@ -44,18 +44,18 @@
 #endif
 
 /********************************************************
- *			Local Variables
- * ******************************************************
+ * *			Local Variables
+ ********************************************************
  */
 
 /********************************************************
- *			Global Variables
- * ******************************************************
+ * *			Global Variables
+ ********************************************************
  */
 
 /********************************************************
- *			Local Functions
- * ******************************************************
+ * *			Local Functions
+ ********************************************************
  */
 /**
  *  @brief This function handles the command response error for TDLS operation
@@ -269,6 +269,10 @@ static mlan_status wlan_process_cmdresp_error(mlan_private *pmpriv,
 			pmadapter->dbg.num_assoc_err++;
 		wlan_reset_connect_state(pmpriv, MTRUE);
 		break;
+#if defined(PCIE)
+	case HostCmd_CMD_VDLL_ENTRYS_DETAILS:
+		break;
+#endif
 	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
 		if (resp->result == HostCmd_RESULT_BUSY)
 			pmadapter->dbg.num_remain_chan_err++;
@@ -1920,8 +1924,9 @@ static mlan_status wlan_ret_tdls_config(pmlan_private pmpriv,
 			}
 			final_data_rate = (t_u16)wlan_index_to_data_rate(
 				pmadapter, link_ptr->u.rate_info.tx_data_rate,
-				link_ptr->u.rate_info.tx_rate_htinfo, 0);
-			link_ptr->u.final_data_rate = final_data_rate / 2;
+				link_ptr->u.rate_info.tx_rate_htinfo, 0,
+				MFALSE);
+			link_ptr->u.final_data_rate = final_data_rate / 1000;
 
 			link_ptr =
 				(tdls_each_link_status *)(((t_u8 *)link_ptr) +
@@ -2668,31 +2673,43 @@ static mlan_status wlan_ret_sta_config(pmlan_private pmpriv,
 			if (bss->sub_command == MLAN_OID_BSS_CHAN_INFO) {
 				Band_Config_t *bandcfg =
 					&bss->param.sta_channel.bandcfg;
-
+				t_u8 bw = 0;
+				t_u8 bandwidth = 0;
 				tlv_band_channel =
 					(MrvlIEtypes_channel_band_t *)
 						cmdrsp_sta_cfg->tlv_buffer;
 				*bandcfg = tlv_band_channel->bandcfg;
 				bss->param.sta_channel.channel =
 					tlv_band_channel->channel;
+				pmpriv->curr_channel =
+					tlv_band_channel->channel;
+				pmpriv->curr_bandcfg =
+					tlv_band_channel->bandcfg;
 				/* Channel 14 (Japan) does not support 802.11n.
 				 */
 				bss->param.sta_channel.is_11n_enabled =
 					(tlv_band_channel->channel == 14) ?
 						0 :
 						IS_11N_ENABLED(pmpriv);
-				if (bandcfg->chanWidth == CHAN_BW_80MHZ)
+				bw = BANDCFG_GET_CHANWIDTH(
+					bandcfg->chanWidthExt,
+					bandcfg->chanWidth);
+				if (bw == CHAN_BW_80MHZ)
+					bandwidth = CHANNEL_BW_80MHZ;
+				else if (bw == CHAN_BW_160MHZ)
+					bandwidth = CHANNEL_BW_160MHZ;
+				if (bw == CHAN_BW_80MHZ || bw == CHAN_BW_160MHZ)
 					bss->param.sta_channel.center_chan =
 						wlan_get_center_freq_idx(
 							pmpriv,
 							bandcfg->chanBand,
 							bss->param.sta_channel
 								.channel,
-							CHANNEL_BW_80MHZ);
+							bandwidth);
 				PRINTM(MCMND,
-				       "Get STA channel, band=0x%x, channel=%d, is_11n_enabled=%d center_chan=%d\n",
+				       "Get STA channel, bandcfg=0x%x, channel=%d, bw=%d is_11n_enabled=%d center_chan=%d\n",
 				       bss->param.sta_channel.bandcfg,
-				       bss->param.sta_channel.channel,
+				       bss->param.sta_channel.channel, bw,
 				       bss->param.sta_channel.is_11n_enabled,
 				       bss->param.sta_channel.center_chan);
 
@@ -2873,7 +2890,7 @@ static mlan_status wlan_ret_auto_tx(pmlan_private pmpriv,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -3055,6 +3072,60 @@ mlan_status wlan_ret_mfg_debug_temperature(pmlan_private pmpriv,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
+#if defined(SD9177)
+/**
+ *  @brief This function handles the command response of RF RX BSSID filter
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_mfg_rf_rx_bssid_filter(pmlan_private pmpriv,
+					    HostCmd_DS_COMMAND *resp,
+					    mlan_ioctl_req *pioctl_buf)
+{
+	mfg_cmd_rf_rx_bssid_cfg_t *cmd_resp = MNULL;
+	mlan_ds_misc_cfg *misc = MNULL;
+
+	ENTER();
+
+	cmd_resp = (mfg_cmd_rf_rx_bssid_cfg_t *)&resp->params;
+
+	// Convert from little endian
+	cmd_resp->mfg_cmd = wlan_le32_to_cpu(cmd_resp->mfg_cmd);
+	cmd_resp->action = wlan_le16_to_cpu(cmd_resp->action);
+	cmd_resp->device_id = wlan_le16_to_cpu(cmd_resp->device_id);
+	cmd_resp->error = wlan_le32_to_cpu(cmd_resp->error);
+	cmd_resp->mode = wlan_le32_to_cpu(cmd_resp->mode);
+
+	// Validate mode field before use
+	if (cmd_resp->mode > 4) {
+		PRINTM(MERROR, "Invalid mode %u in firmware response\n",
+		       cmd_resp->mode);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	PRINTM(MINFO, "MFG RF RX BSSID Filter Response:\n");
+	PRINTM(MINFO, "  Error: 0x%x\n", cmd_resp->error);
+	PRINTM(MINFO, "  Mode: %d\n", cmd_resp->mode);
+	PRINTM(MINFO, "  BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
+	       cmd_resp->bssid[0], cmd_resp->bssid[1], cmd_resp->bssid[2],
+	       cmd_resp->bssid[3], cmd_resp->bssid[4], cmd_resp->bssid[5]);
+
+	if (pioctl_buf) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		memcpy(pmpriv->adapter, &misc->param.mfg_rx_bssid_addr,
+		       cmd_resp, sizeof(mfg_cmd_rf_rx_bssid_cfg_t));
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+#endif
 
 /**
  *  @brief This function prepares command resp of MFG HE TB Tx
@@ -3242,6 +3313,11 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	case MFG_CMD_SET_DEBUG_TEMPERATURE:
 		ret = wlan_ret_mfg_debug_temperature(pmpriv, resp, pioctl_buf);
 		goto cmd_mfg_done;
+#if defined(SD9177)
+	case MFG_CMD_RF_RX_BSSID_FILTER:
+		ret = wlan_ret_mfg_rf_rx_bssid_filter(pmpriv, resp, pioctl_buf);
+		goto cmd_mfg_done;
+#endif
 	case MFG_CMD_SET_TEST_MODE:
 	case MFG_CMD_UNSET_TEST_MODE:
 	case MFG_CMD_TX_ANT:
@@ -3491,10 +3567,6 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_LINK_STATS:
 		ret = wlan_ret_get_link_statistic(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS:
-		ret = wlan_ret_802_11_ftm_config_session_params(pmpriv, resp,
-								pioctl_buf);
-		break;
 	case HostCmd_CMD_FTM_CONFIG_RESPONDER:
 		ret = wlan_ret_802_11_ftm_config_responder(pmpriv, resp,
 							   pioctl_buf);
@@ -3709,6 +3781,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_NET_MONITOR:
 		ret = wlan_ret_net_monitor(pmpriv, resp, pioctl_buf);
 		break;
+#ifdef SDIO
+	case HostCmd_CMD_SDIO_PULL_CTRL:
+		break;
+#endif
 #if defined(PCIE)
 #if defined(PCIE8897)
 	case HostCmd_CMD_PCIE_HOST_BUF_DETAILS:
@@ -3905,6 +3981,13 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_AUTH_ASSOC_TIMEOUT_CFG:
 		ret = wlan_ret_auth_assoc_timeout_cfg(pmpriv, resp, pioctl_buf);
+		break;
+#if defined(PCIE)
+	case HostCmd_CMD_VDLL_ENTRYS_DETAILS:
+		break;
+#endif
+	case HostCmd_CMD_FTM_SESSION_CFG:
+	case HostCmd_CMD_FTM_SESSION_CTRL:
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",

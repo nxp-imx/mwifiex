@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_usb.h
  *
  * @brief This file contains definitions for USB interface.
@@ -24,7 +24,7 @@
 /*************************************************************
  * Change Log:
  * 10/21/2008: initial version
- * **********************************************************
+ *************************************************************
  */
 
 #ifndef _MOAL_USB_H

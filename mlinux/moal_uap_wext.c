@@ -24,7 +24,7 @@
 /************************************************************************
  * Change log:
  * 08/06/2010: initial version
- * **********************************************************************
+ ************************************************************************
  */
 
 #include "moal_main.h"
@@ -34,7 +34,7 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 typedef struct _chan_to_freq_t {
 	/** Channel */
@@ -131,7 +131,7 @@ static const struct iw_priv_args woal_uap_priv_args[] = {
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -374,6 +374,7 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		ret = -EFAULT;
 		goto done;
 	}
+	// coverity[UNUSED_VALUE:SUPPRESS]
 	i = ap_cfg->num_of_chan;
 
 	/* Initialize the invalid values so that the correct values
@@ -601,12 +602,15 @@ static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
 				pkey = &sys_cfg->wep_cfg.key0;
 			if (ap_cfg->wep_cfg.key1.is_default)
 				pkey = &sys_cfg->wep_cfg.key1;
-			if (ap_cfg->wep_cfg.key2.is_default)
+			if (ap_cfg->wep_cfg.key2.is_default) {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				pkey = &sys_cfg->wep_cfg.key2;
-			if (ap_cfg->wep_cfg.key3.is_default)
+			}
+			if (ap_cfg->wep_cfg.key3.is_default) {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				pkey = &sys_cfg->wep_cfg.key3;
-			else { /* Something wrong, select first key as default
-				*/
+			} else { /* Something wrong, select first key as default
+				  */
 				PRINTM(MERROR,
 				       "No default key set! Selecting first key.\n");
 				pkey = &sys_cfg->wep_cfg.key0;
@@ -1205,6 +1209,7 @@ static int woal_set_mlme(struct net_device *dev, struct iw_request_info *info,
 					sizeof(mlan_ds_sta_list),
 					sizeof(mlan_ds_sta_list));
 			kfree(req);
+			// coverity[UNUSED_VALUE:SUPPRESS]
 			req = NULL;
 		}
 		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
@@ -1907,7 +1912,7 @@ static const iw_handler woal_private_handler[] = {
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #ifdef CONFIG_WIRELESS_EXT

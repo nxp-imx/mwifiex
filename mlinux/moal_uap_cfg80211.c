@@ -27,18 +27,21 @@
 #define REASON_CODE_DEAUTH_LEAVING 3
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 extern const struct net_device_ops woal_uap_netdev_ops;
 /* Handling for 6E Indoor/Outdoor Mode */
 #define UAP_MODE_IND 0
 #define UAP_MODE_SP 1
 #define UAP_MODE_VLP 2
+
+#define CHAN_6G_1 1
+#define CHAN_6G_29 29
 
 #define HE_OPER_CTRL_MASK 0x38
 
@@ -111,19 +114,19 @@ typedef struct _domain_code_mapping_t {
 
 /*
  *DOMAIN_CODE_FCC: AE AM AN AR AZ BH BL BN BR CL CN CR CS DZ EC
- * EG GE HN HK ID IL IR JM JO KP KW KZ LB LK MA
- * MO NP OM PE PG PH PK PT QA SA SG SV SY TH TT
- * TN UY YE ZA ZW VN KR
+ EG GE HN HK ID IL IR JM JO KP KW KZ LB LK MA
+ MO NP OM PE PG PH PK PT QA SA SG SV SY TH TT
+ TN UY YE ZA ZW VN KR
  *DOMAIN_CODE_FCC1: US UZ CA CO DO GT PA PR TW NZ BO BZ VE
  *DOMAIN_CODE_MKK: JP
  *DOMAIN_CODE_ETSI: AL AD AT AU BE BA BG HR CY CZ DK EE FI FR MK
- * DE GB GR HU IS IE IT LV LI LT LU MT MD MC ME
- * NL NO PL RO SM RS SI SK ES SE CH TR UA UK NE
- * NZ DZ AO AM AW BH BD BT BO BQ BW VG BF BI KH
- * CL KM CG CD CW EG FO GF PF GE GI GP HK ID IM
- * IL JE KE XK KW LA LR MW MV MQ MR YT MA MZ MM
- * NA NC NG OM PS PT QA RW RE BL MF VC SA SC ZA
- * SZ SY TZ TG TN AE VA EH YE ZM ZW
+ DE GB GR HU IS IE IT LV LI LT LU MT MD MC ME
+ NL NO PL RO SM RS SI SK ES SE CH TR UA UK NE
+ NZ DZ AO AM AW BH BD BT BO BQ BW VG BF BI KH
+ CL KM CG CD CW EG FO GF PF GE GI GP HK ID IM
+ IL JE KE XK KW LA LR MW MV MQ MR YT MA MZ MM
+ NA NC NG OM PS PT QA RW RE BL MF VC SA SC ZA
+ SZ SY TZ TG TN AE VA EH YE ZM ZW
  *DOMAIN_CODE_IN: IN
  */
 domain_code_mapping_t domain_code_mapping[] = {
@@ -233,12 +236,12 @@ domain_code_mapping_t domain_code_mapping[] = {
 #endif //#ifdef UAP_SUPPORT
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 #ifdef UAP_SUPPORT
 /**
@@ -296,7 +299,7 @@ mlan_status woal_send_bcn_country_ie_cmd_fw(moal_private *priv,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	t_s32 custom_bcn_pwr_2G = 0;
 	t_s32 custom_bcn_pwr_5G = 0;
-	t_u8 domain_code = domain_code_end; // 0xff
+	t_u8 domain_code; // 0xff
 
 	ENTER();
 
@@ -588,8 +591,9 @@ static int woal_deauth_assoc_station(moal_private *priv, const u8 *mac_addr,
 	}
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
-#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
-	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
+#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&            \
+     (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) ||                  \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
 		cfg80211_del_sta(priv->wdev, mac_addr, GFP_KERNEL);
 #else
 		cfg80211_del_sta(priv->netdev, mac_addr, GFP_KERNEL);
@@ -1235,7 +1239,11 @@ static void woal_convert_chan_to_bandconfig(moal_private *priv,
 					    Band_Config_t *bandcfg,
 					    struct cfg80211_chan_def *chandef)
 {
+	mlan_fw_info fw_info;
+
 	ENTER();
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	memset(bandcfg, 0, sizeof(Band_Config_t));
 	switch (chandef->chan->band) {
 	case NL80211_BAND_2GHZ:
@@ -1252,6 +1260,7 @@ static void woal_convert_chan_to_bandconfig(moal_private *priv,
 	default:
 		break;
 	}
+	bandcfg->chanWidthExt = NO_CH_EXT;
 	switch (chandef->width) {
 	case NL80211_CHAN_WIDTH_20_NOHT:
 	case NL80211_CHAN_WIDTH_20:
@@ -1265,18 +1274,31 @@ static void woal_convert_chan_to_bandconfig(moal_private *priv,
 			bandcfg->chan2Offset = SEC_CHAN_BELOW;
 		break;
 	case NL80211_CHAN_WIDTH_80:
-		bandcfg->chan2Offset = woal_get_second_channel_offset(
-			priv, chandef->chan->hw_value);
 		bandcfg->chanWidth = CHAN_BW_80MHZ;
 		break;
 	case NL80211_CHAN_WIDTH_80P80:
+		bandcfg->chanWidth = CHAN_BW_80MHZ;
+		if (!fw_info.no8080_support) {
+			bandcfg->chanWidth =
+				BANDCFG_SET_CHANWIDTH(CHAN_BW_8080MHZ);
+			bandcfg->chanWidthExt = CH_EXT;
+		}
+		break;
 	case NL80211_CHAN_WIDTH_160:
+		bandcfg->chanWidth = CHAN_BW_80MHZ;
+		if (fw_info.bw160_support) {
+			bandcfg->chanWidth =
+				BANDCFG_SET_CHANWIDTH(CHAN_BW_160MHZ);
+			bandcfg->chanWidthExt = CH_EXT;
+		}
+		break;
 	default:
 		break;
 	}
 	PRINTM(MCMND,
 	       "cfg80211 AP: channel=%d, chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x\n",
-	       chandef->chan->hw_value, bandcfg->chanBand, bandcfg->chanWidth,
+	       chandef->chan->hw_value, bandcfg->chanBand,
+	       BANDCFG_GET_CHANWIDTH(bandcfg->chanWidthExt, bandcfg->chanWidth),
 	       bandcfg->chan2Offset);
 	LEAVE();
 	return;
@@ -1705,13 +1727,24 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 #endif
 	t_u8 wpa3_sae = 0;
 	const t_u8 *rsnx_ie = NULL;
-
+	const IEEEtypes_HeOp_t *heoper_ie = NULL;
+	t_u8 reg_mode = 0, chan_6g = 0;
 	ENTER();
 
 	if (!params) {
 		ret = -EFAULT;
 		goto done;
 	}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	/** back up ap's channel */
+	moal_memcpy_ext(priv->phandle, &priv->chan, &params->chandef,
+			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	woal_convert_chan_to_bandconfig(priv, &bandcfg, &params->chandef);
+#endif
+#endif
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 	ie = ((struct cfg80211_ap_settings *)params)->beacon.tail;
 	ie_len = (int)((struct cfg80211_ap_settings *)params)->beacon.tail_len;
@@ -1798,12 +1831,6 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			sys_config->dtim_period = params->dtim_period;
 	}
 
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-	/** back up ap's channel */
-	moal_memcpy_ext(priv->phandle, &priv->chan, &params->chandef,
-			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
-#endif
-
 #if KERNEL_VERSION(4, 20, 0) <= CFG80211_VERSION_CODE
 	if (!woal_check_chan_width_capa(priv, &params->chandef)) {
 		ret = -EFAULT;
@@ -1812,16 +1839,13 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	woal_convert_chan_to_bandconfig(priv, &bandcfg, &params->chandef);
-#endif
-
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	if (priv->phandle->usr_nop_period_sec) {
 		PRINTM(MCMND, "Checking if AP's channel %d is under NOP\n",
 		       priv->channel);
 		memset(&chan_nop_info, 0, sizeof(chan_nop_info));
 		chan_nop_info.curr_chan = priv->channel;
-		chan_nop_info.chan_width = bandcfg.chanWidth;
+		chan_nop_info.chan_width = BANDCFG_GET_CHANWIDTH(
+			bandcfg.chanWidthExt, bandcfg.chanWidth);
 		if (params->chandef.width >= NL80211_CHAN_WIDTH_20)
 			chan_nop_info.new_chan.is_11n_enabled = MTRUE;
 		chan_nop_info.new_chan.bandcfg = bandcfg;
@@ -1834,8 +1858,9 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			       priv->channel, chan_nop_info.new_chan.channel);
 			priv->chan_under_nop = chan_nop_info.chan_under_nop;
 			priv->channel = chan_nop_info.new_chan.channel;
-			priv->bandwidth =
-				chan_nop_info.new_chan.bandcfg.chanWidth;
+			priv->bandwidth = BANDCFG_GET_CHANWIDTH(
+				chan_nop_info.new_chan.bandcfg.chanWidthExt,
+				chan_nop_info.new_chan.bandcfg.chanWidth);
 			woal_chandef_create(priv, &priv->chan,
 					    &chan_nop_info.new_chan);
 		}
@@ -2002,10 +2027,11 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 			}
 		}
 		PRINTM(MCMND,
-		       "11n=%d, ht_cap=0x%x, channel=%d, bandcfg:chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x\n",
+		       "11n=%d, ht_cap=0x%x, channel=%d, bandcfg:chanBand=0x%x chanWidth=0x%x bw_ext=%d chan2Offset=0x%x scanMode=0x%x\n",
 		       enable_11n, sys_config->ht_cap_info, priv->channel,
 		       sys_config->bandcfg.chanBand,
 		       sys_config->bandcfg.chanWidth,
+		       sys_config->bandcfg.chanWidthExt,
 		       sys_config->bandcfg.chan2Offset,
 		       sys_config->bandcfg.scanMode);
 	}
@@ -2311,6 +2337,40 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 					 sizeof(IEEEtypes_Header_t)),
 					sizeof(IEEEtypes_HECap_t));
 		}
+		/* Spectrum prioritization for 6E uAP in US-FCC region:
+		 * For BSS started on frequencies below 6.105GHz and in VLP reg
+		 * mode, don't start the BSS */
+		if (priv->phandle->dfs_region == NXP_DFS_FCC) {
+			// Parse the HE operation IE
+			heoper_ie =
+				(const IEEEtypes_HeOp_t *)woal_parse_ext_ie_tlv(
+					ie, ie_len, HE_OPERATION);
+			if (heoper_ie)
+				DBG_HEXDUMP(MCMD_D, "HE Oper",
+					    (const t_u8 *)heoper_ie, 14);
+
+			// Extract the reg mode and primary channel for the BSS
+			if (heoper_ie &&
+			    heoper_ie->he_op_param.he_6g_op_info_present) {
+				reg_mode = (heoper_ie->option[1] &
+					    HE_OPER_CTRL_MASK) >>
+					   3;
+				chan_6g = heoper_ie->option[0];
+				PRINTM(MCMND, "===== 6E Reg Mode: %x %d =====",
+				       reg_mode, chan_6g);
+			}
+
+			// Block the BSS start for VLP AP starting in the given
+			// frequency range
+			if ((reg_mode == UAP_MODE_VLP) &&
+			    ((chan_6g >= CHAN_6G_1) &&
+			     (chan_6g <= CHAN_6G_29))) {
+				PRINTM(MCMND, "==== VLP AP start blocked ====");
+				ret = -EFAULT;
+				goto done;
+			}
+		}
+
 		/* Parse the HE Operation IE and download the 6E PSD table
 		 * as per the AP Operation mode
 		 */
@@ -2509,14 +2569,15 @@ static int woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 		goto fail;
 	}
 	if (woal_is_any_interface_active(handle)) {
-		if (woal_get_active_intf_channel(priv, &chan_info) !=
-		    MLAN_STATUS_SUCCESS) {
+		if (MLAN_STATUS_SUCCESS !=
+		    woal_get_active_intf_channel(priv, &chan_info)) {
 			/* stop monitor mode on error */
 			woal_set_net_monitor(priv, MOAL_IOCTL_WAIT, MFALSE, 0,
 					     NULL);
 			ret = -EFAULT;
 			goto fail;
 		}
+		chan_info.bandcfg.chanWidthExt = NO_CH_EXT;
 		mon_if->band_chan_cfg.band = chan_info.bandcfg.chanBand;
 		mon_if->band_chan_cfg.channel = chan_info.channel;
 		mon_if->band_chan_cfg.chan_bandwidth =
@@ -2773,8 +2834,8 @@ static int woal_cfg80211_add_vlan_vir_if(struct wiphy *wiphy,
 		/* Supports backhaul and fronthaul BSS and enable four_address
 		 * flag */
 		if (woal_multi_ap_cfg(priv, MOAL_IOCTL_WAIT,
-				      EASY_MESH_MULTI_AP_BH_AND_FH_BSS) ==
-		    MLAN_STATUS_SUCCESS) {
+				      EASY_MESH_MULTI_AP_BH_AND_FH_BSS,
+				      0) == MLAN_STATUS_SUCCESS) {
 			priv->multi_ap_flag = EASY_MESH_MULTI_AP_BH_AND_FH_BSS;
 		}
 	}
@@ -3095,6 +3156,7 @@ int woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 			unregister_netdevice(ndev);
 #endif
 			free_netdev(ndev);
+			// coverity[UNUSED_VALUE:SUPPRESS]
 			ndev = NULL;
 		}
 		PRINTM(MFATAL, "register net_device failed, ret=%d\n", ret);
@@ -3189,7 +3251,6 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 			vir_priv = handle->priv[i];
 			if (vir_priv) {
 				if (vir_priv->netdev == dev) {
-					find_bss = MTRUE;
 					PRINTM(MMSG,
 					       "Del virtual interface %s, index=%d\n",
 					       dev->name, i);
@@ -4059,9 +4120,11 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
 	moal_private *dfs_priv =
 		woal_get_priv_bss_type(priv->phandle, MLAN_BSS_TYPE_DFS);
+	t_u8 chanWidth = 0;
 #endif
 
 	ENTER();
+	PRINTM(MCMND, "<--- %s --->\n", __FUNCTION__);
 
 	if (priv->phandle->driver_status || priv->phandle->surprise_removed) {
 		PRINTM(MERROR,
@@ -4069,6 +4132,17 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		LEAVE();
 		return ret;
 	}
+
+	PRINTM(MCMND, "woal_cfg80211_del_beacon keep_connect=%u\n",
+	       priv->keep_connect);
+	if (priv->keep_connect) {
+		PRINTM(MMSG,
+		       "Block woal_cfg80211_del_beacon when keep_connect=%u\n",
+		       priv->keep_connect);
+		LEAVE();
+		return ret;
+	}
+
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	woal_update_uap_channel_dfs_state(priv);
@@ -4096,13 +4170,16 @@ int woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
 	if (dfs_priv && dfs_priv->radar_background) {
+		chanWidth = BANDCFG_GET_CHANWIDTH(
+			dfs_priv->chan_rpt_req.bandcfg.chanWidthExt,
+			dfs_priv->chan_rpt_req.bandcfg.chanWidth);
 		PRINTM(MMSG, "Cancel background radar detection\n");
 		woal_11h_cancel_chan_report_ioctl(dfs_priv, MOAL_IOCTL_WAIT);
 		dfs_priv->chan_rpt_pending = MFALSE;
 		dfs_priv->radar_background = MFALSE;
-		woal_update_channels_dfs_state(
-			dfs_priv, dfs_priv->chan_rpt_req.chanNum,
-			dfs_priv->chan_rpt_req.bandcfg.chanWidth, DFS_USABLE);
+		woal_update_channels_dfs_state(dfs_priv,
+					       dfs_priv->chan_rpt_req.chanNum,
+					       chanWidth, DFS_USABLE);
 		memset(&dfs_priv->chan_rpt_req, 0,
 		       sizeof(mlan_ds_11h_chan_rep_req));
 		cfg80211_background_cac_abort(priv->phandle->wiphy);
@@ -4302,8 +4379,9 @@ done:
  */
 #endif
 int woal_cfg80211_del_station(struct wiphy *wiphy,
-#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
-	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
+#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&            \
+     (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) ||                  \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
 			      struct wireless_dev *wdev,
 #else
 			      struct net_device *dev,
@@ -4322,8 +4400,9 @@ int woal_cfg80211_del_station(struct wiphy *wiphy,
 	const u8 *mac_addr = NULL;
 #endif
 	u16 reason_code = REASON_CODE_DEAUTH_LEAVING;
-#if defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
-	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))
+#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&            \
+     (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) ||                  \
+	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
 	struct net_device *dev = wdev->netdev;
 #endif
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
@@ -4334,6 +4413,8 @@ int woal_cfg80211_del_station(struct wiphy *wiphy,
 #endif
 	ENTER();
 
+	PRINTM(MCMND, "<--- %s --->\n", __FUNCTION__);
+
 #ifdef UAP_SUPPORT
 	if ((priv->bss_type == MLAN_BSS_TYPE_UAP) && !priv->bss_started) {
 		woal_cancel_cac(priv);
@@ -4341,6 +4422,14 @@ int woal_cfg80211_del_station(struct wiphy *wiphy,
 		return 0;
 	}
 #endif
+
+	if (priv->keep_connect) {
+		PRINTM(MMSG,
+		       "Block  woal_cfg80211_del_station when keep_connect=%u\n",
+		       priv->keep_connect);
+		LEAVE();
+		return 0;
+	}
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	if (param) {
@@ -4749,7 +4838,7 @@ int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
 	mlan_ds_11h_chan_rep_req chan_rpt_req;
 	int ret = 0;
 	mlan_status status;
-
+	t_u8 chanWidth = 0;
 	ENTER();
 	if (!priv) {
 		PRINTM(MERROR,
@@ -4761,9 +4850,11 @@ int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
 		woal_11h_cancel_chan_report_ioctl(priv, MOAL_IOCTL_WAIT);
 		priv->chan_rpt_pending = MFALSE;
 		priv->radar_background = MFALSE;
-		woal_update_channels_dfs_state(
-			priv, priv->chan_rpt_req.chanNum,
-			priv->chan_rpt_req.bandcfg.chanWidth, DFS_USABLE);
+		chanWidth = BANDCFG_GET_CHANWIDTH(
+			priv->chan_rpt_req.bandcfg.chanWidthExt,
+			priv->chan_rpt_req.bandcfg.chanWidth);
+		woal_update_channels_dfs_state(priv, priv->chan_rpt_req.chanNum,
+					       chanWidth, DFS_USABLE);
 		memset(&priv->chan_rpt_req, 0,
 		       sizeof(mlan_ds_11h_chan_rep_req));
 		LEAVE();
@@ -4802,8 +4893,9 @@ int woal_cfg80211_set_radar_background(struct wiphy *wiphy,
 			sizeof(mlan_ds_11h_chan_rep_req),
 			sizeof(mlan_ds_11h_chan_rep_req));
 	PRINTM(MCMND,
-	       "DFS: Start Background Radar detect on channel=%d, bandwidth=%d, cac time=%d\n",
+	       "DFS: Start Background Radar detect on channel=%d, bandwidth=%d, bw_ext=%d, cac time=%d\n",
 	       chan_rpt_req.chanNum, (int)(chan_rpt_req.bandcfg.chanWidth),
+	       (int)(chan_rpt_req.bandcfg.chanWidthExt),
 	       chan_rpt_req.millisec_dwell_time);
 	status = woal_do_dfs_cac(priv, &chan_rpt_req);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -4887,6 +4979,7 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 
 	uap_channel.channel = ieee80211_frequency_to_channel(
 		priv->csa_chan.chan->center_freq);
+	uap_channel.bandcfg.chanWidthExt = NO_CH_EXT;
 	switch (priv->csa_chan.width) {
 	case NL80211_CHAN_WIDTH_5:
 	case NL80211_CHAN_WIDTH_10:
@@ -4906,8 +4999,14 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 		break;
 	case NL80211_CHAN_WIDTH_80:
 	case NL80211_CHAN_WIDTH_80P80:
-	case NL80211_CHAN_WIDTH_160:
 		uap_channel.bandcfg.chanWidth = CHAN_BW_80MHZ;
+		chan2Offset = woal_get_second_channel_offset(
+			priv, uap_channel.channel);
+		break;
+	case NL80211_CHAN_WIDTH_160:
+		uap_channel.bandcfg.chanWidth =
+			BANDCFG_SET_CHANWIDTH(CHAN_BW_160MHZ);
+		uap_channel.bandcfg.chanWidthExt = CH_EXT;
 		chan2Offset = woal_get_second_channel_offset(
 			priv, uap_channel.channel);
 		break;
@@ -4931,9 +5030,12 @@ static void woal_switch_uap_channel(moal_private *priv, t_u8 wait_option)
 	PRINTM(MMSG, "CSA: old chan %d => new chan %d\n", priv->channel,
 	       uap_channel.channel);
 	PRINTM(MMSG, "CSA: old BW %d => new BW %d\n", priv->bandwidth,
-	       uap_channel.bandcfg.chanWidth);
+	       BANDCFG_GET_CHANWIDTH(uap_channel.bandcfg.chanWidthExt,
+				     uap_channel.bandcfg.chanWidth));
 	priv->channel = uap_channel.channel;
-	priv->bandwidth = uap_channel.bandcfg.chanWidth;
+	priv->bandwidth =
+		BANDCFG_GET_CHANWIDTH(uap_channel.bandcfg.chanWidthExt,
+				      uap_channel.bandcfg.chanWidth);
 	moal_memcpy_ext(priv->phandle, &priv->chan, &priv->csa_chan,
 			sizeof(struct cfg80211_chan_def), sizeof(priv->chan));
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) &&                        \
@@ -5250,6 +5352,7 @@ int woal_cfg80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	if (woal_cfg80211_set_beacon(wiphy, dev, &params->beacon_csa)) {
 #endif
 		PRINTM(MERROR, "%s: setting csa mgmt ies failed\n", __func__);
+		ret = -ENOTSUPP;
 		goto done;
 	}
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file  moal_uap_priv.h
  *
  * @brief This file contains definition for extended private IOCTL call.
@@ -24,7 +24,7 @@
 /************************************************************************
  * Change log:
  * 08/06/2010: initial version
- * **********************************************************************
+ ************************************************************************
  */
 
 #ifndef _MOAL_UAP_PRIV_H_

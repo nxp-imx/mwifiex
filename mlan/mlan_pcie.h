@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_pcie.h
  *
  *  @brief This file contains definitions for PCIE interface.
@@ -25,11 +25,12 @@
 /********************************************************
  * Change log:
  * 02/01/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MLAN_PCIE_H_
 #define _MLAN_PCIE_H_
+
 /** Tx DATA */
 #define ADMA_TX_DATA 0
 /** Rx DATA */
@@ -471,6 +472,7 @@ enum RX_UPDATE_ACTION {
 };
 
 extern mlan_adapter_operations mlan_pcie_ops;
+extern struct fwload_interface_ops mlan_pcie_fwload_intf_ops;
 
 /* Get pcie device from card type */
 mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
@@ -485,12 +487,10 @@ mlan_status wlan_cmd_pcie_host_buf_cfg(pmlan_private pmpriv,
 				       t_u16 cmd_action, t_pvoid pdata_buf);
 #endif
 
-#if defined(PCIE)
 /** Prepare command PCIE host buffer config */
 mlan_status wlan_cmd_pcie_adma_init(pmlan_private pmpriv,
 				    pHostCmd_DS_COMMAND cmd, t_u16 cmd_action,
 				    t_pvoid pdata_buf);
-#endif
 
 /** Wakeup PCIE card */
 mlan_status wlan_pcie_wakeup(pmlan_adapter pmadapter);

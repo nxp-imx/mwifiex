@@ -34,22 +34,22 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if 0
@@ -409,7 +409,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	MrvlIEtypes_He_cap_t *phecap = MNULL;
 	int len = 0;
-	t_u8 bw_80p80 = MFALSE;
+	t_u8 bw_160or8080 = MFALSE;
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SDIW624) ||           \
 	defined(SDAW693) || defined(PCIEAW693) || defined(PCIEIW624) ||        \
@@ -438,7 +438,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		LEAVE();
 		return 0;
 	}
-	bw_80p80 = wlan_is_80_80_support(pmpriv, pbss_desc);
+	bw_160or8080 = wlan_is_bw_160or8080_support(pmpriv, pbss_desc);
 	phecap = (MrvlIEtypes_He_cap_t *)*ppbuffer;
 	if (pbss_desc->bss_band & band_selected) {
 		memcpy_ext(pmadapter, *ppbuffer, pmpriv->user_he_cap,
@@ -476,7 +476,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 				 0x0f;
 		}
 		/** force 1x1 when enable 80P80 */
-		if (bw_80p80)
+		if (bw_160or8080)
 			rx_nss = tx_nss = 1;
 	}
 #endif
@@ -516,7 +516,7 @@ int wlan_cmd_append_11ax_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	}
 	PRINTM(MCMND, "Set: HE rx mcs set 0x%08x tx mcs set 0x%08x\n",
 	       phecap->rx_mcs_80, phecap->tx_mcs_80);
-	if (!bw_80p80) {
+	if (!bw_160or8080) {
 		/** reset BIT3 and BIT4 channel width ,not support 80 + 80*/
 		/** not support 160Mhz now, if support,not reset bit3 */
 		phecap->he_phy_cap[0] &= ~(MBIT(3) | MBIT(4));
@@ -637,11 +637,14 @@ void wlan_update_11ax_cap(mlan_adapter *pmadapter,
 /**
  *  @brief This function get the channel bandwidth from he_6g_op_info
  *
+ *  @param pmadapter    A pointer to mlan_adapter
  *  @param pbss_desc    A pointer to BSSDescriptor_t
+ *  @param bandcfg      A pointer to Band_Cnfig_t
  *
  *  @return band_width
  */
-t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
+t_u8 wlan_get_6g_ap_bandconfig(pmlan_adapter pmadapter,
+			       BSSDescriptor_t *pbss_desc,
 			       Band_Config_t *bandcfg)
 {
 	t_u8 band_width = CHAN_BW_20MHZ;
@@ -669,24 +672,45 @@ t_u8 wlan_get_6g_ap_bandconfig(BSSDescriptor_t *pbss_desc,
 	switch (phe_6g_op_info->control.channel_width) {
 	case BW_20MHZ:
 		band_width = CHAN_BW_20MHZ;
+		pbss_desc->curr_bandwidth = BW_20MHZ;
 		break;
 	case BW_40MHZ:
 		band_width = CHAN_BW_40MHZ;
+		pbss_desc->curr_bandwidth = BW_40MHZ;
 		if (phe_6g_op_info->primary_channel <
-		    phe_6g_op_info->channel_center_freq0)
+		    phe_6g_op_info->channel_center_freq0) {
 			bandcfg->chan2Offset = SEC_CHAN_ABOVE;
-		else
+		} else {
 			bandcfg->chan2Offset = SEC_CHAN_BELOW;
+		}
 		break;
 	case BW_80MHZ:
-		/* TODO: Use CHAN_BW_80MHZ until the support for 160MHz gets
-		 * added */
+		band_width = CHAN_BW_80MHZ;
+		pbss_desc->curr_bandwidth = BW_80MHZ;
+		break;
 	case BW_160MHZ:
 		band_width = CHAN_BW_80MHZ;
+		pbss_desc->curr_bandwidth = BW_80MHZ;
+		if (phe_6g_op_info->channel_center_freq0 &&
+		    phe_6g_op_info->channel_center_freq1 &&
+		    (phe_6g_op_info->channel_center_freq0 !=
+		     phe_6g_op_info->channel_center_freq1)) {
+			if (!IS_FW_SUPPORT_NO_80MHz_PLUS_80MHz(pmadapter)) {
+				band_width = CHAN_BW_8080MHZ;
+				pbss_desc->curr_bandwidth = BW_8080MHZ;
+			}
+		} else {
+			if (IS_FW_SUPPORT_BW160MHZ(pmadapter)) {
+				band_width = CHAN_BW_160MHZ;
+				pbss_desc->curr_bandwidth = BW_160MHZ;
+			}
+		}
 		break;
 	default:
 		break;
 	}
+	bandcfg->chanWidth = BANDCFG_SET_CHANWIDTH(band_width);
+	bandcfg->chanWidthExt = BANDCFG_SET_CHANWIDTH_EXT(band_width);
 	return band_width;
 }
 
@@ -1063,6 +1087,7 @@ mlan_status wlan_ret_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	t_u16 left_len = 0, tlv_type = 0, tlv_len = 0;
 	/** mlan_ds_11ax_he_6g_capa */
 	mlan_ds_11ax_he_6g_capa *he_6g_cap = MNULL;
+	MrvlIEtypes_He_cap_t *hecap_tlv = MNULL;
 
 	ENTER();
 
@@ -1080,9 +1105,17 @@ mlan_status wlan_ret_11ax_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 	while (left_len > sizeof(MrvlIEtypesHeader_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv->type);
 		tlv_len = wlan_le16_to_cpu(tlv->len);
+		if ((tlv_len + sizeof(MrvlIEtypesHeader_t)) > left_len) {
+			PRINTM(MERROR, "11ax_cfg:Invalid 11AX TLV\n");
+			break;
+		}
 		if (tlv_type == EXTENSION) {
 			switch (tlv->ext_id) {
 			case HE_CAPABILITY:
+				hecap_tlv = (MrvlIEtypes_He_cap_t *)tlv;
+				DBG_HEXDUMP(
+					MCMD_D, "FW HECAP", tlv,
+					tlv_len + sizeof(MrvlIEtypesHeader_t));
 				hecap->id = tlv_type;
 				hecap->len = tlv_len;
 				memcpy_ext(pmadapter, (t_u8 *)&hecap->ext_id,
@@ -1294,6 +1327,8 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		(mlan_ds_11ax_rutxpwr_cmd *)&ds_11ax_cmd->param;
 	mlan_ds_11ax_HeSuER_cmd *HeSuER_cmd =
 		(mlan_ds_11ax_HeSuER_cmd *)&ds_11ax_cmd->param;
+	mlan_ds_11ax_ulofdma_ctrl_cmd *ulofdma_ctrl_cmd =
+		(mlan_ds_11ax_ulofdma_ctrl_cmd *)&ds_11ax_cmd->param;
 	MrvlIEtypes_Data_t *tlv = MNULL;
 
 	ENTER();
@@ -1354,6 +1389,12 @@ mlan_status wlan_cmd_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 	case MLAN_11AXCMD_HESUER_SUBID:
 		axcmd->val[0] = HeSuER_cmd->value;
 		cmd->size += sizeof(t_u8);
+		break;
+	case MLAN_11AXCMD_ULOFDMA_CTRL_SUBID:
+		memcpy_ext(pmadapter, axcmd->val, ulofdma_ctrl_cmd,
+			   sizeof(mlan_ds_11ax_ulofdma_ctrl_cmd),
+			   sizeof(mlan_ds_11ax_ulofdma_ctrl_cmd));
+		cmd->size += sizeof(mlan_ds_11ax_ulofdma_ctrl_cmd);
 		break;
 
 	default:
@@ -1449,6 +1490,11 @@ mlan_status wlan_ret_11ax_cmd(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		break;
 	case MLAN_11AXCMD_HESUER_SUBID:
 		cfg->param.HeSuER_cfg.value = *axcmd->val;
+		break;
+	case MLAN_11AXCMD_ULOFDMA_CTRL_SUBID:
+		memcpy_ext(pmadapter, &cfg->param.ulofdma_ctrl_cfg, axcmd->val,
+			   sizeof(mlan_ds_11ax_ulofdma_ctrl_cmd),
+			   sizeof(mlan_ds_11ax_ulofdma_ctrl_cmd));
 		break;
 
 	default:

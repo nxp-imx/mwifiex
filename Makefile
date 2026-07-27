@@ -1,6 +1,6 @@
 #  File: Makefile
 #
-#  Copyright 2008-2025 NXP
+#  Copyright 2008-2026 NXP
 #
 #  This software file (the File) is distributed by NXP
 #  under the terms of the GNU General Public License Version 2, June 1991
@@ -101,8 +101,15 @@ CONFIG_DFS_TESTING_SUPPORT=y
 CONFIG_MULTI_CHAN_SUPPORT=y
 
 
+CONFIG_LINUX_THERMAL_SUPPORT=n
+
+# Disable DUMP overwrite flag by default
+CONFIG_OVERWRITE_DUMP_DATA=n
 # Enable driver/FW dump to proc
 CONFIG_DUMP_TO_PROC=y
+
+# Enable FW dump via driver print
+CONFIG_FWDUMP_VIA_PRINT=n
 
 # Enable tasklet support (PCIe only)
 CONFIG_TASKLET_SUPPORT=n
@@ -150,6 +157,7 @@ ifeq ($(ANDROID_BUILD), 1)
     KERNELDIR ?= $(KERNEL_SRC)
     ccflags-y += -DANDROID_SDK_VERSION=$(ANDROID_SDK_VERSION)
     CONFIG_SD8978=n
+    CONFIG_LINUX_THERMAL_SUPPORT=n
 endif
 
 MODEXT = ko
@@ -182,8 +190,8 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"543.p18"'
-	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"543.p18"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"552.p2"'
+	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"552.p2"'
 	ccflags-y += -DREL_MILESTONE='""'
 
 	ccflags-y += -DFPNUM='"92"'
@@ -260,6 +268,17 @@ endif
 
 ifeq ($(CONFIG_DUMP_TO_PROC), y)
 	ccflags-y += -DDUMP_TO_PROC
+endif
+
+
+ifeq ($(CONFIG_OVERWRITE_DUMP_DATA), y)
+ifneq ($(CONFIG_DUMP_TO_PROC),y)
+        ccflags-y += -DOVERWRITE_DUMP_DATA
+endif
+endif
+
+ifeq ($(CONFIG_FWDUMP_VIA_PRINT), y)
+	ccflags-y += -DFWDUMP_VIA_PRINT
 endif
 
 ifeq ($(CONFIG_TASKLET_SUPPORT), y)
@@ -375,6 +394,9 @@ endif
         ifeq ($(CONFIG_SECURE_HOST), y)
             BINDIR = secure_hostif_wlan_bin
         endif
+#ifdef LINUX_THERMAL_SUPPORT
+	CONFIG_LINUX_THERMAL_SUPPORT=y
+#endif
 endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
@@ -523,11 +545,19 @@ ifeq ($(CONFIG_SECURE_HOST), y)
        ccflags-y += -DSECURE_HOST
 endif
 
+ifeq ($(CONFIG_LINUX_THERMAL_SUPPORT), y)
+       ccflags-y += -DLINUX_THERMAL_SUPPORT
+endif
+
 MOALOBJS =	mlinux/moal_main.o \
 		mlinux/moal_ioctl.o \
 		mlinux/moal_shim.o \
 		mlinux/moal_eth_ioctl.o \
 		mlinux/moal_init.o
+
+ifeq ($(CONFIG_LINUX_THERMAL_SUPPORT), y)
+MOALOBJS += mlinux/moal_thermal.o
+endif
 
 MLANOBJS =	mlan/mlan_shim.o mlan/mlan_init.o \
 		mlan/mlan_txrx.o \

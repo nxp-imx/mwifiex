@@ -315,6 +315,10 @@ static int drv_mode = DRV_MODE_UAP;
 #endif /* STA_SUPPORT */
 #endif /* STA_SUPPORT & UAP_SUPPORT */
 
+int sdio_pd;
+
+int partial_io = 0;
+
 static int gtk_rekey_offload = GTK_REKEY_OFFLOAD_DISABLE;
 
 static int pmic;
@@ -370,6 +374,9 @@ static int disable_11h_tpc;
 static int tpe_ie_ignore;
 
 static int amsdu_8k_rx;
+
+/* Enable/disable random sequence number in probe requests feature */
+static int probe_req_rand_sn = 0;
 
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
@@ -1276,8 +1283,32 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "slew_rate = %d\n", params->slew_rate);
 		}
 #endif
-		else if (strncmp(line, "dpd_data_cfg",
-				 strlen("dpd_data_cfg")) == 0) {
+		else if (strncmp(line, "sdio_pd", strlen("sdio_pd")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_SDIO_PD);
+			else
+				moal_extflg_clear(handle, EXT_SDIO_PD);
+			PRINTM(MMSG, "sdio_pd %s\n",
+			       moal_extflg_isset(handle, EXT_SDIO_PD) ? "on" :
+									"off");
+		} else if (strncmp(line, "partial_io", strlen("partial_io")) ==
+			   0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_PARTIAL_IO);
+			else
+				moal_extflg_clear(handle, EXT_PARTIAL_IO);
+			PRINTM(MMSG, "partial_io %s\n",
+			       moal_extflg_isset(handle, EXT_PARTIAL_IO) ?
+				       "on" :
+				       "off");
+		} else if (strncmp(line, "dpd_data_cfg",
+				   strlen("dpd_data_cfg")) == 0) {
 			if (parse_line_read_string(line, &out_str) !=
 			    MLAN_STATUS_SUCCESS)
 				goto err;
@@ -1950,6 +1981,14 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			    MLAN_STATUS_SUCCESS)
 				goto err;
 			params->bandctrl = out_data;
+		} else if (strncmp(line, "probe_req_rand_sn",
+				   strlen("probe_req_rand_sn")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			params->probe_req_rand_sn = out_data;
+			PRINTM(MMSG, "probe_req_rand_sn=%d\n",
+			       params->probe_req_rand_sn);
 		}
 	}
 
@@ -2016,6 +2055,17 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.auto_fw_reload = auto_fw_reload;
 	if (params)
 		handle->params.auto_fw_reload = params->auto_fw_reload;
+	/* BIT1 (inband reset) and BIT3 (OOB IND RST) are mutually exclusive */
+	if ((handle->params.auto_fw_reload &
+	     AUTO_FW_RELOAD_PCIE_INBAND_RESET) &&
+	    (handle->params.auto_fw_reload & AUTO_FW_RELOAD_OOB_IND_RST)) {
+		PRINTM(MERROR,
+		       "auto_fw_reload: BIT1 (inband) and BIT3 (OOB IND RST) "
+		       "are mutually exclusive, disabling both\n");
+		handle->params.auto_fw_reload &=
+			~(AUTO_FW_RELOAD_PCIE_INBAND_RESET |
+			  AUTO_FW_RELOAD_OOB_IND_RST);
+	}
 
 	woal_dup_string(&handle->params.wifi_fw_name, wifi_fw_name);
 	if (params && params->wifi_fw_name)
@@ -2225,6 +2275,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	if (params)
 		handle->params.slew_rate = params->slew_rate;
 #endif
+	if (sdio_pd)
+		moal_extflg_set(handle, EXT_SDIO_PD);
+	if (partial_io)
+		moal_extflg_set(handle, EXT_PARTIAL_IO);
 	woal_dup_string(&handle->params.dpd_data_cfg, dpd_data_cfg);
 	if (params)
 		woal_dup_string(&handle->params.dpd_data_cfg,
@@ -2463,6 +2517,10 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	handle->params.bandctrl = bandctrl;
 	if (params)
 		handle->params.bandctrl = params->bandctrl;
+
+	handle->params.probe_req_rand_sn = probe_req_rand_sn;
+	if (params)
+		handle->params.probe_req_rand_sn = params->probe_req_rand_sn;
 }
 
 /**
@@ -3118,6 +3176,14 @@ void woal_init_from_dev_tree(void)
 				bandctrl = data;
 			}
 		}
+
+		else if (!strncmp(prop->name, "probe_req_rand_sn",
+				  strlen("probe_req_rand_sn"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MERROR, "random_sn=0x%x\n", data);
+				probe_req_rand_sn = data;
+			}
+		}
 	}
 	of_node_put(dt_node);
 	LEAVE();
@@ -3457,11 +3523,14 @@ module_param(auto_fw_reload, int, 0);
 module_param(wifi_fw_name, charp, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(wifi_fw_name, "Wlan firmware name for IR");
 #ifdef PCIE
-MODULE_PARM_DESC(
-	auto_fw_reload,
-	"BIT0: enable auto fw_reload; BIT1: 0: enable PCIE FLR, 1: enable PCIe in-band reset");
+MODULE_PARM_DESC(auto_fw_reload,
+		 "BIT0: enable auto fw_reload; "
+		 "BIT1: 0: enable PCIE FLR, 1: enable PCIe in-band reset; "
+		 "BIT2: enable PCIe PDN from userspace; "
+		 "BIT3: enable OOB IND RST via host GPIO");
 #else
-MODULE_PARM_DESC(auto_fw_reload, "BIT0: enable auto fw_reload");
+MODULE_PARM_DESC(auto_fw_reload, "BIT0: enable auto fw_reload; "
+				 "BIT3: enable OOB IND RST via host GPIO");
 #endif
 
 module_param(fw_serial, int, 0);
@@ -3616,6 +3685,13 @@ MODULE_PARM_DESC(mcs32, "1: Enable mcs32; 0: Disable mcs32");
 module_param(hs_auto_arp, uint, 0660);
 MODULE_PARM_DESC(hs_auto_arp, "1: Enable hs_auto_arp; 0: Disable hs_auto_arp");
 
+module_param(sdio_pd, int, 0);
+MODULE_PARM_DESC(
+	sdio_pd,
+	"1: Enable suspend with sdio pull down mode; 0: Disable suspend with sdio pull down mode");
+module_param(partial_io, int, 0);
+MODULE_PARM_DESC(partial_io,
+		 "1: Enable Partial IO mode; 0: Disable Partial IO mode");
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");
 module_param(init_cfg, charp, 0);
@@ -3926,3 +4002,7 @@ MODULE_PARM_DESC(bandctrl,
 module_param(amsdu_8k_rx, int, 0);
 MODULE_PARM_DESC(amsdu_8k_rx,
 		 "1: support AMPDU 8K RX; 0: just support AMPDU 4K RX");
+module_param(probe_req_rand_sn, int, 0);
+MODULE_PARM_DESC(
+	probe_req_rand_sn,
+	"1: enable random Sequence Number in probe requests; 0: disable random Sequence Number in probe requests ");

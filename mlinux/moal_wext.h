@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_wext.h
  *
  * @brief This file contains definition for wireless extension IOCTL call.
@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _WOAL_WEXT_H_

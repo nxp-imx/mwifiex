@@ -5,7 +5,7 @@
  * driver.
  *
  *
- * Copyright 2008-2026, NXP
+ * Copyright 2008-2022, 2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "moal_main.h"
@@ -43,16 +43,16 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief uap addba parameter handler
@@ -1836,7 +1836,8 @@ static int woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 
 			/* nss sanity check */
 			if ((tx_rate_config.rate_format == 2) ||
-			    (tx_rate_config.rate_format == 3)) {
+			    (tx_rate_config.rate_format == 3) ||
+			    (tx_rate_config.rate_format == 4)) {
 				if ((tx_rate_config.nss < 1) ||
 				    (tx_rate_config.nss > 2)) {
 					PRINTM(MERROR,
@@ -2204,6 +2205,10 @@ static int woal_uap_get_dfs_chan(t_u8 pri_chan, t_u8 bw,
 			       {132, 136, 140, 144}};
 	t_u8 find = false;
 	int j;
+	int vht160[2][8] = {/* Center freq 50: UNII-1 + UNII-2A (36-64) */
+			    {36, 40, 44, 48, 52, 56, 60, 64},
+			    /* Center freq 114: UNII-2A + UNII-2C (100-128) */
+			    {100, 104, 108, 112, 116, 120, 124, 128}};
 	int i;
 	t_u8 sec_chan = 0;
 	mlan_ds_11h_chan_dfs_state *pos = ch_dfs_state;
@@ -2244,6 +2249,26 @@ static int woal_uap_get_dfs_chan(t_u8 pri_chan, t_u8 bw,
 			n_chan = 4;
 			for (j = 0; j < n_chan; j++) {
 				pos->channel = (t_u8)vht80_dfs[i][j];
+				pos++;
+			}
+		}
+	} else if (bw == CHAN_BW_160MHZ) {
+		/* Search for the primary channel in VHT160 channel sets
+		 * Only 2 valid 160MHz allocations: 36-64 and 100-128 */
+		for (i = 0; i < 2; i++) {
+			for (j = 0; j < 8; j++) {
+				if (pri_chan == (t_u8)vht160[i][j]) {
+					find = true;
+					break;
+				}
+			}
+			if (find)
+				break;
+		}
+		if (find) {
+			n_chan = 8;
+			for (j = 0; j < n_chan; j++) {
+				pos->channel = (t_u8)vht160[i][j];
 				pos++;
 			}
 		}
@@ -2298,7 +2323,7 @@ static void woal_set_channel_dfs_state(t_u8 channel, t_u8 dfs_state)
 void woal_update_channels_dfs_state(moal_private *priv, t_u8 channel,
 				    t_u8 bandwidth, t_u8 dfs_state)
 {
-	mlan_ds_11h_chan_dfs_state ch_dfs_state[4];
+	mlan_ds_11h_chan_dfs_state ch_dfs_state[8];
 	int cfg80211_wext = priv->phandle->params.cfg80211_wext;
 	t_u8 n_chan;
 	int i;
@@ -2331,7 +2356,6 @@ void woal_update_uap_channel_dfs_state(moal_private *priv)
 	mlan_ds_11h_chan_dfs_state ch_dfs_state;
 	t_u8 channel;
 	t_u8 bandwidth;
-
 	ENTER();
 	if (woal_is_etsi_country(priv->phandle->country_code)) {
 		LEAVE();
@@ -2358,6 +2382,9 @@ void woal_update_uap_channel_dfs_state(moal_private *priv)
 				break;
 			case NL80211_CHAN_WIDTH_80:
 				bandwidth = CHAN_BW_80MHZ;
+				break;
+			case NL80211_CHAN_WIDTH_160:
+				bandwidth = CHAN_BW_160MHZ;
 				break;
 			default:
 				bandwidth = CHAN_BW_20MHZ;
@@ -2415,14 +2442,25 @@ static int woal_uap_skip_cac(struct net_device *dev, struct ifreq *req)
 	else
 		dfs_state = DFS_USABLE;
 	memset(&ch_dfs_state, 0, sizeof(ch_dfs_state));
+	// n_chan is clamped to ARRAY_SIZE(ch_dfs_state) immediately after
+	// coverity[cert_arr30_c_violation:SUPPRESS]
+	// coverity[overrun:SUPPRESS]
+	// coverity[cert_str31_c_violation:SUPPRESS]
 	n_chan = woal_uap_get_dfs_chan(param.channel, param.bw,
 				       &ch_dfs_state[0]);
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
+	if (n_chan > (int)ARRAY_SIZE(ch_dfs_state)) {
+		// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
+		n_chan = (int)ARRAY_SIZE(ch_dfs_state);
+	}
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	for (i = 0; i < n_chan; i++) {
 		if (woal_11h_chan_dfs_state(priv, MLAN_ACT_GET,
 					    &ch_dfs_state[i]))
 			PRINTM(MERROR, "Get DFS state for chan:%d failed\n",
 			       ch_dfs_state[i].channel);
 	}
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	for (i = 0; i < n_chan; i++) {
 		if (param.skip_cac && ch_dfs_state[i].dfs_state == DFS_USABLE)
 			PRINTM(MMSG,
@@ -2440,6 +2478,7 @@ static int woal_uap_skip_cac(struct net_device *dev, struct ifreq *req)
 #ifdef UAP_CFG80211
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (IS_UAP_CFG80211(cfg80211_wext)) {
+		// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 		for (i = 0; i < n_chan; i++) {
 			if (param.skip_cac)
 				woal_update_channel_dfs_state(
@@ -3646,7 +3685,7 @@ done:
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Initialize the members of mlan_uap_bss_param
@@ -4524,9 +4563,10 @@ static mlan_status woal_start_acs_scan(moal_private *priv)
 	if (ret != MLAN_STATUS_SUCCESS)
 		goto done;
 	PRINTM(MIOCTL,
-	       "ACS scan done: bandcfg:[chanBand=0x%x chanWidth=0x%x chan2Offset=0x%x scanMode=0x%x], channel=%d\n",
+	       "ACS scan done: bandcfg:[chanBand=0x%x chanWidth=0x%x bw_ext=%d chan2Offset=0x%x scanMode=0x%x], channel=%d\n",
 	       bss->param.ap_acs_scan.bandcfg.chanBand,
 	       bss->param.ap_acs_scan.bandcfg.chanWidth,
+	       bss->param.ap_acs_scan.bandcfg.chanWidthExt,
 	       bss->param.ap_acs_scan.bandcfg.chan2Offset,
 	       bss->param.ap_acs_scan.bandcfg.scanMode,
 	       bss->param.ap_acs_scan.chan);

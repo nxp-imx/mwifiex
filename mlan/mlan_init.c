@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 10/13/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -51,12 +51,12 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /*******************************************************
  * Local Functions
- * ******************************************************
+ *******************************************************
  */
 
 /**
@@ -200,10 +200,21 @@ static mlan_status vdll_init(pmlan_adapter pmadapter)
 static t_void vdll_deinit(pmlan_adapter pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	vdll_dnld_ctrl *ctrl = &pmadapter->vdll_ctrl;
 
 	ENTER();
 	if (pmadapter->vdll_ctrl.vdll_mem != MNULL) {
-		if (pcb->moal_vmalloc && pcb->moal_vfree)
+#if defined(PCIE)
+		if (pmadapter->vdll_ctrl.mem_for_dma) {
+			if (pcb->moal_unmap_memory(
+				    pmadapter->pmoal_handle, ctrl->vdll_mem,
+				    ctrl->buf_pa, ctrl->vdll_len,
+				    PCI_DMA_TODEVICE) == MLAN_STATUS_FAILURE)
+				PRINTM(MERROR,
+				       "VDLL: failed to moal_unmap_memory\n");
+		}
+#endif
+		if (pcb->moal_vmalloc && pcb->moal_vfree && !ctrl->mem_for_dma)
 			pcb->moal_vfree(pmadapter->pmoal_handle,
 					(t_u8 *)pmadapter->vdll_ctrl.vdll_mem);
 		else
@@ -224,7 +235,7 @@ static t_void vdll_deinit(pmlan_adapter pmadapter)
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -407,6 +418,11 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		wlan_alloc_mlan_buffer(pmadapter,
 				       sizeof(opt_sleep_confirm_buffer), 0,
 				       MOAL_MALLOC_BUFFER);
+	if (!pmadapter->psleep_cfm) {
+		PRINTM(MERROR, "Failed to allocate SleepCfm buffer\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 #ifdef PCIE
 	/* Initialize PCIE ring buffer */
@@ -630,7 +646,6 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	}
 #endif
 	ret = wlan_add_bsspriotbl(priv);
-
 	LEAVE();
 	return ret;
 }
@@ -744,9 +759,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->ecsa_enable = MFALSE;
 	pmadapter->getlog_enable = MFALSE;
 
-	if (!pmadapter->init_para.ps_mode)
+	if (!pmadapter->init_para.ps_mode) {
 		pmadapter->ps_mode = DEFAULT_PS_MODE;
-	else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
+	} else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
 		pmadapter->ps_mode = Wlan802_11PowerModeCAM;
 	else
 		pmadapter->ps_mode = Wlan802_11PowerModePSP;
@@ -914,7 +929,6 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 
 	if (pmadapter->psleep_cfm) {
 		pmadapter->psleep_cfm->buf_type = MLAN_BUF_TYPE_CMD;
-		pmadapter->psleep_cfm->data_len = sizeof(OPT_Confirm_Sleep);
 		memset(pmadapter, &sleep_cfm_buf->ps_cfm_sleep, 0,
 		       sizeof(OPT_Confirm_Sleep));
 		sleep_cfm_buf->ps_cfm_sleep.command =
@@ -927,11 +941,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		sleep_cfm_buf->ps_cfm_sleep.sleep_cfm.resp_ctrl =
 			wlan_cpu_to_le16(RESP_NEEDED);
 #ifdef USB
-		if (IS_USB(pmadapter->card_type)) {
+		if (IS_USB(pmadapter->card_type))
 			sleep_cfm_buf->hdr =
 				wlan_cpu_to_le32(MLAN_USB_TYPE_CMD);
-			pmadapter->psleep_cfm->data_len += MLAN_TYPE_LEN;
-		}
 #endif
 	}
 	memset(pmadapter, &pmadapter->sleep_params, 0,
@@ -1005,6 +1017,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #endif
 	}
 #endif
+
+	pmadapter->probe_req_rand_sn = pmadapter->init_para.probe_req_rand_sn;
+
 	LEAVE();
 	return;
 }
@@ -1775,13 +1790,6 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 				else
 					user_he_cap_5g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
-				PRINTM(MERROR,
-				       "LHX|hw_spec=%d, user_2g_he_cap=%p\n", i,
-				       pmadapter->priv[i]->user_2g_he_cap);
-				DBG_HEXDUMP(
-					MERROR, "LHX|hw_spec",
-					user_he_cap_2g_tlv->he_phy_cap,
-					sizeof(user_he_cap_2g_tlv->he_phy_cap));
 			}
 		}
 	}
@@ -1901,7 +1909,11 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		wlan_free_pcie_ring_buf(pmadapter);
 	}
 #endif
-	wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
+	if (pmadapter->pmlan_cmd_lock) {
+		PRINTM(MMSG, "Free adapter: Cancel all pending command\n");
+		wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
+	}
+
 	/* Free command buffer */
 	PRINTM(MINFO, "Free Command buffer\n");
 	wlan_free_cmd_buffer(pmadapter);

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_decl.h
  *
  *  @brief This file declares the generic data structures and APIs.
@@ -277,12 +277,16 @@ typedef t_s32 t_sval;
 #define FW_RELOAD_PCIE_INBAND_RESET 6
 /** pcie reset through PDN from userspace*/
 #define FW_RELOAD_PCIE_PDN_FROM_USERSPACE 7
+/** OOB independent reset via host GPIO toggle (any interface) */
+#define FW_RELOAD_OOB_IND_RST 8
 /** auto fw reload enable */
 #define AUTO_FW_RELOAD_ENABLE MBIT(0)
 /** auto fw reload enable pcie inband reset */
 #define AUTO_FW_RELOAD_PCIE_INBAND_RESET MBIT(1)
 /** auto fw reload through PDn from Userspace method */
 #define AUTO_FW_RELOAD_PCIE_PDN_FROM_USERSPACE MBIT(2)
+/** auto fw reload through OOB IND RST GPIO toggle (any interface) */
+#define AUTO_FW_RELOAD_OOB_IND_RST MBIT(3)
 
 #ifdef PCIE
 /* Interrupt type */
@@ -362,6 +366,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define MLAN_SDIO_IO_PORT_MASK 0xfffff
 /** SDIO Block/Byte mode mask */
 #define MLAN_SDIO_BYTE_MODE_MASK 0x80000000
+/** SDIO OPCODE_MASK */
+#define MLAN_SDIO_OP_CODE_MASK 0x04000000
 #endif /* SDIO */
 
 /** SD Interface */
@@ -656,6 +662,8 @@ typedef enum {
 #define MLAN_BUF_FLAG_XDP MBIT(20)
 #endif
 
+#define MLAN_BUF_FLAG_PN MBIT(22)
+
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
 #define MMSG MBIT(0)
@@ -683,6 +691,8 @@ typedef enum {
 #ifdef SECURE_HOST
 #define MSHC_D MBIT(23)
 #endif
+#define MEMERG MBIT(24)
+
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
 #define MINFO MBIT(30)
@@ -1046,19 +1056,34 @@ enum {
 	SEC_CHAN_BELOW = 3
 };
 
+// Usage: bw_ext : 1 bit and Chan BW : 2 bits
+#define BANDCFG_GET_CHANWIDTH(chanWidthExt, chanWidth)                         \
+	(((chanWidthExt)&1) ? (((chanWidth)&0x3) + 4) : ((chanWidth)&0x3))
+
+#define BANDCFG_SET_CHANWIDTH_EXT(chanWidth) ((((chanWidth)&0x7) >= 4) ? 1 : 0)
+
+#define BANDCFG_SET_CHANWIDTH(chanWidth) ((chanWidth)&0x3)
+typedef enum _chan_ext_t {
+	NO_CH_EXT = 0,
+	CH_EXT = 1,
+} bw_ext_t;
+
 /** channel bandwidth */
 enum {
 	CHAN_BW_20MHZ = 0,
 	CHAN_BW_10MHZ,
 	CHAN_BW_40MHZ,
 	CHAN_BW_80MHZ,
+	CHAN_BW_160MHZ,
+	CHAN_BW_8080MHZ,
+	CHAN_BW_5MHZ,
+	CHAN_BW_320HZ,
 };
 
 /** scan mode */
 enum {
 	SCAN_MODE_MANUAL = 0,
 	SCAN_MODE_ACS,
-	SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -1109,23 +1134,35 @@ typedef enum _dfs_moe_t {
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {
 #ifdef BIG_ENDIAN_SUPPORT
-	/** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
-	t_u8 scanMode : 2;
+	/** Channel Width Ext - (0)=normal BW, (1)=extended BW (160MHz/320MHz)
+	 */
+	t_u8 chanWidthExt : 1;
+	/** Channel Selection Mode - (0)=manual, (1)=ACS */
+	t_u8 scanMode : 1;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
 	t_u8 chan2Offset : 2;
-	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	/** Channel Width - when bw_ext=0: (00)=20MHz, (01)=10MHz, (10)=40MHz,
+	 * (11)=80MHz
+	 *   			  - when bw_ext=1: (00)=160MHz, (01)=80+80MHz,
+	 * (10)=5MHz, (11)=320MHz */
 	t_u8 chanWidth : 2;
 	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
 #else
 	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
-	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	/** Channel Width - when bw_ext=0: (00)=20MHz, (01)=10MHz, (10)=40MHz,
+	 * (11)=80MHz
+	 *   			  - when bw_ext=1: (00)=160MHz, (01)=80+80MHz,
+	 * (10)=5MHz, (11)=320MHz */
 	t_u8 chanWidth : 2;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
 	t_u8 chan2Offset : 2;
-	/** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
-	t_u8 scanMode : 2;
+	/** Channel Selection Mode - (0)=manual, (1)=ACS */
+	t_u8 scanMode : 1;
+	/** Channel Width Ext - (0)=normal BW, (1)=extended BW (160MHz/320MHz)
+	 */
+	t_u8 chanWidthExt : 1;
 #endif
 } MLAN_PACK_END Band_Config_t;
 
@@ -1992,7 +2029,7 @@ typedef struct {
 
 /** wifi rate */
 typedef struct {
-	/** 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
+	/** 0: OFDM, 1:CCK, 2:HT 3:VHT 4:HE 5:EHT 6..7 reserved */
 	t_u32 preamble : 3;
 	/** 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
 	t_u32 nss : 2;
@@ -2008,12 +2045,33 @@ typedef struct {
 	t_u32 bitrate;
 } wifi_rate;
 
+typedef enum {
+	WIFI_LL_PREAMBLE_OFDM = 0,
+	WIFI_LL_PREAMBLE_CCK = 1,
+	WIFI_LL_PREAMBLE_HT = 2,
+	WIFI_LL_PREAMBLE_VHT = 3,
+	WIFI_LL_PREAMBLE_HE = 4,
+	WIFI_LL_PREAMBLE_EHT = 5,
+} wifi_ll_preamble;
+
 /** wifi Preamble type */
 typedef enum {
-	WIFI_PREAMBLE_LEGACY = 0x1,
-	WIFI_PREAMBLE_HT = 0x2,
-	WIFI_PREAMBLE_VHT = 0x4
-} wifi_preamble;
+	WIFI_RTT_PREAMBLE_LEGACY = 0x1,
+	WIFI_RTT_PREAMBLE_HT = 0x2,
+	WIFI_RTT_PREAMBLE_VHT = 0x4,
+	WIFI_RTT_PREAMBLE_HE = 0x8,
+	WIFI_RTT_PREAMBLE_EHT = 0x10,
+} wifi_rtt_preamble;
+
+/** FTM Session Control Actions */
+#define FTM_SESSION_CTRL_ACTION_START 1
+#define FTM_SESSION_CTRL_ACTION_STOP 2
+
+/* Specific action codes  for FTM_SESSION_CTRL_ACTION_START */
+#define FTM_SESSION_ASSOCIATED 1 /* Associated FTM */
+#define FTM_SESSION_ASSOCIATED_PMF 3 /* Associated with PMF */
+#define FTM_SESSION_UNASSOCIATED 4 /* Unassociated FTM */
+#define FTM_SESSION_UNASSOCIATED_PASN 5 /* Unassociated with PASN */
 
 /** timeval */
 typedef struct {
@@ -2328,6 +2386,28 @@ typedef struct {
 	0x00000080 /** all contention (min, max, avg) statistics (within ac    \
 		     statisctics) */
 
+/*Defaults set as per ftm.conf */
+#define FTM_DEFAULT_BURST_DURATION 11
+#define FTM_DEFAULT_BURST_PERIOD 5
+#define FTM_DEFAULT_PER_BURST_FTM 10
+#define FTM_DEFAULT_ASAP 1
+#define FTM_DEFAULT_MIN_DELTA_FTM 35
+#define FTM_DEFAULT_IFTM_TMO 10
+
+/** FTM session config TLV channel_spacing encoding (from ftm.conf)
+ *  2.4/5GHz HT:  9=HT20,  11=HT40
+ *  5GHz VHT:     10=VHT20, 12=VHT40, 13=VHT80
+ *  6GHz HE:      17=HE20,  18=HE40,  19=HE80
+ */
+#define FTM_CHAN_SPACING_HT20 9
+#define FTM_CHAN_SPACING_HT40 11
+#define FTM_CHAN_SPACING_VHT20 10
+#define FTM_CHAN_SPACING_VHT40 12
+#define FTM_CHAN_SPACING_VHT80 13
+#define FTM_CHAN_SPACING_HE20 17
+#define FTM_CHAN_SPACING_HE40 18
+#define FTM_CHAN_SPACING_HE80 19
+
 /** =========== Define Copied from HAL START =========== */
 /** Ranging status */
 typedef enum {
@@ -2448,7 +2528,7 @@ typedef struct {
 	 */
 	t_u32 burst_duration;
 	/** RTT preamble to be used in the RTT frames */
-	wifi_preamble preamble;
+	wifi_rtt_preamble preamble;
 	/** RTT BW to be used in the RTT frames */
 	wifi_rtt_bw bw;
 } wifi_rtt_config;
@@ -2617,7 +2697,7 @@ typedef struct {
  */
 typedef struct {
 	wifi_channel_info channel;
-	wifi_preamble preamble;
+	wifi_rtt_preamble preamble;
 } wifi_rtt_responder;
 
 /** =========== Define Copied from HAL END =========== */
@@ -2629,9 +2709,6 @@ typedef struct wifi_rtt_config_params {
 	t_u8 rtt_config_num;
 	wifi_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
 } wifi_rtt_config_params_t;
-
-#define OID_RTT_REQUEST 0
-#define OID_RTT_CANCEL 1
 
 /** Pass RTT result element between mlan and moal */
 typedef struct {
@@ -2673,6 +2750,8 @@ typedef struct _mlan_callbacks {
 	mlan_status (*moal_get_fw_data)(t_void *pmoal, t_u32 offset, t_u32 len,
 					t_u8 *pbuf);
 	mlan_status (*moal_get_vdll_data)(t_void *pmoal, t_u32 len, t_u8 *pbuf);
+	/** moal_get_suspend_state */
+	t_u8 (*moal_get_suspend_state)(t_void *pmoal);
 	/** moal_get_hw_spec_complete */
 	mlan_status (*moal_get_hw_spec_complete)(t_void *pmoal,
 						 mlan_status status,
@@ -2863,6 +2942,7 @@ typedef struct _mlan_callbacks {
 #endif
 	t_u32 (*moal_crc32_be)(t_u32 initial_crc, t_u8 const *data,
 			       unsigned long len);
+	t_u32 (*moal_random)(t_void *pmoal);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */
@@ -2907,11 +2987,10 @@ typedef struct _mlan_callbacks {
 #endif
 
 /*
- * #define DRV_MODE_NAN                 MBIT(4)
- * #define DRV_MODE_11P                 MBIT(5)
- * #define DRV_MODE_MAC80211            MBIT(6)
- * #define DRV_MODE_DFS                 MBIT(7)
- */
+#define DRV_MODE_NAN                 MBIT(4)
+#define DRV_MODE_11P                 MBIT(5)
+#define DRV_MODE_MAC80211            MBIT(6)
+#define DRV_MODE_DFS                 MBIT(7)*/
 #define DRV_MODE_MASK (MBIT(4) | MBIT(5) | MBIT(6) | MBIT(7))
 
 /** mlan_device data structure */
@@ -2993,6 +3072,10 @@ typedef struct _mlan_device {
 	t_u8 indication_gpio;
 	/** Dynamic MIMO-SISO switch for hscfg*/
 	t_u8 hs_mimo_switch;
+	/** Suspend with sdio pull down mode */
+	t_u32 sdio_pd;
+	/** Partial IO mode */
+	t_u32 partial_io;
 	/** channel time and mode for DRCS*/
 	t_u32 drcs_chantime_mode;
 #ifdef USB
@@ -3049,6 +3132,8 @@ typedef struct _mlan_device {
 #ifdef SECURE_HOST
 	t_u32 secure_host;
 #endif
+	/** random SN in probe req */
+	t_u8 probe_req_rand_sn;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

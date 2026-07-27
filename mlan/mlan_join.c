@@ -28,7 +28,7 @@
 /******************************************************
  * Change log:
  * 10/30/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #include "mlan.h"
@@ -43,22 +43,22 @@
 #include "mlan_11h.h"
 /********************************************************
  * Local Constants
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Append a generic IE as a pass through TLV to a TLV buffer.
@@ -663,7 +663,7 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 #endif
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -687,7 +687,7 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u16 pairwise_cipher_count = 0;
 	t_u16 akm_suite_count = 0;
 	t_u16 pmkid_count = 0;
-	t_u8 i;
+	t_u16 i;
 
 #define PREFERENCE_TKIP 1
 	/* Cipher Perference Order:
@@ -1295,8 +1295,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	       pmpriv->config_bands & BAND_AN) &&
 	      (pbss_desc->pht_cap))) {
 		/* Append a channel TLV for the channel the attempted AP was
-		 * found on
-		 */
+		 * found on BW 20 only */
 		pchan_tlv = (MrvlIEtypes_ChanListParamSet_t *)pos;
 		pchan_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
 		pchan_tlv->header.len =
@@ -1311,11 +1310,13 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
 			wlan_band_to_radio_type(pbss_desc->bss_band);
-		if (pbss_desc->bss_band == BAND_6G)
-			pchan_tlv->chan_scan_param[0].bandcfg.chanWidth =
-				wlan_get_6g_ap_bandconfig(
-					pbss_desc,
-					&pchan_tlv->chan_scan_param[0].bandcfg);
+
+		if (pbss_desc->bss_band == BAND_6G) {
+			wlan_get_6g_ap_bandconfig(
+				pmadapter, pbss_desc,
+				&pchan_tlv->chan_scan_param[0].bandcfg);
+		}
+
 		PRINTM(MINFO, "Assoc: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
 		pos += sizeof(pchan_tlv->header) + sizeof(ChanScanParamSet_t);
@@ -2074,6 +2075,8 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	pmpriv->curr_bss_params.band = pbss_desc->bss_band;
 
+	pmpriv->curr_channel = pmpriv->curr_bss_params.bss_descriptor.channel;
+	pmpriv->curr_bandcfg.chanBand = pmpriv->curr_bss_params.band;
 	/* Store current channel for further reference.
 	 * This would save one extra call to get current
 	 * channel when disconnect/bw_ch event is raised.
@@ -2186,7 +2189,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 						.mac_address);
 		wlan_11n_cleanup_reorder_tbl(pmpriv);
 		wlan_11n_deleteall_txbastream_tbl(pmpriv);
-
 	} else
 		wlan_ralist_add(
 			pmpriv,

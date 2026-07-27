@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -37,22 +37,22 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function fill the txpd for tx packet
@@ -68,6 +68,7 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	TxPD *plocal_tx_pd;
 	t_u8 *head_ptr = MNULL;
+	t_u8 radio_idx = 0;
 	t_u32 pkt_type;
 	t_u32 tx_control;
 	t_s32 offset = 0;
@@ -110,8 +111,10 @@ t_void *wlan_ops_sta_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
 	_memset(pmadapter, plocal_tx_pd, 0, Tx_PD_SIZEOF(pmadapter));
+
 	/* Set the BSS number to TxPD */
-	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
+	plocal_tx_pd->bss_num =
+		TxPD_SET_BSS_NUM_RADIO_IDX(GET_BSS_NUM(pmpriv), radio_idx);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
 

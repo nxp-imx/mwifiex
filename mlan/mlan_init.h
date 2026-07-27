@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_init.h
  *
  *  @brief This file defines the FW initialization data
@@ -25,7 +25,7 @@
 /******************************************************
  * Change log:
  * 10/13/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #ifndef _MLAN_INIT_H_

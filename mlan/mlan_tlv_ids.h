@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_tlv_ids.h
  *
  *  @brief This file contains TLV ID definitions.
@@ -398,11 +398,9 @@
 #define TLV_TYPE_UAP_TX_BEACON_RATE (PROPRIETARY_TLV_BASE_ID + 288) /* 0x0220  \
 								     */
 #endif /* UAP_SUPPORT */
-/** TLV for RTT Range Request */
-#define TLV_TYPE_RTT_RANGE_REQUEST (PROPRIETARY_TLV_BASE_ID + 293) /* 0x0225   \
-								    */
-/** TLV for RTT Range Cancel */
-#define TLV_TYPE_RTT_RANGE_CANCEL (PROPRIETARY_TLV_BASE_ID + 294) /* 0x0226 */
+/* FTM Session Config TLVs */
+#define TLV_TYPE_FTM_SESSION_CFG_INITIATOR                                     \
+	(PROPRIETARY_TLV_BASE_ID + 273) /* 0x0211 */
 /** TLV for RTT Result */
 #define TLV_TYPE_RTT_RESULT (PROPRIETARY_TLV_BASE_ID + 295) /* 0x0227 */
 /** TLV for RTTResponderInfo */
@@ -484,10 +482,14 @@
 
 #define VENDOR_IE_OUIS_TLV_ID (PROPRIETARY_TLV_BASE_ID + 357) /* 0x0265 */
 #define TLV_TYPE_AP_INFO (PROPRIETARY_TLV_BASE_ID + 358) /* 0x0266 */
+
 #define TLV_TYPE_CSI_AGC_CONFIG (PROPRIETARY_TLV_BASE_ID + 363) /* 0x026b */
 #define NXP_VERSION_COMPONENTS_TLV_ID                                          \
 	(PROPRIETARY_TLV_BASE_ID + 364) /* 0x026c */
 #define TLV_TYPE_PER_BAND_TXPWR_CAP (PROPRIETARY_TLV_BASE_ID + 365) /* 0x026d  \
 								     */
 #define TLV_HOST_MAX_RX_BUF_SIZE (PROPRIETARY_TLV_BASE_ID + 367) /* 0x026f */
+
+#define TLV_TYPE_PARTIAL_IO_CFG (PROPRIETARY_TLV_BASE_ID + 373) /* 0x0275 */
+
 #endif /* !MLAN_TLV_IDS_H_ */
