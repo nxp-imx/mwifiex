@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_wmm.h
  *
  *  @brief This file contains related macros, enum, and struct
@@ -25,7 +25,7 @@
 /****************************************************
  * Change log:
  * 10/24/2008: initial version
- * **************************************************
+ ****************************************************
  */
 
 #ifndef _MLAN_WMM_H_
@@ -48,9 +48,9 @@ static INLINE t_u32 wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
 					    &ptr->buf_head, MNULL, MNULL);
 	LEAVE();
 
-	if (!mbuf)
+	if (!mbuf) {
 		return 0; // The default TID,BE
-	else
+	} else
 		return mbuf->priority;
 }
 
@@ -256,6 +256,14 @@ mlan_status wlan_wmm_cfg_ioctl(pmlan_adapter pmadapter,
 
 void wlan_wmm_update_sta_tx_rate(pmlan_private priv, t_u8 *mac,
 				 HostCmd_TX_RATE_QUERY *rate);
+
+t_u32 wlan_wmm_get_eht_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs,
+			    t_u32 dcm);
+
+t_u32 wlan_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs);
+t_u32 wlan_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs);
+t_u32 wlan_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs);
+t_u32 wlan_wmm_get_legacy_rate(t_u32 rate_idx);
 
 void wlan_wmm_consume_byte_budget(raListTbl *ra_list, mlan_buffer *pmbuf);
 void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list);

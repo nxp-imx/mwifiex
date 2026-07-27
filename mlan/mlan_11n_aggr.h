@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_11n_aggr.h
  *
  *  @brief This file contains related macros, enum, and struct
@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 11/10/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MLAN_11N_AGGR_H_

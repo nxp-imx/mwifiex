@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 10/27/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -39,12 +39,12 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function check and discard IPv4 and IPv6 gratuitous broadcast
@@ -113,7 +113,7 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 	t_u8 *peer;
 	t_u8 *pos, *end;
 	t_u8 action;
-	int ie_len = 0;
+	t_u32 ie_len = 0;
 	t_u8 i;
 	int rate_len;
 	IEEEtypes_Extension_t *ext_ie;
@@ -158,6 +158,10 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 		sta_ptr->capability =
 			mlan_ntohs(read_u16_unaligned(priv->adapter, pos));
 		ie_len = len - sizeof(EthII_Hdr_t) - TDLS_REQ_FIX_LEN;
+		if (ie_len > len) {
+			LEAVE();
+			return;
+		}
 		pos += 2;
 	} else if (action == 1) { /*setup respons*/
 		PRINTM(MMSG, "Recv TDLS SETUP Response: peer=" MACSTR "\n",
@@ -169,6 +173,10 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 		sta_ptr->capability =
 			mlan_ntohs(read_u16_unaligned(priv->adapter, pos));
 		ie_len = len - sizeof(EthII_Hdr_t) - TDLS_RESP_FIX_LEN;
+		if (ie_len > len) {
+			LEAVE();
+			return;
+		}
 		pos += 2;
 	} else { /*setup confirm*/
 		PRINTM(MMSG, "Recv TDLS SETUP Confirm: peer=" MACSTR "\n",
@@ -178,6 +186,10 @@ void wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 		pos = pbuf + sizeof(EthII_Hdr_t) + TDLS_CONFIRM_FIX_LEN;
 		/*payload 1+ category 1 + action 1 +dialog 1 + status 2*/
 		ie_len = len - sizeof(EthII_Hdr_t) - TDLS_CONFIRM_FIX_LEN;
+		if (ie_len > len) {
+			LEAVE();
+			return;
+		}
 	}
 	for (end = pos + ie_len; pos + 1 < end; pos += 2 + pos[1]) {
 		if (pos + 2 + pos[1] > end)
@@ -425,7 +437,8 @@ void wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
 			(ldpc << 5) | (format << 3) | (bw << 1) | gi;
 	rt_info_tmp.rate_info.bitrate =
 		wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
-					prx_pd->rate_info, ext_rate_info);
+					prx_pd->rate_info, ext_rate_info,
+					ext_rate_info & MBIT(6));
 
 	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
 		memcpy_ext(priv->adapter, &rt_info_tmp.extra_info,
@@ -621,10 +634,9 @@ mon_process:
 
 	if (MFALSE || priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
-		pmbuf->u.rx_info.data_rate =
-			wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
-						prx_pd->rate_info,
-						ext_rate_info);
+		pmbuf->u.rx_info.data_rate = wlan_index_to_data_rate(
+			priv->adapter, prx_pd->rx_rate, prx_pd->rate_info,
+			ext_rate_info, ext_rate_info & MBIT(6));
 
 		pmbuf->u.rx_info.channel =
 			(prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;

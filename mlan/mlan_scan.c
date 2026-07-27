@@ -27,7 +27,7 @@
 /******************************************************
  * Change log:
  * 10/28/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #include "mlan.h"
@@ -41,7 +41,7 @@
 #include "mlan_11h.h"
 /********************************************************
  * Local Constants
- * ******************************************************
+ ********************************************************
  */
 /** minimum scan time for passive to active scan */
 #define MIN_PASSIVE_TO_ACTIVE_SCAN_TIME 150
@@ -80,6 +80,9 @@
 	(sizeof(MrvlIEtypesHeader_t) +                                         \
 	 (MRVDRV_MAX_BSSID_LIST * MLAN_MAC_ADDR_LENGTH))
 
+/** Memory needed to store probe request random SN TLV */
+#define RANDOM_SN_TLV_MAX_SIZE (sizeof(MrvlIEtypes_probe_req_rand_sn_t))
+
 /** WPS TLV MAX size is MAX IE size plus 2 bytes for
  * t_u16 MRVL TLV extension
  */
@@ -91,11 +94,11 @@
 	(sizeof(wlan_scan_cmd_config) + sizeof(MrvlIEtypes_NumProbes_t) +      \
 	 sizeof(MrvlIETypes_HTCap_t) + CHAN_TLV_MAX_SIZE + RATE_TLV_MAX_SIZE + \
 	 WILDCARD_SSID_TLV_MAX_SIZE + BSSID_LIST_TLV_MAX_SIZE +                \
-	 WPS_TLV_MAX_SIZE)
+	 RANDOM_SN_TLV_MAX_SIZE + WPS_TLV_MAX_SIZE)
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -111,12 +114,12 @@ typedef union {
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /** Cipher suite definition */
 enum cipher_suite {
@@ -1171,6 +1174,7 @@ wlan_scan_channel_list(mlan_private *pmpriv, t_void *pioctl_buf,
 	MrvlIETypes_VHTCap_t *pvht_cap;
 	MrvlIEtypes_Extension_t *phe_cap;
 	t_u16 len = 0;
+
 	MrvlIEtypes_He_6g_cap_t *phe_6g_cap;
 	t_u8 scan_rnr_chan = MFALSE;
 	t_u8 skip_rnr_chan = MFALSE;
@@ -1707,6 +1711,7 @@ static mlan_status wlan_scan_setup_scan_config(
 	MrvlIEtypes_ScanChanGap_t *pscan_gap_tlv;
 	MrvlIEtypes_BssMode_t *pbss_mode;
 	t_u8 num_of_channel = 0;
+	MrvlIEtypes_probe_req_rand_sn_t *prand_sn_tlv = MNULL;
 
 	ENTER();
 
@@ -2020,6 +2025,16 @@ static mlan_status wlan_scan_setup_scan_config(
 			   MLAN_MAC_ADDR_LENGTH);
 		ptlv_pos += sizeof(MrvlIEtypes_MacAddr_t);
 	}
+
+	if (pmadapter->probe_req_rand_sn) {
+		prand_sn_tlv = (MrvlIEtypes_probe_req_rand_sn_t *)ptlv_pos;
+		prand_sn_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_PROBE_REQ_RAND_SN);
+		prand_sn_tlv->header.len = wlan_cpu_to_le16(sizeof(t_u8));
+		prand_sn_tlv->enable = MTRUE;
+		ptlv_pos += sizeof(MrvlIEtypes_probe_req_rand_sn_t);
+	}
+
 	/*
 	 * Set the output for the channel TLV to the address in the tlv buffer
 	 *   past any TLVs that were added in this function (SSID, num_probes).
@@ -4810,7 +4825,7 @@ wlan_scan_delete_ssid_table_entry(mlan_private *pmpriv,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -4850,12 +4865,14 @@ t_s32 wlan_is_network_compatible(mlan_private *pmpriv, t_u32 index, t_u32 mode)
 
 	pbss_desc->disable_11n = MFALSE;
 
-	/* if the HE CAP IE exists, HT CAP IE should exist too */
-	/* 2.4G AX AP, don't have VHT CAP */
-	if (pbss_desc->phe_cap && !pbss_desc->pht_cap) {
-		PRINTM(MINFO,
-		       "Disable 11n if VHT CAP/HT CAP IE is not found from the 11AX AP\n");
-		pbss_desc->disable_11n = MTRUE;
+	if (wlan_band_to_radio_type(pbss_desc->bss_band) == BAND_2GHZ) {
+		/* if the HE CAP IE exists, HT CAP IE should exist too */
+		/* 2.4G AX AP, don't have VHT CAP */
+		if (pbss_desc->phe_cap && !pbss_desc->pht_cap) {
+			PRINTM(MINFO,
+			       "Disable 11n if HT CAP IE is not found from the 11AX AP\n");
+			pbss_desc->disable_11n = MTRUE;
+		}
 	}
 
 	/* if the VHT CAP IE exists, the HT CAP IE should exist too */
@@ -5187,7 +5204,7 @@ t_s32 wlan_is_network_compatible(mlan_private *pmpriv, t_u32 index, t_u32 mode)
  */
 mlan_status wlan_flush_scan_table(pmlan_adapter pmadapter)
 {
-	t_u8 i = 0;
+	t_u32 i = 0;
 	ENTER();
 
 	PRINTM(MINFO, "Flushing scan table\n");
@@ -6399,7 +6416,7 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 	t_u32 beacon_buf_size = BEACON_FIX_SIZE + ie_len;
 	t_u32 bytes_left = 0;
 	t_s64 offset = 0;
-	mlan_status ret = MLAN_STATUS_FAILURE;
+	mlan_status ret;
 	IEEEtypes_VendorSpecific_t *pvendor_ie;
 	const t_u8 wpa_oui[4] = {0x00, 0x50, 0xf2, 0x01};
 	const t_u8 wmm_oui[4] = {0x00, 0x50, 0xf2, 0x02};
@@ -6503,11 +6520,12 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 			 */
 			if (found_data_rate_ie) {
 				if ((element_len + rate_size) >
-				    WLAN_SUPPORTED_RATES)
+				    WLAN_SUPPORTED_RATES) {
 					bytes_to_copy = (WLAN_SUPPORTED_RATES -
 							 rate_size);
-				else
+				} else {
 					bytes_to_copy = element_len;
+				}
 
 				prate = (t_u8 *)pnew_entry->data_rates;
 				prate += rate_size;
@@ -8495,6 +8513,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 	MrvlIETypes_HTCap_t *pht_cap = MNULL;
 	MrvlIETypes_VHTCap_t *pvht_cap = MNULL;
 	MrvlIEtypes_Extension_t *phe_cap = MNULL;
+
 	MrvlIEtypes_ScanChanGap_t *pscan_gap_tlv;
 	t_u16 len = 0;
 
@@ -8792,6 +8811,7 @@ mlan_status wlan_cmd_bgscan_config(mlan_private *pmpriv,
 		tlv += len;
 		cmd_size += len;
 	}
+
 	if (wlan_is_ext_capa_support(pmpriv)) {
 		wlan_add_ext_capa_info_ie(pmpriv, MNULL, &tlv);
 		cmd_size += sizeof(MrvlIETypes_ExtCap_t);

@@ -10,8 +10,8 @@
 
 	Goto source code directory
 	make [clean] build
-	The driver and utility binaries can be found in ../bin_wlan directory.
-	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 6.19.0.
+	The driver and utility binaries can be found in bin_wlan directory.
+	The driver source code is compatible with hosts running Linux kernel versions ranging from 2.6.32 to 7.1.
 
 2) FOR INTEGRATING DRIVER INTO LINUX KERNEL (BUILT-IN SUPPORT)
 
@@ -69,15 +69,17 @@
 			Bit 0 :  STA
 			Bit 1 :  uAP
 			Bit 2 :  WIFIDIRECT
+			Bit 3 :  MPL
 			Bit 4 :  NAN
 			Bit 7 :  Zero-Wait DFS
-		max_sta_bss: Maximum number of STA BSS (default 1, max 1)
+		max_sta_bss: Maximum number of STA BSS (default 1, max 18)
 		sta_name: Name of the STA interface (default: "mlan")
 		max_uap_bss: Maximum number of uAP BSS (default 1, max 2)
 		uap_name: Name of the uAP interface (default: "uap")
 		max_wfd_bss: Maximum number of WIFIDIRECT BSS (default 1, max 1)
 		wfd_name: Name of the WIFIDIRECT interface (default: "wfd")
 		max_vir_bss: Number of Virtual interfaces (default 1)
+		max_mpl_bss: Number of MPL interfaces (defaut 1, max 1)
 		nan_name: Name of the NAN interface (default: "nan")
 		max_nan_bss: Number of NAN interfaces (default 1)
 		uap_oper_ctrl: uAP operation control when in-STA disconnect with ext-AP
@@ -111,9 +113,6 @@
 	To load driver with MFG firmware file, use mfg_mode=1 when insmod WLAN driver and
 	specify MFG firmware name if needed.
 
-	To load driver with rf_test firmware file, use rf_test_mode=1 when insmod WLAN driver.
-	This parameter only used for 9177(FC)
-
 	There are some other parameters for debugging purpose etc. Use modinfo to check details.
 	drvdbg=<bit mask of driver debug message control>
 
@@ -121,6 +120,8 @@
 	automatically preserved to prevent accidental FW dump trigger disabling.
 	Use override: mlanutl mlan0 drvdbg 0x7 0xFFFFFFFF
 
+	logctrl=<Bit mask of driver log message control>
+	sh_mem_size=<Shared memory length (default 8192 bytes)>
 	dev_cap_mask=<Bit mask of the device capability>
 	This load parameter is uses to configure device features support
 	Usage:
@@ -145,6 +146,7 @@
 	scan_chan_gap=x <Time gap between two scans in milliseconds when connected to AP (max value 500ms)>
 	net_rx=0|1 <use netif_rx/netif_rx_ni in rx | use netif_receive_skb in rx (default)>
 	amsdu_deaggr=0|1 <buf copy in amsud deaggregation | avoid buf copy in amsud deaggregation (default)>
+	max_11p_bss = <Max number of 802_11P interfaces (default 1)>
 	bootup_cal_ctrl=0|1 <disable boot time config default | enable boot time config>
 	ps_mode=0|1|2 <use MLAN default | enable IEEE PS mode | disable IEEE PS mode>
 	tcpackenh=0|1 <disable TCP ACK enhancement | enable TCP ACK enhancement (default)>
@@ -202,7 +204,11 @@
 		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=nxp/init_hostcmd_cfg.conf
 	band_steer_cfg=<band steer config file name>
 		e.g. generate bscfg.conf by band_steer_cfg.conf, then copy bscfg.conf to firmware directory, band_steer_cfg=nxp/bscfg.conf
+	oob_mode=0|1 <disable OOB wakeup mode (default) | enable OOB wakeup mode>
+	sdio_pd=0|1 <disable suspend with sdio pull down feature (default) | enable suspend with sdio pull down feature>
+	partial_io=0|1 <Disable Partial IO mode (default) | Enable Partial IO mode>
 	sdio_rx_aggr=1|0 <Enable SDIO rx aggr (default) | Disable SDIO rx aggr>
+	minicard_pwrup=1|0 <power up/down on driver load/unload (default) | don't power up/down>
 	cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT
@@ -223,6 +229,8 @@
 	rps=0|x <Disables rps | bit0-bit4 (0x1-0xf) Enables rps on specific cpu (0xf default)>
 	intmode=0|1 <SDIO Interrupt Mode (default) | GPIO Interrupt Mode>
 	gpiopin=0|x <GPIO pin number when intmode=1 (default 0, HW mapped intr on GPIO-21)>
+	pcie_int_mode=0|1|2 <Legacy mode, MSI mode (default), MSI-X mode>
+#elif defined(PCIE_MSI)
 	pcie_int_mode=0|1 <Legacy mode, MSI mode (default)>
 	ring_size=32|64|128|256|512 <adma ring size for 9097/9098>
 	aggrctrl=1|0 <enable Tx aggr | disable Tx aggr>
@@ -230,7 +238,7 @@
 	low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
 	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
 	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
-	wakelock_timeout=<set wakelock_timeout value (ms)>
+	wakelock_timeout=<set wakelock_timeout value (ms),default 3000ms>
 	pmic=0|1 <No pmic configure cmd sent to firmware | Send pmic configure cmd to firmware>
 	indication_gpio=0xXY <GPIO to indicate wakeup source and its level; high four bits X:
                   level(0/1) for normal wakeup; low four bits Y: GPIO pin number. This parameter
@@ -250,15 +258,20 @@
 	  Bit23~Bit16:mode for channel index0; 0|1 <PM1 | Null2Self>
 	  Bit15~Bit8:Channel time for channel index1;
 	  Bit7~Bit0:mode for channel index1; 0|1 <PM1 | Null2Self>
+	roamoffload_in_hs=0|1 <always enable fw roaming (default) | enable fw roaming only when host suspend>
 	uap_max_sta: Maximum number of STA for UAP/GO (default 0, max STA number for UAP/GO supported in FW)
 	wacp_mode=0|1|2 <disable WACP (default) | WACP mode 1 | WACP mode 2>
 	dfs_offload=0|1 <disable dfs offload (default) | enable dfs offload>
 	indrstcfg=x <high byte: GPIO pin number (255 default); low byte: IR mode (0: disable, 1: out-of-band, 2: in band)>
-	auto_fw_reload=0|1|3|4
+	auto_fw_reload=0|1|3|4|9
 	  0: disable auto recovery feature
 	  1: default for SDIO, use SDIO InBandReset in auto recovery
+	  9: BIT0|BIT3, use SDIO OOB IND RST via host GPIO toggle in auto recovery
+	     (requires indrstcfg ir_mode=1 and DT node nxp,wlan-ind-rst)
 	  3: default for PCIE, use PCIE InBandReset in auto recovery
 	  4: for PCIE, fw reload through PDn from userspace
+	  9: BIT0|BIT3, use PCIe OOB IND RST via host GPIO toggle in auto recovery
+	     (requires indrstcfg ir_mode=1 and DT node nxp,wlan-ind-rst)
 	dmcs=0|1|2 <firmware default (default) | enable dynamic mapping | disable dynamic mapping>
 	host_mlme=0|1 <Operate in non-host_mlme mode | Operate in host_mlme mode (default)>
 		for supplicant/authenticator running on host side, WPA3 support is available only in host_mlme mode
@@ -292,6 +305,9 @@
 	Note: For secure_host=1, Firmware image shall be secure host enabled.
 
 	bandctrl=0|1 <Disable bandctrl mode (default) | Enable bandctrl mode>
+
+ifdef PROBE_REQ_RAND_SN
+	probe_req_rand_sn=0|1, <disable random SN in probe req(default) | enable random SN in probe req>
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -456,6 +472,22 @@
 		insmod moal.ko mod_para=nxp/wifi_mod_para.conf [drvdbg=0x200000]
 
 	Use dmesg or cat /var/log/debug to check driver debug messages.
+	To log driver debug messages to file,
+	a) Edit /etc/syslog.conf, add one line "*.debug		/var/log/debug"
+	   on kernel 2.6.24 or later, edit /etc/rsyslog.conf instead
+	b) touch /var/log/debug (if the file doesn't exist)
+	c) service syslog restart
+	   on kernel 2.6.24 or later, service rsyslog restart
+
+	To control the driver log buffer through the proc, the following command can be used.
+	Note: proc can only read at max kernel PAGE_SIZE - 1024 bytes.
+
+	Usage:
+		cat /proc/mwlan/adapterX/logctrl                         # To read driver log messages
+		echo "lock" > /proc/mwlan/adapterX/logctrl               # Lock the driver log buffer
+		echo "unlock" > /proc/mwlan/adapterX/logctrl             # Unlock the driver log buffer
+		echo "clear" > /proc/mwlan/adapterX/logctrl              # Clear the driver log buffer
+		echo "level=0xFF" > /proc/mwlan/adapterX/logctrl         # Set log buffer level to 0xFF
 
 	Update /proc/sys/kernel/printk to change message log levels.
 	For example,
@@ -479,181 +511,6 @@
 
     (Note: This feature will be supported on IW416.
            For 8987, it only work with the board which supports parallel fw download)
-
-6) FOR RF test mode commands:
-
-    Following commands are used to perform RF testing of the wifi chipset.
-    Please not that these test mode commands can only be issued while the
-    device is in disconnected state and the uAP BSS is inactive.
-    Normal wifi operations cannot be used on entering RF Test Mode.
-
-    Enter RF Test Mode:
-	echo "rf_test_mode=1" > /proc/mwlan/adapterX/config
-
-    Exit RF Test Mode:
-	echo "rf_test_mode=0" > /proc/mwlan/adapterX/config
-    Please note that after exiting the RF Test Mode, the FW needs to be
-    reset in order to use normal wifi connectivity.
-
-    To get the set of available RF Test Mode commands, currently set
-    parameters values for each command and the output,
-	cat /proc/mwlan/adapterX/config
-
-  Set Radio Mode
-    echo "radio_mode=<radioMode0> <radioMode1>"
-
-    Example: 2.4G[1x1]
-    echo "radio_mode=11 0" > /proc/mwlan/adapterX/config
-    5G[1x1]
-    echo "radio_mode=3 0" > /proc/mwlan/adapterX/config
-
-    Set Tx Antenna
-	For 1x1 chipsets, 1:Main, 2:Aux when antenna diversity is supported
-	For 2x2 chipsets, 1:Path A, 2: Path B, 3: Path A+B
-			  Both Tx and Rx must be set to same antenna path
-	echo "tx_antenna=1" > /proc/mwlan/adapterX/config
-
-    Set Rx Antenna
-	For 1x1 chipsets, 1:Main, 2:Aux when antenna diversity is supported
-	For 2x2 chipsets, 1:Path A, 2:Path B, 3:Path A+B
-			  Both Tx and Rx must be set to same antenna path
-	echo "rx_antenna=1" > /proc/mwlan/adapterX/config
-
-    Set RF band  (0:2G, 1:5G)
-	For 2G, channel will be reset to 6, while for 5G, to channel 36
-	echo "band=0" > /proc/mwlan/adapterX/config
-
-    Set RF bandwidth  (0:20MHz, 1:40MHz, 4:80MHz)
-	echo "bw=0" > /proc/mwlan/adapterX/config
-
-    Set RF channel
-	echo "channel=6" > /proc/mwlan/adapterX/config
-
-    Get and reset packet error rate
-	echo "get_and_reset_per" > /proc/mwlan/adapterX/config
-
-    Set Tx Power
-	This command will set power only if caldata is already loaded in the FW.
-	Power       (-15 to 24 dBm)
-	Modulation  (0: CCK, 1:OFDM, 2:MCS)
-	Path ID     (0: PathA, 1:PathB, 2:PathA+B)
-	echo "tx_power=16 2 0" > /proc/mwlan/adapterX/config
-
-    Set MFG HE TB Tx to configure Trigger based TX reponse
-    Enable Tx   (0:disable, 1:enable)
-    Q num       (0-7 : TCQs 0-7, 17-20: AXQs 0-3)
-    AID         (Association ID as applicable)
-    AXQ MU Timer(to set the MU EDCA Timer for the Queue)
-    Tx Power    (-11 to 9 dBm)
-    echo "he_tb_tx=1 1 5 400 10" > /proc/mwlan/adapterX/config
-
-    Set Tx Continuous Mode
-	Start                 (0:disable, 1:enable)
-	Continuous Wave Mode  (0:disable, 1:enable)
-	Payload Pattern       (0 to 0xFFFFFFFF)
-	CS Mode               (Applicable only when continuous wave is disabled)
-	                      (0:disable, 1:enable)
-	Active SubChannel     (0:low, 1:upper, 3:both)
-	Tx Data Rate          (Rate Index corresponding to legacy/HT/VHT rates)
-
-	Example: To start continuous wave (tone) mode, first stop any ongoing
-	Tx and then start wave mode:
-	step1: echo "tx_continuous=0" > /proc/mwlan/adapterX/config
-	step2: echo "tx_continuous=1 1 0xAAA 0 3 7" > /proc/mwlan/adapterX/config
-
-	Example: To start continuous packet mode, first stop any ongoing Tx and
-	then start pkt mode:
-	step1: echo "tx_continuous=0" > /proc/mwlan/adapterX/config
-	step2: echo "tx_continuous=1 0 0xAAA 0 3 7" > /proc/mwlan/adapterX/config
-
-	stop:
-	echo "tx_continuous=0" > /proc/mwlan/adapterX/config
-
-    Set Tx Frame
-	Start                 (0:disable, 1:enable)
-	Tx Data Rate          (Rate Index corresponding to legacy/HT/VHT rates)
-	Payload Pattern       (0 to 0xFFFFFFFF)
-	Payload Length        (1 to 0x400)
-	Adjust Burst SIFS Gap (0:disable, 1:enable)
-	Burst SIFS in us      (0 to 255us)
-	Short Preamble        (0:disable, 1:enable)
-	Active SubChannel     (0:low, 1:upper, 3:both)
-	Short GI              (0:disable, 1:enable)
-	Adv Coding            (0:disable, 1:enable)
-	Beamforming           (0:disable, 1:enable)
-	GreenField Mode       (0:disable, 1:enable)
-	STBC                  (0:disable, 1:enable)
-	Signal Bw             (0: 20Mhz, 1: 40Mhz, 4:80Mhz, -1: Set to default)
-	NumPkt                (-1:Set to default value, 1 to 0xfffffffe to specify number of packaets to send)
-	MaxPktExt             (0|8|16us, -1:Set to default Value 2)
-	BeamChange            (0|1, -1:Set to default Value 1)
-	DCM                   (0|1, -1:Set to default Value 0)
-	Doppler               (0|1, -1:Set to default Value 0)
-	MidamblePeriod        (10|20, -1:Set to default Value 0)
-	QNum                  (0-12|17-20, -1:Set to default Value if 11ax QNum:17 else QNum:0)
-	BSSID                 (xx:xx:xx:xx:xx:xx)
-
-	Note: NumPkt, MaxPktExt, BeamChange,DCM , Doppler, MidamblePeriod and QNum are 11ax paramters
-
-	Example: To start Tx frame with duty cycle, first stop any ongoing Tx
-        and then start Tx frame:
-	echo "tx_frame=0" > /proc/mwlan/adapterX/config
-	For 11ax chips:
-	echo "tx_frame=1 7 0xAAA 0x100 1 20 0 0 0 0 0 0 0 0 -1 -1 -1 -1 -1 -1 -1 05:43:3f:c4:51" > /proc/mwlan/adapterX/config
-	For non-11ax chips:
-	echo "tx_frame=1 7 0xAAA 0x100 1 20 0 0 0 0 0 0 0 0 05:43:3f:c4:51" > /proc/mwlan/adapterX/config
-
-    Configure Trigger Frame
-    	Start                 	(0|1, 0:disable, 1:enable)
-    	standalone HETB			(0|1,  0:disable, 1:enable)
-		Frame Control Type		(1: Control frame)
-		Frame Control Sub-Type	(2: Trigger frame)
-		Duration				(0x156C , Max Duration time)
-		TriggerType				(0: Basic Trigger Frame)
-		UlLen					(UL Length)
-		MoreTF					(0|1, 0:FALSE, 1:TRUE)
-		CS Required				(0|1, 0:FALSE, 1:TRUE)
-		UL_bandwidth			(0: 20Mhz, 1: 40Mhz, 2:80Mhz, 3:80+80 MHz|160MHz -1:Set to default value)
-		LTF Type				(0: 1xLTF+1.6usGI, 1: 2xLTF+0.8usGI, 2: 2xLTF+1.6usGI, 3: 4xLTF+3.2usGI)
-		LTF Mode				(0|1, 0: Single stream pilots, 1: Mask LTF sequence of each spatial stream)
-		LTF symbol				(Number of LTF Symbols)
-		UL STBC					(0|1, 0:STBC encoding disable, 1:STBC encoding disable)
-		LDPC ESS				(0|1, 0:LDPC ESS disable, 1:LDPC ESS enable)
-		ApTxPwr					(0-61, 0-60:Values 0-61 maps to -20 dBm to 40 dBm)
-		PreFecPadFct			(1-4, a-factor)
-		Disambing				(0|1, 0:Set to Default)
-		Spatial Reuse			(65535 Default Value)
-		Doppler					(0|1, 0:disable, 1:enable)
-		HE SIG2					(0x1FF Default value)
-		AID12					(any 12 bit value)
-		RUAllocReg				(RU index, any 8 bit value)
-		RUAlloc					(0|1, 0: RU allocated is primary 80Mhz, 1: non-primary 80MHz)
-		Coding Type				(0|1, 0: BCC,1: LDPC)
-		UlMCS				    (Valid MCS Value)
-		UL DCM					(0|1, 0:disable, 1:enable)
-		SSAlloc					(Spatial streams, BITS[0-2]:Number of spatial streams BITS[3-5]:Starting spatial stream)
-		Target RSSI ID			(0-90, 0-90:Values 0-90 map to -100dBm to -20dBm)
-		MPDU MU SF				(0:Multiplier=1, 1:Multiplier=2 , 2:Multiplier=4, 3:Multiplier=8)
-		TID_AL					(0:Set to default Value)
-		AC_PL					(0|1, 0:disable, 1:enable)
-		Pref_AC				    (0:AC_VO, 1:AC_V1, 2:AC_BE, 3:AC_BK)
-
-    Example: To configure Trigger frame:
-    echo "trigger_frame=1 0 1 2 5484 0 256 0 0 2 1 0 0 0 1 60 1 0 65535 0 511 5 0 67 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
-
-    Example: To disable configuration of  Trigger frame:
-    echo "trigger_frame=0"  > /proc/mwlan/adapter0/config
-
-    For more information about trigger frame configuration as per supported BW(80MHz, 40MHz and 20MHz),
-    Please refer : config/trigger_frame_cfg.conf
-
-    Example : To start trigger frame transmission :
-    echo "rf_test_mode=1" > /proc/mwlan/adapter0/config
-    echo "radio_mode=3 0" > /proc/mwlan/adapterX/config
-    echo "bw=0" > /proc/mwlan/adapter0/config
-    echo "channel=36" > /proc/mwlan/adapter0/config
-    echo "trigger_frame=1 0 1 2 5484 0 256 0 0 0 1 0 0 0 1 60 1 0 65535 0 511 5 0 61 0 0 0 0 90 0 0 0 0"  > /proc/mwlan/adapter0/config
-    echo "tx_frame=1 0x1102 0xabababab 200" >/proc/mwlan/adapter0/config
 
 7) Set host sleep parameters
 

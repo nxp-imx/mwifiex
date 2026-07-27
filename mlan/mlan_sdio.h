@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_sdio.h
  *
  * @brief This file contains definitions for SDIO interface.
@@ -23,7 +23,7 @@
  */
 /****************************************************
  * Change log:
- * **************************************************
+ ****************************************************
  */
 
 #ifndef _MLAN_SDIO_H
@@ -59,15 +59,27 @@
 #define UP_LD_CMD_PORT_HOST_INT_STATUS (0x40U)
 /** Host Control Registers : Download command port host interrupt status */
 #define DN_LD_CMD_PORT_HOST_INT_STATUS (0x80U)
+/** Host Control Registers : Upload command port1 host interrupt status */
+#define UP_LD_CMD_PORT1_HOST_INT_STATUS (0x100U)
+/** Host Control Registers : Download command port2 host interrupt status */
+#define DN_LD_CMD_PORT2_HOST_INT_STATUS (0x800U)
+/** Host Control Registers : Upload command port3 host interrupt status */
+#define UP_LD_CMD_PORT3_HOST_INT_STATUS (0x1000U)
 
 /** Host Control Registers : Upload host interrupt mask */
 #define UP_LD_HOST_INT_MASK (0x1U)
 /** Host Control Registers : Download host interrupt mask */
 #define DN_LD_HOST_INT_MASK (0x2U)
+/** Host Control Registers : Download host interrupt mask */
+#define CARD_TO_HOST_INT_MASK (0x3U << 4)
 /** Host Control Registers : Cmd port upload interrupt mask */
 #define CMD_PORT_UPLD_INT_MASK (0x1U << 6)
 /** Host Control Registers : Cmd port download interrupt mask */
 #define CMD_PORT_DNLD_INT_MASK (0x1U << 7)
+
+/** Host Control Registers : CMD Ports interrupt mask */
+#define CMD_PORTS_INT_MASK (0x19U)
+
 /** Enable Host interrupt mask */
 #define HIM_ENABLE                                                             \
 	(UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK | CMD_PORT_UPLD_INT_MASK |  \
@@ -132,6 +144,27 @@
 #define REG_PORT 0
 /** Port for memory */
 #define MEM_PORT 0x10000
+/** Port for CMD mode */
+#define CMD_MODE 0x18000
+
+/** CMD mode Port0 */
+#define CMD_MODE_PORT0 0
+/** CMD mode Port1 */
+#define CMD_MODE_PORT1 1
+/** CMD mode Port2 */
+#define CMD_MODE_PORT2 2
+/** CMD mode Port1 */
+#define CMD_MODE_PORT3 3
+
+/** CMD Port0 write enable */
+#define CMD_PORT0_WR_ENABLE MBIT(0)
+/** CMD Port0 read enable */
+#define CMD_PORT0_RD_ENABLE MBIT(1)
+/** CMD Port1 write enable */
+#define CMD_PORT1_WR_ENABLE MBIT(2)
+/** CMD Port1 read enable */
+#define CMD_PORT1_RD_ENABLE MBIT(3)
+
 /** Card Control Registers : cmd53 new mode */
 #define CMD53_NEW_MODE (0x1U << 0)
 /** Card Control Registers : cmd53 tx len format 1 (0x10) */
@@ -277,6 +310,7 @@
 #define SDIO_MP_AGGR_BUF_SIZE_MAX (65280)
 
 extern mlan_adapter_operations mlan_sdio_ops;
+extern struct fwload_interface_ops mlan_sdio_fwload_intf_ops;
 
 /** Probe and initialization function */
 mlan_status wlan_sdio_probe(pmlan_adapter pmadapter);

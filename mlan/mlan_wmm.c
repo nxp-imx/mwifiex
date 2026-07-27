@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 10/24/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -46,7 +46,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /** WMM information IE */
@@ -112,10 +112,11 @@ static const mlan_wmm_ac_e tos_to_ac[] = {WMM_AC_BE, WMM_AC_BK, WMM_AC_BK,
 
 raListTbl *wlan_wmm_get_ralist_node(pmlan_private priv, t_u8 tid,
 				    t_u8 *ra_addr);
-
+static struct wmm_sta_table *wlan_wmm_get_sta(pmlan_private priv,
+					      const t_u8 *ra_addr);
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 #ifdef DEBUG_LEVEL2
 /**
@@ -519,7 +520,6 @@ static void wlan_wmm_delete_all_ralist(pmlan_private priv)
 				util_unlink_list_nl(
 					pmoal_handle,
 					&ra_list->pending_txq_entry);
-
 			pmadapter->callbacks.moal_mfree(pmoal_handle,
 							(t_u8 *)ra_list);
 		}
@@ -744,7 +744,8 @@ static raListTbl *wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 					head = ptr = ptr->pnext;
 
 				do {
-					if (!ptr->tx_pause &&
+					if (wlan_is_ralist_ready_to_send(
+						    pmadapter, ptr) &&
 					    util_peek_list(
 						    pmadapter->pmoal_handle,
 						    &ptr->buf_head, MNULL,
@@ -1365,7 +1366,6 @@ static raListTbl *wlan_wmm_get_next_ra_list(pmlan_adapter pmadapter,
 {
 	int ac;
 	t_void *pmoal = pmadapter->pmoal_handle;
-
 	while ((ac = wlan_wmm_get_next_ac(pmadapter, mlan)) >= 0) {
 		pmlan_linked_list entry;
 
@@ -1378,6 +1378,14 @@ static raListTbl *wlan_wmm_get_next_ra_list(pmlan_adapter pmadapter,
 						    pending_txq_entry);
 			has_data = ra_list->total_pkts &&
 				   util_peek_list_nl(pmoal, &ra_list->buf_head);
+			if (!ra_list->sta) {
+				PRINTM(MMSG,
+				       "WMM: ra_list %p with NULL sta, removing\n",
+				       ra_list);
+				util_unlink_list_nl(
+					pmoal, &ra_list->pending_txq_entry);
+				continue; // Skip to next ra_list
+			}
 
 			/* ra_list can be empry since we re-queue it once we hit
 			 * budget limit */
@@ -1522,10 +1530,11 @@ static raListTbl *wlan_wmm_get_next_priolist_ptr(pmlan_adapter pmadapter,
 	if (!pmadapter->mclient_tx_supported)
 		return wlan_wmm_get_highest_priolist_ptr(pmadapter, priv, tid);
 
-	if (mlan)
+	if (mlan) {
 		cbs->moal_spin_lock(pmoal_handle, mlan->wmm.ra_list_spinlock);
-	else
+	} else {
 		mlan = wlan_wmm_get_next_bss(pmadapter);
+	}
 
 	for (; mlan != MNULL; mlan = wlan_wmm_get_next_bss(pmadapter)) {
 		ra_list = mlan->wmm.selected_ra_list;
@@ -1617,6 +1626,7 @@ static INLINE void wlan_send_single_packet(pmlan_private priv, raListTbl *ptr,
 		LEAVE();
 		return;
 	}
+
 	pmbuf = (pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
 						&ptr->buf_head, MNULL, MNULL);
 	if (pmbuf) {
@@ -1636,7 +1646,7 @@ static INLINE void wlan_send_single_packet(pmlan_private priv, raListTbl *ptr,
 			((pmbuf_next) ? pmbuf_next->data_len +
 						Tx_PD_SIZEOF(pmadapter) :
 					0);
-		status = wlan_process_tx(priv, pmbuf, &tx_param);
+		status = wlan_process_tx(priv, pmbuf, &tx_param, ptr);
 
 		if (status == MLAN_STATUS_RESOURCE) {
 			/** Queue the packet back at the head */
@@ -1656,6 +1666,7 @@ static INLINE void wlan_send_single_packet(pmlan_private priv, raListTbl *ptr,
 				return;
 			}
 			priv->wmm.pkts_queued[ptrindex]++;
+
 			util_scalar_increment(pmadapter->pmoal_handle,
 					      &priv->wmm.tx_pkts_queued, MNULL,
 					      MNULL);
@@ -1897,6 +1908,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 				PRINTM(MERROR, "Dequeuing the packet %p %p\n",
 				       ptr, pmbuf);
 				priv->wmm.pkts_queued[ptrindex]--;
+
 				util_scalar_decrement(pmadapter->pmoal_handle,
 						      &priv->wmm.tx_pkts_queued,
 						      MNULL, MNULL);
@@ -2041,7 +2053,6 @@ t_u16 wlan_update_ralist_tx_pause(pmlan_private priv, t_u8 *mac, t_u8 tx_pause)
 	pmlan_adapter pmadapter = priv->adapter;
 	t_u32 pkt_cnt = 0;
 	t_u32 tx_pkts_queued = 0;
-
 	ENTER();
 
 	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
@@ -2051,7 +2062,6 @@ t_u16 wlan_update_ralist_tx_pause(pmlan_private priv, t_u8 *mac, t_u8 tx_pause)
 
 		if (ra_list == MNULL || ra_list->tx_pause == tx_pause)
 			continue;
-
 		pkt_cnt += ra_list->total_pkts;
 		ra_list->tx_pause = tx_pause;
 		if (tx_pause) {
@@ -2087,6 +2097,41 @@ t_u16 wlan_update_ralist_tx_pause(pmlan_private priv, t_u8 *mac, t_u8 tx_pause)
 	return pkt_cnt;
 }
 
+/**
+ *  @brief Delete WMM station table entry
+ *
+ *  @param priv		  A pointer to mlan_private
+ *  @param pmoal_handle  Pointer to moal handle
+ *  @param mac           Station MAC address
+ *
+ *  @return              N/A
+ */
+static inline t_void wlan_wmm_delete_sta_table(pmlan_private priv,
+					       t_void *pmoal_handle,
+					       const t_u8 *mac)
+{
+	struct wmm_sta_table *sta;
+	pmlan_adapter pmadapter = priv->adapter;
+	mlan_callbacks *cbs = &pmadapter->callbacks;
+
+	ENTER();
+
+	sta = wlan_wmm_get_sta(priv, mac);
+	if (sta) {
+		PRINTM(MINFO, "Deleting wmm_sta_table %p for " MACSTR "\n", sta,
+		       MAC2STR(mac));
+
+		util_unlink_list_nl(pmoal_handle, &sta->all_stas_entry);
+		util_unlink_list_safe_nl(pmoal_handle,
+					 &sta->pending_stas_entry);
+		util_unlink_list_safe_nl(pmoal_handle, &sta->active_sta_entry);
+
+		cbs->moal_mfree(pmoal_handle, (t_u8 *)sta);
+	}
+
+	LEAVE();
+}
+
 #ifdef STA_SUPPORT
 /**
  *  @brief update tx_pause flag in none tdls ra_list
@@ -2104,7 +2149,6 @@ t_void wlan_update_non_tdls_ralist(mlan_private *priv, t_u8 *mac, t_u8 tx_pause)
 	pmlan_adapter pmadapter = priv->adapter;
 	t_u32 pkt_cnt = 0;
 	t_u32 tx_pkts_queued = 0;
-
 	ENTER();
 
 	pmadapter->callbacks.moal_spin_lock(pmadapter->pmoal_handle,
@@ -2238,7 +2282,7 @@ static t_void wlan_wmm_delete_tdls_ralist(pmlan_private priv, t_u8 *mac)
 	int i;
 	pmlan_adapter pmadapter = priv->adapter;
 	pmlan_buffer pmbuf;
-
+	void *const pmoal_handle = pmadapter->pmoal_handle;
 	ENTER();
 
 	for (i = 0; i < MAX_NUM_TID; ++i) {
@@ -2272,6 +2316,16 @@ static t_void wlan_wmm_delete_tdls_ralist(pmlan_private priv, t_u8 *mac)
 				&ra_list->buf_head,
 				pmadapter->callbacks.moal_free_lock);
 
+			/* Clear selected_ra_list if it points to this ra_list
+			 */
+			if (ra_list == priv->wmm.selected_ra_list)
+				priv->wmm.selected_ra_list = MNULL;
+
+			/* Unlink from pending_txq BEFORE freeing */
+			if (util_is_node_in_list(&ra_list->pending_txq_entry))
+				util_unlink_list_nl(
+					pmoal_handle,
+					&ra_list->pending_txq_entry);
 			util_unlink_list(pmadapter->pmoal_handle,
 					 &priv->wmm.tid_tbl_ptr[i].ra_list,
 					 (pmlan_linked_list)ra_list, MNULL,
@@ -2283,13 +2337,14 @@ static t_void wlan_wmm_delete_tdls_ralist(pmlan_private priv, t_u8 *mac)
 					ra_list_ap;
 		}
 	}
-
+	/* Delete wmm_sta_table to prevent dangling sta pointers */
+	wlan_wmm_delete_sta_table(priv, pmoal_handle, mac);
 	LEAVE();
 }
 #endif /* STA_SUPPORT */
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -2576,12 +2631,24 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 
 	ENTER();
 
+	/* coverity[leaked_storage:SUPPRESS] */
+	/* coverity[RESOURCE_LEAK] */
+	/* coverity[MISRA C-2012 Rule 22.1] */
 	sta = wlan_wmm_allocate_sta_table(pmadapter, ra);
+	/* coverity[leaked_storage:SUPPRESS] */
+	/* coverity[RESOURCE_LEAK] */
+	/* coverity[MISRA C-2012 Rule 22.1] */
 	if (sta) {
+		/* coverity[leaked_storage:SUPPRESS] */
+		/* coverity[RESOURCE_LEAK] */
+		/* coverity[MISRA C-2012 Rule 22.1] */
 		util_enqueue_list_tail_nl(pmadapter->pmoal_handle,
 					  &priv->wmm.all_stas,
 					  &sta->all_stas_entry);
 	}
+	/* coverity[leaked_storage:SUPPRESS] */
+	/* coverity[RESOURCE_LEAK] */
+	/* coverity[MISRA C-2012 Rule 22.1] */
 
 	for (i = 0; i < MAX_NUM_TID; ++i) {
 		ra_list = wlan_wmm_allocate_ralist_node(pmadapter, ra);
@@ -2593,9 +2660,21 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 		ra_list->amsdu_in_ampdu = MFALSE;
 		ra_list->tid = i;
 		ra_list->queue = wlan_wmm_select_queue(priv, i);
+		/* coverity[leaked_storage:SUPPRESS] */
+		/* coverity[RESOURCE_LEAK] */
+		/* coverity[MISRA C-2012 Rule 22.1] */
 		ra_list->sta = sta;
+		/* coverity[leaked_storage:SUPPRESS] */
+		/* coverity[RESOURCE_LEAK] */
+		/* coverity[MISRA C-2012 Rule 22.1] */
 		if (sta)
+			/* coverity[leaked_storage:SUPPRESS] */
+			/* coverity[RESOURCE_LEAK] */
+			/* coverity[MISRA C-2012 Rule 22.1] */
 			sta->ra_lists[i] = ra_list;
+		/* coverity[leaked_storage:SUPPRESS] */
+		/* coverity[RESOURCE_LEAK] */
+		/* coverity[MISRA C-2012 Rule 22.1] */
 		util_init_list(&ra_list->pending_txq_entry);
 
 		if (queuing_ra_based(priv)) {
@@ -2648,6 +2727,10 @@ void wlan_ralist_add(mlan_private *priv, t_u8 *ra)
 	// allocated ra_list is enqueued and managed via
 	// wmm.tid_tbl_ptr[i].ra_list, freed during cleanup
 	// coverity[leaked_storage:SUPPRESS]
+	/* coverity[RESOURCE_LEAK] */
+	/* coverity[RESOURCE_LEAK:FALSE] */
+	/* coverity[RESOURCE_LEAK:SUPPRESS] */
+	/* coverity[misra_c_2012_rule_22_1_violation:SUPPRESS] */
 }
 
 /**
@@ -2864,7 +2947,8 @@ int wlan_wmm_lists_empty(pmlan_adapter pmadapter)
 				continue;
 #endif
 
-			if (util_scalar_read(
+			if (!pmadapter->data_sent &&
+			    util_scalar_read(
 				    pmadapter->pmoal_handle,
 				    &priv->wmm.tx_pkts_queued,
 				    pmadapter->callbacks.moal_spin_lock,
@@ -3107,17 +3191,22 @@ static void wlan_wmm_update_sta_txrate_info(pmlan_adapter pmadapter,
 
 	priv->wmm.next_rate_update = time_now + update_interval;
 
-	while (idx < idx_limit &&
-	       (list_entry = util_peek_list_nl(
-			pmoal, &priv->wmm.pending_stas)) != MNULL) {
-		struct wmm_sta_table *sta = util_container_of(
-			list_entry, struct wmm_sta_table, pending_stas_entry);
-		const t_bool is_bmcast = (sta->ra[0] & 0x01);
+	while (idx < idx_limit) {
+		list_entry = util_peek_list_nl(pmoal, &priv->wmm.pending_stas);
+		if (list_entry == MNULL) {
+			break;
+		} else {
+			struct wmm_sta_table *sta =
+				util_container_of(list_entry,
+						  struct wmm_sta_table,
+						  pending_stas_entry);
+			const t_bool is_bmcast = (sta->ra[0] & 0x01);
 
-		if (!is_bmcast)
-			sta_list[idx++] = sta->ra;
+			if (!is_bmcast)
+				sta_list[idx++] = sta->ra;
 
-		util_unlink_list_nl(pmoal, list_entry);
+			util_unlink_list_nl(pmoal, list_entry);
+		}
 	}
 
 	if (idx > 0) {
@@ -3320,7 +3409,6 @@ t_void wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		LEAVE();
 		return;
 	}
-
 	sta_table = wlan_wmm_get_sta(priv, ra_list->ra);
 	wlan_wmm_record_sta_tx(pmadapter, priv, ra_list, sta_table);
 	wlan_wmm_update_queue_packets_budget(pmadapter, priv);
@@ -3746,8 +3834,7 @@ void wlan_wmm_process_tx(pmlan_adapter pmadapter)
 			break;
 #endif
 		/* Check if busy */
-	} while (!pmadapter->data_sent && !pmadapter->tx_lock_flag &&
-		 !wlan_wmm_lists_empty(pmadapter));
+	} while (!pmadapter->tx_lock_flag && !wlan_wmm_lists_empty(pmadapter));
 
 	LEAVE();
 	return;
@@ -3826,13 +3913,15 @@ static INLINE t_u8 wlan_del_tx_pkts_in_ralist(pmlan_private priv,
 				priv->wmm.pkts_queued[tid]--;
 				priv->num_drop_pkts++;
 				ra_list->total_pkts--;
+
 				if (ra_list->tx_pause)
 					priv->wmm.pkts_paused[tid]--;
-				else
+				else {
 					util_scalar_decrement(
 						pmadapter->pmoal_handle,
 						&priv->wmm.tx_pkts_queued,
 						MNULL, MNULL);
+				}
 				ret = MTRUE;
 				break;
 			}
@@ -3888,14 +3977,12 @@ t_void wlan_drop_tx_pkts(pmlan_private priv)
 t_void wlan_wmm_delete_peer_ralist(pmlan_private priv, t_u8 *mac)
 {
 	raListTbl *ra_list;
-	struct wmm_sta_table *sta;
 	int i;
 	pmlan_adapter pmadapter = priv->adapter;
 	mlan_callbacks *cbs = &pmadapter->callbacks;
 	void *const pmoal_handle = pmadapter->pmoal_handle;
 	t_u32 pkt_cnt = 0;
 	t_u32 tx_pkts_queued = 0;
-
 	ENTER();
 	cbs->moal_spin_lock(pmoal_handle, priv->wmm.ra_list_spinlock);
 
@@ -3906,8 +3993,9 @@ t_void wlan_wmm_delete_peer_ralist(pmlan_private priv, t_u8 *mac)
 			priv->wmm.pkts_queued[i] -= ra_list->total_pkts;
 			if (ra_list->tx_pause)
 				priv->wmm.pkts_paused[i] -= ra_list->total_pkts;
-			else
+			else {
 				pkt_cnt += ra_list->total_pkts;
+			}
 			wlan_wmm_del_pkts_in_ralist_node(priv, ra_list);
 
 			if (ra_list == priv->wmm.selected_ra_list)
@@ -3944,16 +4032,8 @@ t_void wlan_wmm_delete_peer_ralist(pmlan_private priv, t_u8 *mac)
 				  MNULL, MNULL);
 	}
 
-	sta = wlan_wmm_get_sta(priv, mac);
-	if (sta) {
-		util_unlink_list_nl(pmoal_handle, &sta->all_stas_entry);
-		util_unlink_list_safe_nl(pmoal_handle,
-					 &sta->pending_stas_entry);
-		util_unlink_list_safe_nl(pmoal_handle, &sta->active_sta_entry);
-
-		cbs->moal_mfree(pmoal_handle, (t_u8 *)sta);
-	}
-
+	/* Delete wmm_sta_table */
+	wlan_wmm_delete_sta_table(priv, pmoal_handle, mac);
 	cbs->moal_spin_unlock(pmoal_handle, priv->wmm.ra_list_spinlock);
 	LEAVE();
 }
@@ -3991,6 +4071,7 @@ t_void wlan_hold_tdls_packets(pmlan_private priv, t_u8 *mac)
 						 MNULL, MNULL);
 				ra_list->total_pkts--;
 				priv->wmm.pkts_queued[i]--;
+
 				util_scalar_decrement(pmadapter->pmoal_handle,
 						      &priv->wmm.tx_pkts_queued,
 						      MNULL, MNULL);
@@ -4065,6 +4146,7 @@ t_void wlan_restore_tdls_packets(pmlan_private priv, t_u8 *mac,
 		ra_list->total_pkts++;
 		ra_list->packet_count++;
 		priv->wmm.pkts_queued[tid_down]++;
+
 		util_scalar_increment(pmadapter->pmoal_handle,
 				      &priv->wmm.tx_pkts_queued, MNULL, MNULL);
 		util_scalar_conditional_write(
@@ -5090,7 +5172,7 @@ int wlan_get_wmm_tid_down(mlan_private *priv, int tid)
  *
  *  @return            PHY rate in kbit per second
  */
-static t_u32 wlam_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs)
+t_u32 wlan_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs)
 {
 	const t_u32 gi_1x_0p8 = 0;
 	const t_u32 gi_2x_0p8 = 1;
@@ -5170,7 +5252,7 @@ static t_u32 wlam_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs)
  *
  *  @return            PHY rate in kbit per second
  */
-static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
+t_u32 wlan_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
 {
 	const t_u32 bw_20 = 0;
 	const t_u32 bw_40 = 1;
@@ -5240,7 +5322,7 @@ static t_u32 wlam_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs)
  *
  *  @return            PHY rate in kbit per second
  */
-static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
+t_u32 wlan_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
 {
 	const t_u32 bw_40 = 1;
 	t_u32 rate;
@@ -5296,7 +5378,7 @@ static t_u32 wlam_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs)
  *
  *  @return            PHY rate in kbit per second
  */
-static t_u32 wlam_wmm_get_legacy_rate(t_u32 rate_idx)
+t_u32 wlan_wmm_get_legacy_rate(t_u32 rate_idx)
 {
 	static const t_u32 legacy_rate_idx_to_rate[] = {
 		/* intentional float value multiplication with 1000 */
@@ -5354,13 +5436,13 @@ static void wlan_wmm_adjust_sta_tx_budget(pmlan_private priv,
 	gi |= (rate->tx_rate_info >> 6) & 0x02;
 
 	if (ppdu_format == ppdu_type_he)
-		phy_rate = wlam_wmm_get_he_rate(ppdu_bw, gi, nss, mcs);
+		phy_rate = wlan_wmm_get_he_rate(ppdu_bw, gi, nss, mcs);
 	else if (ppdu_format == ppdu_type_vht)
-		phy_rate = wlam_wmm_get_vht_rate(ppdu_bw, gi, nss, mcs);
+		phy_rate = wlan_wmm_get_vht_rate(ppdu_bw, gi, nss, mcs);
 	else if (ppdu_format == ppdu_type_ht)
-		phy_rate = wlam_wmm_get_ht_rate(ppdu_bw, gi, rate->tx_rate);
+		phy_rate = wlan_wmm_get_ht_rate(ppdu_bw, gi, rate->tx_rate);
 	else if (ppdu_format == ppdu_type_legacy)
-		phy_rate = wlam_wmm_get_legacy_rate(rate->tx_rate);
+		phy_rate = wlan_wmm_get_legacy_rate(rate->tx_rate);
 
 	if (phy_rate > 0) {
 		const t_u32 old_phy_rate = sta->budget.phy_rate_kbps;

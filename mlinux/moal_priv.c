@@ -24,7 +24,7 @@
 /************************************************************************
  * Change log:
  * 10/30/2008: initial version
- * **********************************************************************
+ ************************************************************************
  */
 
 #include "moal_main.h"
@@ -39,7 +39,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 /** Bands supported in Infra mode */
 static t_u8 SupportedInfraBand[] = {
@@ -66,7 +66,7 @@ static t_u8 SupportedInfraBand[] = {
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -446,7 +446,7 @@ static int woal_deep_sleep_ioctl(moal_private *priv, struct iwreq *wrq)
 	t_u32 deep_sleep = DEEP_SLEEP_OFF;
 	t_u32 data[2] = {0};
 	int copy_len;
-	t_u16 idletime = DEEP_SLEEP_IDLE_TIME;
+	t_u16 idletime;
 
 	ENTER();
 
@@ -3680,7 +3680,7 @@ static int woal_passphrase(moal_private *priv, struct iwreq *wrq)
 	t_u16 len = 0;
 	char buf[256];
 	char *begin = NULL, *end = NULL, *opt = NULL;
-	int ret = 0, action = -1, i;
+	int ret = 0, action, i;
 	mlan_ds_sec_cfg *sec = NULL;
 	mlan_ioctl_req *req = NULL;
 	t_u8 zero_mac[] = {0, 0, 0, 0, 0, 0};
@@ -4802,7 +4802,6 @@ static mlan_status woal_set_user_scan_ioctl(moal_private *priv,
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_scan) +
 					wrq->u.data.length);
 	if (req == NULL) {
-		ret = -ENOMEM;
 		goto done;
 	}
 
@@ -4815,7 +4814,6 @@ static mlan_status woal_set_user_scan_ioctl(moal_private *priv,
 	if (copy_from_user(scan->param.user_scan.scan_cfg_buf,
 			   wrq->u.data.pointer, wrq->u.data.length)) {
 		PRINTM(MINFO, "Copy from user failed\n");
-		ret = -EFAULT;
 		goto done;
 	}
 
@@ -6537,7 +6535,7 @@ done:
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief ioctl function - entry point

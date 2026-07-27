@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_ioctl.h
  *
  *  @brief This file declares the IOCTL data structures and APIs.
@@ -24,7 +24,7 @@
 /******************************************************
  * Change log:
  * 11/07/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #ifndef _MLAN_IOCTL_H_
@@ -102,7 +102,6 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_ANT_CFG = 0x00030003,
 	MLAN_OID_REMAIN_CHAN_CFG = 0x00030004,
 	MLAN_OID_MIMO_SWITCH = 0x00030005,
-
 	/* SNMP MIB Group */
 	MLAN_IOCTL_SNMP_MIB = 0x00040000,
 	MLAN_OID_SNMP_MIB_RTS_THRESHOLD = 0x00040001,
@@ -339,8 +338,6 @@ enum _mlan_ioctl_req_id {
 
 	MLAN_OID_MISC_ROBUSTCOEX = 0x00200056,
 	MLAN_OID_MISC_GET_TX_RX_HISTOGRAM = 0x00200057,
-	MLAN_OID_MISC_CONFIG_RTT = 0x00200059,
-	MLAN_OID_MISC_CANCEL_RTT = 0x0020005A,
 	MLAN_OID_MISC_RTT_RESPONDER_CFG = 0x0020005B,
 	MLAN_OID_MISC_CFP_INFO = 0x00200060,
 	MLAN_OID_MISC_BOOT_SLEEP = 0x00200061,
@@ -416,7 +413,16 @@ enum _mlan_ioctl_req_id {
 
 	MLAN_OID_MISC_GENERIC_CMD = 0x002000A4,
 
-	MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG = 0x002000A5
+	MLAN_OID_MISC_CHAN_SWITCH_CNT_CONFIG = 0x002000A5,
+
+	MLAN_OID_MISC_RANDOM_SN_CONFIG = 0X002000A6,
+#if defined(SD9177)
+	MLAN_OID_MISC_RF_TEST_RX_BSSID_FILTER = 0x002000A7,
+#endif
+	/** IOCTL OIDs for FTM Session*/
+	MLAN_OID_MISC_FTM_SESSION_CFG = 0x002000A8,
+	MLAN_OID_MISC_FTM_SESSION_CTRL = 0x002000A9,
+
 };
 
 /** Sub command size */
@@ -1598,6 +1604,7 @@ typedef struct _mlan_ds_radio_cfg {
 		mlan_ds_ant_cfg_1x1 ant_cfg_1x1;
 		/** remain on channel for MLAN_OID_REMAIN_CHAN_CFG */
 		mlan_ds_remain_chan remain_chan;
+		/** radio idx */
 	} param;
 } mlan_ds_radio_cfg, *pmlan_ds_radio_cfg;
 
@@ -2095,8 +2102,12 @@ typedef struct _mlan_fw_info {
 	t_u8 fw_beacon_prot;
 	/** FW RTT support */
 	t_u8 rtt_support;
+	/** he_6g support */
 	t_u8 he_6g_support;
-
+	/** BW160MHZ supprt */
+	t_u8 bw160_support;
+	/** No BW8080 support */
+	t_u8 no8080_support;
 	/* lower 8 bytes of uuid */
 	t_u64 uuid_lo;
 
@@ -3296,6 +3307,7 @@ typedef struct _mlan_ds_hs_cfg {
 	t_u8 gpio_wave;
 	/** Minimum delay between HsActive and HostWake (in msec) */
 	t_u16 min_wake_holdoff;
+	t_u8 partial_io_enable;
 } mlan_ds_hs_cfg, *pmlan_ds_hs_cfg;
 
 #define MAX_MGMT_FRAME_FILTER 2
@@ -4227,6 +4239,7 @@ typedef struct _mlan_ds_11ax_cfg {
 #define MLAN_11AXCMD_CFG_ID_LLDE 9
 #define MLAN_11AXCMD_CFG_ID_RUTXPWR 10
 #define MLAN_11AXCMD_CFG_ID_HESUER 11
+#define MLAN_11AXCMD_CFG_ID_ULOFDMA_CTRL 12
 
 #define MLAN_11AXCMD_SR_SUBID 0x102
 #define MLAN_11AXCMD_BEAM_SUBID 0x103
@@ -4238,6 +4251,7 @@ typedef struct _mlan_ds_11ax_cfg {
 #define MLAN_11AXCMD_LLDE_SUBID 0x110
 #define MLAN_11AXCMD_RUTXSUBPWR_SUBID 0x118
 #define MLAN_11AXCMD_HESUER_SUBID 0x121
+#define MLAN_11AXCMD_ULOFDMA_CTRL_SUBID 0x122
 
 #define MLAN_11AX_TWT_SETUP_SUBID 0x114
 #define MLAN_11AX_TWT_TEARDOWN_SUBID 0x115
@@ -4370,6 +4384,21 @@ typedef struct _mlan_ds_11ax_HeSuER_cmd {
 	t_u8 value;
 } mlan_ds_11ax_HeSuER_cmd, *pmlan_ds_11ax_HeSuER_cmd;
 
+/** Type definition of mlan_ds_11ax_ulofdma_ctrl_cmd for
+ * MLAN_11AXCMD_ULOFDMA_CTRL_SUBID */
+typedef struct MLAN_PACK_START _mlan_ds_11ax_ulofdma_ctrl_cmd {
+	/** 1 = enable UL-OFDMA, 0 = disable UL-OFDMA */
+	t_u8 enable;
+	/** Trigger type: 0 = BTF (Basic Trigger), 4 = BSRP */
+	t_u8 trigger_type;
+	/** 1 = use broadcast DA, 0 = use STA unicast DA */
+	t_u8 use_broadcast_addr;
+	/** Reserved for alignment */
+	t_u8 reserved;
+	/** Timer interval in microseconds */
+	t_u32 timer_interval_us;
+} MLAN_PACK_END mlan_ds_11ax_ulofdma_ctrl_cmd, *pmlan_ds_11ax_ulofdma_ctrl_cmd;
+
 /** Type definition of mlan_ds_11ax_cmd_cfg for MLAN_OID_11AX_CMD_CFG */
 typedef struct _mlan_ds_11ax_cmd_cfg {
 	/** Sub-command */
@@ -4400,6 +4429,9 @@ typedef struct _mlan_ds_11ax_cmd_cfg {
 		mlan_ds_11ax_rutxpwr_cmd rutxpwr_cfg;
 		/** HeSuER configuration for MLAN_11AXCMD_HESUER_SUBID */
 		mlan_ds_11ax_HeSuER_cmd HeSuER_cfg;
+		/** UL-OFDMA control configuration for
+		 * MLAN_11AXCMD_ULOFDMA_CTRL_SUBID */
+		mlan_ds_11ax_ulofdma_ctrl_cmd ulofdma_ctrl_cfg;
 	} param;
 } mlan_ds_11ax_cmd_cfg, *pmlan_ds_11ax_cmd_cfg;
 
@@ -4450,8 +4482,7 @@ typedef struct MLAN_PACK_START _mlan_ds_twt_setup {
 	t_u8 flow_identifier;
 	/** Hard Constraint, 0: FW can tweak the TWT setup parameters if it is
 	 *rejected by AP.
-	 * * 1: Firmware should not tweak any parameters.
-	 */
+	 ** 1: Firmware should not tweak any parameters. */
 	t_u8 hard_constraint;
 	/** TWT Exponent, Range: [0-63] */
 	t_u8 twt_exponent;
@@ -5651,7 +5682,8 @@ enum _mlan_act_mef_act_type {
 };
 
 typedef struct _mlan_ds_sensor_temp {
-	t_u32 temperature;
+	t_s32 cau_temperature;
+	t_s32 rfu_temperature[MAX_RFUS][MAX_PATHS];
 } mlan_ds_sensor_temp;
 
 #define MLAN_KCK_LEN 16
@@ -5755,89 +5787,6 @@ typedef struct _mlan_ds_misc_robustcoex_params {
 	/** Polarity of GPIO */
 	t_u8 gpio_polarity;
 } mlan_ds_misc_robustcoex_params;
-
-/** RTT configuration */
-typedef struct _mlan_rtt_config {
-	/** peer device mac address */
-	t_u8 addr[MLAN_MAC_ADDR_LENGTH];
-	/** 1-sided or 2-sided RTT */
-	t_u8 type;
-	/** optional - peer device hint (STA, P2P, AP) */
-	t_u8 peer;
-	/** Required for STA-AP mode, optional for P2P, NBD etc. */
-	t_u8 channel;
-	/** Required for STA-AP mode, optional for P2P, NBD etc. */
-	Band_Config_t bandcfg;
-	/** Time interval between bursts (units: 100 ms).
-	 * Applies to 1-sided and 2-sided RTT multi-burst requests.
-	 * Range: 0-31, 0: no preference by initiator (2-sided RTT)
-	 */
-	t_u8 burst_period;
-	/** Total number of RTT bursts to be executed. It will be
-	 * specified in the same way as the parameter "Number of
-	 * Burst Exponent" found in the FTM frame format. It
-	 * applies to both: 1-sided RTT and 2-sided RTT. Valid
-	 * values are 0 to 15 as defined in 802.11mc std.
-	 * 0 means single shot
-	 * The implication of this parameter on the maximum
-	 * number of RTT results is the following:
-	 * for 1-sided RTT: max num of RTT results =
-	 * (2^num_burst)*(num_frames_per_burst)
-	 * for 2-sided RTT: max num of RTT results =
-	 * (2^num_burst)*(num_frames_per_burst - 1)
-	 */
-	t_u8 num_burst;
-	/** num of frames per burst.
-	 * Minimum value = 1, Maximum value = 31
-	 * For 2-sided this equals the number of FTM frames
-	 * to be attempted in a single burst. This also
-	 * equals the number of FTM frames that the
-	 * initiator will request that the responder send
-	 * in a single frame.
-	 */
-	t_u8 num_frames_per_burst;
-	/** number of retries for a failed RTT frame. Applies
-	 * to 1-sided RTT only. Minimum value = 0, Maximum value = 3
-	 */
-	t_u8 num_retries_per_rtt_frame;
-
-	/** following fields are only valid for 2-side RTT */
-	/** Maximum number of retries that the initiator can
-	 * retry an FTMR frame.
-	 * Minimum value = 0, Maximum value = 3
-	 */
-	t_u8 num_retries_per_ftmr;
-	/** 1: request LCI, 0: do not request LCI */
-	t_u8 LCI_request;
-	/** 1: request LCR, 0: do not request LCR */
-	t_u8 LCR_request;
-	/** Applies to 1-sided and 2-sided RTT. Valid values will
-	 * be 2-11 and 15 as specified by the 802.11mc std for
-	 * the FTM parameter burst duration. In a multi-burst
-	 * request, if responder overrides with larger value,
-	 * the initiator will return failure. In a single-burst
-	 * request if responder overrides with larger value,
-	 * the initiator will sent TMR_STOP to terminate RTT
-	 * at the end of the burst_duration it requested.
-	 */
-	t_u8 burst_duration;
-	/** RTT preamble to be used in the RTT frames */
-	t_u8 preamble;
-	/** RTT BW to be used in the RTT frames */
-	t_u8 bw;
-} mlan_rtt_config, *pmlan_rtt_config;
-
-/** RTT config params */
-typedef struct _mlan_rtt_config_params {
-	t_u8 rtt_config_num;
-	mlan_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
-} mlan_rtt_config_params;
-
-/** RTT cancel params */
-typedef struct _mlan_rtt_cancel_params {
-	t_u8 rtt_cancel_num;
-	t_u8 rtt_cancel[MAX_RTT_CONFIG_NUM][MLAN_MAC_ADDR_LENGTH];
-} mlan_rtt_cancel_params;
 
 /** RTT responder info */
 typedef struct _rtt_responder_info {
@@ -5977,8 +5926,6 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 	t_u16 sub_band;
 	/** length */
 	t_u16 length;
-	/** power table base version */
-	t_u8 pt_base_version;
 	/** buf */
 	t_u8 trpc_buf[2048];
 } mlan_ds_misc_chan_trpc_cfg;
@@ -6001,6 +5948,9 @@ typedef struct _mlan_ds_misc_chan_trpc_cfg {
 #define MFG_CMD_OTP_MAC_ADD 0x108C
 #define MFG_CMD_OTP_CAL_DATA 0x121A
 #define MFG_CMD_SET_DEBUG_TEMPERATURE 0x121f
+#if defined(SD9177)
+#define MFG_CMD_RF_RX_BSSID_FILTER 0x102F
+#endif
 /** MFG CMD generic cfg */
 struct MLAN_PACK_START mfg_cmd_generic_cfg {
 	/** MFG command code */
@@ -6364,6 +6314,33 @@ typedef MLAN_PACK_START struct _mfg_Cmd_InternalTest_t {
 	t_u32 data[GENERIC_CMD_BUFFER];
 } MLAN_PACK_END mfg_Cmd_InternalTest_t;
 
+#if defined(SD9177)
+typedef MLAN_PACK_START struct _mfg_cmd_rf_rx_bssid_cfg_t {
+	/** MFG command code */
+	t_u32 mfg_cmd;
+	/** Action */
+	t_u16 action;
+	/** Device ID */
+	t_u16 device_id;
+	/** MFG Error code */
+	t_u32 error;
+	/**
+	 * 0: Set Receiver in Promiscuous Mode
+	 * 1: Enable BSSID Filter
+	 * 2: Read BSSID Registers Setting. (default)
+	 * 3: Disable Promiscuous Mode
+	 * 4: Disable BSSID Filter
+	 */
+	t_u32 mode;
+	/** Optional ssid filter */
+	t_u8 ssid[MLAN_MAX_SSID_LENGTH];
+	/** Mandatory mac filter */
+	t_u8 bssid[MLAN_MAC_ADDR_LENGTH];
+	/** Reserved */
+	t_u8 reserved[2];
+} MLAN_PACK_END mfg_cmd_rf_rx_bssid_cfg_t;
+#endif
+
 typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** length */
 	t_u16 length;
@@ -6607,6 +6584,44 @@ typedef struct _mlan_ds_ecsa_cfg {
 	t_u8 chan_switch_cnt;
 } mlan_ds_ecsa_cfg;
 
+/** Probe Req Random SN configuration parameters */
+typedef struct _mlan_ds_misc_random_sn {
+	/** probe req random sn, 1-enable or 0-disable */
+	t_u8 value;
+} mlan_ds_misc_random_sn;
+
+#define EASY_MESH_MULTI_AP_STA (t_u8)(0x10)
+typedef struct _mlan_ds_multi_ap {
+	t_u8 multi_ap_flag; /* EASY_MESH_MULTI_AP_BH_BSS/FH_BSS/STA */
+	t_u16 peer_aid; /* AID for per-sta update; 0 = BSS-level */
+} mlan_ds_multi_ap;
+/** mlan_ftm_session_cfg - FTM Session Configuration */
+typedef struct _mlan_ftm_session_cfg {
+	t_u8 burst_exponent;
+	t_u8 burst_duration;
+	t_u8 min_delta_FTM;
+	t_u8 is_ASAP;
+	t_u8 per_burst_FTM;
+	t_u8 channel_spacing;
+	t_u16 burst_period;
+	t_u8 iftm_tmo;
+	t_u8 lci_request;
+	t_u8 civic_request;
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+	t_u8 channel;
+} mlan_ftm_session_cfg;
+
+/** mlan_ftm_session_ctrl - FTM Session Control */
+typedef struct _mlan_ftm_session_ctrl {
+	t_u16 action; /* 1=Start, 2=Stop */
+	/** Mac address of the peer with whom FTM session is required*/
+	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
+	/** Channel on which FTM must be started */
+	t_u8 channel;
+	/** Band on which FTM must be started */
+	t_u8 chanBand; /* 0=2.4GHz, 1=5GHz, 2=6GHz */
+} mlan_ftm_session_ctrl;
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
 	/** Sub-command */
@@ -6678,8 +6693,7 @@ typedef struct _mlan_ds_misc_cfg {
 #endif
 		/** Hotspot config param set */
 		t_u32 hotspot_cfg;
-		/** Multi AP flag */
-		t_u8 multi_ap_flag;
+		mlan_ds_multi_ap multi_ap;
 #ifdef STA_SUPPORT
 		ExtCap_t ext_cap;
 #endif
@@ -6730,10 +6744,6 @@ typedef struct _mlan_ds_misc_cfg {
 		/**  Tx/Rx per-packet control */
 		t_u8 txrx_pkt_ctrl;
 		mlan_ds_misc_robustcoex_params robustcoexparams;
-		/** config RTT for MLAN_OID_MISC_CONFIG_RTT */
-		mlan_rtt_config_params rtt_params;
-		/** cancel RTT for MLAN_OID_MISC_CANCEL_RTT */
-		mlan_rtt_cancel_params rtt_cancel;
 		/** config RTT responder for MLAN_OID_MISC_RTT_RESPONDER_CFG */
 		mlan_rtt_responder rtt_rsp_cfg;
 #if defined(PCIE)
@@ -6769,6 +6779,9 @@ typedef struct _mlan_ds_misc_cfg {
 		mfg_cmd_otp_mac_addr_rd_wr_t mfg_otp_mac_addr_rd_wr;
 		mfg_cmd_otp_cal_data_rd_wr_t mfg_otp_cal_data_rd_wr;
 		mfg_CmdDebugTemperature_Cfg_t mfg_debug_temp;
+#if defined(SD9177)
+		mfg_cmd_rf_rx_bssid_cfg_t mfg_rx_bssid_addr;
+#endif
 		mfg_Cmd_InternalTest_t mfg_InternalTest_t;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
@@ -6801,6 +6814,9 @@ typedef struct _mlan_ds_misc_cfg {
 #endif /* UAP_SUPPORT */
 		/** Channel switch cnt cfg */
 		mlan_ds_ecsa_cfg ecsa_cfg;
+		mlan_ds_misc_random_sn random_sn;
+		mlan_ftm_session_cfg ftm_session_cfg;
+		mlan_ftm_session_ctrl ftm_session_ctrl;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

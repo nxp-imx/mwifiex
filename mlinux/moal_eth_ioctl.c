@@ -3,7 +3,6 @@
 /** @file  moal_eth_ioctl.c
  *
  * @brief This file contains private ioctl functions
-
  *
  * Copyright 2014-2026 NXP
  *
@@ -25,7 +24,7 @@
 /************************************************************************
  * Change log:
  * 01/05/2012: initial version
- * **********************************************************************
+ ************************************************************************
  */
 
 #include "moal_main.h"
@@ -66,7 +65,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /** Bands supported in Infra mode */
@@ -121,7 +120,7 @@ static t_u16 SupportedInfraBand[] = {
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 #ifdef UAP_SUPPORT
@@ -136,7 +135,7 @@ extern const struct net_device_ops woal_netdev_ops;
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  * @brief Parse a string to extract numerical arguments
@@ -202,7 +201,7 @@ mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
@@ -373,6 +372,7 @@ static int woal_get_priv_driver_version(moal_private *priv, t_u8 *respbuf,
 	LEAVE();
 	return ret;
 }
+
 /**
  *  @brief Hostcmd interface from application
  *
@@ -683,6 +683,32 @@ static int woal_setget_priv_11axcmdcfg(moal_private *priv, t_u8 *respbuf,
 	case MLAN_11AXCMD_CFG_ID_HESUER:
 		cfg->sub_id = MLAN_11AXCMD_HESUER_SUBID;
 		cfg->param.HeSuER_cfg.value = data[1];
+		break;
+	case MLAN_11AXCMD_CFG_ID_ULOFDMA_CTRL:
+		cfg->sub_id = MLAN_11AXCMD_ULOFDMA_CTRL_SUBID;
+		cfg->param.ulofdma_ctrl_cfg.enable = (t_u8)data[1];
+		cfg->param.ulofdma_ctrl_cfg.reserved = 0;
+		if (cfg->param.ulofdma_ctrl_cfg.enable) {
+			/* Enable: trigger_type, use_broadcast_addr,
+			 * timer_interval_us required */
+			if (user_data_len < 5) {
+				PRINTM(MERROR,
+				       "ulofdma_ctrl enable requires: enable trigger_type use_broadcast_addr timer_interval_us\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			cfg->param.ulofdma_ctrl_cfg.trigger_type =
+				(t_u8)data[2];
+			cfg->param.ulofdma_ctrl_cfg.use_broadcast_addr =
+				(t_u8)data[3];
+			cfg->param.ulofdma_ctrl_cfg.timer_interval_us =
+				(t_u32)data[4];
+		} else {
+			/* Disable: no extra params needed */
+			cfg->param.ulofdma_ctrl_cfg.trigger_type = 0;
+			cfg->param.ulofdma_ctrl_cfg.use_broadcast_addr = 0;
+			cfg->param.ulofdma_ctrl_cfg.timer_interval_us = 0;
+		}
 		break;
 
 	default:
@@ -2341,7 +2367,7 @@ static int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				rate->param.rate_cfg.rate = data[1];
 			}
 
-			if (data[0] == 2 || data[0] == 3) {
+			if (data[0] == 2 || data[0] == 3 || data[0] == 4) {
 				PRINTM(MINFO, "SET: txratefg nss: 0x%x\n",
 				       data[2]);
 				/* NSS is supported up to 1 for IW610, and up to
@@ -2371,7 +2397,7 @@ static int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				rate->param.rate_cfg.rate_setting =
 					data[3] & ~0x0C00;
 				PRINTM(MIOCTL,
-				       "SET: txratefg HE Rate Setting: 0x%x\n",
+				       "SET: txratefg HE/EHT Rate Setting: 0x%x\n",
 				       data[3]);
 
 /* HE Preamble type */
@@ -5285,8 +5311,8 @@ static int woal_priv_set_get_drvdbg(moal_private *priv, t_u8 *respbuf,
 	printk(KERN_ALERT "MENTRY (%08x) %s\n", MENTRY,
 	       (drvdbg & MENTRY) ? "X" : "");
 #endif
-	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
-	       (drvdbg & MMPA_D) ? "X" : "");
+	printk(KERN_ALERT "MEMERG (%08x) %s\n", MEMERG,
+	       (drvdbg & MEMERG) ? "X" : "");
 #ifdef SECURE_HOST
 	printk(KERN_ALERT "MSHC_D (%08x) %s\n", MSHC_D,
 	       (drvdbg & MSHC_D) ? "X" : "");
@@ -5301,6 +5327,8 @@ static int woal_priv_set_get_drvdbg(moal_private *priv, t_u8 *respbuf,
 	       (drvdbg & MCMD_D) ? "X" : "");
 	printk(KERN_ALERT "MDAT_D (%08x) %s\n", MDAT_D,
 	       (drvdbg & MDAT_D) ? "X" : "");
+	printk(KERN_ALERT "MMPA_D (%08x) %s\n", MMPA_D,
+	       (drvdbg & MMPA_D) ? "X" : "");
 	printk(KERN_ALERT "MREG   (%08x) %s\n", MREG,
 	       (drvdbg & MREG) ? "X" : "");
 	printk(KERN_ALERT "MREG_D (%08x) %s\n", MREG_D,
@@ -12207,7 +12235,7 @@ static bool woal_is_bandwidth_valid(int band, int bw)
 	case BAND_5GHZ:
 	case BAND_6GHZ:
 		if (bw != SNIFF_BW_20MHZ && bw != SNIFF_BW_40MHZ &&
-		    bw != SNIFF_BW_80MHZ)
+		    bw != SNIFF_BW_80MHZ && bw != SNIFF_BW_160MHZ)
 			ret = false;
 		break;
 	default:
@@ -12280,7 +12308,8 @@ static void woal_find_chan_in_sniffer_mode(moal_handle *phandle,
 		    MLAN_STATUS_SUCCESS) {
 			data[2] = channel->bandcfg.chanBand;
 			data[3] = channel->channel;
-			if (channel->bandcfg.chanWidth == CHAN_BW_80MHZ)
+			if ((channel->bandcfg.chanWidthExt == NO_CH_EXT) &&
+			    (channel->bandcfg.chanWidth == CHAN_BW_80MHZ))
 				data[4] = CHANNEL_BW_80MHZ;
 			else
 				data[4] = channel->bandcfg.chan2Offset;
@@ -13035,7 +13064,7 @@ static int woal_is_channel_in_regdom_valid(moal_private *priv, t_u8 channel,
 {
 	struct wiphy *wiphy = NULL;
 	struct ieee80211_supported_band *sband = NULL;
-	t_u8 i = 0;
+	t_u32 i = 0;
 
 	if (priv && priv->wdev)
 		wiphy = priv->wdev->wiphy;
@@ -13302,6 +13331,12 @@ static void woal_convert_chanbw_to_bandconfig(moal_private *priv,
 		break;
 	case CHANNEL_BW_80MHZ:
 		bandcfg->chanWidth = CHAN_BW_80MHZ;
+		bandcfg->chan2Offset =
+			woal_get_second_channel_offset(priv, channel);
+		break;
+	case CHANNEL_BW_160MHZ:
+		bandcfg->chanWidth = BANDCFG_SET_CHANWIDTH(CHAN_BW_160MHZ);
+		bandcfg->chanWidthExt = CH_EXT;
 		bandcfg->chan2Offset =
 			woal_get_second_channel_offset(priv, channel);
 		break;
@@ -13605,7 +13640,7 @@ static void woal_auto_uap_channel_switch(moal_private *priv, t_u8 channel)
 	chan_band_info chaninfo;
 	t_u8 band = BAND_2GHZ;
 	moal_handle *ref_handle;
-	t_u8 band_width = CHANNEL_BW_20MHZ;
+	t_u8 band_width = CHANNEL_BW_20MHZ, ch_bw = 0;
 
 	memset(&chaninfo, 0, sizeof(chaninfo));
 
@@ -13622,7 +13657,10 @@ static void woal_auto_uap_channel_switch(moal_private *priv, t_u8 channel)
 			return;
 		}
 		if (chaninfo.channel != channel) {
-			switch (chaninfo.bandcfg.chanWidth) {
+			ch_bw = BANDCFG_GET_CHANWIDTH(
+				chaninfo.bandcfg.chanWidthExt,
+				chaninfo.bandcfg.chanWidth);
+			switch (ch_bw) {
 			case CHAN_BW_40MHZ:
 				if (chaninfo.bandcfg.chan2Offset ==
 				    SEC_CHAN_BELOW)
@@ -13633,6 +13671,9 @@ static void woal_auto_uap_channel_switch(moal_private *priv, t_u8 channel)
 				break;
 			case CHAN_BW_80MHZ:
 				band_width = CHANNEL_BW_80MHZ;
+				break;
+			case CHAN_BW_160MHZ:
+				band_width = CHANNEL_BW_160MHZ;
 				break;
 			default:
 				band_width = CHANNEL_BW_20MHZ;
@@ -16745,6 +16786,47 @@ done:
 	return ret;
 }
 
+/**
+ * @brief                    Keep connect to refuse disconnect
+ * @param priv            Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return                 0 for success, negative for failure.
+ */
+static int woal_priv_keep_connect(moal_private *priv, t_u8 *respbuf,
+				  t_u32 respbuflen)
+{
+	int user_data_len = 0;
+	int keep_connect_en = 0;
+	int ret = 0;
+
+	ENTER();
+	parse_arguments(respbuf, &keep_connect_en,
+			sizeof(keep_connect_en) / sizeof(int), &user_data_len);
+	if (!user_data_len) {
+		PRINTM(MERROR, "Invalid parameter number\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	if (keep_connect_en != 0 && keep_connect_en != 1) {
+		PRINTM(MERROR, "Invalid agrs!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	if (keep_connect_en == 1) {
+		priv->keep_connect = MTRUE;
+	} else {
+		priv->keep_connect = MFALSE;
+	}
+	PRINTM(MCMND, "%s: priv[%u]->keep_connect=%d\n", __FUNCTION__,
+	       priv->bss_index, priv->keep_connect);
+
+done:
+	LEAVE();
+	return 0;
+}
+
 #if defined(PCIE)
 /**
  * @brief               Enable SSU support
@@ -18750,11 +18832,10 @@ static int woal_priv_get_sensor_temp(moal_private *priv, t_u8 *respbuf,
 	}
 
 	memset(respbuf, 0, respbuflen);
-	moal_memcpy_ext(priv->phandle, respbuf,
-			&pcfg->param.sensor_temp.temperature, sizeof(t_u32),
-			respbuflen);
+	moal_memcpy_ext(priv->phandle, respbuf, &pcfg->param.sensor_temp,
+			sizeof(mlan_ds_sensor_temp), respbuflen);
 
-	ret = sizeof(t_u32);
+	ret = sizeof(mlan_ds_sensor_temp);
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -22298,6 +22379,76 @@ done:
 }
 
 /**
+ * @brief               Set/Get ProbeReq Random SN config
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+static int woal_priv_random_sn(moal_private *priv, t_u8 *respbuf,
+			       t_u32 respbuflen)
+{
+	int header_len = 0, user_data_len = 0;
+	int ret = 0, data[2];
+	mlan_ds_misc_cfg *random_sn_cfg = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		LEAVE();
+		return -EFAULT;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	header_len = strlen(PRIV_CMD_PROBE_REQ_RANDOM_SN);
+	random_sn_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+	if (user_data_len > 2) {
+		PRINTM(MERROR, "Invalid number of args! %d\n", user_data_len);
+		ret = -EINVAL;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	random_sn_cfg->sub_command = MLAN_OID_MISC_RANDOM_SN_CONFIG;
+	if (user_data_len) {
+		req->action = MLAN_ACT_SET;
+		random_sn_cfg->param.random_sn.value = data[1];
+	} else {
+		req->action = MLAN_ACT_GET;
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (req->action == MLAN_ACT_GET) {
+		memcpy(respbuf, &random_sn_cfg->param.random_sn.value,
+		       sizeof(t_u8));
+		ret = sizeof(t_u8);
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -23514,6 +23665,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_txwatchdog(priv, buf,
 						   priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_KEEP_CONNECT,
+				    strlen(PRIV_CMD_KEEP_CONNECT)) == 0) {
+			pdata = buf + strlen(CMD_NXP) +
+				strlen(PRIV_CMD_KEEP_CONNECT);
+			len = woal_priv_keep_connect(priv, pdata, len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_PB_BYPASS,
 				    strlen(PRIV_CMD_PB_BYPASS)) == 0) {
 			/* Private IOCTL entry to get the By-passed TX packet
@@ -24368,8 +24526,13 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		goto handled;
 	}
 #endif /* UAP_SUPPORT */
-	else if (strnicmp(buf, PRIV_CMD_GET_TXPWR_LIMIT,
-			  strlen(PRIV_CMD_GET_TXPWR_LIMIT)) == 0) {
+	else if (strnicmp(buf, PRIV_CMD_PROBE_REQ_RANDOM_SN,
+			  strlen(PRIV_CMD_PROBE_REQ_RANDOM_SN)) == 0) {
+		/* Set/Get ProbeReq Random SN config */
+		len = woal_priv_random_sn(priv, buf, priv_cmd.total_len);
+		goto handled;
+	} else if (strnicmp(buf, PRIV_CMD_GET_TXPWR_LIMIT,
+			    strlen(PRIV_CMD_GET_TXPWR_LIMIT)) == 0) {
 		/* Get txpwrlimit */
 		len = woal_priv_get_txpwrlimit(priv, buf, priv_cmd.total_len);
 		goto handled;
@@ -24449,7 +24612,7 @@ done:
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Create a brief scan resp to relay basic BSS info to the app layer

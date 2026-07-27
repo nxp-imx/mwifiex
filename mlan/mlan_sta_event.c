@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 10/13/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -41,12 +41,12 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -411,7 +411,7 @@ static void wlan_process_nan_event(pmlan_private pmpriv, pmlan_buffer pmbuf)
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function handles disconnect event, reports disconnect
@@ -546,7 +546,6 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	wlan_recv_event(priv, MLAN_EVENT_ID_FW_DISCONNECTED, pevent);
 	priv->disconnect_reason_code = 0;
 	priv->delay_link_lost = MFALSE;
-
 	LEAVE();
 }
 
@@ -738,7 +737,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	chan_band_info *pchan_band_info = MNULL;
 	t_u8 radar_chan;
 	t_u8 bandwidth;
-	MrvlIEtypes_chan_band_reginfo_t *psta_info = MNULL;
+	chan_band_reginfo_t *psta_info = MNULL;
 	chan_band_reginfo_t *psta_reg_info = MNULL;
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
@@ -1032,6 +1031,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				(MrvlIEtypes_channel_band_t
 					 *)(pmadapter->event_body);
 			t_u8 channel = pchan_info->channel;
+			t_u8 bw = 0;
+			t_u8 band_width = 0;
 			chan_freq_power_t *cfp = MNULL;
 
 			DBG_HEXDUMP(MCMD_D, "chan band config",
@@ -1039,6 +1040,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				    sizeof(MrvlIEtypes_channel_band_t));
 			PRINTM(MEVENT, "Switch to channel %d success!\n",
 			       channel);
+			pmpriv->curr_channel = pchan_info->channel;
+			pmpriv->curr_bandcfg = pchan_info->bandcfg;
 #define MAX_CHANNEL_BAND_B 14
 			if (channel <= MAX_CHANNEL_BAND_B)
 				cfp = wlan_find_cfp_by_band_and_channel(
@@ -1077,11 +1080,18 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				   sizeof(pchan_info->bandcfg),
 				   sizeof(pchan_band_info->bandcfg));
 			pchan_band_info->channel = pchan_info->channel;
-			if (pchan_band_info->bandcfg.chanWidth == CHAN_BW_80MHZ)
+			bw = BANDCFG_GET_CHANWIDTH(
+				pchan_band_info->bandcfg.chanWidthExt,
+				pchan_band_info->bandcfg.chanWidth);
+			if (bw == CHAN_BW_80MHZ)
+				band_width = CHANNEL_BW_80MHZ;
+			else if (bw == CHAN_BW_160MHZ)
+				band_width = CHANNEL_BW_160MHZ;
+			if (bw == CHAN_BW_80MHZ || bw == CHAN_BW_160MHZ)
 				pchan_band_info
 					->center_chan = wlan_get_center_freq_idx(
 					priv, pchan_band_info->bandcfg.chanBand,
-					pchan_info->channel, CHANNEL_BW_80MHZ);
+					pchan_info->channel, band_width);
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE,
 					pevent);
@@ -1445,11 +1455,13 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_SSU_DUMP_DMA\n");
 		if (!pmadapter->ssu_buf || !pmadapter->ssu_buf->pbuf)
 			break;
+
 		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
 				       pmadapter->ssu_buf->pbuf +
 					       pmadapter->ssu_buf->data_offset,
 				       pmadapter->ssu_buf->buf_pa,
 				       MLAN_SSU_BUF_SIZE, PCI_DMA_FROMDEVICE);
+
 		/* If ADMA is supported, SSU header could not be received with
 		 * SSU data. Instead, SSU header is received through this event.
 		 * So, copy the header into the buffer before passing the buffer
@@ -1493,23 +1505,29 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_CLOUD_KEEP_ALIVE_RETRY_FAIL:
 		break;
-	case EVENT_WLS_FTM_COMPLETE:
+	case EVENT_WLS_FTM_GENERIC:
 		PRINTM(MEVENT, "EVENT: FTM_GENERIC_EVENT\n");
 		pevent->bss_index = pmpriv->bss_index;
 		event_ftm =
 			(Event_WLS_FTM_t *)(pmbuf->pbuf + pmbuf->data_offset);
-		if (event_ftm->sub_event_id == WLS_SUB_EVENT_RTT_RESULTS)
-			wlan_fill_hal_rtt_results(pmpriv, event_ftm,
-						  pmbuf->data_len, pevent);
-		else {
-			pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-			// Ensure event_len does not exceed buffer size
-			pevent->event_len =
-				MIN(pmbuf->data_len, MAX_EVENT_SIZE);
-			memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-				   pmbuf->pbuf + pmbuf->data_offset,
-				   pevent->event_len, pevent->event_len);
+		PRINTM(MEVENT, "EVENT: FTM_GENERIC_EVENT, sub_event: %d\n",
+		       event_ftm->sub_event_id);
+		if (event_ftm->sub_event_id == WLS_SUB_EVENT_FTM_COMPLETE ||
+		    event_ftm->sub_event_id == WLS_SUB_EVENT_FTM_FAIL) {
+			t_u8 is_failure = (event_ftm->sub_event_id ==
+					   WLS_SUB_EVENT_FTM_FAIL);
+			/* Send to Android/wifi_hal as RTT_RESULT */
+			wlan_convert_to_wifi_rtt_result(pmpriv, event_ftm,
+							pmbuf->data_len, pevent,
+							is_failure);
+			wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		}
+		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
 	case EVENT_VDLL_IND:
@@ -1601,8 +1619,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_CHANNEL_SWITCH_REGINFO:
 		PRINTM(MEVENT, "EVENT: Channel Switch Reginfo (%#x)\n",
 		       eventcause);
-		psta_info = (MrvlIEtypes_chan_band_reginfo_t
-				     *)(pmadapter->event_body);
+		psta_info = (chan_band_reginfo_t *)(pmadapter->event_body);
 		DBG_HEXDUMP(MCMD_D, "chan band reginfo", (t_u8 *)psta_info,
 			    sizeof(MrvlIEtypes_chan_band_reginfo_t));
 		/* Setup event buffer */

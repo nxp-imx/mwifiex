@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_11n.h
  *
  *  @brief Interface for the 802.11n mlan_11n module implemented in mlan_11n.c
@@ -27,7 +27,7 @@
 /********************************************************
  * Change log:
  * 12/01/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MLAN_11N_H_

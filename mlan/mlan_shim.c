@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 10/13/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -50,12 +50,12 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 #ifdef STA_SUPPORT
 static mlan_operations mlan_sta_ops = {
@@ -147,7 +147,7 @@ static INLINE t_bool wlan_is_adma_supported(mlan_adapter *pmadapter)
 
 /********************************************************
  * Local Functions
- * *****************************************************
+ ********************************************************
  */
 /**
  *  @brief This function process pending ioctl
@@ -204,7 +204,7 @@ static void wlan_process_pending_ioctl(mlan_adapter *pmadapter)
 }
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -306,6 +306,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_recv_packet);
 	MASSERT(pcb->moal_recv_event);
 	MASSERT(pcb->moal_ioctl_complete);
+	MASSERT(pcb->moal_get_suspend_state);
 
 #if defined(SDIO) || defined(PCIE)
 	if (!IS_USB(pmadapter->card_type)) {
@@ -342,6 +343,7 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_unaligned_access.moal_write_u16);
 	MASSERT(pcb->moal_unaligned_access.moal_write_u32);
 
+	MASSERT(pcb->moal_random);
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
@@ -357,6 +359,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	pmadapter->init_para.reject_addba_req = pmdevice->reject_addba_req;
 	pmadapter->init_para.dmcs = pmdevice->dmcs;
 	pmadapter->init_para.pref_dbc = pmdevice->pref_dbc;
+
+	pmadapter->init_para.probe_req_rand_sn = pmdevice->probe_req_rand_sn;
 
 	if (pmadapter->callbacks.moal_memcpy_ext == MNULL) {
 		ret = MLAN_STATUS_FAILURE;
@@ -399,6 +403,8 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 		pmadapter->init_para.mpa_rx_cfg = pmdevice->mpa_rx_cfg;
 		pmadapter->pcard_sd->sdio_rx_aggr_enable =
 			pmdevice->sdio_rx_aggr_enable;
+		pmadapter->init_para.sdio_pd = pmdevice->sdio_pd;
+		pmadapter->init_para.partial_io = pmdevice->partial_io;
 	}
 #endif
 
@@ -1566,6 +1572,7 @@ process_start:
 		     pmadapter->vdll_ctrl.pending_block)) {
 			pmadapter->data_received = MFALSE;
 			if (pmadapter->hs_activated == MTRUE) {
+				PRINTM(MCMND, "hsae 0: main rx rcvd\n");
 				pmadapter->is_hs_configured = MFALSE;
 				wlan_host_sleep_activated_event(
 					wlan_get_priv(pmadapter,
@@ -1599,11 +1606,9 @@ process_start:
 			    (pmadapter->tx_lock_flag == MTRUE))
 				break;
 
-			if (pmadapter->data_sent ||
+			if (!wlan_is_data_pending(pmadapter) ||
 			    wlan_is_tdls_link_chan_switching(
 				    pmadapter->tdls_status) ||
-			    (wlan_bypass_tx_list_empty(pmadapter) &&
-			     wlan_wmm_lists_empty(pmadapter)) ||
 			    wlan_11h_radar_detected_tx_blocked(pmadapter)) {
 				if (pmadapter->cmd_sent ||
 				    pmadapter->curr_cmd ||
@@ -1677,6 +1682,17 @@ process_start:
 			continue;
 		}
 
+#if defined(USB)
+		if (IS_USB(pmadapter->card_type)) {
+			if (pcb->moal_get_suspend_state(
+				    pmadapter->pmoal_handle)) {
+				PRINTM(MCMND,
+				       "main_process: cannot send command or data while suspend\n");
+				continue;
+			}
+		}
+#endif
+
 		/* in a case of race condition, download the VDLL block here */
 		if (!pmadapter->cmd_sent &&
 		    pmadapter->vdll_ctrl.pending_block) {
@@ -1701,6 +1717,7 @@ process_start:
 			PRINTM(MINFO, "mlan_send_pkt(): deq(bybass_txq)\n");
 			wlan_process_bypass_tx(pmadapter);
 			if (pmadapter->hs_activated == MTRUE) {
+				PRINTM(MCMND, "hsae 0: main bypss tx\n");
 				pmadapter->is_hs_configured = MFALSE;
 				wlan_host_sleep_activated_event(
 					wlan_get_priv(pmadapter,
@@ -1709,11 +1726,12 @@ process_start:
 			}
 		}
 
-		if (!pmadapter->data_sent && !wlan_wmm_lists_empty(pmadapter) &&
+		if (!wlan_wmm_lists_empty(pmadapter) &&
 		    !wlan_11h_radar_detected_tx_blocked(pmadapter) &&
 		    !wlan_is_tdls_link_chan_switching(pmadapter->tdls_status)) {
 			wlan_wmm_process_tx(pmadapter);
 			if (pmadapter->hs_activated == MTRUE) {
+				PRINTM(MCMND, "hsae 0: main wmm tx\n");
 				pmadapter->is_hs_configured = MFALSE;
 				wlan_host_sleep_activated_event(
 					wlan_get_priv(pmadapter,
@@ -1872,7 +1890,6 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 	pmbuf->flags |= MLAN_BUF_FLAG_MOAL_TX_BUF;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
-
 	if (pmbuf->data_offset > UINT32_MAX - MLAN_ETHER_PKT_TYPE_OFFSET)
 		return MLAN_STATUS_FAILURE;
 	eth_type = mlan_ntohs(read_u16_unaligned(
@@ -1908,6 +1925,34 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	}
 #endif
 
+	if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {
+		memcpy_ext(pmadapter, ra, pmbuf->pbuf + pmbuf->data_offset,
+			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
+		tdls_status = wlan_get_tdls_link_status(pmpriv, ra);
+		if (wlan_is_tdls_link_setup(tdls_status) == MTRUE ||
+		    !pmpriv->media_connected)
+			pmbuf->flags |= MLAN_BUF_FLAG_TDLS;
+	}
+	if (eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) {
+		pmbuf->priority = 7;
+		PRINTM_NETINTF(MMSG, pmpriv);
+		PRINTM(MMSG, "wlan: Send EAPOL pkt to " MACSTR "\n",
+		       MAC2STR(pmbuf->pbuf + pmbuf->data_offset));
+	}
+
+	if (eth_type == MLAN_ETHER_PKT_TYPE_1905) {
+		pmbuf->priority = 7;
+		PRINTM_NETINTF(MINFO, pmpriv);
+		PRINTM(MINFO, "wlan: Send 1905.1a pkt type: 0x%04x\n",
+		       eth_type);
+	}
+
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
+							pmbuf->pdesc, 2);
+	if (pmadapter->tp_state_drop_point == 2)
+		return 0;
+
 	if ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
 	    (eth_type == MLAN_ETHER_PKT_TYPE_WAPI)
@@ -1921,45 +1966,10 @@ mlan_status mlan_send_packet(t_void *padapter, pmlan_buffer pmbuf)
 	    || (pmbuf->flags & MLAN_BUF_FLAG_MC_AGGR_PKT)
 
 	) {
-		if (eth_type == MLAN_ETHER_PKT_TYPE_TDLS_ACTION) {
-			memcpy_ext(pmadapter, ra,
-				   pmbuf->pbuf + pmbuf->data_offset,
-				   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
-			tdls_status = wlan_get_tdls_link_status(pmpriv, ra);
-			if (wlan_is_tdls_link_setup(tdls_status) == MTRUE ||
-			    !pmpriv->media_connected)
-				pmbuf->flags |= MLAN_BUF_FLAG_TDLS;
-		}
-		if (eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) {
-			pmbuf->priority = 7;
-			PRINTM_NETINTF(MMSG, pmpriv);
-			PRINTM(MMSG, "wlan: Send EAPOL pkt to " MACSTR "\n",
-			       MAC2STR(pmbuf->pbuf + pmbuf->data_offset));
-		}
-
-		if (eth_type == MLAN_ETHER_PKT_TYPE_1905) {
-			pmbuf->priority = 7;
-			PRINTM_NETINTF(MINFO, pmpriv);
-			PRINTM(MINFO, "wlan: Send 1905.1a pkt type: 0x%04x\n",
-			       eth_type);
-		}
-
-		if (pmadapter->tp_state_on)
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
-		if (pmadapter->tp_state_drop_point == 2)
-			return 0;
-		else
-			wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
+		wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
 	} else {
-		if (pmadapter->tp_state_on)
-			pmadapter->callbacks.moal_tp_accounting(
-				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
-		if (pmadapter->tp_state_drop_point == 2)
-			return 0;
-		else
-			/* Transmit the packet*/
-			wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
+		/* Transmit the packet*/
+		wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
 	}
 
 	LEAVE();
@@ -2418,7 +2428,10 @@ void mlan_process_pcie_interrupt_cb(t_void *padapter, int type)
 			LEAVE();
 			return;
 		}
-	} else if (type == TX_COMPLETE && !wlan_is_tx_pending(pmadapter)) {
+	} else if (type == TX_COMPLETE &&
+		   ((pmadapter->ps_state == PS_STATE_SLEEP ||
+		     pmadapter->ps_state == PS_STATE_SLEEP_CFM) ||
+		    !wlan_is_tx_pending(pmadapter))) {
 		LEAVE();
 		return;
 	} else if (type == RX_DATA_DELAY) {

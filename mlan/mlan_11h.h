@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_11h.h
  *
  *  @brief This header file contains data structures and
@@ -25,7 +25,7 @@
 /*************************************************************
  * Change Log:
  * 03/26/2009: initial creation
- * ***********************************************************
+ *************************************************************
  */
 
 #ifndef _MLAN_11H_

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_cfg80211_util.h
  *
  * @brief This file contains the CFG80211 vendor specific defines.
@@ -844,6 +844,7 @@ enum vendor_event {
 	event_wifi_logger_alert,
 	event_packet_fate_monitor,
 	event_wake_reason_report,
+	event_csi = 0x10011,
 	event_max,
 };
 
@@ -1010,6 +1011,7 @@ enum attr_rtt {
 
 mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
 					   int len);
+int woal_cfg80211_csi_vendor_event(moal_private *priv, t_u8 *data, int len);
 
 enum attr_csi {
 	ATTR_CSI_INVALID = 0,

@@ -33,6 +33,7 @@
 #include "mlan_fw.h"
 #include "mlan_join.h"
 #include "mlan_main.h"
+#include "mlan_wmm.h"
 #include "mlan_11h.h"
 
 /********************************************************
@@ -1261,34 +1262,6 @@ t_u8 SupportedRates_BG[BG_SUPPORTED_RATES] = {0x02, 0x04, 0x0b, 0x0c, 0x12,
 t_u8 SupportedRates_N[N_SUPPORTED_RATES] = {0x02, 0x04, 0};
 
 #define MCS_NUM_AX 12
-// for MCS0/MCS1/MCS3/MCS4 have 4 additional DCM=1 value
-// note: the value in the table is 2 multiplier of the actual rate
-static t_u16 ax_mcs_rate_nss1[12][MCS_NUM_AX + 4] = {
-	{0x90, 0x48, 0x120, 0x90, 0x1B0, 0x240, 0x120, 0x360, 0x1B0, 0x481,
-	 0x511, 0x5A1, 0x6C1, 0x781, 0x871, 0x962}, /*SG 160M*/
-	{0x88, 0x44, 0x110, 0x88, 0x198, 0x220, 0x110, 0x330, 0x198, 0x440,
-	 0x4C9, 0x551, 0x661, 0x716, 0x7F9, 0x8DC}, /*MG 160M*/
-	{0x7A, 0x3D, 0xF5, 0x7A, 0x16F, 0x1EA, 0xF5, 0x2DF, 0x16F, 0x3D4, 0x44E,
-	 0x4C9, 0x5BE, 0x661, 0x72D, 0x7F9}, /*LG 160M*/
-	{0x48, 0x24, 0x90, 0x48, 0xD8, 0x120, 0x90, 0x1B0, 0xD8, 0x240, 0x288,
-	 0x2D0, 0x360, 0x3C0, 0x438, 0x4B0}, /*SG 80M*/
-	{0x44, 0x22, 0x88, 0x44, 0xCC, 0x110, 0x88, 0x198, 0xCC, 0x220, 0x264,
-	 0x2A8, 0x330, 0x38B, 0x3FC, 0x46E}, /*MG 80M*/
-	{0x3D, 0x1E, 0x7A, 0x3D, 0xB7, 0xF5, 0x7A, 0x16F, 0xB7, 0x1EA, 0x227,
-	 0x264, 0x2DF, 0x330, 0x396, 0x3FC}, /*LG 80M*/
-	{0x22, 0x11, 0x44, 0x22, 0x67, 0x89, 0x44, 0xCE, 0x67, 0x113, 0x135,
-	 0x158, 0x19D, 0x1CA, 0x204, 0x23D}, /*SG 40M*/
-	{0x20, 0x10, 0x41, 0x20, 0x61, 0x82, 0x41, 0xC3, 0x61, 0x104, 0x124,
-	 0x145, 0x186, 0x1B1, 0x1E7, 0x21D}, /*MG 40M*/
-	{0x1D, 0xE, 0x3A, 0x1D, 0x57, 0x75, 0x3A, 0xAF, 0x57, 0xEA, 0x107,
-	 0x124, 0x15F, 0x186, 0x1B6, 0x1E7}, /*LG 40M*/
-	{0x11, 0x8, 0x22, 0x11, 0x33, 0x44, 0x22, 0x67, 0x33, 0x89, 0x9A, 0xAC,
-	 0xCE, 0xE5, 0x102, 0x11E}, /*SG 20M*/
-	{0x10, 0x8, 0x20, 0x10, 0x30, 0x41, 0x20, 0x61, 0x30, 0x82, 0x92, 0xA2,
-	 0xC3, 0xD8, 0xF3, 0x10E}, /*MG 20M*/
-	{0xE, 0x7, 0x1D, 0xE, 0x2B, 0x3A, 0x1D, 0x57, 0x2B, 0x75, 0x83, 0x92,
-	 0xAF, 0xC3, 0xDB, 0xF3} /*LG 20M*/
-};
 
 #if 0
 // note: the value in the table is 2 multiplier of the actual rate
@@ -1313,34 +1286,6 @@ t_u16 ax_tone_ru_rate_nss1[9][MCS_NUM_AX + 4] = {
 	 0x17, 0x19} /*LG 26-tone*/
 };
 #endif
-
-// note: the value in the table is 2 multiplier of the actual rate
-static t_u16 ax_mcs_rate_nss2[12][MCS_NUM_AX + 4] = {
-	{0x120, 0x90, 0x240, 0x120, 0x360, 0x481, 0x240, 0x61C, 0x360, 0x901,
-	 0xA22, 0xB42, 0xD82, 0xF03, 0x10E3, 0x12C3}, /*SG 160M*/
-	{0x110, 0x88, 0x220, 0x110, 0x330, 0x440, 0x220, 0x661, 0x330, 0x881,
-	 0x992, 0xAA2, 0xCAC, 0xE2D, 0xFF3, 0x11B9}, /*MG 160M*/
-	{0xF5, 0x7A, 0x1EA, 0xF5, 0x2DF, 0x3D4, 0x1EA, 0x5BE, 0x2DF, 0x7A8,
-	 0x1134, 0x992, 0xB7C, 0xCC2, 0xE5B, 0xFF3}, /*LG 160M*/
-	{0x90, 0x48, 0x120, 0x90, 0x1B0, 0x240, 0x120, 0x360, 0x1B0, 0x481,
-	 0x511, 0x5A1, 0x6C1, 0x781, 0x871, 0x962}, /*SG 80M*/
-	{0x88, 0x44, 0x110, 0x88, 0x198, 0x220, 0x110, 0x330, 0x198, 0x440,
-	 0x4C9, 0x551, 0x661, 0x716, 0x7F9, 0x8DC}, /*MG 80M*/
-	{0x7A, 0x3D, 0xF5, 0x7A, 0x16F, 0x1EA, 0xF5, 0x2DF, 0x16F, 0x3D4, 0x44E,
-	 0x4C9, 0x5BE, 0x661, 0x72D, 0x7F9}, /*LG 80M*/
-	{0x44, 0x22, 0x89, 0x44, 0xCE, 0x113, 0x89, 0x19D, 0xCE, 0x226, 0x26B,
-	 0x2B0, 0x339, 0x395, 0x408, 0x47B}, /*SG 40M*/
-	{0x41, 0x20, 0x82, 0x41, 0xC3, 0x104, 0x82, 0x186, 0xC3, 0x208, 0x249,
-	 0x28A, 0x30C, 0x362, 0x3CE, 0x43B}, /*MG 40M*/
-	{0x3A, 0x1D, 0x75, 0x3A, 0xAF, 0xEA, 0x75, 0x15F, 0xAF, 0x1D4, 0x20E,
-	 0x249, 0x2BE, 0x30C, 0x36D, 0x3CF}, /*LG 40M*/
-	{0x22, 0x11, 0x44, 0x22, 0x67, 0x89, 0x44, 0xCE, 0x67, 0x113, 0x135,
-	 0x158, 0x19D, 0x1CA, 0x204, 0x23D}, /*SG 20M*/
-	{0x20, 0x10, 0x41, 0x20, 0x61, 0x82, 0x41, 0xC3, 0x61, 0x104, 0x124,
-	 0x145, 0x186, 0x1B1, 0x1E7, 0x21D}, /*MG 20M*/
-	{0x1D, 0xE, 0x3A, 0x1D, 0x57, 0x75, 0x3A, 0xAF, 0x57, 0xEA, 0x107,
-	 0x124, 0x15F, 0x186, 0x1B6, 0x1E7} /*LG 20M*/
-};
 
 #if 0
 // note: the value in the table is 2 multiplier of the actual rate
@@ -1752,100 +1697,26 @@ t_u16 wlan_adjust_data_rate(mlan_private *priv, t_u8 rx_rate, t_u8 rate_info)
  *  @return                 Data rate or 0
  */
 t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
-			      t_u8 tx_rate_info, t_u8 ext_rate_info)
+			      t_u8 tx_rate_info, t_u8 ext_rate_info,
+			      t_bool is_eht)
 {
-#define MCS_NUM_SUPP 16
-	t_u16 mcs_rate[4][MCS_NUM_SUPP] = {
-		{0x1b, 0x36, 0x51, 0x6c, 0xa2, 0xd8, 0xf3, 0x10e, 0x36, 0x6c,
-		 0xa2, 0xd8, 0x144, 0x1b0, 0x1e6, 0x21c}, /*LG 40M*/
-		{0x1e, 0x3c, 0x5a, 0x78, 0xb4, 0xf0, 0x10e, 0x12c, 0x3c, 0x78,
-		 0xb4, 0xf0, 0x168, 0x1e0, 0x21c, 0x258}, /*SG 40M */
-		{0x0d, 0x1a, 0x27, 0x34, 0x4e, 0x68, 0x75, 0x82, 0x1a, 0x34,
-		 0x4e, 0x68, 0x9c, 0xd0, 0xea, 0x104}, /*LG 20M */
-		{0x0e, 0x1c, 0x2b, 0x39, 0x56, 0x73, 0x82, 0x90, 0x1c, 0x39,
-		 0x56, 0x73, 0xad, 0xe7, 0x104, 0x120}}; /*SG 20M */
-
-#define MCS_NUM_AC 10
-	/* NSS 1. note: the value in the table is 2 multiplier of the actual
-	 * rate in other words, it is in the unit of 500 Kbs
-	 */
-	t_u16 ac_mcs_rate_nss1[8][MCS_NUM_AC] = {
-		{0x75, 0xEA, 0x15F, 0x1D4, 0x2BE, 0x3A8, 0x41D, 0x492, 0x57C,
-		 0x618}, /* LG 160M*/
-		{0x82, 0x104, 0x186, 0x208, 0x30C, 0x410, 0x492, 0x514, 0x618,
-		 0x6C6}, /* SG 160M*/
-		{0x3B, 0x75, 0xB0, 0xEA, 0x15F, 0x1D4, 0x20F, 0x249, 0x2BE,
-		 0x30C}, /* LG 80M */
-		{0x41, 0x82, 0xC3, 0x104, 0x186, 0x208, 0x249, 0x28A, 0x30C,
-		 0x363}, /* SG 80M */
-		{0x1B, 0x36, 0x51, 0x6C, 0xA2, 0xD8, 0xF3, 0x10E, 0x144,
-		 0x168}, /* LG 40M */
-		{0x1E, 0x3C, 0x5A, 0x78, 0xB4, 0xF0, 0x10E, 0x12C, 0x168,
-		 0x190}, /* SG 40M */
-		{0xD, 0x1A, 0x27, 0x34, 0x4E, 0x68, 0x75, 0x82, 0x9C,
-		 0x00}, /* LG 20M */
-		{0xF, 0x1D, 0x2C, 0x3A, 0x57, 0x74, 0x82, 0x91, 0xAE,
-		 0x00}, /* SG 20M */
-	};
-	/* NSS 2. note: the value in the table is 2 multiplier of the actual
-	 * rate
-	 */
-	t_u16 ac_mcs_rate_nss2[8][MCS_NUM_AC] = {
-		{0xEA, 0x1D4, 0x2BE, 0x3A8, 0x57C, 0x750, 0x83A, 0x924, 0xAF8,
-		 0xC30}, /*LG 160M*/
-		{0x104, 0x208, 0x30C, 0x410, 0x618, 0x820, 0x924, 0xA28, 0xC30,
-		 0xD8B}, /*SG 160M*/
-
-		{0x75, 0xEA, 0x15F, 0x1D4, 0x2BE, 0x3A8, 0x41D, 0x492, 0x57C,
-		 0x618}, /*LG 80M*/
-		{0x82, 0x104, 0x186, 0x208, 0x30C, 0x410, 0x492, 0x514, 0x618,
-		 0x6C6}, /*SG 80M*/
-		{0x36, 0x6C, 0xA2, 0xD8, 0x144, 0x1B0, 0x1E6, 0x21C, 0x288,
-		 0x2D0}, /*LG 40M*/
-		{0x3C, 0x78, 0xB4, 0xF0, 0x168, 0x1E0, 0x21C, 0x258, 0x2D0,
-		 0x320}, /*SG 40M*/
-		{0x1A, 0x34, 0x4A, 0x68, 0x9C, 0xD0, 0xEA, 0x104, 0x138,
-		 0x00}, /*LG 20M*/
-		{0x1D, 0x3A, 0x57, 0x74, 0xAE, 0xE6, 0x104, 0x121, 0x15B,
-		 0x00}, /*SG 20M*/
-	};
-
 	t_u32 rate = 0;
 	t_u8 mcs_index = 0;
-	t_u8 he_dcm = 0;
-	//	t_u8 he_tone = 0;
-	t_u8 stbc = 0;
-
+	t_u8 nss = 0;
 	t_u8 bw = 0;
 	t_u8 gi = 0;
+	t_u8 he_dcm = 0;
+	t_u8 stbc = 0;
 
 	ENTER();
 
 	PRINTM(MINFO, "%s:index=%d, tx_rate_info=%d, ext_rate_info=%d\n",
 	       __func__, index, tx_rate_info, ext_rate_info);
 
-	if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
-		/* VHT rate */
+	if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE) {
+		/* HE rate */
 		mcs_index = index & 0xF;
-
-		if (mcs_index > 9)
-			mcs_index = 9;
-
-		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
-		bw = (tx_rate_info & 0xC) >> 2;
-		/* LGI: gi =0, SGI: gi = 1 */
-		gi = (tx_rate_info & 0x10) >> 4;
-		if ((index >> 4) == 1) {
-			/* NSS = 2 */
-			rate = ac_mcs_rate_nss2[2 * (3 - bw) + gi][mcs_index];
-		} else
-			/* NSS = 1 */
-			rate = ac_mcs_rate_nss1[2 * (3 - bw) + gi][mcs_index];
-	} else
-
-		if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HE) {
-		/* VHT rate */
-		mcs_index = index & 0xF;
+		nss = (index >> 4) + 1;
 		he_dcm = ext_rate_info & MBIT(0);
 
 		if (mcs_index > MCS_NUM_AX - 1)
@@ -1853,9 +1724,7 @@ t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 
 		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
 		bw = (tx_rate_info & (MBIT(3) | MBIT(2))) >> 2;
-		/* BIT7:BIT4 0:0= 0.8us,0:1= 0.8us, 1:0=1.6us, 1:1=3.2us or
-		 * 0.8us
-		 */
+		/* BIT7:BIT4 0:0= 0.8us, 0:1= 0.8us, 1:0=1.6us, 1:1=3.2us */
 		gi = (tx_rate_info & MBIT(4)) >> 4 |
 		     (tx_rate_info & MBIT(7)) >> 6;
 		/* STBC: BIT5 in tx rate info */
@@ -1871,142 +1740,55 @@ t_u32 wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index,
 			stbc = 0;
 			he_dcm = 0;
 		}
-		/* map to gi 0:0.8us,1:1.6us 2:3.2us*/
+		/* map to gi 0:0.8us, 1:1.6us, 2:3.2us */
 		if (gi > 0)
 			gi = gi - 1;
 
-		//#ifdef ENABLE_802_11AX
-		// TODO: hardcode he_tone here, wait for FW value ready.
-		//		he_tone = 4;
+		rate = wlan_wmm_get_he_rate(bw, gi, nss, mcs_index);
+	} else
 
-		// he_tone = (ext_rate_info & 0xE) >> 1;
-		//#endif
+		if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
+		/* VHT rate */
+		mcs_index = index & 0xF;
+		nss = (index >> 4) + 1;
 
-		if ((index >> 4) == 1) {
-			switch (mcs_index) {
-			case 0:
-			case 1:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss2[3*(2-he_tone)+gi][mcs_index*2
-				//+ he_dcm];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss2[3 * (3 - bw) + gi]
-						       [mcs_index * 2 + he_dcm];
-				break;
-			case 2:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss2[3*(2-he_tone)+gi][mcs_index*2];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss2[3 * (3 - bw) + gi]
-						       [mcs_index * 2];
-				break;
-			case 3:
-			case 4:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss2[3*(2-he_tone)+gi][mcs_index*2
-				//- 1 + he_dcm];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss2[3 * (3 - bw) + gi]
-						       [mcs_index * 2 - 1 +
-							he_dcm];
-				break;
+		if (mcs_index > 9)
+			mcs_index = 9;
 
-			default:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss2[3*(2-he_tone)+gi][mcs_index
-				//+ 4];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss2[3 * (3 - bw) + gi]
-						       [mcs_index + 4];
-				break;
-			}
-		} else {
-			switch (mcs_index) {
-			case 0:
-			case 1:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss1[3*(2-he_tone)+gi][mcs_index*2
-				//+ he_dcm];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss1[3 * (3 - bw) + gi]
-						       [mcs_index * 2 + he_dcm];
-				break;
-			case 2:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss1[3*(2-he_tone)+gi][mcs_index*2];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss1[3 * (3 - bw) + gi]
-						       [mcs_index * 2];
-				break;
-			case 3:
-			case 4:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss1[3*(2-he_tone)+gi][mcs_index*2
-				//- 1 + he_dcm];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss1[3 * (3 - bw) + gi]
-						       [mcs_index * 2 - 1 +
-							he_dcm];
-				break;
+		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
+		bw = (tx_rate_info & 0xC) >> 2;
+		/* LGI: gi=0, SGI: gi=1 */
+		gi = (tx_rate_info & 0x10) >> 4;
 
-			default:
-				// #if 0
-				// if (he_tone < 3) {
-				//	rate =
-				//ax_tone_ru_rate_nss1[3*(2-he_tone)+gi][mcs_index
-				//+ 4];
-				// } else {
-				// #endif
-				rate = ax_mcs_rate_nss1[3 * (3 - bw) + gi]
-						       [mcs_index + 4];
-				break;
-			}
-		}
-	} else if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HT) {
+		rate = wlan_wmm_get_vht_rate(bw, gi, nss, mcs_index);
+	} else
+
+		if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_HT) {
 		/* HT rate */
 		/* 20M: bw=0, 40M: bw=1 */
 		bw = (tx_rate_info & 0xC) >> 2;
-		/* LGI: gi =0, SGI: gi = 1 */
+		/* LGI: gi=0, SGI: gi=1 */
 		gi = (tx_rate_info & 0x10) >> 4;
+
 		if (index == MLAN_RATE_BITMAP_MCS0) {
 			if (gi == 1)
 				rate = 0x0D; /* MCS 32 SGI rate */
 			else
 				rate = 0x0C; /* MCS 32 LGI rate */
-		} else if (index < MCS_NUM_SUPP) {
-			if (bw <= 1)
-				rate = mcs_rate[2 * (1 - bw) + gi][index];
-			else
+		} else {
+			rate = wlan_wmm_get_ht_rate(bw, gi, index);
+			if (!rate)
 				rate = WlanDataRates[0];
-		} else
-			rate = WlanDataRates[0];
+		}
 	} else {
-		/* 11n non HT rates */
+		/* Legacy rates */
 		if (index >= WLAN_SUPPORTED_RATES_EXT)
 			index = 0;
-		rate = WlanDataRates[index];
+		rate = wlan_wmm_get_legacy_rate(index);
+		if (!rate)
+			rate = WlanDataRates[index];
 	}
+
 	LEAVE();
 	return rate;
 }
@@ -2085,7 +1867,7 @@ t_u8 wlan_get_txpwr_of_chan_from_cfp(mlan_private *pmpriv, t_u16 band,
 				     t_u8 channel)
 {
 	t_u8 i = 0;
-	t_u8 j = 0;
+	t_u32 j = 0;
 	t_u8 tx_power = 0;
 	t_u32 cfp_no;
 	chan_freq_power_t *cfp = MNULL;
@@ -2776,9 +2558,13 @@ mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	if (oper_class >= 128) {
+	if (oper_class == 128) {
 		center_freq_idx = wlan_get_center_freq_idx(
 			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
+		channel = center_freq_idx;
+	} else if (oper_class == 129) {
+		center_freq_idx = wlan_get_center_freq_idx(
+			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_160MHZ);
 		channel = center_freq_idx;
 	}
 	poper_bw_chan = wlan_get_nonglobal_operclass_table(pmpriv, &arraysize);
@@ -2830,6 +2616,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 	t_u8 center_freq_idx = 0;
 	t_u8 center_freqs[] = {42, 50, 58, 106, 114, 122, 138, 155};
 	unsigned int i = 0, arraysize = 0, channum = 0;
+	t_u8 bandwidth = 0;
 
 	ENTER();
 
@@ -2847,9 +2634,13 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 			return MLAN_STATUS_FAILURE;
 		}
 	}
-	if (bw == BW_80MHZ) {
-		center_freq_idx = wlan_get_center_freq_idx(
-			pmpriv, BAND_5GHZ, channel, CHANNEL_BW_80MHZ);
+	if (bw == BW_160MHZ)
+		bandwidth = CHANNEL_BW_160MHZ;
+	else if (bw == BW_80MHZ)
+		bandwidth = CHANNEL_BW_80MHZ;
+	if (bw == BW_80MHZ || bw == BW_160MHZ) {
+		center_freq_idx = wlan_get_center_freq_idx(pmpriv, BAND_5GHZ,
+							   channel, bandwidth);
 		channel = center_freq_idx;
 	}
 

@@ -5,7 +5,7 @@
  *  related functions.
  *
  *
- * Copyright 2008-2022, 2024-2026 NXP
+ * Copyright 2008-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -25,7 +25,7 @@
  * Change log:
  * 02/25/09: Initial creation -
  * This file supports SDIO MMC only
- * **************************************************
+ ****************************************************
  */
 
 #include <linux/firmware.h>
@@ -58,13 +58,13 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 /* moal interface ops */
 static moal_if_ops sdiommc_ops;
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 #ifdef SD8887
@@ -210,7 +210,7 @@ static struct sdio_driver REFDATA wlan_sdio = {
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 static void woal_sdiommc_dump_fw_info(moal_handle *phandle);
 static void woal_trigger_nmi_on_no_dump_event(moal_handle *phandle);
@@ -262,7 +262,7 @@ static void woal_dump_sdio_reg(moal_handle *handle)
 #endif
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function handles the interrupt.
@@ -843,6 +843,8 @@ int woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id)
 #ifdef IMX_SUPPORT
 	woal_regist_oob_wakeup_irq(card->handle);
 #endif /* IMX_SUPPORT */
+	if ((card->handle->params.indrstcfg & 0xff) == IR_MODE_OOB)
+		woal_regist_ind_rst_gpio(card->handle);
 
 	LEAVE();
 	return ret;
@@ -886,6 +888,7 @@ void woal_sdio_remove(struct sdio_func *func)
 				card->handle->surprise_removed = MTRUE;
 
 				/* check if woal_sdio_interrupt() is running */
+				// coverity[INFINITE_LOOP:SUPPRESS]
 				while (card->handle->main_state !=
 					       MOAL_END_MAIN_PROCESS &&
 				       card->handle->main_state !=
@@ -898,6 +901,8 @@ void woal_sdio_remove(struct sdio_func *func)
 #ifdef IMX_SUPPORT
 			woal_unregist_oob_wakeup_irq(card->handle);
 #endif /* IMX_SUPPORT */
+			if (card->handle && card->handle->ind_rst_gpiod)
+				woal_unregist_ind_rst_gpio(card->handle);
 			woal_remove_card(card);
 			kfree(card);
 		}
@@ -936,6 +941,7 @@ void woal_sdio_shutdown(struct device *dev)
 	sdio_mmc_card *cardp;
 	mlan_ds_ps_info pm_info;
 	int i, retry_num = 8;
+	moal_private *priv = NULL;
 	struct sdio_func *func;
 
 	ENTER();
@@ -943,7 +949,7 @@ void woal_sdio_shutdown(struct device *dev)
 	if (!dev) {
 		PRINTM(MERROR, "Invalid device pointer in resume\n");
 		LEAVE();
-		return;
+		goto done;
 	}
 	// Coverity violation raised for kernel's API
 	// coverity[cert_arr39_c_violation:SUPPRESS]
@@ -952,7 +958,7 @@ void woal_sdio_shutdown(struct device *dev)
 	if (!cardp || !cardp->handle) {
 		PRINTM(MERROR, "Card or moal_handle structure is not valid\n");
 		LEAVE();
-		return;
+		goto done;
 	}
 	handle = cardp->handle;
 	for (i = 0; i < handle->priv_num; i++) {
@@ -960,7 +966,49 @@ void woal_sdio_shutdown(struct device *dev)
 			netif_device_detach(handle->priv[i]->netdev);
 	}
 
-	if (moal_extflg_isset(handle, EXT_SHUTDOWN_HS)) {
+	if (moal_extflg_isset(handle, EXT_PARTIAL_IO)) {
+		handle->partial_io_enable = MTRUE;
+		PRINTM(MCMND, "Partial IO enabled\n");
+	}
+
+	if (handle->partial_io_enable == MTRUE) {
+		for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+#ifdef STA_SUPPORT
+			if (handle->priv[i])
+				woal_cancel_scan(handle->priv[i],
+						 MOAL_IOCTL_WAIT);
+#endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+			if (IS_STA_CFG80211(handle->params.cfg80211_wext) &&
+			    handle->priv[i]->sched_scanning &&
+			    handle->priv[i]->wdev) {
+				woal_stop_bg_scan(handle->priv[i],
+						  MOAL_IOCTL_WAIT);
+				handle->priv[i]->bg_scan_start = MFALSE;
+				handle->priv[i]->bg_scan_reported = MFALSE;
+				cfg80211_sched_scan_stopped(
+					handle->priv[i]->wdev->wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+					,
+					handle->priv[i]->bg_scan_reqid
+#endif
+				);
+				handle->priv[i]->sched_scanning = MFALSE;
+			}
+#endif
+		}
+	}
+
+	if (moal_extflg_isset(handle, EXT_SHUTDOWN_HS) ||
+	    (handle->partial_io_enable == MTRUE)) {
+		priv = woal_get_priv(handle, MLAN_BSS_ROLE_STA);
+		if (priv) {
+			if (handle->partial_io_enable == MTRUE)
+				priv->keep_connect = MTRUE;
+			else
+				priv->keep_connect = MFALSE;
+		}
 		handle->shutdown_hs_in_process = MTRUE;
 		memset(&pm_info, 0, sizeof(pm_info));
 		for (i = 0; i < retry_num; i++) {
@@ -981,13 +1029,16 @@ void woal_sdio_shutdown(struct device *dev)
 		}
 		woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
 
-		wait_event_interruptible_timeout(
-			handle->hs_activate_wait_q,
-			handle->hs_activate_wait_q_woken, HS_ACTIVE_TIMEOUT);
-		if (handle->hs_activated == MTRUE)
-			PRINTM(MMSG, "HS actived in shutdown\n");
-		else
-			PRINTM(MMSG, "Fail to enable HS in shutdown\n");
+		if (handle->partial_io_enable != MTRUE) {
+			wait_event_interruptible_timeout(
+				handle->hs_activate_wait_q,
+				handle->hs_activate_wait_q_woken,
+				HS_ACTIVE_TIMEOUT);
+			if (handle->hs_activated == MTRUE)
+				PRINTM(MMSG, "HS actived in shutdown\n");
+			else
+				PRINTM(MMSG, "Fail to enable HS in shutdown\n");
+		}
 	} else {
 		for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
 			if (handle->priv[i]) {
@@ -1008,6 +1059,12 @@ void woal_sdio_shutdown(struct device *dev)
 				}
 			}
 		}
+	}
+
+	if (handle->partial_io_enable == MTRUE) {
+		woal_shutdown_fw(woal_get_priv(handle, MLAN_BSS_ROLE_ANY),
+				 MOAL_IOCTL_WAIT);
+		handle->partial_io_enable = MFALSE;
 	}
 
 done:
@@ -1471,6 +1528,7 @@ static mlan_status woal_sdiommc_write_data_sync(moal_handle *handle,
 			       (pmbuf->data_len / handle->sdio_blk_size) :
 			       pmbuf->data_len;
 	t_u32 ioport = (port & MLAN_SDIO_IO_PORT_MASK);
+	t_u8 opcode = (port & MLAN_SDIO_OP_CODE_MASK) ? 1 : 0;
 	int status = 0;
 	if (pmbuf->use_count > 1)
 		return woal_sdio_rw_mb(handle, pmbuf, port, MTRUE);
@@ -1478,8 +1536,12 @@ static mlan_status woal_sdiommc_write_data_sync(moal_handle *handle,
 	handle->cmd53w = 1;
 #endif
 	sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
-	status = sdio_writesb(((sdio_mmc_card *)handle->card)->func, ioport,
-			      buffer, blkcnt * blksz);
+	if (opcode)
+		status = sdio_memcpy_toio(((sdio_mmc_card *)handle->card)->func,
+					  ioport, buffer, blkcnt * blksz);
+	else
+		status = sdio_writesb(((sdio_mmc_card *)handle->card)->func,
+				      ioport, buffer, blkcnt * blksz);
 	if (!status)
 		ret = MLAN_STATUS_SUCCESS;
 	else {
@@ -1520,6 +1582,7 @@ static mlan_status woal_sdiommc_read_data_sync(moal_handle *handle,
 			       (pmbuf->data_len / handle->sdio_blk_size) :
 			       pmbuf->data_len;
 	t_u32 ioport = (port & MLAN_SDIO_IO_PORT_MASK);
+	t_u8 opcode = (port & MLAN_SDIO_OP_CODE_MASK) ? 1 : 0;
 	int status = 0;
 	if (pmbuf->use_count > 1)
 		return woal_sdio_rw_mb(handle, pmbuf, port, MFALSE);
@@ -1527,8 +1590,13 @@ static mlan_status woal_sdiommc_read_data_sync(moal_handle *handle,
 	handle->cmd53r = 1;
 #endif
 	sdio_claim_host(((sdio_mmc_card *)handle->card)->func);
-	status = sdio_readsb(((sdio_mmc_card *)handle->card)->func, buffer,
-			     ioport, blkcnt * blksz);
+	if (opcode)
+		status = sdio_memcpy_fromio(
+			((sdio_mmc_card *)handle->card)->func, buffer, ioport,
+			blkcnt * blksz);
+	else
+		status = sdio_readsb(((sdio_mmc_card *)handle->card)->func,
+				     buffer, ioport, blkcnt * blksz);
 	if (!status) {
 		ret = MLAN_STATUS_SUCCESS;
 	} else {
@@ -1691,7 +1759,6 @@ static mlan_status woal_sdiommc_register_dev(moal_handle *handle)
 	if (ret) {
 		PRINTM(MERROR,
 		       "sdio_set_block_seize(): cannot set SDIO block size\n");
-		ret = MLAN_STATUS_FAILURE;
 		goto release_irq;
 	}
 
@@ -2892,6 +2959,7 @@ static void woal_sdiommc_reg_dbg(moal_handle *phandle)
 				ptr += snprintf(ptr, sizeof(buf), "%02x ",
 						data);
 			else {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				ptr += snprintf(ptr, sizeof(buf) - (ptr - buf),
 						"ERR");
 				break;
@@ -3073,6 +3141,7 @@ static int woal_sdiommc_dump_reg_info(moal_handle *phandle, t_u8 *drv_buf)
 				ptr += snprintf(ptr, sizeof(buf), "%02x ",
 						data);
 			else {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				ptr += snprintf(ptr, sizeof(buf), "ERR");
 				break;
 			}
@@ -3426,6 +3495,7 @@ err_init_fw:
 	if (handle->reassoc_thread.pid)
 		wake_up_interruptible(&handle->reassoc_thread.wait_q);
 	/* waiting for main thread quit */
+	// coverity[INFINITE_LOOP:SUPPRESS]
 	while (handle->reassoc_thread.pid)
 		woal_sched_timeout(2);
 #endif /* REASSOCIATION */
@@ -3477,8 +3547,11 @@ static void woal_sdiommc_work(struct work_struct *work)
 		return;
 	}
 
-	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 	handle = card->handle;
+	if (handle->ind_rst_gpiod)
+		PRINTM(MMSG, "========START OOB GPIO RESET===========\n");
+	else
+		PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 	// handle-> mac0 , ref_handle->second mac
 	if (handle->pref_mac) {
 		if (handle->second_mac) {
@@ -3498,11 +3571,16 @@ static void woal_sdiommc_work(struct work_struct *work)
 		ref_handle->fw_reseting = MTRUE;
 		woal_do_sdiommc_flr(ref_handle, true, true);
 	}
-	if (woal_sdiommc_reset_fw(handle)) {
-		PRINTM(MERROR, "SDIO In-band Reset Fail\n");
-		woal_send_auto_recovery_failure_event(handle);
-		wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
-		return;
+	if (handle->ind_rst_gpiod) {
+		PRINTM(MMSG, "SDIO reset: OOB IND RST via GPIO toggle\n");
+		woal_toggle_ind_rst_gpio(handle);
+	} else {
+		if (woal_sdiommc_reset_fw(handle)) {
+			PRINTM(MERROR, "SDIO In-band Reset Fail\n");
+			woal_send_auto_recovery_failure_event(handle);
+			wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+			return;
+		}
 	}
 
 	handle->surprise_removed = MFALSE;
@@ -3513,6 +3591,7 @@ static void woal_sdiommc_work(struct work_struct *work)
 	if (woal_do_sdiommc_flr(handle, false, true) == MLAN_STATUS_SUCCESS)
 		handle->fw_reseting = MFALSE;
 	else {
+		// coverity[UNUSED_VALUE:SUPPRESS]
 		handle = NULL;
 		wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
 		return;
@@ -3531,7 +3610,10 @@ static void woal_sdiommc_work(struct work_struct *work)
 	card->work_flags = MFALSE;
 	wifi_status = WIFI_STATUS_OK;
 	woal_send_auto_recovery_complete_event(handle);
-	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
+	if (handle->ind_rst_gpiod)
+		PRINTM(MMSG, "========END OOB GPIO RESET===========\n");
+	else
+		PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }
 
@@ -3552,6 +3634,28 @@ static void woal_sdiommc_card_reset(moal_handle *handle)
 	}
 }
 
+/**
+ *  @brief This function cancels reset_work
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *  @return         NA
+ *
+ */
+static void woal_sdiommc_cancel_reset_work(moal_handle *handle)
+{
+	sdio_mmc_card *card = handle->card;
+
+	ENTER();
+	if (!card) {
+		PRINTM(MERROR, "sdiommc card removed from slot\n");
+		LEAVE();
+		return;
+	}
+	cancel_work_sync(&card->reset_work);
+
+	LEAVE();
+}
+
 static moal_if_ops sdiommc_ops = {
 	.register_dev = woal_sdiommc_register_dev,
 	.unregister_dev = woal_sdiommc_unregister_dev,
@@ -3564,5 +3668,6 @@ static moal_if_ops sdiommc_ops = {
 	.dump_reg_info = woal_sdiommc_dump_reg_info,
 	.reg_dbg = woal_sdiommc_reg_dbg,
 	.card_reset = woal_sdiommc_card_reset,
+	.cancel_reset_work = woal_sdiommc_cancel_reset_work,
 	.is_second_mac = woal_sdiommc_is_second_mac,
 };

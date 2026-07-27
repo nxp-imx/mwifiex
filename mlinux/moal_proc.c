@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "moal_main.h"
@@ -42,7 +42,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 #ifdef CONFIG_PROC_FS
 #define STATUS_PROC "wifi_status"
@@ -70,13 +70,13 @@ static char *szModes[] = {
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 int wifi_status;
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Proc read function for info
@@ -713,6 +713,20 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 #endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
 		PRINTM(MERROR, "Recevie debug_dump command\n");
+#ifdef DUMP_TO_PROC
+		/* Check if firmware dump already exists */
+		if (handle->fw_dump_buf && handle->fw_dump_len > 0) {
+			PRINTM(MERROR,
+			       "====================================================\n"
+			       "Firmware dump already exists!\n"
+			       "      Size: %ld bytes\n"
+			       "      Read the existing dump first.\n"
+			       "====================================================\n",
+			       (long)handle->fw_dump_len);
+			ret = -EEXIST;
+			goto done;
+		}
+#endif
 #ifdef USB
 		if (!IS_USB(handle->card_type))
 #endif
@@ -873,6 +887,12 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		     strlen("set_debug_temperature=")) &&
 	    count > strlen("set_debug_temperature="))
 		cmd = MFG_CMD_SET_DEBUG_TEMPERATURE;
+#if defined(SD9177)
+	if (!strncmp(databuf, "rf_rx_bssid_filter_addr=",
+		     strlen("rf_rx_bssid_filter_addr=")) &&
+	    count > strlen("rf_rx_bssid_filter_addr="))
+		cmd = MFG_CMD_RF_RX_BSSID_FILTER;
+#endif
 	if (!strncmp(databuf, "generic_cmd=", strlen("generic_cmd=")) &&
 	    count > strlen("generic_cmd="))
 		cmd = MFG_CMD_CONFIG_GENERIC_CMD;
@@ -891,6 +911,9 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		    MLAN_STATUS_SUCCESS)
 			PRINTM(MERROR, "Could not set Antenna Diversity!!\n");
 	}
+#ifdef DUMP_TO_PROC
+done:
+#endif
 	MODULE_PUT;
 	kfree(databuf);
 	LEAVE();
@@ -1140,6 +1163,18 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			handle->rf_data->mfg_debug_temp.rfu_temperature[0][1],
 			handle->rf_data->mfg_debug_temp.rfu_temperature[1][0],
 			handle->rf_data->mfg_debug_temp.rfu_temperature[1][1]);
+
+#if defined(SD9177)
+		seq_puts(sfp, "\n");
+		seq_puts(sfp, "rf_rx_bssid_filter_addr=");
+		seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x\n",
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[0],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[1],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[2],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[3],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[4],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[5]);
+#endif
 
 		seq_puts(sfp, "\n");
 
@@ -1502,7 +1537,7 @@ static const struct file_operations wifi_status_proc_fops = {
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Convert string to number

@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 11/10/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -39,17 +39,17 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function will dispatch amsdu packet and
@@ -247,7 +247,7 @@ static t_void wlan_11n_display_tbl_ptr(pmlan_adapter pmadapter,
 {
 	ENTER();
 
-	DBG_HEXDUMP(MDAT_D, "Reorder ptr", rx_reor_tbl_ptr->rx_reorder_ptr,
+	DBG_HEXDUMP(MINFO, "Reorder ptr", rx_reor_tbl_ptr->rx_reorder_ptr,
 		    sizeof(t_void *) * rx_reor_tbl_ptr->win_size);
 
 	LEAVE();
@@ -477,6 +477,13 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 		return;
 	}
 
+	if (win_size == 0 || win_size > priv->add_ba_param.rx_win_size) {
+		PRINTM(MERROR,
+		       "wlan_11n_create_rxreorder_tbl: invalid win_size = %d\n",
+		       win_size);
+		LEAVE();
+		return;
+	}
 	/*
 	 * If we get a TID, ta pair which is already present dispatch all the
 	 * packets and move the window size until the ssn
@@ -561,7 +568,7 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -1333,8 +1340,8 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	MrvlIEtypes_RxBaSync_t *tlv_rxba = (MrvlIEtypes_RxBaSync_t *)event_buf;
 	t_u16 tlv_type, tlv_len;
 	RxReorderTbl *rx_reor_tbl_ptr = MNULL;
-	t_u8 i, j;
-	t_u16 seq_num = 0;
+	t_u8 j;
+	t_u16 seq_num = 0, i;
 	int tlv_buf_left = len;
 
 	ENTER();
@@ -1343,22 +1350,19 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypes_RxBaSync_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv_rxba->header.type);
 		tlv_len = wlan_le16_to_cpu(tlv_rxba->header.len);
+
 		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
 			PRINTM(MERROR,
-			       "11n rxba sync event: incorrect tlv, tlv->len=%d tlv_buf_left=%d\n",
+			       "11n rxba sync event: incorrect tlv length, tlv->len=%d tlv_buf_left=%d\n",
 			       tlv_len, tlv_buf_left);
 			break;
 		}
+
 		if (tlv_type != TLV_TYPE_RXBA_SYNC) {
 			PRINTM(MERROR, "Wrong TLV id=0x%x\n", tlv_type);
 			goto done;
 		}
-		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
-			PRINTM(MERROR,
-			       "11n rxba sync event: wrong tlv, tlv_len=%d, tlv_buf_left=%d\n",
-			       tlv_len, tlv_buf_left);
-			break;
-		}
+
 		tlv_rxba->seq_num = wlan_le16_to_cpu(tlv_rxba->seq_num);
 		tlv_rxba->bitmap_len = wlan_le16_to_cpu(tlv_rxba->bitmap_len);
 		PRINTM(MEVENT, MACSTR " tid=%d seq_num=%d bitmap_len=%d\n",

@@ -4,7 +4,7 @@
  * @brief This file contains the functions for CFG80211 vendor.
  *
  *
- * Copyright 2015-2022, 2025, 2026 NXP
+ * Copyright 2015-2022, 2025-2026 NXP
  *
  * This software file (the File) is distributed by NXP
  * under the terms of the GNU General Public License Version 2, June 1991
@@ -26,23 +26,23 @@
 #include "moal_eth_ioctl.h"
 
 /********************************************************
- *				Local Variables
- * ******************************************************
+ * *				Local Variables
+ ********************************************************
  */
 
 /********************************************************
- *				Global Variables
- * ******************************************************
+ * *				Global Variables
+ ********************************************************
  */
 
 /********************************************************
- *				Local Functions
- * ******************************************************
+ * *				Local Functions
+ ********************************************************
  */
 
 /********************************************************
- *				Global Functions
- * ******************************************************
+ * *				Global Functions
+ ********************************************************
  */
 
 #if KERNEL_VERSION(3, 14, 0) <= CFG80211_VERSION_CODE
@@ -118,6 +118,10 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_rtt_result,
 	}, /*event_id ???*/
+	{
+		.vendor_id = MRVL_VENDOR_ID,
+		.subcmd = event_csi,
+	},
 	/**add vendor event here*/
 };
 
@@ -950,8 +954,8 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 	}
 	if (fw_info.fw_bands & BAND_A)
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
-	if (fw_info.rtt_support)
-		supp_feature_set |= WLAN_FEATURE_D2AP_RTT;
+	// Device to AP RTT is default enabled for Android
+	supp_feature_set |= WLAN_FEATURE_D2AP_RTT;
 	priv->phandle->wifi_hal_flag = MTRUE;
 
 	reply_len = sizeof(supp_feature_set);
@@ -2403,8 +2407,7 @@ static struct woal_apf_ctx *woal_apf_init_ctx(t_u32 ram_len)
 	}
 
 	/* Initialize spinlock (Coverity: this macro has side effects even if
-	 * modeled otherwise)
-	 */
+	 * modeled otherwise) */
 	// coverity[useless_call:SUPPRESS]
 	spin_lock_init(&ctx->lock);
 	ctx->ram = kzalloc(ram_len, GFP_KERNEL);
@@ -2561,8 +2564,7 @@ static int woal_deinit_packet_filter(moal_private *priv)
 
 	vfree(pkt_filter);
 	/* packet_filter is cleared after deinitialization and free, with no
-	 * expected concurrent access, making locking unnecessary
-	 */
+	 * expected concurrent access, making locking unnecessary */
 	// coverity[LOCK_EVASION:SUPPRESS]
 	priv->packet_filter = NULL;
 
@@ -2861,8 +2863,7 @@ woal_cfg80211_subcmd_vendor_read_packet_filter_data(struct wiphy *wiphy,
 		snap[off_age_sec + 3] = (age_s >> 24) & 0xff;
 
 		/* Set endianness marker bytes so CTS decodes counters as LE
-		 * (0x78563412).
-		 */
+		 * (0x78563412). */
 		/* CTS treats marker 0 as BE, so only set it when we are
 		 * actually exposing counters.
 		 * [2](https://android.googlesource.com/platform/packages/modules/Connectivity/+/1372ac214064016be96cbf6de342e636812fe63c%5E%21/)
@@ -4081,11 +4082,11 @@ static int apf_v6_exec(struct apf_v6_ctx *c)
 
 					/* R=0: jump if NOT matched; R=1: jump
 					 * if matched */
-					if ((matched ^ !rbit))
+					if ((matched ^ !rbit)) {
 						c->pc += imm;
-					else
-
-						break;
+					} else {
+					}
+					break;
 				}
 
 					/* ---- Data word load/store (counters)
@@ -4677,10 +4678,11 @@ int woal_filter_packet(moal_private *priv, t_u8 *data, t_u32 len,
 		 * -------------------- */
 		/* DA := our interface MAC (so APF can later swap MACs into TX
 		 * DA) */
-		if (ndev && is_valid_ether_addr(ndev->dev_addr))
+		if (ndev && is_valid_ether_addr(ndev->dev_addr)) {
 			memcpy(shim_buf + 0, ndev->dev_addr, ETH_ALEN);
-		else
+		} else {
 			memset(shim_buf + 0, 0x00, ETH_ALEN);
+		}
 
 		/* SA := AP BSSID if known, otherwise fall back to our MAC */
 		if (is_valid_ether_addr(priv->conn_bssid)) {
@@ -6553,7 +6555,7 @@ static int woal_cfg80211_subcmd_stop_keep_alive(struct wiphy *wiphy,
 
 /**
  * @brief               Upload last keep alive packet to Host through vendor
- * event
+ event
  *
  * @param priv          Pointer to moal_private structure
  * @param mkeep_alive   Pointer to mlan_ds_misc_keep_alive structure
@@ -6711,55 +6713,424 @@ static void woal_dump_rtt_params(wifi_rtt_config_params_t *rtt_params)
 {
 	int i = 0;
 
-	PRINTM(MMSG, "===== Start DUMP RTT Params =====\n");
-	PRINTM(MMSG, "rtt_config_num=%d\n\n", rtt_params->rtt_config_num);
+	PRINTM(MCMD_D, "===== Start DUMP RTT Params =====\n");
+	PRINTM(MCMD_D, "rtt_config_num=%d\n\n", rtt_params->rtt_config_num);
 
 	for (i = 0; i < rtt_params->rtt_config_num; i++) {
-		PRINTM(MMSG, "----------[%d]----------\n", i);
-		PRINTM(MMSG, "rtt_config[%d].addr=" MACSTR "\n", i,
+		PRINTM(MCMD_D, "----------[%d]----------\n", i);
+		PRINTM(MCMD_D, "rtt_config[%d].addr=" MACSTR "\n", i,
 		       MAC2STR(rtt_params->rtt_config[i].addr));
-		PRINTM(MMSG, "rtt_config[%d].type=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].type=%d\n", i,
 		       rtt_params->rtt_config[i].type);
-		PRINTM(MMSG, "rtt_config[%d].peer=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].peer=%d\n", i,
 		       rtt_params->rtt_config[i].peer);
-		PRINTM(MMSG, "rtt_config[%d].channel=[%d %d %d %d]\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].channel=[%d %d %d %d]\n", i,
 		       rtt_params->rtt_config[i].channel.width,
 		       rtt_params->rtt_config[i].channel.center_freq,
 		       rtt_params->rtt_config[i].channel.center_freq0,
 		       rtt_params->rtt_config[i].channel.center_freq1);
-		PRINTM(MMSG, "rtt_config[%d].burst_period=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].burst_period=%d\n", i,
 		       rtt_params->rtt_config[i].burst_period);
-		PRINTM(MMSG, "rtt_config[%d].num_burst=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].num_burst=%d\n", i,
 		       rtt_params->rtt_config[i].num_burst);
-		PRINTM(MMSG, "rtt_config[%d].num_frames_per_burst=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].num_frames_per_burst=%d\n", i,
 		       rtt_params->rtt_config[i].num_frames_per_burst);
-		PRINTM(MMSG, "rtt_config[%d].num_retries_per_rtt_frame=%d\n", i,
-		       rtt_params->rtt_config[i].num_retries_per_rtt_frame);
-		PRINTM(MMSG, "rtt_config[%d].num_retries_per_ftmr=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].num_retries_per_rtt_frame=%d\n",
+		       i, rtt_params->rtt_config[i].num_retries_per_rtt_frame);
+		PRINTM(MCMD_D, "rtt_config[%d].num_retries_per_ftmr=%d\n", i,
 		       rtt_params->rtt_config[i].num_retries_per_ftmr);
-		PRINTM(MMSG, "rtt_config[%d].LCI_request=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].LCI_request=%d\n", i,
 		       rtt_params->rtt_config[i].LCI_request);
-		PRINTM(MMSG, "rtt_config[%d].LCR_request=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].LCR_request=%d\n", i,
 		       rtt_params->rtt_config[i].LCR_request);
-		PRINTM(MMSG, "rtt_config[%d].burst_duration=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].burst_duration=%d\n", i,
 		       rtt_params->rtt_config[i].burst_duration);
-		PRINTM(MMSG, "rtt_config[%d].preamble=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].preamble=%d\n", i,
 		       rtt_params->rtt_config[i].preamble);
-		PRINTM(MMSG, "rtt_config[%d].bw=%d\n", i,
+		PRINTM(MCMD_D, "rtt_config[%d].bw=%d\n", i,
 		       rtt_params->rtt_config[i].bw);
-		PRINTM(MMSG, "\n");
+		PRINTM(MCMD_D, "\n");
 	}
 }
 
 /**
- * @brief vendor command to request rtt range
+ *  @brief Get channel_spacing from wifi_rtt_config preamble and bandwidth
  *
- * @param wiphy    A pointer to wiphy struct
- * @param wdev     A pointer to wireless_dev struct
- * @param data     a pointer to data
- * @param  len     data length
+ *  This function converts the Android HAL wifi_rtt_preamble and wifi_rtt_bw
+ *  values to the channel_spacing value used in the FTM session configuration
+ *  TLV (FTM_SESSION_CFG_INITATOR_TLV_ID 0x0211).
  *
- * @return      0: success  -1: fail
+ *  Channel spacing encoding (from ftm.conf):
+ *    2.4GHz/5GHz HT:  9=HT20, 11=HT40
+ *    5GHz VHT:        10=VHT20, 12=VHT40, 13=VHT80, 14=VHT160
+ *    6GHz HE:         17=HE20, 18=HE40, 19=HE80, 20=HE160
+ *
+ *  @param preamble  wifi_rtt_preamble value from Android HAL
+ *  @param bw        wifi_rtt_bw value from Android HAL
+ *
+ *  @return channel_spacing value for FTM session config TLV
+ */
+static t_u8 get_channel_spacing_from_rtt_config(wifi_rtt_preamble preamble,
+						wifi_rtt_bw bw)
+{
+	switch (preamble) {
+	case WIFI_RTT_PREAMBLE_LEGACY:
+		/* Legacy mode only supports 20 MHz, use HT20 */
+		return FTM_CHAN_SPACING_HT20;
+
+	case WIFI_RTT_PREAMBLE_HT:
+		switch (bw) {
+		case WIFI_RTT_BW_20:
+			return FTM_CHAN_SPACING_HT20;
+		case WIFI_RTT_BW_40:
+			return FTM_CHAN_SPACING_HT40;
+		default:
+			return FTM_CHAN_SPACING_HT20; /* Default to HT20 */
+		}
+
+	case WIFI_RTT_PREAMBLE_VHT:
+		switch (bw) {
+		case WIFI_RTT_BW_20:
+			return FTM_CHAN_SPACING_VHT20;
+		case WIFI_RTT_BW_40:
+			return FTM_CHAN_SPACING_VHT40;
+		case WIFI_RTT_BW_80:
+			return FTM_CHAN_SPACING_VHT80;
+		default:
+			return FTM_CHAN_SPACING_VHT80; /* Default to VHT80 */
+		}
+
+	case WIFI_RTT_PREAMBLE_HE:
+		switch (bw) {
+		case WIFI_RTT_BW_20:
+			return FTM_CHAN_SPACING_HE20;
+		case WIFI_RTT_BW_40:
+			return FTM_CHAN_SPACING_HE40;
+		case WIFI_RTT_BW_80:
+			return FTM_CHAN_SPACING_HE80;
+		default:
+			return FTM_CHAN_SPACING_HE80; /* Default to HE80 */
+		}
+
+	default:
+		/* Invalid or unspecified preamble, default to HT20 */
+		return FTM_CHAN_SPACING_HT20;
+	}
+}
+/**
+ *  @brief Configure FTM session for a target
+ *
+ *  This function converts the Android HAL wifi_rtt_config structure to
+ *  mlan_ftm_session_cfg and sends the configuration to firmware.
+ *
+ *  @param priv        Pointer to moal_private structure
+ *  @param rtt_cfg     Pointer to wifi_rtt_config with target parameters
+ *
+ *  @return 0 on success, negative error code on failure
+ */
+static int woal_ftm_session_cfg(moal_private *priv, wifi_rtt_config *rtt_cfg)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_cfg *cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	cfg = &misc->param.ftm_session_cfg;
+
+	/* Convert wifi_rtt_config to mlan_ftm_session_cfg */
+	memcpy(cfg->peer_mac, rtt_cfg->addr, ETH_ALEN);
+	cfg->channel =
+		ieee80211_frequency_to_channel(rtt_cfg->channel.center_freq);
+	/* num_burst is already in exponent form (0-15) per 802.11mc */
+	cfg->burst_exponent =
+		(rtt_cfg->num_burst <= 15) ? (t_u8)rtt_cfg->num_burst : 0;
+	cfg->burst_duration =
+		(rtt_cfg->burst_duration > 0 && rtt_cfg->burst_duration <= 15) ?
+			(t_u8)rtt_cfg->burst_duration :
+			FTM_DEFAULT_BURST_DURATION;
+	cfg->burst_period = (rtt_cfg->burst_period <= 31) ?
+				    (t_u16)rtt_cfg->burst_period :
+				    FTM_DEFAULT_BURST_PERIOD;
+	cfg->per_burst_FTM = (rtt_cfg->num_frames_per_burst > 0 &&
+			      rtt_cfg->num_frames_per_burst <= 31) ?
+				     (t_u8)rtt_cfg->num_frames_per_burst :
+				     FTM_DEFAULT_PER_BURST_FTM;
+	cfg->is_ASAP = FTM_DEFAULT_ASAP;
+	cfg->min_delta_FTM = FTM_DEFAULT_MIN_DELTA_FTM;
+	cfg->iftm_tmo = FTM_DEFAULT_IFTM_TMO;
+	cfg->lci_request = rtt_cfg->LCI_request;
+	cfg->civic_request = rtt_cfg->LCR_request;
+	cfg->channel_spacing = get_channel_spacing_from_rtt_config(
+		rtt_cfg->preamble, rtt_cfg->bw);
+
+	PRINTM(MCMND,
+	       "FTM session cfg: burst_exp=%d burst_dur=%d min_delta=%d "
+	       "is_ASAP=%d per_burst=%d chan_spacing=%d burst_period=%d lci=%d "
+	       "civic=%d peer= " MACSTR "\n",
+	       cfg->burst_exponent, cfg->burst_duration, cfg->min_delta_FTM,
+	       cfg->is_ASAP, cfg->per_burst_FTM, cfg->channel_spacing,
+	       cfg->burst_period, cfg->lci_request, cfg->civic_request,
+	       MAC2STR(cfg->peer_mac));
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+static t_u8 woal_freq_to_chanband(t_u32 center_freq)
+{
+	if (center_freq >= 5935 && center_freq <= 7115)
+		return 2; // 6 GHz band
+	else if (center_freq >= 5150 && center_freq <= 5895)
+		return 1; // 5 GHz band
+	else
+		return 0; // 2.4 GHz band (2400-2500 MHz)
+}
+
+/**
+ * @brief Determine FTM session action based on association status
+ */
+static t_u16 woal_get_ftm_session_action(moal_private *priv, t_u8 *peer_mac)
+{
+	mlan_ssid_bssid *ssid_bssid;
+	t_u16 result;
+
+	ssid_bssid = kmalloc(sizeof(*ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid) {
+		PRINTM(MERROR,
+		       "FTM: Failed to allocate memory for association check\n");
+		return FTM_SESSION_UNASSOCIATED; // Safe default
+	}
+
+	memset(ssid_bssid, 0, sizeof(*ssid_bssid));
+	memcpy(ssid_bssid->bssid, peer_mac, MLAN_MAC_ADDR_LENGTH);
+
+	if (woal_is_connected(priv, ssid_bssid) == MTRUE) {
+		PRINTM(MCMND, "Peer " MACSTR " is ASSOCIATED\n",
+		       MAC2STR(peer_mac));
+		result = FTM_SESSION_ASSOCIATED; /* action = 1 */
+	} else {
+		PRINTM(MCMND,
+		       "Peer " MACSTR
+		       " is NOT associated, using UNASSOCIATED\n",
+		       MAC2STR(peer_mac));
+		result = FTM_SESSION_UNASSOCIATED; /* action = 4 */
+	}
+
+	kfree(ssid_bssid);
+	return result;
+}
+
+/**
+ *  @brief Start/Stop FTM session
+ */
+static int woal_ftm_session_ctrl(moal_private *priv, t_u8 *peer_mac,
+				 t_u32 center_freq, t_u16 action_in)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_ctrl *ctrl;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+	t_u16 action;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CTRL;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	ctrl = &misc->param.ftm_session_ctrl;
+	/* Determine action based on association status (for START action) */
+	if (action_in == FTM_SESSION_CTRL_ACTION_START) {
+		action = woal_get_ftm_session_action(priv, peer_mac);
+	} else {
+		action = action_in; /* Use provided action for STOP */
+	}
+	ctrl->action = action;
+	memcpy(ctrl->peer_mac, peer_mac, ETH_ALEN);
+	ctrl->channel = ieee80211_frequency_to_channel(center_freq);
+	ctrl->chanBand = woal_freq_to_chanband(center_freq);
+
+	PRINTM(MCMND,
+	       "FTM session ctrl: action=%d chan=%d chanBand=%d peer=" MACSTR
+	       "\n",
+	       ctrl->action, ctrl->channel, ctrl->chanBand,
+	       MAC2STR(ctrl->peer_mac));
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+
+	if (action_in == FTM_SESSION_CTRL_ACTION_START) {
+		/* Set FTM session in progress flag on successful START */
+		priv->phandle->ftm_session_in_progress = MTRUE;
+	} else {
+		priv->phandle->ftm_session_in_progress = MFALSE;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Parse RTT range request vendor command data
+ *
+ *  This function parses the netlink attributes from an RTT range request
+ *  vendor command and extracts the RTT configuration parameters into the
+ *  provided wifi_rtt_config_params_t structure.
+ *
+ *  @param handle      Pointer to moal_handle structure
+ *  @param data        Vendor command data buffer
+ *  @param len         Length of data buffer
+ *  @param rtt_params  Output: Pointer to wifi_rtt_config_params_t to fill
+ *
+ *  @return 0 on success, negative error code on failure
+ *          -EINVAL: Invalid parameters or missing required attributes
+ *          -EFAULT: nla_parse failure
+ */
+static int woal_parse_rtt_range_request(moal_handle *handle, const void *data,
+					int len,
+					wifi_rtt_config_params_t *rtt_params)
+{
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
+	t_u8 rtt_config_num = 0;
+	wifi_rtt_config *rtt_config = NULL;
+	t_u8 i = 0;
+	int err = 0;
+	int expected_len;
+
+	ENTER();
+
+	/* Validate input parameters */
+	if (!handle || !data || !rtt_params) {
+		PRINTM(MERROR, "%s: invalid parameters\n", __func__);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	/* Initialize output structure */
+	memset(rtt_params, 0, sizeof(wifi_rtt_config_params_t));
+
+	/* Parse netlink attributes */
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		LEAVE();
+		return -EFAULT;
+	}
+
+	/* Validate required attributes are present */
+	if (!tb[ATTR_RTT_TARGET_NUM] || !tb[ATTR_RTT_TARGET_CONFIG]) {
+		PRINTM(MERROR,
+		       "%s: null attr: tb[ATTR_RTT_TARGET_NUM]=%p tb[ATTR_RTT_TARGET_CONFIG]=%p\n",
+		       __func__, tb[ATTR_RTT_TARGET_NUM],
+		       tb[ATTR_RTT_TARGET_CONFIG]);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	/* Get number of RTT targets */
+	rtt_config_num = (t_u8)nla_get_u8(tb[ATTR_RTT_TARGET_NUM]);
+
+	/* Validate target count */
+	if ((rtt_config_num == 0) || ((handle->rtt_params.rtt_config_num +
+				       rtt_config_num) > MAX_RTT_CONFIG_NUM)) {
+		PRINTM(MERROR, "%s: invalid num=%d  num in handle=%d  MAX=%d\n",
+		       __func__, rtt_config_num,
+		       handle->rtt_params.rtt_config_num, MAX_RTT_CONFIG_NUM);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	/* Validate config data size matches expected length */
+	expected_len = (int)sizeof(wifi_rtt_config) * (int)rtt_config_num;
+	if (nla_len(tb[ATTR_RTT_TARGET_CONFIG]) != expected_len) {
+		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %u(each)\n",
+		       __func__, nla_len(tb[ATTR_RTT_TARGET_CONFIG]),
+		       rtt_config_num, (t_u32)sizeof(wifi_rtt_config));
+		LEAVE();
+		return -EINVAL;
+	}
+
+	/* Get pointer to RTT config array */
+	rtt_config = (wifi_rtt_config *)nla_data(tb[ATTR_RTT_TARGET_CONFIG]);
+
+	/* Copy valid configs (filter out zero MAC addresses) */
+	for (i = 0; i < rtt_config_num; i++) {
+		if (!memcmp(rtt_config[i].addr, zero_mac,
+			    sizeof(rtt_config[i].addr)))
+			continue;
+
+		moal_memcpy_ext(
+			handle,
+			&rtt_params->rtt_config[rtt_params->rtt_config_num],
+			&rtt_config[i], sizeof(wifi_rtt_config),
+			sizeof(wifi_rtt_config));
+		rtt_params->rtt_config_num++;
+	}
+
+	/* Verify at least one valid target */
+	if (!rtt_params->rtt_config_num) {
+		PRINTM(MERROR, "%s: no valid mac addr\n", __func__);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	LEAVE();
+	return 0;
+}
+
+/**
+ *  @brief RTT Range Request vendor command handler
+ *
+ *  This function handles the RTT range request vendor command from Android HAL.
+ *  It parses the request, configures FTM sessions for each target, and starts
+ *  the ranging process using the FTM session commands.
+ *
+ *  @param wiphy       Pointer to wiphy structure
+ *  @param wdev        Pointer to wireless_dev structure
+ *  @param data        Vendor command data buffer
+ *  @param len         Length of data buffer
+ *
+ *  @return 0 on success, negative error code on failure
  */
 static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 						  struct wireless_dev *wdev,
@@ -6768,87 +7139,47 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 	struct net_device *dev = wdev->netdev;
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	moal_handle *handle = priv->phandle;
-	struct nlattr *tb[ATTR_RTT_MAX + 1];
-	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
-	t_u8 rtt_config_num = 0;
-	wifi_rtt_config *rtt_config = NULL;
-	t_u8 i = 0, j = 0;
 	wifi_rtt_config_params_t rtt_params;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	int err = 0;
+	int ret = 0;
+	int i, j;
 
 	ENTER();
-	PRINTM(MCMND, "Enter %s()\n", __func__);
-	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
-#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
-			,
-			NULL
-#endif
-	);
-	if (err) {
-		err = -EFAULT;
-		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+
+	/* Parse vendor command data to get RTT configs */
+	ret = woal_parse_rtt_range_request(handle, data, len, &rtt_params);
+	if (ret || rtt_params.rtt_config_num == 0) {
+		PRINTM(MERROR, "Failed to parse RTT range request\n");
 		goto done;
 	}
 
-	if (!tb[ATTR_RTT_TARGET_NUM] || !tb[ATTR_RTT_TARGET_CONFIG]) {
-		PRINTM(MERROR,
-		       "%s: null attr: tb[ATTR_RTT_TARGET_NUM]=%p tb[ATTR_RTT_TARGET_CONFIG]=%p\n",
-		       __func__, tb[ATTR_RTT_TARGET_NUM],
-		       tb[ATTR_RTT_TARGET_CONFIG]);
-		err = -EINVAL;
-		goto done;
-	}
-
-	rtt_config_num = nla_get_u8(tb[ATTR_RTT_TARGET_NUM]);
-
-	if ((rtt_config_num == 0) || ((handle->rtt_params.rtt_config_num +
-				       rtt_config_num) > MAX_RTT_CONFIG_NUM)) {
-		PRINTM(MERROR, "%s: invalid num=%d  num in handle=%d  MAX=%d\n",
-		       __func__, rtt_config_num,
-		       handle->rtt_params.rtt_config_num, MAX_RTT_CONFIG_NUM);
-		err = -EINVAL;
-		goto done;
-	}
-	if (nla_len(tb[ATTR_RTT_TARGET_CONFIG]) !=
-	    sizeof(rtt_params.rtt_config[0]) * rtt_config_num) {
-		PRINTM(MERROR, "%s: invalid %d(total) != %d(num) * %u(each)\n",
-		       __func__, nla_len(tb[ATTR_RTT_TARGET_CONFIG]),
-		       rtt_config_num, (t_u32)sizeof(rtt_params.rtt_config[0]));
-		err = -EINVAL;
-		goto done;
-	}
-
-	rtt_config = (wifi_rtt_config *)nla_data(tb[ATTR_RTT_TARGET_CONFIG]);
-	memset(&rtt_params, 0, sizeof(rtt_params));
-	/** Strip the zero mac config */
-	for (i = 0; i < rtt_config_num; i++) {
-		if (!memcmp(rtt_config[i].addr, zero_mac,
-			    sizeof(rtt_config[i].addr)))
-			continue;
-		else {
-			moal_memcpy_ext(
-				handle,
-				&rtt_params
-					 .rtt_config[rtt_params.rtt_config_num],
-				&rtt_config[i],
-				sizeof(rtt_params.rtt_config
-					       [rtt_params.rtt_config_num]),
-				sizeof(wifi_rtt_config));
-			rtt_params.rtt_config_num++;
-		}
-	}
-	if (!rtt_params.rtt_config_num) {
-		PRINTM(MERROR, "%s: no valid mac addr\n", __func__);
-		goto done;
-	}
+	PRINTM(MCMND, "RTT range request: %d targets\n",
+	       rtt_params.rtt_config_num);
 	woal_dump_rtt_params(&rtt_params);
 
-	ret = woal_config_rtt(priv, MOAL_IOCTL_WAIT, &rtt_params);
-	if (ret != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "%s: woal_config_rtt() failed\n", __func__);
-		err = -EFAULT;
-		goto done;
+	/* Process each target */
+	for (i = 0; i < rtt_params.rtt_config_num; i++) {
+		wifi_rtt_config *cfg = &rtt_params.rtt_config[i];
+
+		PRINTM(MCMND, "Processing target %d: " MACSTR "\n", i,
+		       MAC2STR(cfg->addr));
+
+		/* Step 1: Configure FTM session */
+		ret = woal_ftm_session_cfg(priv, cfg);
+		if (ret) {
+			PRINTM(MERROR,
+			       "FTM session config failed for target %d\n", i);
+			continue;
+		}
+
+		/* Step 2: Start FTM session */
+		ret = woal_ftm_session_ctrl(priv, cfg->addr,
+					    cfg->channel.center_freq,
+					    FTM_SESSION_CTRL_ACTION_START);
+		if (ret) {
+			PRINTM(MERROR,
+			       "FTM session start failed for target %d\n", i);
+			continue;
+		}
 	}
 
 	for (i = 0; i < rtt_params.rtt_config_num; i++) {
@@ -6867,11 +7198,9 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 			handle->rtt_params.rtt_config_num++;
 	}
 
-	woal_dump_rtt_params(&(handle->rtt_params));
-
 done:
 	LEAVE();
-	return err;
+	return ret;
 }
 
 /**
@@ -6898,9 +7227,9 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	int i = 0, j = 0;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int err = 0;
+	int stopped_count = 0;
 
 	ENTER();
-	PRINTM(MCMND, "Enter %s()\n", __func__);
 	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
 #if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
 			,
@@ -6926,27 +7255,62 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	if ((target_num <= 0 || target_num > MAX_RTT_CONFIG_NUM) ||
 	    (nla_len(tb[ATTR_RTT_TARGET_ADDR]) !=
 	     sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH * target_num)) {
-		PRINTM(MERROR, "%s: Check if %din[1-%d] or %d*%u=%d\n",
+		PRINTM(MERROR, "%s: Check if %d in [1-%d] or %d*%u=%d\n",
 		       __func__, target_num, MAX_RTT_CONFIG_NUM, target_num,
 		       (t_u32)(sizeof(t_u8) * MLAN_MAC_ADDR_LENGTH),
 		       nla_len(tb[ATTR_RTT_TARGET_ADDR]));
 		err = -EINVAL;
 		goto done;
 	}
+
+	PRINTM(MMSG, "RTT range cancel: %d targets\n", target_num);
 	woal_dump_rtt_params(&(handle->rtt_params));
 
 	moal_memcpy_ext(handle, addr, nla_data(tb[ATTR_RTT_TARGET_ADDR]),
 			nla_len(tb[ATTR_RTT_TARGET_ADDR]), sizeof(addr));
 
 	for (i = 0; i < target_num; i++)
-		PRINTM(MMSG, "cancel[%d].addr=" MACSTR "\n", i,
+		PRINTM(MCMND, "cancel[%d].addr=" MACSTR "\n", i,
 		       MAC2STR(addr[i]));
 
+	/* For each target to cancel, find it in rtt_params, stop FTM session,
+	 * then remove from rtt_params */
 	for (i = 0; i < target_num; i++) {
 		for (j = 0; j < handle->rtt_params.rtt_config_num; j++) {
 			if (!memcmp(addr[i],
 				    handle->rtt_params.rtt_config[j].addr,
 				    sizeof(addr[0]))) {
+				wifi_rtt_config *cfg =
+					&handle->rtt_params.rtt_config[j];
+
+				/* Stop FTM session using ftm_session_ctrl
+				 * command */
+				PRINTM(MCMND,
+				       "Stopping FTM session for target " MACSTR
+				       " on freq %d\n",
+				       MAC2STR(cfg->addr),
+				       cfg->channel.center_freq);
+
+				ret = woal_ftm_session_ctrl(
+					priv, cfg->addr,
+					cfg->channel.center_freq,
+					FTM_SESSION_CTRL_ACTION_STOP);
+				if (ret) {
+					PRINTM(MERROR,
+					       "FTM session stop failed for target " MACSTR
+					       ", ret=%d, continuing...\n",
+					       MAC2STR(cfg->addr), ret);
+					/* Continue to try stopping other
+					 * targets */
+				} else {
+					PRINTM(MCMND,
+					       "FTM session stopped successfully for target " MACSTR
+					       "\n",
+					       MAC2STR(cfg->addr));
+					stopped_count++;
+				}
+
+				/* Remove from rtt_params array */
 				memset(&(handle->rtt_params.rtt_config[j]),
 				       0x00,
 				       sizeof(handle->rtt_params.rtt_config[0]));
@@ -6970,7 +7334,8 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 							      .rtt_config[0]));
 				}
 				handle->rtt_params.rtt_config_num--;
-				continue;
+				break; /* Found match, move to next cancel
+					  target */
 			}
 		}
 	}
@@ -6981,12 +7346,8 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 		goto done;
 	}
 
-	ret = woal_cancel_rtt(priv, MOAL_IOCTL_WAIT, target_num, addr);
-	if (ret != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "%s: woal_cancel_rtt() failed\n", __func__);
-		err = -EFAULT;
-		goto done;
-	}
+	PRINTM(MCMND, "RTT range cancel complete: stopped %d/%d targets\n",
+	       stopped_count, target_num);
 	woal_dump_rtt_params(&(handle->rtt_params));
 
 done:
@@ -7058,6 +7419,35 @@ done:
 	return ret;
 }
 
+int woal_cfg80211_csi_vendor_event(moal_private *priv, t_u8 *data, int len)
+{
+	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct sk_buff *skb;
+	int event_id = 0;
+	t_u32 vdr_event_len = 0;
+
+	ENTER();
+
+	event_id = woal_get_event_id(event_csi);
+	if (event_max == event_id) {
+		PRINTM(MERROR, "Not find event_csi\n");
+		LEAVE();
+		return -EINVAL;
+	}
+
+	vdr_event_len = nla_total_size(len) + VENDOR_REPLY_OVERHEAD;
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, vdr_event_len,
+					  event_id, GFP_ATOMIC);
+	if (!skb)
+		return -1;
+
+	nla_put(skb, ATTR_CSI_CONFIG, len, data);
+	cfg80211_vendor_event(skb, GFP_ATOMIC);
+
+	LEAVE();
+	return 0;
+}
+
 /**
  * @brief vendor command to get rtt responder info
  *
@@ -7080,6 +7470,7 @@ woal_cfg80211_subcmd_rtt_get_responder_info(struct wiphy *wiphy,
 	wifi_rtt_responder rtt_rsp;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int err = 0;
+	t_u8 chanWidth;
 
 	ENTER();
 	PRINTM(MCMND, "Enter %s()\n", __func__);
@@ -7092,11 +7483,13 @@ woal_cfg80211_subcmd_rtt_get_responder_info(struct wiphy *wiphy,
 		err = -EFAULT;
 		goto done;
 	}
+	chanWidth =
+		BANDCFG_GET_CHANWIDTH(rtt_rsp_cfg.u.info.bandcfg.chanWidthExt,
+				      rtt_rsp_cfg.u.info.bandcfg.chanWidth);
 	PRINTM(MCMD_D,
 	       "mlan_rtt_responder from FW: channel=%d bandcfg=%d %d %d %d preamble=%d\n",
 	       rtt_rsp_cfg.u.info.channel, rtt_rsp_cfg.u.info.bandcfg.chanBand,
-	       rtt_rsp_cfg.u.info.bandcfg.chanWidth,
-	       rtt_rsp_cfg.u.info.bandcfg.chan2Offset,
+	       chanWidth, rtt_rsp_cfg.u.info.bandcfg.chan2Offset,
 	       rtt_rsp_cfg.u.info.bandcfg.scanMode,
 	       rtt_rsp_cfg.u.info.preamble);
 
@@ -7160,6 +7553,7 @@ static int woal_cfg80211_subcmd_rtt_enable_responder(struct wiphy *wiphy,
 	wifi_rtt_responder rtt_rsp;
 	struct sk_buff *skb = NULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 chanWidth = 0;
 	int err = 0;
 
 	ENTER();
@@ -7200,12 +7594,14 @@ static int woal_cfg80211_subcmd_rtt_enable_responder(struct wiphy *wiphy,
 	woal_channel_info_to_bandcfg(priv, ch_info,
 				     &(rtt_rsp_cfg.u.encfg.bandcfg));
 	rtt_rsp_cfg.u.encfg.max_dur_sec = max_dur_sec;
+	chanWidth =
+		BANDCFG_GET_CHANWIDTH(rtt_rsp_cfg.u.encfg.bandcfg.chanWidthExt,
+				      rtt_rsp_cfg.u.encfg.bandcfg.chanWidth);
 	PRINTM(MCMD_D, "HAL input to rtt_responder_encfg:\n");
 	PRINTM(MCMD_D,
 	       "channel=%d bandcfg=[chanBand=%d chanWidth=%d chan2Offset=%d scanMode=%d]\n",
 	       rtt_rsp_cfg.u.encfg.channel,
-	       rtt_rsp_cfg.u.encfg.bandcfg.chanBand,
-	       rtt_rsp_cfg.u.encfg.bandcfg.chanWidth,
+	       rtt_rsp_cfg.u.encfg.bandcfg.chanBand, chanWidth,
 	       rtt_rsp_cfg.u.encfg.bandcfg.chan2Offset,
 	       rtt_rsp_cfg.u.encfg.bandcfg.scanMode);
 	PRINTM(MCMD_D, "max_dur_sec=%d\n", rtt_rsp_cfg.u.encfg.max_dur_sec);
@@ -9262,8 +9658,8 @@ static int woal_cfg80211_subcmd_get_usable_channels(struct wiphy *wiphy,
 	struct net_device *dev = wdev->netdev;
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	struct nlattr *tb[ATTR_WIFI_MAX + 1];
-	t_u32 band = 0, iface_mode, filter, max_size, size;
-	t_u8 cnt = 0, i, j;
+	t_u32 band = 0, iface_mode, filter, max_size, size, j;
+	t_u8 cnt = 0, i;
 	t_u32 mem_needed = 0;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_channel *ch;

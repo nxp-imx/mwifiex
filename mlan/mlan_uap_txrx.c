@@ -24,7 +24,7 @@
 /********************************************************
  * Change log:
  * 02/05/2009: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -41,7 +41,7 @@
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -112,7 +112,7 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function fill the txpd for tx packet
@@ -129,6 +129,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	t_u8 *head_ptr = MNULL;
 	t_u32 pkt_type;
 	t_u32 tx_control;
+	t_u8 radio_idx = 0;
 	t_u8 dst_mac[MLAN_MAC_ADDR_LENGTH];
 	tx_ctrl *ctrl;
 
@@ -174,7 +175,8 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		Tx_PD_SIZEOF(pmpriv->adapter));
 
 	/* Set the BSS number to TxPD */
-	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
+	plocal_tx_pd->bss_num =
+		TxPD_SET_BSS_NUM_RADIO_IDX(GET_BSS_NUM(pmpriv), radio_idx);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 
 	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
@@ -343,10 +345,9 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 
 	if (priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
-		pmbuf->u.rx_info.data_rate =
-			wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
-						prx_pd->rate_info,
-						ext_rate_info);
+		pmbuf->u.rx_info.data_rate = wlan_index_to_data_rate(
+			priv->adapter, prx_pd->rx_rate, prx_pd->rate_info,
+			ext_rate_info, ext_rate_info & MBIT(6));
 		pmbuf->u.rx_info.channel =
 			(prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
 		pmbuf->u.rx_info.antenna = prx_pd->antenna;
@@ -820,8 +821,7 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				if (dest_sta && !dest_sta->is_multi_ap) {
 					/* Destination is a fronthaul client
 					 * (3-address mode) Clear EASYMESH flag
-					 * to convert 4-addr to 3-addr
-					 */
+					 * to convert 4-addr to 3-addr */
 					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
 				}
 			}

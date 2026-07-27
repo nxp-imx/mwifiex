@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_sta_cfg80211.h
  *
  * @brief This file contains the STA CFG80211 specific defines.

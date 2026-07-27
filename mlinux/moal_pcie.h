@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_pcie.h
  *
  *  @brief This file contains definitions for PCIE interface.
@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 02/01/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MOAL_PCIE_H_

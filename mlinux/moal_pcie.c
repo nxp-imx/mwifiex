@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 02/01/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include <linux/firmware.h>
@@ -52,7 +52,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 #define DRV_NAME "NXP mdriver PCIe"
 
@@ -141,12 +141,12 @@ static moal_if_ops pcie_ops;
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
@@ -271,7 +271,7 @@ static t_u16 woal_update_card_type(t_void *card)
 		moal_memcpy_ext(NULL,
 				driver_version + strlen(INTF_CARDTYPE) +
 					strlen(KERN_VERSION),
-				V18, strlen(V18),
+				V19, strlen(V19),
 				strlen(driver_version) - strlen(INTF_CARDTYPE) -
 					strlen(KERN_VERSION));
 	}
@@ -538,6 +538,7 @@ err_init_fw:
 	if (handle->reassoc_thread.pid)
 		wake_up_interruptible(&handle->reassoc_thread.wait_q);
 	/* waiting for main thread quit */
+	// coverity[INFINITE_LOOP:SUPPRESS]
 	while (handle->reassoc_thread.pid)
 		woal_sched_timeout(2);
 #endif /* REASSOCIATION */
@@ -618,6 +619,8 @@ static int woal_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 #ifdef IMX_SUPPORT
 	woal_regist_oob_wakeup_irq(card->handle);
 #endif /* IMX_SUPPORT */
+	if ((card->handle->params.indrstcfg & 0xff) == IR_MODE_OOB)
+		woal_regist_ind_rst_gpio(card->handle);
 
 	LEAVE();
 	return ret;
@@ -658,11 +661,14 @@ static void woal_pcie_remove(struct pci_dev *dev)
 		LEAVE();
 		return;
 	}
+
 	handle->surprise_removed = MTRUE;
 
 #ifdef IMX_SUPPORT
 	woal_unregist_oob_wakeup_irq(card->handle);
 #endif /* IMX_SUPPORT */
+	if (handle->ind_rst_gpiod)
+		woal_unregist_ind_rst_gpio(handle);
 	woal_remove_card(card);
 	woal_pcie_cleanup(card);
 	kfree(card);
@@ -710,8 +716,16 @@ static void woal_pcie_shutdown(struct pci_dev *dev)
 	}
 #endif
 done:
+
 	handle->surprise_removed = MTRUE;
-	pci_disable_device(dev);
+	/* Guard pci_disable_device() with pci_is_enabled() check.
+	 * If the device is runtime-suspended, pci_disable_device() was
+	 * already called in runtime_suspend (enable count = 0). Calling
+	 * it again unconditionally would underflow the enable count and
+	 * trigger a kernel warning "Disabling already-disabled device".
+	 */
+	if (pci_is_enabled(dev))
+		pci_disable_device(dev);
 	PRINTM(MCMND, "<--- Leave woal_pcie_shutdown --->\n");
 	LEAVE();
 	return;
@@ -754,6 +768,7 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 		PRINTM(MCMND, "<--- Enter woal_pcie_suspend# --->\n");
 	else
 		PRINTM(MCMND, "<--- Enter woal_pcie_suspend --->\n");
+
 	if (handle->is_suspended == MTRUE) {
 		PRINTM(MWARN, "Device already suspended\n");
 		LEAVE();
@@ -1159,7 +1174,7 @@ static struct pci_driver REFDATA wlan_pcie = {
 	.probe = woal_pcie_probe,
 	.remove = woal_pcie_remove,
 	.shutdown = woal_pcie_shutdown,
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM)
 	/* Power Management Hooks */
 	.suspend = woal_pcie_suspend,
 	.resume = woal_pcie_resume,
@@ -1171,7 +1186,7 @@ static struct pci_driver REFDATA wlan_pcie = {
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -1187,7 +1202,6 @@ static mlan_status woal_pcie_write_reg(moal_handle *handle, t_u32 reg,
 				       t_u32 data)
 {
 	pcie_service_card *card = (pcie_service_card *)handle->card;
-
 	iowrite32(data, card->pci_mmap1 + reg);
 	PRINTM(MREG, "pcie w %x = %x\n", reg, data);
 
@@ -1230,6 +1244,12 @@ static mlan_status woal_pcie_write_data_sync(moal_handle *handle,
 					     mlan_buffer *pmbuf, t_u32 port,
 					     t_u32 timeout)
 {
+	/* CC-2/CC-5: This is a stub for PCIE — actual TX DMA is driven by
+	 * mlan_main_process() via the work queue. Runtime PM get/put for
+	 * the TX path is handled in woal_hard_start_xmit() and
+	 * woal_main_work_queue() in moal_main.c. Adding get_sync here
+	 * without a matching put would permanently prevent runtime suspend.
+	 */
 	return MLAN_STATUS_SUCCESS;
 }
 
@@ -1293,6 +1313,7 @@ static irqreturn_t woal_pcie_interrupt(int irq, void *dev_id)
 		PRINTM(MINTR, "*\n");
 	if (handle->is_suspended)
 		PRINTM(MERROR, "Receive interrupt in hs_suspended\n");
+
 	ret = mlan_interrupt(0xffff, handle->pmlan_adapter);
 
 exit:
@@ -1670,6 +1691,8 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 	t_u32 dump_end_reg = 0;
 	t_u32 scratch_14_reg = 0;
 	t_u32 scratch_15_reg = 0;
+	t_u32 dump_start_reg2 = 0;
+	t_u32 dump_end_reg2 = 0;
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 	/* Tx/Rx/Event AMDA start address */
@@ -1729,6 +1752,8 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		dump_end_reg = PCIE9098_DUMP_REG_END;
 		scratch_14_reg = PCIE9098_SCRATCH_14_REG;
 		scratch_15_reg = PCIE9098_SCRATCH_15_REG;
+		dump_start_reg2 = 0x1c20;
+		dump_end_reg2 = 0x1c9c;
 	}
 #endif
 
@@ -1770,13 +1795,14 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 	    IS_PCIEIW624(phandle->card_type) ||
 	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
-		drv_ptr += sprintf(
-			drv_ptr,
-			"PCIE registers from offset 0x1c20 to 0x1c9c:\n");
+		drv_ptr +=
+			sprintf(drv_ptr,
+				"PCIE registers from offset 0x%x to 0x%0x:\n",
+				dump_start_reg2, dump_end_reg2);
 		memset(buf, 0, sizeof(buf));
 		ptr = buf;
 		i = 1;
-		for (reg = 0x1c20; reg <= 0x1c9c; reg += 4) {
+		for (reg = dump_start_reg2; reg <= dump_end_reg2; reg += 4) {
 			woal_pcie_read_reg(phandle, reg, &value);
 			ptr += sprintf(ptr, "%08x ", value);
 			if (!(i % 8)) {
@@ -1798,12 +1824,12 @@ static int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 			drv_ptr += sprintf(
 				drv_ptr,
 				"ADMA registers dump from offset 0x%x to 0x%x\n",
-				adma_reg_table[j], adma_reg_table[j] + 0x68);
+				adma_reg_table[j], adma_reg_table[j] + 0x7c);
 			memset(buf, 0, sizeof(buf));
 			ptr = buf;
 			i = 1;
 			for (reg = adma_reg_table[j];
-			     reg <= (adma_reg_table[j] + 0x68); reg += 4) {
+			     reg <= (adma_reg_table[j] + 0x7c); reg += 4) {
 				woal_pcie_read_reg(phandle, reg, &value);
 				ptr += sprintf(ptr, "%08x ", value);
 				if (!(i % 8)) {
@@ -1842,6 +1868,8 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 				  0x50, 0x60, 0x64, 0x80, 0x98, 0x170};
 	t_u32 dump_start_reg = 0;
 	t_u32 dump_end_reg = 0;
+	t_u32 dump_start_reg2 = 0;
+	t_u32 dump_end_reg2 = 0;
 	t_u32 scratch_14_reg = 0;
 	t_u32 scratch_15_reg = 0;
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
@@ -1892,6 +1920,8 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		reg = PCIE9098_SCRATCH_12_REG;
 		dump_start_reg = PCIE9098_DUMP_START_REG;
 		dump_end_reg = PCIE9098_DUMP_END_REG;
+		dump_start_reg2 = 0x1c20;
+		dump_end_reg2 = 0x1c9c;
 		scratch_14_reg = PCIE9098_SCRATCH_14_REG;
 		scratch_15_reg = PCIE9098_SCRATCH_15_REG;
 	}
@@ -1930,11 +1960,12 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 	    IS_PCIEIW624(phandle->card_type) ||
 	    IS_PCIEAW693(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
-		PRINTM(MMSG, "PCIE registers from offset 0x1c20 to 0x1c9c:\n");
+		PRINTM(MMSG, "PCIE registers from offset 0x%x to 0x%x:\n",
+		       dump_start_reg2, dump_end_reg2);
 		memset(buf, 0, sizeof(buf));
 		ptr = buf;
 		i = 1;
-		for (reg = 0x1c20; reg <= 0x1c9c; reg += 4) {
+		for (reg = dump_start_reg2; reg <= dump_end_reg2; reg += 4) {
 			woal_pcie_read_reg(phandle, reg, &value);
 			ptr += sprintf(ptr, "%08x ", value);
 			if (!(i % 8)) {
@@ -1954,12 +1985,12 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		for (j = 0; j < ARRAY_SIZE(adma_reg_table); j++) {
 			PRINTM(MMSG,
 			       "ADMA registers dump from offset 0x%x to 0x%x\n",
-			       adma_reg_table[j], adma_reg_table[j] + 0x68);
+			       adma_reg_table[j], adma_reg_table[j] + 0x7c);
 			memset(buf, 0, sizeof(buf));
 			ptr = buf;
 			i = 1;
 			for (reg = adma_reg_table[j];
-			     reg <= (adma_reg_table[j] + 0x68); reg += 4) {
+			     reg <= (adma_reg_table[j] + 0x7c); reg += 4) {
 				woal_pcie_read_reg(phandle, reg, &value);
 				ptr += sprintf(ptr, "%08x ", value);
 				if (!(i % 8)) {
@@ -2080,6 +2111,7 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 			debug_host_ready = DEBUG_HOST_EVENT_READY;
 		if (resetflag)
 			debug_host_ready = DEBUG_HOST_RESET_READY;
+
 		dump_ctrl_reg = PCIE9098_DUMP_CTRL_REG;
 	}
 #endif
@@ -2114,6 +2146,7 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 			       dump_ctrl_reg);
 			return RDWR_STATUS_FAILURE;
 		}
+
 		if (ctrl_data == DEBUG_FW_DONE)
 			break;
 		if (doneflag && ctrl_data == doneflag)
@@ -2140,6 +2173,7 @@ static rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag,
 		       ctrl_data, debug_host_ready);
 		return RDWR_STATUS_FAILURE;
 	}
+
 	return RDWR_STATUS_SUCCESS;
 }
 #endif
@@ -2423,6 +2457,7 @@ static void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 		dump_end_reg = PCIE9098_DUMP_END_REG;
 	}
 #endif
+
 	reg = dump_start_reg;
 	ret = woal_read_reg_eight_bit(phandle, reg, &dump_num);
 	if (ret) {
@@ -2632,8 +2667,11 @@ static mlan_status woal_pcie_get_fw_name(moal_handle *handle)
 	defined(PCIEIW624)
 	t_u32 host_strap_reg = handle->card_info->host_strap_reg;
 	t_u32 magic_reg = handle->card_info->magic_reg;
-	t_u32 strap = 0;
+#endif
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
 	t_u32 magic = 0;
+	t_u32 strap = 0;
 #endif
 #if defined(PCIEIW624) || defined(PCIEAW693)
 	t_u32 boot_mode_reg = handle->card_info->boot_mode_reg;
@@ -3017,7 +3055,10 @@ static void woal_pcie_work(struct work_struct *work)
 	if (!handle)
 		return;
 
-	PRINTM(MMSG, "========START IN-BAND RESET===========\n");
+	if (handle->ind_rst_gpiod)
+		PRINTM(MMSG, "========START OOB GPIO RESET===========\n");
+	else
+		PRINTM(MMSG, "========START IN-BAND RESET===========\n");
 
 	// handle-> mac0 , ref_handle->second mac
 	if (handle->pref_mac) {
@@ -3038,9 +3079,15 @@ static void woal_pcie_work(struct work_struct *work)
 	    IS_PCIEAW693(handle->card_type)) {
 		if (woal_reset_adma(handle) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "ERR: ADMA reset failed \n");
-			woal_send_auto_recovery_failure_event(handle);
-			wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
-			return;
+			/* When PDN from userspace option is selected then only
+			 * send auto recovery failure event
+			 */
+			if (handle->params.auto_fw_reload &
+			    AUTO_FW_RELOAD_PCIE_PDN_FROM_USERSPACE) {
+				woal_send_auto_recovery_failure_event(handle);
+				wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+				return;
+			}
 		}
 	}
 	woal_do_flr(handle, true, true);
@@ -3049,11 +3096,16 @@ static void woal_pcie_work(struct work_struct *work)
 		ref_handle->fw_reseting = MTRUE;
 		woal_do_flr(ref_handle, true, true);
 	}
-	if (woal_pcie_reset_fw(handle)) {
-		PRINTM(MERROR, "PCIe In-band Reset Fail\n");
-		woal_send_auto_recovery_failure_event(handle);
-		wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
-		return;
+	if (handle->ind_rst_gpiod) {
+		PRINTM(MMSG, "PCIE reset: OOB IND RST via GPIO toggle\n");
+		woal_toggle_ind_rst_gpio(handle);
+	} else {
+		if (woal_pcie_reset_fw(handle)) {
+			PRINTM(MERROR, "PCIe In-band Reset Fail\n");
+			woal_send_auto_recovery_failure_event(handle);
+			wifi_status = WIFI_STATUS_FW_RECOVERY_FAIL;
+			return;
+		}
 	}
 	handle->surprise_removed = MFALSE;
 
@@ -3079,7 +3131,10 @@ static void woal_pcie_work(struct work_struct *work)
 	card->work_flags = MFALSE;
 	wifi_status = WIFI_STATUS_OK;
 	woal_send_auto_recovery_complete_event(handle);
-	PRINTM(MMSG, "========END IN-BAND RESET===========\n");
+	if (handle->ind_rst_gpiod)
+		PRINTM(MMSG, "========END OOB GPIO RESET===========\n");
+	else
+		PRINTM(MMSG, "========END IN-BAND RESET===========\n");
 	return;
 }
 
@@ -3100,6 +3155,28 @@ static void woal_pcie_card_reset(moal_handle *handle)
 	}
 }
 
+/**
+ *  @brief This function cancels reset_work
+ *
+ *  @param handle   A pointer to moal_handle structure
+ *  @return         NA
+ *
+ */
+static void woal_pcie_cancel_reset_work(moal_handle *handle)
+{
+	pcie_service_card *card = (pcie_service_card *)handle->card;
+
+	ENTER();
+	if (!card) {
+		PRINTM(MERROR, "PCIE card removed from slot\n");
+		LEAVE();
+		return;
+	}
+	cancel_work_sync(&card->reset_work);
+
+	LEAVE();
+}
+
 static moal_if_ops pcie_ops = {
 	.register_dev = woal_pcie_register_dev,
 	.unregister_dev = woal_pcie_unregister_dev,
@@ -3112,5 +3189,6 @@ static moal_if_ops pcie_ops = {
 	.reg_dbg = woal_pcie_reg_dbg,
 	.dump_reg_info = woal_pcie_dump_reg_info,
 	.card_reset = woal_pcie_card_reset,
+	.cancel_reset_work = woal_pcie_cancel_reset_work,
 	.is_second_mac = woal_pcie_is_second_mac,
 };

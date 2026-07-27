@@ -24,7 +24,7 @@
 /*************************************************************
  * Change Log:
  * 03/26/2009: initial version
- * **********************************************************
+ *************************************************************
  */
 
 #include "mlan.h"
@@ -41,7 +41,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /** Default IBSS DFS recovery interval (in TBTTs); used for adhoc start */
@@ -133,12 +133,12 @@ typedef struct {
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -180,6 +180,11 @@ static t_u8 woal_get_bonded_channels(t_u8 pri_chan, t_u8 bw, t_u8 *chan_list)
 				{132, 136, 140, 144}};
 	t_u8 find = MFALSE;
 	int j;
+	/* VHT160 channel sets */
+	t_u8 vht160[2][8] = {/* Center freq 50: UNII-1 + UNII-2A (36-64) */
+			     {36, 40, 44, 48, 52, 56, 60, 64},
+			     /* Center freq 114: UNII-2A + UNII-2C (100-128) */
+			     {100, 104, 108, 112, 116, 120, 124, 128}};
 	int i;
 	t_u8 sec_chan = 0;
 	t_u8 n_chan = 1;
@@ -221,6 +226,22 @@ static t_u8 woal_get_bonded_channels(t_u8 pri_chan, t_u8 bw, t_u8 *chan_list)
 			for (j = 0; j < n_chan; j++)
 				chan_list[j] = (t_u8)vht80_dfs[i][j];
 		}
+	} else if (bw == CHAN_BW_160MHZ) {
+		for (i = 0; i < 2; i++) {
+			for (j = 0; j < 8; j++) {
+				if (pri_chan == (t_u8)vht160[i][j]) {
+					find = MTRUE;
+					break;
+				}
+			}
+			if (find)
+				break;
+		}
+		if (find) {
+			n_chan = 8;
+			for (j = 0; j < n_chan; j++)
+				chan_list[j] = (t_u8)vht160[i][j];
+		}
 	}
 	LEAVE();
 	return n_chan;
@@ -240,7 +261,7 @@ static t_void wlan_11h_set_chan_dfs_state(mlan_private *priv, t_u8 chan,
 					  t_u8 bw, dfs_state_t dfs_state)
 {
 	t_u8 n_chan;
-	t_u8 chan_list[4] = {0};
+	t_u8 chan_list[8] = {0};
 	t_u8 i;
 
 	n_chan = woal_get_bonded_channels(chan, bw, chan_list);
@@ -668,9 +689,10 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 		ptlv_zero_dfs->Header.len = wlan_cpu_to_le16(sizeof(t_u8));
 		if (!is_cancel_req) {
 			ptlv_zero_dfs->zero_dfs_enbl = MTRUE;
-			PRINTM(MCMND, "DFS: START: chan=%d bw=%d\n",
+			PRINTM(MCMND, "DFS: START: chan=%d bw=%d bw_ext=%d\n",
 			       pchan_rpt_req->chan_desc.chanNum,
-			       pchan_rpt_req->chan_desc.bandcfg.chanWidth);
+			       pchan_rpt_req->chan_desc.bandcfg.chanWidth,
+			       pchan_rpt_req->chan_desc.bandcfg.chanWidthExt);
 		} else {
 			ptlv_zero_dfs->zero_dfs_enbl = MFALSE;
 			PRINTM(MCMND, "DFS: STOP\n");
@@ -689,8 +711,9 @@ static mlan_status wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 	if (!is_cancel_req) {
 		pstate_dfs->dfs_check_channel =
 			pchan_rpt_req->chan_desc.chanNum;
-		pstate_dfs->dfs_check_bandwidth =
-			pchan_rpt_req->chan_desc.bandcfg.chanWidth;
+		pstate_dfs->dfs_check_bandwidth = BANDCFG_GET_CHANWIDTH(
+			pchan_rpt_req->chan_desc.bandcfg.chanWidthExt,
+			pchan_rpt_req->chan_desc.bandcfg.chanWidth);
 	}
 
 	LEAVE();
@@ -1299,7 +1322,9 @@ static t_bool wlan_11h_is_band_valid(mlan_private *priv, t_u8 start_chn,
 	if (start_chn == 165) {
 		if (priv->adapter->region_code == COUNTRY_CODE_US)
 			return MTRUE;
-		if (uap_band_cfg.chanWidth != CHAN_BW_20MHZ)
+		if (BANDCFG_GET_CHANWIDTH(uap_band_cfg.chanWidthExt,
+					  uap_band_cfg.chanWidth) !=
+		    CHAN_BW_20MHZ)
 			return MFALSE;
 	}
 	return MTRUE;
@@ -1559,7 +1584,7 @@ static void wlan_11h_add_all_dfs_timestamp(mlan_adapter *pmadapter, t_u8 repr,
 					   t_u8 channel, t_u8 bandwidth)
 {
 	t_u8 n_chan;
-	t_u8 chan_list[4] = {0};
+	t_u8 chan_list[8] = {0};
 	t_u8 i;
 
 	n_chan = woal_get_bonded_channels(channel, bandwidth, chan_list);
@@ -1569,7 +1594,7 @@ static void wlan_11h_add_all_dfs_timestamp(mlan_adapter *pmadapter, t_u8 repr,
 
 /********************************************************
  * Global functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -2272,7 +2297,8 @@ t_s32 wlan_11h_issue_radar_detect(mlan_private *priv,
 	HostCmd_DS_CHAN_RPT_REQ chan_rpt_req;
 	mlan_adapter *pmadapter = priv->adapter;
 	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
-
+	t_u8 chanWidth =
+		BANDCFG_GET_CHANWIDTH(bandcfg.chanWidthExt, bandcfg.chanWidth);
 	ENTER();
 
 	ret = wlan_11h_radar_detect_required(priv, channel);
@@ -2287,7 +2313,7 @@ t_s32 wlan_11h_issue_radar_detect(mlan_private *priv,
 			chan_rpt_req.chan_desc.bandcfg = bandcfg;
 		} else {
 			*((t_u8 *)&chan_rpt_req.chan_desc.bandcfg) =
-				(t_u8)bandcfg.chanWidth;
+				(t_u8)chanWidth;
 		}
 
 		chan_rpt_req.chan_desc.chanNum = channel;
@@ -2302,9 +2328,10 @@ t_s32 wlan_11h_issue_radar_detect(mlan_private *priv,
 					WLAN_11H_CHANNEL_AVAIL_CHECK_DURATION *
 					10;
 			}
-			if (channel == 116 &&
-			    ((bandcfg.chanWidth == CHAN_BW_40MHZ) ||
-			     (bandcfg.chanWidth == CHAN_BW_80MHZ))) {
+			if (channel == 116 && ((chanWidth == CHAN_BW_40MHZ) ||
+					       (chanWidth == CHAN_BW_80MHZ) ||
+					       (chanWidth == CHAN_BW_8080MHZ) ||
+					       (chanWidth == CHAN_BW_160MHZ))) {
 				chan_rpt_req.millisec_dwell_time =
 					WLAN_11H_CHANNEL_AVAIL_CHECK_DURATION *
 					10;
@@ -2989,6 +3016,7 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
 	t_s32 ret = MLAN_STATUS_FAILURE;
 	mlan_ds_11h_chan_nop_info *ch_nop_info = MNULL;
+	t_u8 bw = 0;
 
 	ENTER();
 
@@ -3012,6 +3040,12 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 						&ch_nop_info->new_chan.bandcfg,
 						ch_nop_info->new_chan.channel);
 				if (ch_nop_info->chan_width == CHAN_BW_80MHZ)
+					bw = CHANNEL_BW_80MHZ;
+				else if (ch_nop_info->chan_width ==
+					 CHAN_BW_160MHZ)
+					bw = CHANNEL_BW_160MHZ;
+				if (ch_nop_info->chan_width == CHAN_BW_80MHZ ||
+				    ch_nop_info->chan_width == CHAN_BW_160MHZ)
 					ch_nop_info->new_chan.center_chan =
 						wlan_get_center_freq_idx(
 							pmpriv,
@@ -3020,7 +3054,7 @@ mlan_status wlan_11h_ioctl_channel_nop_info(pmlan_adapter pmadapter,
 								.chanBand,
 							ch_nop_info->new_chan
 								.channel,
-							ch_nop_info->chan_width);
+							bw);
 			}
 		} else if (pioctl_req->action == MLAN_ACT_CLEAR) {
 			wlan_11h_cleanup(pmadapter);
@@ -3053,11 +3087,11 @@ mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 	if (pioctl_req) {
 		ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
-		if (pioctl_req->action == MLAN_ACT_GET)
+		if (pioctl_req->action == MLAN_ACT_GET) {
 			ds_11hcfg->param.cs_count = pmadapter->dfs_cs_count;
-		else
+		} else {
 			pmadapter->dfs_cs_count = ds_11hcfg->param.cs_count;
-
+		}
 		ret = MLAN_STATUS_SUCCESS;
 	}
 
@@ -3253,7 +3287,9 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 
 	if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
 		dfs_check_channel = priv->chan_rep_req.chanNum;
-		dfs_check_bandwidth = priv->chan_rep_req.bandcfg.chanWidth;
+		dfs_check_bandwidth = BANDCFG_GET_CHANWIDTH(
+			priv->chan_rep_req.bandcfg.chanWidthExt,
+			priv->chan_rep_req.bandcfg.chanWidth);
 	}
 
 	if (wlan_le32_to_cpu(pchan_rpt_rsp->cmd_result) ==
@@ -3277,7 +3313,9 @@ mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 			case TLV_TYPE_CHANNELBANDLIST:
 				tlv = (MrvlIEtypes_channel_band_t *)ptlv;
 				dfs_check_channel = tlv->channel;
-				dfs_check_bandwidth = tlv->bandcfg.chanWidth;
+				dfs_check_bandwidth = BANDCFG_GET_CHANWIDTH(
+					tlv->bandcfg.chanWidthExt,
+					tlv->bandcfg.chanWidth);
 				break;
 			default:
 				break;
@@ -3344,12 +3382,14 @@ mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 	if (pevent->event_len >= sizeof(MrvlIEtypes_channel_band_t)) {
 		tlv = (MrvlIEtypes_channel_band_t *)&pevent->event_buf;
 		*radar_chan = tlv->channel;
-		dfs_check_bandwidth = tlv->bandcfg.chanWidth;
+		dfs_check_bandwidth = BANDCFG_GET_CHANWIDTH(
+			tlv->bandcfg.chanWidthExt, tlv->bandcfg.chanWidth);
 	} else {
 		if (priv->bss_type == MLAN_BSS_TYPE_DFS) {
 			*radar_chan = priv->chan_rep_req.chanNum;
-			dfs_check_bandwidth =
-				priv->chan_rep_req.bandcfg.chanWidth;
+			dfs_check_bandwidth = BANDCFG_GET_CHANWIDTH(
+				priv->chan_rep_req.bandcfg.chanWidthExt,
+				priv->chan_rep_req.bandcfg.chanWidth);
 		}
 	}
 	*bandwidth = dfs_check_bandwidth;
@@ -3529,6 +3569,7 @@ void wlan_11h_update_bandcfg(mlan_private *pmpriv, Band_Config_t *uap_band_cfg,
 	if (!chan_offset) { /* 40MHz/80MHz */
 		PRINTM(MCMD_D, "20MHz channel, clear channel bandwidth\n");
 		uap_band_cfg->chanWidth = CHAN_BW_20MHZ;
+		uap_band_cfg->chanWidthExt = NO_CH_EXT;
 	}
 	LEAVE();
 }
@@ -4378,7 +4419,8 @@ void wlan_11h_set_dfs_check_chan(mlan_private *priv, t_u8 chan, t_u8 bandwidth)
 	ENTER();
 	pstate_dfs->dfs_check_channel = chan;
 	pstate_dfs->dfs_check_bandwidth = bandwidth;
-	PRINTM(MCMND, "Set dfs_check_channel=%d\n", chan);
+	PRINTM(MCMND, "Set dfs_check_channel=%d bandwidth=%d\n", chan,
+	       bandwidth);
 	LEAVE();
 }
 
@@ -4401,10 +4443,11 @@ mlan_status wlan_11h_ioctl_dfs_w53_cfg(pmlan_adapter pmadapter,
 	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 	dfs_w53_cfg = &ds_11hcfg->param.dfs_w53_cfg;
 
-	if (pioctl_req->action == MLAN_ACT_GET)
+	if (pioctl_req->action == MLAN_ACT_GET) {
 		dfs_w53_cfg->dfs53cfg = pmadapter->dfs53cfg;
-	else
+	} else {
 		pmadapter->dfs53cfg = dfs_w53_cfg->dfs53cfg;
+	}
 
 	LEAVE();
 
@@ -4428,11 +4471,11 @@ mlan_status wlan_11h_ioctl_dfs_mode(pmlan_adapter pmadapter,
 
 	ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 
-	if (pioctl_req->action == MLAN_ACT_GET)
+	if (pioctl_req->action == MLAN_ACT_GET) {
 		ds_11hcfg->param.dfs_mode = pmadapter->dfs_mode;
-	else
+	} else {
 		pmadapter->dfs_mode = ds_11hcfg->param.dfs_mode;
-
+	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

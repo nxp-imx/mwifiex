@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 
 /** @file moal_eth_ioctl.h
  *
@@ -25,7 +25,7 @@
 /********************************************************
  * Change log:
  * 01/05/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
@@ -405,6 +405,8 @@ typedef struct _ssu_params_cfg {
 
 #define PRIV_CMD_CSI "csi"
 
+#define PRIV_CMD_KEEP_CONNECT "keep_connect"
+
 #define PRIV_CMD_BOOTSLEEP "bootsleep"
 
 /** Private command ID to config txwatchdog enable/disable */
@@ -724,6 +726,7 @@ typedef struct _mcast_aggr_group {
 } mcast_aggr_group, *pmcast_aggr_group;
 
 typedef struct _txrate_setting {
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 preamble : 2; /*BIT1-BIT0:
 			     *  For legacy 11b: preamble type
 			     *    00    = long
@@ -741,6 +744,7 @@ typedef struct _txrate_setting {
 			     *    10 = HE-MU
 			     *    11 = HE trigger based
 			     */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 bandwidth : 3; /* BIT2- BIT4
 			      * For 11n and 11ac traffic: Bandwidth
 			      *    0 = 20Mhz
@@ -772,6 +776,7 @@ typedef struct _txrate_setting {
 			      * Mhz of the preamble the primary 40 Mhz is
 			      * present.
 			      */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 shortGI : 2; /*BIT5- BIT6
 			    *  For legacy: not used
 			    *  For 11n: 00 = normal, 01 =shortGI, 10/11 =
@@ -783,20 +788,26 @@ typedef struct _txrate_setting {
 			    * 4xHELTF+GI0.8 usec if both DCM and STBC are 1
 			    *                4xHELTF+GI3.2 usec otherwise
 			    */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 stbc : 1; // BIT7, 0: no STBC; 1: STBC
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 dcm : 1; // BIT8, 0: no DCM; 1: DCM used.
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 adv_coding : 1; // BIT9, 0: BCC; 1: LDPC.
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 doppler : 2; /* BIT11-BIT10,
 00: Doppler0
 01: Doppler 1 with Mma =10
 10: Doppler 1 with Mma =20
 			    */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 max_pktext : 2; /*BIT12-BIT13:
 			       * Max packet extension
 			       *  0 - 0 usec
 			       *  1 - 8 usec
 			       *  2 - 16 usec.
 			       */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 reserverd : 2; // BIT14-BIT15
 } __ATTRIB_PACK__ txrate_setting;
 
@@ -921,5 +932,7 @@ typedef struct {
 #endif
 
 #define PRIV_CMD_ECSA_CNT_CFG "ecsacntcfg"
+
+#define PRIV_CMD_PROBE_REQ_RANDOM_SN "random_sn"
 
 #endif /* _WOAL_ETH_PRIV_H_ */

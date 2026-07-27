@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_shim.h
  *
  * @brief This file contains declaration referring to
@@ -43,6 +43,7 @@ mlan_status moal_alloc_mlan_buffer(t_void *pmoal, t_u32 size,
 mlan_status moal_free_mlan_buffer(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				      mlan_status status);
+t_u8 moal_get_suspend_state(t_void *pmoal);
 #ifdef USB
 mlan_status moal_recv_complete(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 			       mlan_status status);
@@ -108,6 +109,7 @@ mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock);
 t_void moal_print(t_void *pmoal, t_u32 level, char *pformat, IN...);
 t_void moal_print_netintf(t_void *pmoal, t_u32 bss_index, t_u32 level);
 t_void moal_assert(t_void *pmoal, t_u32 cond);
+t_u32 moal_random(t_void *pmoal);
 t_void moal_hist_data_add(t_void *pmoal, t_u32 bss_index, t_u16 rx_rate,
 			  t_s8 snr, t_s8 nflr, t_u8 antenna);
 
