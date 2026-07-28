@@ -72,11 +72,15 @@
 #endif
 #ifdef IMX_SUPPORT
 #include <linux/of.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 #include <linux/of_gpio.h>
+#endif
 #include <linux/gpio/consumer.h>
 #endif
 #ifdef IMX_SUPPORT
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 #include <linux/of_gpio.h>
+#endif
 #include <linux/gpio/consumer.h>
 #endif /* IMX_SUPPORT */
 
@@ -14903,7 +14907,10 @@ irqreturn_t woal_oob_wakeup_irq_handler(int irq, void *priv)
 void woal_regist_ind_rst_gpio(moal_handle *handle)
 {
 	struct device_node *node;
+	struct gpio_desc *gpiod;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 	int gpio = -1;
+#endif
 
 	ENTER();
 
@@ -14917,6 +14924,17 @@ void woal_regist_ind_rst_gpio(moal_handle *handle)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	gpiod = fwnode_gpiod_get_index(of_fwnode_handle(node),
+				       "wlan-reset", 0, GPIOD_OUT_HIGH,
+				       "wlan-ind-rst");
+	of_node_put(node);
+	if (IS_ERR(gpiod)) {
+		PRINTM(MERROR, "OOB IND RST: fwnode_gpiod_get_index failed\n");
+		LEAVE();
+		return;
+	}
+#else
 	gpio = of_get_named_gpio(node, "wlan-reset-gpios", 0);
 	of_node_put(node);
 
@@ -14926,18 +14944,19 @@ void woal_regist_ind_rst_gpio(moal_handle *handle)
 		return;
 	}
 
-	handle->ind_rst_gpiod = gpio_to_desc(gpio);
-	if (IS_ERR((struct gpio_desc *)handle->ind_rst_gpiod)) {
+	gpiod = gpio_to_desc(gpio);
+	if (IS_ERR(gpiod)) {
 		PRINTM(MERROR, "OOB IND RST: gpio_to_desc failed for GPIO %d\n",
 		       gpio);
-		handle->ind_rst_gpiod = NULL;
 		LEAVE();
 		return;
 	}
+#endif
 
+	handle->ind_rst_gpiod = gpiod;
 	gpiod_direction_output((struct gpio_desc *)handle->ind_rst_gpiod, 1);
 
-	PRINTM(MINFO, "OOB IND RST: GPIO %d acquired from DT\n", gpio);
+	PRINTM(MINFO, "OOB IND RST: GPIO acquired from DT\n");
 	LEAVE();
 }
 
@@ -16394,7 +16413,9 @@ static struct device_node *woal_find_pdn_regulator_node(void)
 void woal_pull_pdn(void)
 {
 	struct device_node *np = woal_find_pdn_regulator_node();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 	int gpio = -1;
+#endif
 	int val = 0;
 
 	if (!np) {
@@ -16402,6 +16423,16 @@ void woal_pull_pdn(void)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	pdn_gpiod = fwnode_gpiod_get_index(of_fwnode_handle(np), NULL, 0,
+					   GPIOD_OUT_HIGH, "wlan-pdn");
+	of_node_put(np);
+	if (IS_ERR(pdn_gpiod)) {
+		PRINTM(MERROR, "wlan: error pdn_gpiod=%p\n", pdn_gpiod);
+		pdn_gpiod = NULL;
+		return;
+	}
+#else
 	gpio = of_get_named_gpio(np, "gpio", 0);
 	of_node_put(np);
 
@@ -16415,8 +16446,9 @@ void woal_pull_pdn(void)
 		PRINTM(MERROR, "wlan: error pdn_gpiod=%p\n", pdn_gpiod);
 		return;
 	}
+#endif
 
-	PRINTM(MCMND, "wlan: Get PDN gpio=%d\n", gpio);
+	PRINTM(MCMND, "wlan: Get PDN gpiod=%p\n", pdn_gpiod);
 	/* Set to output and set value=1 -> PDN Deasserted (Power On) */
 	gpiod_direction_output(pdn_gpiod, 1);
 
