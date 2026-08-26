@@ -3197,13 +3197,13 @@ mlan_status wlan_ftm_session_cfg(pmlan_adapter pmadapter,
 	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	mlan_ftm_session_cfg *cfg = &misc->param.ftm_session_cfg;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u32 cmd_oid = 0;
 
 	ENTER();
 
-	/* Allocate command buffer */
 	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FTM_SESSION_CFG,
-			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
-			       cfg);
+			       HostCmd_ACT_GEN_SET, cmd_oid,
+			       (t_void *)pioctl_req, cfg);
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;

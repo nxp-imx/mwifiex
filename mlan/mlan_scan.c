@@ -3119,6 +3119,18 @@ static mlan_status wlan_interpret_bss_desc_with_ie(pmlan_adapter pmadapter,
 					sizeof(IEEEtypes_Header_t));
 			break;
 		case OVERLAPBSSSCANPARAM:
+			/* Validate IE length before storing the pointer to
+			 * prevent a kernel stack overflow in
+			 * wlan_2040_coex_event() when a rogue AP advertises
+			 * an OBSS IE with an inflated len field (WSW-75657).
+			 */
+			if (element_len != sizeof(OBSSScanParam_t)) {
+				PRINTM(MWARN,
+				       "InterpretIE: OBSS IE len %u != %zu, "
+				       "ignoring\n",
+				       element_len, sizeof(OBSSScanParam_t));
+				break;
+			}
 			pbss_entry->poverlap_bss_scan_param =
 				(IEEEtypes_OverlapBSSScanParam_t *)pcurrent_ptr;
 			offset = pcurrent_ptr - pbss_entry->pbeacon_buf;
@@ -6466,19 +6478,40 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 		element_len = *((t_u8 *)pcurrent_ptr + 1);
 		total_ie_len = element_len + sizeof(IEEEtypes_Header_t);
 
+		if (bytes_left < total_ie_len) {
+			PRINTM(MERROR,
+			       "wlan_update_nonTx_bss_desc: Error in IE, bytes left < IE length\n");
+			bytes_left = 0;
+			ret = MLAN_STATUS_FAILURE;
+			continue;
+		}
+
 		switch (element_id) {
 		case SSID:
+			if (element_len > MRVDRV_MAX_SSID_LENGTH) {
+				bytes_left = 0;
+				ret = MLAN_STATUS_FAILURE;
+				continue;
+			}
 			// coverity[bad_memset:SUPPRESS]
 			memset(pmadapter, (t_u8 *)&pnew_entry->ssid.ssid, 0,
 			       sizeof(mlan_802_11_ssid));
 			pnew_entry->ssid.ssid_len = element_len;
 			memcpy_ext(pmadapter, pnew_entry->ssid.ssid,
 				   (pcurrent_ptr + 2), element_len,
-				   element_len);
+				   sizeof(pnew_entry->ssid.ssid));
 			PRINTM(MMSG, "SSID: %-32s\n", pnew_entry->ssid.ssid);
 			break;
 
 		case SUPPORTED_RATES:
+			if (element_len > WLAN_SUPPORTED_RATES) {
+				PRINTM(MERROR,
+				       "wlan_update_nonTx_bss_desc: SUPPORTED_RATES IE too long (%d)\n",
+				       element_len);
+				bytes_left = 0;
+				ret = MLAN_STATUS_FAILURE;
+				continue;
+			}
 			memcpy_ext(pmadapter, pnew_entry->data_rates,
 				   pcurrent_ptr + 2, element_len,
 				   sizeof(pnew_entry->data_rates));
@@ -6530,12 +6563,16 @@ static mlan_status wlan_update_nonTx_bss_desc(mlan_adapter *pmadapter,
 				prate = (t_u8 *)pnew_entry->data_rates;
 				prate += rate_size;
 				memcpy_ext(pmadapter, prate, pcurrent_ptr + 2,
-					   bytes_to_copy, bytes_to_copy);
+					   bytes_to_copy,
+					   sizeof(pnew_entry->data_rates) -
+						   rate_size);
 
 				prate = (t_u8 *)pnew_entry->supported_rates;
 				prate += rate_size;
 				memcpy_ext(pmadapter, prate, pcurrent_ptr + 2,
-					   bytes_to_copy, bytes_to_copy);
+					   bytes_to_copy,
+					   sizeof(pnew_entry->supported_rates) -
+						   rate_size);
 			}
 			DBG_HEXDUMP(MINFO, "Ext SupportedRates:",
 				    pnew_entry->supported_rates,
@@ -7130,7 +7167,22 @@ static t_u32 wlan_gen_new_ie(mlan_private *pmpriv, t_u8 *ie, t_u32 ie_len,
 		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
 		element_len = *((t_u8 *)pcurrent_ptr + 1);
 
+		if (left_len < (element_len + 2)) {
+			PRINTM(MERROR,
+			       "wlan_gen_new_ie: IE len %d exceeds remaining buf %d\n",
+			       element_len + 2, left_len);
+			left_len = 0;
+			continue;
+		}
+
 		if (element_id == EXTENSION) {
+			if (element_len < 1) {
+				PRINTM(MERROR,
+				       "wlan_gen_new_ie: EXTENSION IE has zero length\n");
+				pcurrent_ptr += 2;
+				left_len -= 2;
+				continue;
+			}
 			pext_tlv = (IEEEtypes_Extension_t *)pcurrent_ptr;
 
 			if (pext_tlv->ext_id == NON_INHERITANCE) {
@@ -7249,6 +7301,7 @@ static t_u32 wlan_gen_new_ie(mlan_private *pmpriv, t_u8 *ie, t_u32 ie_len,
 	}
 
 	LEAVE();
+	// coverity[INTEGER_OVERFLOW:SUPPRESS]
 	return pos - new_ie;
 }
 
@@ -7302,8 +7355,7 @@ static void wlan_gen_non_trans_bssid_profile(mlan_private *pmpriv,
 		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
 		element_len = *((t_u8 *)pcurrent_ptr + 1);
 
-		if ((t_u8)(element_len + sizeof(IEEEtypes_Header_t)) >
-		    left_len) {
+		if ((element_len + sizeof(IEEEtypes_Header_t)) > left_len) {
 			PRINTM(MERROR, "Invalid IE length = %d left len %d\n",
 			       element_len, left_len);
 			goto done;

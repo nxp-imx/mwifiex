@@ -569,14 +569,33 @@ t_void wlan_2040_coex_event(pmlan_private pmpriv)
 			    ->ieee_hdr.element_id == OVERLAPBSSSCANPARAM) {
 		ele_len = pmpriv->curr_bss_params.bss_descriptor
 				  .poverlap_bss_scan_param->ieee_hdr.len;
+		/* Sanity check: ele_len must not exceed the event_buf
+		 * payload capacity (event_buf[100] minus mlan_event header)
+		 * mlan_scan.c already rejects OBSS IEs with len !=
+		 * sizeof(OBSSScanParam_t), so this is a defence-in-depth
+		 * guard.
+		 */
+		if (ele_len > (t_u8)(sizeof(event_buf) - sizeof(mlan_event))) {
+			PRINTM(MERROR,
+			       "wlan_2040_coex_event: OBSS IE len %u exceeds "
+			       "event_buf capacity, dropping\n",
+			       ele_len);
+			LEAVE();
+			return;
+		}
+		ele_len = MIN(ele_len, (t_u8)sizeof(OBSSScanParam_t));
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM;
 		pevent->event_len = ele_len;
-		/* Copy OBSS scan parameters */
+		/* Copy OBSS scan parameters; pass actual destination capacity
+		 * as dest_size so memcpy_ext() can enforce the bound even if
+		 * the length check above is somehow bypassed.
+		 */
 		memcpy_ext(pmpriv->adapter, (t_u8 *)pevent->event_buf,
 			   (t_u8 *)&pmpriv->curr_bss_params.bss_descriptor
 				   .poverlap_bss_scan_param->obss_scan_param,
-			   ele_len, pevent->event_len);
+			   ele_len,
+			   (t_u32)(sizeof(event_buf) - sizeof(mlan_event)));
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM,
 				pevent);
 	}
@@ -1516,10 +1535,12 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		    event_ftm->sub_event_id == WLS_SUB_EVENT_FTM_FAIL) {
 			t_u8 is_failure = (event_ftm->sub_event_id ==
 					   WLS_SUB_EVENT_FTM_FAIL);
-			/* Send to Android/wifi_hal as RTT_RESULT */
-			wlan_convert_to_wifi_rtt_result(pmpriv, event_ftm,
-							pmbuf->data_len, pevent,
-							is_failure);
+			/* Send to Android/wifi_hal + iw PMSR path via
+			 * RTT_RESULT event. PASSTHRU for mlanwls is handled
+			 * below */
+			wlan_convert_to_wifi_rtt_result_v3(pmpriv, event_ftm,
+							   pmbuf->data_len,
+							   pevent, is_failure);
 			wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		}
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;

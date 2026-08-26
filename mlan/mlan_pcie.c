@@ -1243,6 +1243,7 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 	padma_dual_desc_buf padma_bd_buf;
+	mlan_buffer *dummy_pmbuf = MNULL;
 #endif
 
 	ENTER();
@@ -1297,6 +1298,7 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
+			dummy_pmbuf = pmadapter->pcard_pcie->dummy_tx_buf;
 			padma_bd_buf =
 				(adma_dual_desc_buf
 					 *)(pmadapter->pcard_pcie
@@ -1304,13 +1306,39 @@ static mlan_status wlan_pcie_create_txbd_ring(mlan_adapter *pmadapter)
 					    (sizeof(adma_dual_desc_buf) * i));
 			pmadapter->pcard_pcie->txbd_ring[i] =
 				(t_void *)padma_bd_buf;
-			padma_bd_buf->paddr = 0;
-			padma_bd_buf->len = 0;
-			padma_bd_buf->flags = wlan_cpu_to_le16(
-				ADMA_BD_FLAG_INT_EN | ADMA_BD_FLAG_SRC_HOST |
-				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP);
-			padma_bd_buf->pkt_size = 0;
-			padma_bd_buf->reserved = 0;
+			if (dummy_pmbuf) {
+				padma_bd_buf->paddr =
+					wlan_cpu_to_le64(dummy_pmbuf->buf_pa);
+				padma_bd_buf->len =
+					ALIGN_SZ(dummy_pmbuf->data_len,
+						 pmadapter->pcard_pcie->reg
+							 ->adma_align_size);
+				if (padma_bd_buf->len <
+				    pmadapter->pcard_pcie->reg
+					    ->adma_min_pkt_size)
+					padma_bd_buf->len =
+						pmadapter->pcard_pcie->reg
+							->adma_min_pkt_size;
+				padma_bd_buf->len =
+					wlan_cpu_to_le16(padma_bd_buf->len);
+				padma_bd_buf->flags = wlan_cpu_to_le16(
+					ADMA_BD_FLAG_INT_EN |
+					ADMA_BD_FLAG_SRC_HOST |
+					ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP);
+				padma_bd_buf->pkt_size = padma_bd_buf->len;
+				padma_bd_buf->reserved = 0;
+			} else {
+				PRINTM(MERROR, "%s: ERR dummy_pmbuf is NULL\n",
+				       __func__);
+				padma_bd_buf->paddr = 0;
+				padma_bd_buf->len = 0;
+				padma_bd_buf->flags = wlan_cpu_to_le16(
+					ADMA_BD_FLAG_INT_EN |
+					ADMA_BD_FLAG_SRC_HOST |
+					ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP);
+				padma_bd_buf->pkt_size = 0;
+				padma_bd_buf->reserved = 0;
+			}
 
 			if (wlan_copy_on_tx_enabled(pmadapter)) {
 				mlan_buffer *pmbuf = MNULL;
@@ -2196,6 +2224,7 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 	defined(PCIEIW624)
 	adma_dual_desc_buf *padma_bd_buf;
 	t_u32 wrptr;
+	mlan_buffer *dummy_pmbuf = MNULL;
 #endif
 
 	ENTER();
@@ -2238,7 +2267,11 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 		wrdoneidx =
 			pmadapter->pcard_pcie->txbd_rdptr & (num_tx_buffs - 1);
 		pmbuf = pmadapter->pcard_pcie->tx_buf_list[wrdoneidx];
-		if (pmbuf) {
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		/* Dummy frame shouldn't be unmapped here */
+		if (pmbuf && !(pmbuf->flags & MLAN_BUF_FLAG_DUMMY_FRAME)) {
+#endif
 			PRINTM(MDAT_D,
 			       "SEND DATA COMP: Detach pmbuf %p at tx_ring[%d], pmadapter->txbd_rdptr=0x%x\n",
 			       pmbuf, wrdoneidx,
@@ -2267,7 +2300,18 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 #endif
 				wlan_write_data_complete(pmadapter, pmbuf,
 							 MLAN_STATUS_SUCCESS);
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		} else {
+			if (pmbuf)
+				PRINTM(MERROR,
+				       "MLAN_BUF_FLAG_DUMMY_FRAME is set thus skipping unmap pmbuf->buf_pa: 0x%p\n",
+				       pmbuf->buf_pa);
+			else
+				PRINTM(MERROR,
+				       "ERR: (pcie_send_data_complete)pmbuf is NULL\n");
 		}
+#endif
 
 		pmadapter->pcard_pcie->tx_buf_list[wrdoneidx] = MNULL;
 #if defined(PCIE8897)
@@ -2295,14 +2339,45 @@ static mlan_status wlan_pcie_send_data_complete(mlan_adapter *pmadapter)
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 		if (pmadapter->pcard_pcie->reg->use_adma) {
+			dummy_pmbuf = pmadapter->pcard_pcie->dummy_tx_buf;
 			padma_bd_buf =
 				(adma_dual_desc_buf *)pmadapter->pcard_pcie
 					->txbd_ring[wrdoneidx];
-			padma_bd_buf->paddr = 0;
-			padma_bd_buf->len = 0;
-			padma_bd_buf->flags = 0;
-			padma_bd_buf->pkt_size = 0;
-			padma_bd_buf->reserved = 0;
+			if (!padma_bd_buf) {
+				PRINTM(MERROR,
+				       "padma_bd_buf is NULL at index %d\n",
+				       wrdoneidx);
+				ret = MLAN_STATUS_FAILURE;
+				goto done;
+			}
+			if (dummy_pmbuf) {
+				padma_bd_buf->paddr =
+					wlan_cpu_to_le64(dummy_pmbuf->buf_pa);
+				padma_bd_buf->len =
+					ALIGN_SZ(dummy_pmbuf->data_len,
+						 pmadapter->pcard_pcie->reg
+							 ->adma_align_size);
+				if (padma_bd_buf->len <
+				    pmadapter->pcard_pcie->reg
+					    ->adma_min_pkt_size)
+					padma_bd_buf->len =
+						pmadapter->pcard_pcie->reg
+							->adma_min_pkt_size;
+				padma_bd_buf->len =
+					wlan_cpu_to_le16(padma_bd_buf->len);
+				padma_bd_buf->flags = wlan_cpu_to_le16(
+					ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP |
+					ADMA_BD_FLAG_SRC_HOST);
+				padma_bd_buf->pkt_size = padma_bd_buf->len;
+				padma_bd_buf->reserved = 0;
+			} else {
+				PRINTM(MERROR, "dummy_pmbuf is NULL\n");
+				padma_bd_buf->paddr = 0;
+				padma_bd_buf->len = 0;
+				padma_bd_buf->flags = 0;
+				padma_bd_buf->pkt_size = 0;
+				padma_bd_buf->reserved = 0;
+			}
 			pcb->moal_spin_lock(pmadapter->pmoal_handle,
 					    pmadapter->pmlan_pcie_lock);
 			pmadapter->pcard_pcie->txbd_rdptr++;
@@ -2462,6 +2537,7 @@ static mlan_status wlan_pcie_send_adma_data(mlan_adapter *pmadapter,
 	t_u32 wrindx;
 	t_u32 wr_ptr_start = 0;
 	const t_bool handle_mapping = !wlan_copy_on_tx_enabled(pmadapter);
+	mlan_buffer *dummy_pmbuf = MNULL;
 
 	ENTER();
 
@@ -2569,6 +2645,11 @@ static mlan_status wlan_pcie_send_adma_data(mlan_adapter *pmadapter,
 		DBG_HEXDUMP(MDAT_D, "adma_bd_buf", padma_bd_buf,
 			    sizeof(adma_dual_desc_buf));
 		if (flags & ADMA_BD_FLAG_EOP) {
+			/* Ensure all TX descriptor writes (paddr, len, flags)
+			 * are visible to the device before updating the write
+			 * pointer. dma_wmb() = DMB OSHST on ARM64, no-op on
+			 * x86. */
+			pcb->moal_dma_wmb(pmadapter->pmoal_handle);
 			PRINTM(MINFO, "REG_TXBD_WRPT(0x%x) = 0x%x\n",
 			       reg_txbd_wrptr,
 			       ((pmadapter->pcard_pcie->txbd_wrptr
@@ -2639,10 +2720,30 @@ done_unmap:
 			      pmadapter->pmlan_pcie_lock);
 
 	if (padma_bd_buf) {
-		padma_bd_buf->paddr = 0;
-		padma_bd_buf->len = 0;
-		padma_bd_buf->flags = 0;
-		padma_bd_buf->pkt_size = 0;
+		dummy_pmbuf = pmadapter->pcard_pcie->dummy_tx_buf;
+		if (dummy_pmbuf) {
+			padma_bd_buf->paddr =
+				wlan_cpu_to_le64(dummy_pmbuf->buf_pa);
+			padma_bd_buf->len = ALIGN_SZ(
+				dummy_pmbuf->data_len,
+				pmadapter->pcard_pcie->reg->adma_align_size);
+			if (padma_bd_buf->len <
+			    pmadapter->pcard_pcie->reg->adma_min_pkt_size)
+				padma_bd_buf->len = pmadapter->pcard_pcie->reg
+							    ->adma_min_pkt_size;
+			padma_bd_buf->len = wlan_cpu_to_le16(padma_bd_buf->len);
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP |
+				ADMA_BD_FLAG_SRC_HOST);
+			padma_bd_buf->pkt_size = padma_bd_buf->len;
+		} else {
+			PRINTM(MERROR, "%s : ERR dummy_pmbuf is NULL\n",
+			       __func__);
+			padma_bd_buf->paddr = 0;
+			padma_bd_buf->len = 0;
+			padma_bd_buf->flags = 0;
+			padma_bd_buf->pkt_size = 0;
+		}
 		padma_bd_buf->reserved = 0;
 	}
 done:
@@ -2678,6 +2779,7 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 	adma_dual_desc_buf *padma_bd_buf = MNULL;
+	mlan_buffer *dummy_pmbuf = MNULL;
 #endif
 	const t_u32 num_tx_buffs = pmadapter->pcard_pcie->txrx_bd_size;
 	mlan_status ret = MLAN_STATUS_PENDING;
@@ -2839,6 +2941,10 @@ static mlan_status wlan_pcie_send_data(mlan_adapter *pmadapter, t_u8 type,
 				ADMA_RW_PTR_WRAP_MASK;
 		}
 #endif
+		/* Ensure all TX descriptor writes (paddr, len, flags) are
+		 * visible to the device before updating the write pointer.
+		 * dma_wmb() = DMB OSHST on ARM64, no-op on x86. */
+		pcb->moal_dma_wmb(pmadapter->pmoal_handle);
 		pmadapter->pcard_pcie->txbd_pending++;
 		PRINTM(MINFO, "REG_TXBD_WRPT(0x%x) = 0x%x\n", reg_txbd_wrptr,
 		       ((pmadapter->pcard_pcie->txbd_wrptr << wr_ptr_start) |
@@ -2934,10 +3040,30 @@ done_unmap:
 #if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
 	defined(PCIEIW624)
 	if (pmadapter->pcard_pcie->reg->use_adma && padma_bd_buf) {
-		padma_bd_buf->paddr = 0;
-		padma_bd_buf->len = 0;
-		padma_bd_buf->flags = 0;
-		padma_bd_buf->pkt_size = 0;
+		dummy_pmbuf = pmadapter->pcard_pcie->dummy_tx_buf;
+		if (dummy_pmbuf) {
+			padma_bd_buf->paddr =
+				wlan_cpu_to_le64(dummy_pmbuf->buf_pa);
+			padma_bd_buf->len = ALIGN_SZ(
+				dummy_pmbuf->data_len,
+				pmadapter->pcard_pcie->reg->adma_align_size);
+			if (padma_bd_buf->len <
+			    pmadapter->pcard_pcie->reg->adma_min_pkt_size)
+				padma_bd_buf->len = pmadapter->pcard_pcie->reg
+							    ->adma_min_pkt_size;
+			padma_bd_buf->len = wlan_cpu_to_le16(padma_bd_buf->len);
+			padma_bd_buf->flags = wlan_cpu_to_le16(
+				ADMA_BD_FLAG_SOP | ADMA_BD_FLAG_EOP |
+				ADMA_BD_FLAG_SRC_HOST);
+			padma_bd_buf->pkt_size = padma_bd_buf->len;
+		} else {
+			PRINTM(MERROR, "%s : ERR dummy_pmbuf is NULL\n",
+			       __func__);
+			padma_bd_buf->paddr = 0;
+			padma_bd_buf->len = 0;
+			padma_bd_buf->flags = 0;
+			padma_bd_buf->pkt_size = 0;
+		}
 		padma_bd_buf->reserved = 0;
 	}
 #endif
@@ -3171,6 +3297,10 @@ mlan_status wlan_pcie_rx_ring_move_rdwrptr(mlan_adapter *pmadapter,
 		}
 	}
 #endif
+	/* Ensure all RX descriptor writes (paddr, len, flags) are
+	 * visible to the device before updating the write pointer.
+	 * dma_wmb() = DMB OSHST on ARM64, no-op on x86. */
+	pcb->moal_dma_wmb(pmadapter->pmoal_handle);
 	PRINTM(MINFO, "RECV DATA: Updated <Wr: %#x, Rd: %#x>\n",
 	       pmadapter->pcard_pcie->rxbd_wrptr,
 	       pmadapter->pcard_pcie->rxbd_rdptr);
@@ -5204,6 +5334,166 @@ mlan_status wlan_free_ssu_pcie_buf(pmlan_adapter pmadapter)
 	return MLAN_STATUS_SUCCESS;
 }
 
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+/**
+ *  @brief This function deallocates the PCIE dummy tx buffer
+ *
+ *  @param pmadapter  A pointer to mlan_adapter structure
+ *
+ *  @return           MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_free_pcie_dummy_tx_buf(pmlan_adapter pmadapter)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+	ENTER();
+	/* pmadapter is already validated before calling to this function */
+	if (pmadapter->pcard_pcie->dummy_tx_buf) {
+		pmlan_buffer pmbuf = pmadapter->pcard_pcie->dummy_tx_buf;
+		ret = pcb->moal_unmap_memory(pmadapter->pmoal_handle,
+					     pmbuf->pbuf + pmbuf->data_offset,
+					     pmbuf->buf_pa, pmbuf->data_len,
+					     PCI_DMA_TODEVICE);
+		if (ret == MLAN_STATUS_FAILURE) {
+			PRINTM(MERROR, "%s: moal_unmap_memory failed\n",
+			       __func__);
+		}
+		wlan_free_mlan_buffer(pmadapter,
+				      pmadapter->pcard_pcie->dummy_tx_buf);
+		pmadapter->pcard_pcie->dummy_tx_buf = MNULL;
+		PRINTM(MINFO, "Dummy TX buffer freed successfully\n");
+	} else {
+		PRINTM(MERROR, "Dummy TX buffer was not allocated\n");
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+/**
+ *  @brief This function allocates the PCIE dummy tx buffer
+ *
+ *  @param pmadapter  A pointer to mlan_adapter structure
+ *
+ *  @return           MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+#define DUMMY_TX_PKT_SIZE 128
+mlan_status wlan_alloc_pcie_dummy_tx_buf(pmlan_adapter pmadapter)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_private *pmpriv = MNULL;
+	pmlan_buffer pmbuf = MNULL;
+	t_u8 *pdata = MNULL;
+	TxPD *ptx_pd = MNULL;
+	t_u16 total_pkt_len = DUMMY_TX_PKT_SIZE; /* Total packet length */
+	t_u16 intf_hdr_len = 0;
+	t_u16 txpd_size = 0;
+	t_u16 payload_len = 0;
+	t_u32 i = 0;
+	pmlan_callbacks pcb = &pmadapter->callbacks;
+
+	ENTER();
+	/* pmadapter is already validated before calling to this function */
+	/* Get first available private structure */
+	pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+	if (!pmpriv) {
+		PRINTM(MERROR, "Dummy TX buffer: No priv available\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Calculate sizes */
+	intf_hdr_len = PCIE_INTF_HEADER_LEN; /* PCIE Interface header */
+	txpd_size = Tx_PD_SIZEOF(pmadapter); /* TxPD size (usually 32 bytes) */
+	if ((intf_hdr_len + txpd_size) >= total_pkt_len) {
+		PRINTM(MERROR,
+		       "Invalid packet size calculation: total=%d, hdr=%d, txpd=%d\n",
+		       total_pkt_len, intf_hdr_len, txpd_size);
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	payload_len = total_pkt_len - intf_hdr_len - txpd_size;
+
+	PRINTM(MMSG,
+	       "Dummy Packet size - Total:%d bytes (IntfHdr:%d + TxPD:%d + Payload:%d)\n",
+	       total_pkt_len, intf_hdr_len, txpd_size, payload_len);
+
+	/* Allocate buffer */
+	pmbuf = wlan_alloc_mlan_buffer(pmadapter, total_pkt_len, 0,
+				       MOAL_MALLOC_BUFFER);
+	if (!pmbuf) {
+		PRINTM(MERROR, "Dummy Packet: Failed to allocate buffer\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Initialize buffer */
+	PRINTM(MMSG, "Dummy mlan_buffer allocated successfully at 0x%p\n",
+	       pmbuf);
+	_memset(pmadapter, pmbuf->pbuf, 0, total_pkt_len);
+	pmbuf->data_offset = intf_hdr_len;
+	pmbuf->data_len = txpd_size + payload_len + intf_hdr_len;
+	pmbuf->bss_index = pmpriv->bss_index;
+	pmbuf->buf_type = MLAN_BUF_TYPE_DATA;
+	pmbuf->flags |= MLAN_BUF_FLAG_DUMMY_FRAME; /* Skip process_txpd - TxPD
+						      already built */
+	pmbuf->priority = 0;
+	pmbuf->total_pcie_buf_len = pmbuf->data_len;
+
+	/* Build TxPD */
+	ptx_pd = (TxPD *)(pmbuf->pbuf + pmbuf->data_offset + intf_hdr_len);
+	_memset(pmadapter, ptx_pd, 0, txpd_size);
+
+	ptx_pd->bss_type = pmpriv->bss_type;
+	ptx_pd->bss_num = GET_BSS_NUM(pmpriv);
+	/* Assign 16k as len so that FW can drop it */
+	ptx_pd->tx_pkt_length = 0x4000; /* 0x4000 = 16384 */
+	;
+	ptx_pd->tx_pkt_offset = txpd_size;
+	ptx_pd->tx_pkt_type = PKT_TYPE_DUMMY; /* 0xC0 */
+	ptx_pd->tx_control = pmpriv->pkt_tx_ctrl;
+	ptx_pd->priority = (t_u8)pmbuf->priority;
+	ptx_pd->flags = 0;
+	ptx_pd->pkt_delay_2ms = 0;
+
+	/* Convert TxPD to little endian */
+	PRINTM(MMSG,
+	       "TxPD configured - Type:0x%04X, Len:%d, Offset:%d, BSS:%d/%d\n",
+	       PKT_TYPE_DUMMY, payload_len, txpd_size, ptx_pd->bss_type,
+	       ptx_pd->bss_num);
+	endian_convert_TxPD(ptx_pd);
+
+	/* Fill payload with sequence: 1, 2, 3, ..., 255, 1, 2, 3, ... */
+	pdata = (t_u8 *)(pmbuf->pbuf + pmbuf->data_offset + txpd_size);
+	for (i = 0; i < payload_len; i++) {
+		pdata[i] = (i % 255) + 1; /* 1-255, then wrap to 1 */
+	}
+	/* Map buffer for DMA */
+	ret = pcb->moal_map_memory(pmadapter->pmoal_handle,
+				   pmbuf->pbuf + pmbuf->data_offset,
+				   &pmbuf->buf_pa, pmbuf->data_len,
+				   PCI_DMA_TODEVICE);
+	if (ret == MLAN_STATUS_FAILURE) {
+		PRINTM(MERROR, "%s: Failed to map dummy tx buffer for DMA\n",
+		       __func__);
+		wlan_free_mlan_buffer(pmadapter, pmbuf);
+		pmbuf = MNULL;
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	PRINTM(MMSG,
+	       "Dummy mlan_buffer's mapped memory pmbuf->buf_pa: %#x:%x\n",
+	       (t_u32)((t_u64)pmbuf->buf_pa >> 32), (t_u32)pmbuf->buf_pa);
+	DBG_HEXDUMP(MINFO, "at init time Dummy MBUF",
+		    pmbuf->pbuf + pmbuf->data_offset, pmbuf->data_len);
+	/* Store the buffer in adapter structure */
+	pmadapter->pcard_pcie->dummy_tx_buf = pmbuf;
+	PRINTM(MINFO, "Dummy TX buffer allocated and mapped successfully\n");
+
+	LEAVE();
+	return ret;
+}
+#endif
 /**
  *  @brief This function allocates the PCIE ring buffers
  *

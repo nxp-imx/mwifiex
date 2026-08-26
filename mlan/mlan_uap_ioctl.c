@@ -2501,6 +2501,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (misc->sub_command == MLAN_OID_MISC_DMCS_CONFIG)
 			status = wlan_misc_dmcs_config(pmadapter, pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_FTM_SESSION_CFG)
+			/* sub_id inside the payload selects initiator_tlv
+			 * (11mc) vs ntb_ranging_tlv (11az NTB) */
 			status = wlan_ftm_session_cfg(pmadapter, pioctl_req);
 		else if (misc->sub_command == MLAN_OID_MISC_FTM_SESSION_CTRL)
 			status = wlan_ftm_session_ctrl(pmadapter, pioctl_req);

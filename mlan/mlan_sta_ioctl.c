@@ -5374,6 +5374,8 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 
 	case MLAN_OID_MISC_FTM_SESSION_CFG:
+		/* sub_id inside the payload selects initiator_tlv (11mc)
+		 * vs ntb_ranging_tlv (11az NTB) */
 		status = wlan_ftm_session_cfg(pmadapter, pioctl_req);
 		break;
 

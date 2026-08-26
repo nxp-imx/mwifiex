@@ -844,7 +844,6 @@ enum vendor_event {
 	event_wifi_logger_alert,
 	event_packet_fate_monitor,
 	event_wake_reason_report,
-	event_csi = 0x10011,
 	event_max,
 };
 
@@ -918,6 +917,8 @@ enum vendor_sub_command {
 	SUBCMD_RTT_DISABLE_RESPONDER,
 	SUBCMD_RTT_SET_LCI,
 	SUBCMD_RTT_SET_LCR,
+	SUBCMD_RTT_GET_CAPA_V3, /* 0x1108 */
+	SUBCMD_RTT_RANGE_REQUEST_V3, /* 0x1109 */
 	sub_cmd_link_statistic_set = 0x1200,
 	sub_cmd_link_statistic_get = 0x1201,
 	sub_cmd_link_statistic_clr = 0x1202,
@@ -1003,15 +1004,35 @@ enum attr_rtt {
 	ATTR_RTT_PREAMBLE,
 	ATTR_RTT_LCI_INFO,
 	ATTR_RTT_LCR_INFO,
+	ATTR_RTT_CAPA_V3,
+	ATTR_RTT_CONFIG_V3, /* v3 range request config (v1(11mc) + 11az) */
+	ATTR_RTT_RESULT_V3, /* v3 range result */
 
-	/* keep last */
-	ATTR_RTT_AFTER_LAST,
-	ATTR_RTT_MAX = ATTR_RTT_AFTER_LAST - 1
+	ATTR_RTT_MAX,
 };
+
+void woal_rtt_work_handler(struct work_struct *work);
+void woal_rtt_ap_result_received(moal_private *priv, t_u8 *data, int len);
 
 mlan_status woal_cfg80211_event_rtt_result(moal_private *priv, t_u8 *data,
 					   int len);
-int woal_cfg80211_csi_vendor_event(moal_private *priv, t_u8 *data, int len);
+mlan_status woal_cfg80211_event_rtt_result_v3(moal_private *priv, t_u8 *data,
+					      int len);
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+int woal_cfg80211_start_pmsr(struct wiphy *wiphy, struct wireless_dev *wdev,
+			     struct cfg80211_pmsr_request *request);
+void woal_cfg80211_abort_pmsr(struct wiphy *wiphy, struct wireless_dev *wdev,
+			      struct cfg80211_pmsr_request *request);
+int woal_ftm_session_cfg_pmsr(moal_private *priv,
+			      struct cfg80211_pmsr_request_peer *peer);
+int woal_ftm_az_session_cfg_pmsr(moal_private *priv,
+				 struct cfg80211_pmsr_request_peer *peer);
+int woal_ftm_session_ctrl_pmsr(moal_private *priv, const t_u8 *peer_mac,
+			       t_u32 center_freq, t_u16 action);
+int woal_ftm_az_session_ctrl_pmsr(moal_private *priv, const t_u8 *peer_mac,
+				  t_u32 center_freq, t_u16 action_in);
+#endif /* KERNEL_VERSION(4, 20, 0) */
 
 enum attr_csi {
 	ATTR_CSI_INVALID = 0,

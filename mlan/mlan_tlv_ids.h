@@ -401,6 +401,12 @@
 /* FTM Session Config TLVs */
 #define TLV_TYPE_FTM_SESSION_CFG_INITIATOR                                     \
 	(PROPRIETARY_TLV_BASE_ID + 273) /* 0x0211 */
+/** FTM 11az NTB ranging config TLV */
+#define TLV_TYPE_FTM_NTB_RANGING_CFG                                           \
+	(PROPRIETARY_TLV_BASE_ID + 343) /* 0x0257 */
+/** TLV for FTM 11az TB Ranging Config */
+#define TLV_TYPE_FTM_TB_RANGING_CFG (PROPRIETARY_TLV_BASE_ID + 344) /* 0x0258  \
+								     */
 /** TLV for RTT Result */
 #define TLV_TYPE_RTT_RESULT (PROPRIETARY_TLV_BASE_ID + 295) /* 0x0227 */
 /** TLV for RTTResponderInfo */

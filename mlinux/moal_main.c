@@ -822,7 +822,7 @@ static struct _card_info card_info_USBIW610 = {
 	.cal_data_cfg = 0,
 	.low_power_enable = 0,
 	.rx_rate_max = 412,
-	.feature_control = FEATURE_CTRL_DEFAULT,
+	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
 	.histogram_table_num = 3,
 	.fw_name = USBIW610_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = USBIW610_DEFAULT_WLAN_FW_NAME,
@@ -928,6 +928,7 @@ static mlan_callbacks woal_callbacks = {
 
 	.moal_map_memory = moal_map_memory,
 	.moal_unmap_memory = moal_unmap_memory,
+	.moal_dma_wmb = moal_dma_wmb,
 #endif /* PCIE */
 	.moal_memset = moal_memset,
 	.moal_memcpy = moal_memcpy,
@@ -2611,6 +2612,17 @@ mlan_status woal_init_sw(moal_handle *handle)
 
 	handle->is_plinkstats_timer_set = MFALSE;
 
+	spin_lock_init(&handle->rtt_result_lock);
+	init_waitqueue_head(&handle->ftm_result_wait_q);
+	handle->ftm_result_wait_q_woken = MFALSE;
+	handle->rtt_range_cancel = MFALSE;
+	handle->rtt_total_ap_count = 0;
+	handle->rtt_completed_ap_count = 0;
+	handle->rtt_result_buf_len = 0;
+	handle->rtt_priv = NULL;
+	MLAN_INIT_WORK(&handle->rtt_work, woal_rtt_work_handler);
+
+	/* RTT Cabability */
 	handle->rtt_capa.rtt_one_sided_supported = MTRUE;
 	handle->rtt_capa.rtt_ftm_supported = MTRUE;
 	handle->rtt_capa.lci_support = MTRUE;
@@ -2621,6 +2633,15 @@ mlan_status woal_init_sw(moal_handle *handle)
 		BW_20_SUPPORT | BW_40_SUPPORT | BW_80_SUPPORT;
 	handle->rtt_capa.responder_supported = MTRUE;
 	handle->rtt_capa.mc_version = 60;
+	/* RTT Capability v3 (11az) */
+	moal_memcpy_ext(handle, &handle->rtt_capa_v3.rtt_capab,
+			&handle->rtt_capa, sizeof(wifi_rtt_capabilities),
+			sizeof(handle->rtt_capa_v3.rtt_capab));
+	handle->rtt_capa_v3.az_preamble_support = PREAMBLE_HE;
+	handle->rtt_capa_v3.az_bw_support =
+		BW_20_SUPPORT | BW_40_SUPPORT | BW_80_SUPPORT;
+	handle->rtt_capa_v3.ntb_initiator_supported = MTRUE;
+	handle->rtt_capa_v3.ntb_responder_supported = MTRUE;
 	handle->is_edmac_enabled = MFALSE;
 	handle->driver_init = MFALSE;
 
@@ -14925,9 +14946,8 @@ void woal_regist_ind_rst_gpio(moal_handle *handle)
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
-	gpiod = fwnode_gpiod_get_index(of_fwnode_handle(node),
-				       "wlan-reset", 0, GPIOD_OUT_HIGH,
-				       "wlan-ind-rst");
+	gpiod = fwnode_gpiod_get_index(of_fwnode_handle(node), "wlan-reset", 0,
+				       GPIOD_OUT_HIGH, "wlan-ind-rst");
 	of_node_put(node);
 	if (IS_ERR(gpiod)) {
 		PRINTM(MERROR, "OOB IND RST: fwnode_gpiod_get_index failed\n");
@@ -15452,6 +15472,7 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 
 err_init_fw:
 	if (handle->is_fw_dump_timer_set) {
+		woal_sched_timeout(3000);
 		woal_cancel_timer(&handle->fw_dump_timer);
 		handle->is_fw_dump_timer_set = MFALSE;
 	}

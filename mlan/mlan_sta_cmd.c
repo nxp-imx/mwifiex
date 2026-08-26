@@ -3880,8 +3880,20 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 						     cmd_action, pioctl_buf);
 		break;
 	case HostCmd_CMD_FTM_SESSION_CFG:
-		ret = wlan_cmd_ftm_session_cfg(pmpriv, cmd_ptr, cmd_action,
-					       pdata_buf);
+		/* Dispatch based on sub_id inside the mlan_ftm_session_cfg
+		 * sub_id == FTM_SESSION_CFG_SUBID_NTB_RANGING -> 11az NTB TLV
+		 * sub_id == FTM_SESSION_CFG_SUBID_INITIATOR   -> 11mc TLV
+		 */
+		if (pdata_buf && ((mlan_ftm_session_cfg *)pdata_buf)->sub_id ==
+					 FTM_SESSION_CFG_SUBID_NTB_RANGING) {
+			ret = wlan_cmd_ftm_session_cfg_ntb_ranging(
+				pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		} else if (pdata_buf &&
+			   ((mlan_ftm_session_cfg *)pdata_buf)->sub_id ==
+				   FTM_SESSION_CFG_SUBID_INITIATOR) {
+			ret = wlan_cmd_ftm_session_cfg(pmpriv, cmd_ptr,
+						       cmd_action, pdata_buf);
+		}
 		break;
 
 	case HostCmd_CMD_FTM_SESSION_CTRL:

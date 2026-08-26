@@ -2032,6 +2032,15 @@ mlan_status mlan_write_data_async_complete(t_void *padapter, pmlan_buffer pmbuf,
 	if (port == pmadapter->tx_cmd_ep) {
 		pmadapter->cmd_sent = MFALSE;
 		PRINTM(MCMND, "mlan_write_data_async_complete: CMD\n");
+#ifdef USB
+		/* NULL out curr_cmd->cmdbuf before freeing pmbuf. For USB,
+		 * cmdbuf == pmbuf (same allocation). This prevents any
+		 * subsequent access via pcmd_node->cmdbuf after the buffer is
+		 * freed.
+		 */
+		if (pmadapter->curr_cmd && pmadapter->curr_cmd->cmdbuf == pmbuf)
+			pmadapter->curr_cmd->cmdbuf = MNULL;
+#endif
 		/* pmbuf was allocated by MLAN */
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 	} else {

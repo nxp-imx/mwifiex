@@ -4443,17 +4443,50 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 		len += size;
 	}
 	/* copy power tables */
-	if (pmadapter->tx_power_table_bg) {
-		memcpy_ext(pmadapter, req_buf + len,
-			   pmadapter->tx_power_table_bg,
-			   (c.rows_2g * c.cols_2g), (c.rows_2g * c.cols_2g));
-		len += (c.rows_2g * c.cols_2g);
+	if (pmadapter->tx_power_table_bg && cfp_bg) {
+		t_u8 *src_row;
+		t_u8 *dst = req_buf + len;
+		t_u32 i, j;
+		t_u8 cols = c.cols_2g;
+
+		for (i = 0; i < c.rows_2g; i++) {
+			t_u8 chan = (t_u8)cfp_bg[i].channel;
+
+			for (j = 0; j < pmadapter->tx_power_table_bg_rows;
+			     j++) {
+				src_row =
+					pmadapter->tx_power_table_bg + j * cols;
+				if (src_row[0] == chan) {
+					memcpy_ext(pmadapter, dst, src_row,
+						   cols, cols);
+					break;
+				}
+			}
+			dst += cols;
+		}
+		len += (c.rows_2g * cols);
 	}
-	if (pmadapter->tx_power_table_a) {
-		memcpy_ext(pmadapter, req_buf + len,
-			   pmadapter->tx_power_table_a, (c.rows_5g * c.cols_5g),
-			   (c.rows_5g * c.cols_5g));
-		len += (c.rows_5g * c.cols_5g);
+	if (pmadapter->tx_power_table_a && cfp_a) {
+		t_u8 *src_row;
+		t_u8 *dst = req_buf + len;
+		t_u32 i, j;
+		t_u8 cols = c.cols_5g;
+
+		for (i = 0; i < c.rows_5g; i++) {
+			t_u8 chan = (t_u8)cfp_a[i].channel;
+
+			for (j = 0; j < pmadapter->tx_power_table_a_rows; j++) {
+				src_row =
+					pmadapter->tx_power_table_a + j * cols;
+				if (src_row[0] == chan) {
+					memcpy_ext(pmadapter, dst, src_row,
+						   cols, cols);
+					break;
+				}
+			}
+			dst += cols;
+		}
+		len += (c.rows_5g * cols);
 	}
 out:
 	if (pioctl_req)

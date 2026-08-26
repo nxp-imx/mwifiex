@@ -83,12 +83,16 @@ static int woal_read_chip_temp(moal_handle *handle, int *temp_mc)
 		ret = -EFAULT;
 		goto done;
 	}
-	/*
-	 * NXP Wi-Fi firmware returns cau_temperature in 0.1 C units.
-	 * Linux thermal framework requires milli-Celsius.
-	 * Conversion: 0.1C * 100 = mC  (e.g. 310 -> 31000 mC = 31.0 C)
+	/* firmware cau_temperature is in integer °C; convert to milli-Celsius
 	 */
-	*temp_mc = (int)cfg->param.sensor_temp.cau_temperature * 100;
+	{
+		int cau_temp = (int)cfg->param.sensor_temp.cau_temperature;
+
+		/* Guard against implausible readings before scaling to mC */
+		if (cau_temp > 200)
+			cau_temp = 200;
+		*temp_mc = cau_temp * 1000;
+	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
