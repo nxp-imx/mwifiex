@@ -959,6 +959,8 @@ enum host_cmd_id {
 #define FW_CAPINFO_EXT_802_11BE MBIT(24)
 /** FW cap info bit 25: BW160MHZ support */
 #define FW_CAPINFO_EXT_BW160MHZ MBIT(25)
+/** FW cap info bit 25: 15.4 radio is not available (IW611) */
+#define FW_CAPINFO_EXT_NO_15_4 MBIT(26)
 
 /** Check if 5G 1x1 only is supported by firmware */
 #define IS_FW_SUPPORT_5G_1X1_ONLY(_adapter)                                    \
@@ -1619,6 +1621,12 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 #define PKT_TYPE_DEBUG 0xEF
 
 #define PKT_TYPE_802DOT11_MC_AGGR 11
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+/** Packet type: DUMMY test packet */
+#define PKT_TYPE_DUMMY 0xC0
+#endif
 
 /** channel number at bit 5-13 */
 #define RXPD_CHAN_MASK 0x3FE0
@@ -7478,6 +7486,36 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_FTM_SessionCfg_t {
 	t_u8 lci_request;
 	t_u8 civic_request;
 } MLAN_PACK_END MrvlIEtypes_FTM_SessionCfg_t;
+
+/** MrvlIEtypes_NTB_RangingCfg_t - 802.11az NTB Ranging Configuration TLV
+ *  TLV type: TLV_TYPE_FTM_NTB_RANGING_CFG (0x0257)
+ *  Mirrors mlanwls ranging_cfg_t structure (mlanwls.h).
+ */
+typedef MLAN_PACK_START struct _MrvlIEtypes_NTB_RangingCfg_t {
+	MrvlIEtypesHeader_t header; /* type=0x0257, len=sizeof body */
+	/** Channel BW: 0=HE20, 1=HE40, 2=HE80 */
+	t_u8 format_bw;
+	/** Max I2R STS for BW <= 80 MHz */
+	t_u8 max_i2r_sts_upto80;
+	/** Max R2I STS for BW <= 80 MHz */
+	t_u8 max_r2i_sts_upto80;
+	/** Measurement frequency in Hz (to calculate measurement interval) */
+	t_u8 az_measurement_freq;
+	/** Number of measurements for this session */
+	t_u8 az_number_of_measurements;
+	/** Initiator LMR feedback flag */
+	t_u8 i2r_lmr_feedback;
+	/** Include civic location request */
+	t_u8 civic_req;
+	/** Include LCI request */
+	t_u8 lci_req;
+	/** Number of measurements per burst */
+	t_u8 az_measurements_per_burst;
+	/** Time between measurements in burst (ms) */
+	t_u8 az_burst_spacing_ms;
+	/** Maximum burst duration (ms) */
+	t_u8 az_burst_duration_ms;
+} MLAN_PACK_END MrvlIEtypes_NTB_RangingCfg_t;
 
 /** HostCmd_DS_FTM_SESSION_CTRL - Session Control Command */
 typedef MLAN_PACK_START struct _HostCmd_DS_FTM_SESSION_CTRL {

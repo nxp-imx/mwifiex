@@ -472,6 +472,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD9098 "SD9098"
 /** SD9177 Card */
 #define CARD_SD9177 "SDIW612"
+/** SDIW611 Card */
+#define CARD_SDIW611 "SDIW611"
 /** SD8801 Card */
 #define CARD_SD8801 "SD8801"
 /** SDIW624 Card */
@@ -663,6 +665,11 @@ typedef enum {
 #endif
 
 #define MLAN_BUF_FLAG_PN MBIT(22)
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+#define MLAN_BUF_FLAG_DUMMY_FRAME MBIT(23)
+#endif
 
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
@@ -2393,7 +2400,17 @@ typedef struct {
 #define FTM_DEFAULT_ASAP 1
 #define FTM_DEFAULT_MIN_DELTA_FTM 35
 #define FTM_DEFAULT_IFTM_TMO 10
+#define MAX_I2R_STS_UPTO80_DEFAULT 0
+#define MAX_R2I_STS_UPTO80_DEFAULT 1
+#define AZ_MEASUREMENT_FREQ_DEFAULT 2
+#define AZ_BURST_SPACING_MS_DEFAULT 20
+#define AZ_BURST_DURATION_MS_DEFAULT 50
 
+#define HZ_TO_MSEC_FACTOR 1000
+#define DOT11AZ_MAX_PER_BURST 4
+#define DOT11AZ_PER_BURST 2
+#define PROTO_TYPE_NTB 1
+#define PROTO_TYPE_TB 2
 /** FTM session config TLV channel_spacing encoding (from ftm.conf)
  *  2.4/5GHz HT:  9=HT20,  11=HT40
  *  5GHz VHT:     10=VHT20, 12=VHT40, 13=VHT80
@@ -2404,6 +2421,7 @@ typedef struct {
 #define FTM_CHAN_SPACING_VHT20 10
 #define FTM_CHAN_SPACING_VHT40 12
 #define FTM_CHAN_SPACING_VHT80 13
+#define FTM_CHAN_SPACING_VHT160 14
 #define FTM_CHAN_SPACING_HE20 17
 #define FTM_CHAN_SPACING_HE40 18
 #define FTM_CHAN_SPACING_HE80 19
@@ -2465,7 +2483,11 @@ typedef enum {
 /** RTT Type */
 typedef enum {
 	RTT_TYPE_1_SIDED = 0x1,
+	/* Deprecated. Use RTT_TYPE_2_SIDED_11MC instead. */
 	RTT_TYPE_2_SIDED = 0x2,
+	RTT_TYPE_2_SIDED_11MC = RTT_TYPE_2_SIDED,
+	RTT_TYPE_2_SIDED_11AZ_NTB = 0x3,
+	RTT_TYPE_2_SIDED_11AZ_NTB_SECURE = 0x4,
 } wifi_rtt_type;
 
 /** RTT configuration */
@@ -2532,6 +2554,19 @@ typedef struct {
 	/** RTT BW to be used in the RTT frames */
 	wifi_rtt_bw bw;
 } wifi_rtt_config;
+
+/** RTT v3 configuration (11az NTB support)
+ */
+typedef struct {
+	/** Base RTT config */
+	wifi_rtt_config rtt_config;
+	/** 11az Non-Trigger-based (non-TB) minimum measurement time in
+	 *  units of 100 microseconds */
+	t_u64 ntb_min_measurement_time;
+	/** 11az Non-Trigger-based (non-TB) maximum measurement time in
+	 *  units of 10 milliseconds */
+	t_u64 ntb_max_measurement_time;
+} wifi_rtt_config_v3;
 
 /** Format of information elements found in the beacon */
 typedef struct {
@@ -2613,10 +2648,46 @@ typedef struct {
 	wifi_information_element *LCR;
 } wifi_rtt_result;
 
+/** RTT results version 2 */
+typedef struct {
+	/** Legacy wifi rtt result structure */
+	wifi_rtt_result rtt_result;
+	/** Primary channel frequency (MHz) used for ranging measurements.
+	 *  If frequency is unknown, set to UNSPECIFIED (-1). */
+	int frequency;
+	/** RTT packet bandwidth — average BW of the BWs of RTT frames,
+	 *  capped to a specific valid RttBw. */
+	wifi_rtt_bw packet_bw;
+} wifi_rtt_result_v2;
+
+/** RTT results v3 (11az support) */
+typedef struct {
+	/** v2 result */
+	wifi_rtt_result_v2 rtt_result_v2;
+	/** Multiple transmissions of HE-LTF symbols in an HE (I2R) Ranging NDP.
+	 *  A value of 1 indicates no repetitions. */
+	t_u8 i2r_tx_ltf_repetition_count;
+	/** Multiple transmissions of HE-LTF symbols in an HE (R2I) Ranging NDP.
+	 *  A value of 1 indicates no repetitions. */
+	t_u8 r2i_tx_ltf_repetition_count;
+	/** Minimum non-TB dynamic measurement time in units of 100 microseconds
+	 *  assigned by the 11az responder. */
+	t_u64 ntb_min_measurement_time;
+	/** Maximum non-TB dynamic measurement time in units of 10 milliseconds
+	 *  assigned by the 11az responder. */
+	t_u64 ntb_max_measurement_time;
+	/** Number of transmit space-time streams used. */
+	t_u8 num_tx_sts;
+	/** Number of receive space-time streams used. */
+	t_u8 num_rx_sts;
+} wifi_rtt_result_v3;
+
 /** Preamble definition for bit mask used in wifi_rtt_capabilities */
 #define PREAMBLE_LEGACY 0x1
 #define PREAMBLE_HT 0x2
 #define PREAMBLE_VHT 0x4
+#define PREAMBLE_HE 0x8
+#define PREAMBLE_EHT 0x10
 
 /** BW definition for bit mask used in wifi_rtt_capabilities */
 #define BW_5_SUPPORT 0x1
@@ -2625,6 +2696,7 @@ typedef struct {
 #define BW_40_SUPPORT 0x8
 #define BW_80_SUPPORT 0x10
 #define BW_160_SUPPORT 0x20
+#define BW_320_SUPPORT 0x40
 
 /** RTT Capabilities */
 typedef struct {
@@ -2647,6 +2719,20 @@ typedef struct {
 	 */
 	t_u8 mc_version;
 } wifi_rtt_capabilities;
+
+/** RTT Capabilities v3 (11az support) */
+typedef struct {
+	/** Legacy/11mc capabilities */
+	wifi_rtt_capabilities rtt_capab;
+	/** bit mask indicates what 11az preamble is supported by initiator */
+	t_u8 az_preamble_support;
+	/** bit mask indicates what 11az BW is supported by initiator */
+	t_u8 az_bw_support;
+	/** if 11az NTB initiator mode is supported */
+	t_u8 ntb_initiator_supported;
+	/** if 11az NTB responder mode is supported */
+	t_u8 ntb_responder_supported;
+} wifi_rtt_capabilities_v3;
 
 /** API for setting LCI/LCR information to be provided to a requestor */
 typedef enum {
@@ -2703,12 +2789,19 @@ typedef struct {
 /** =========== Define Copied from HAL END =========== */
 
 #define MAX_RTT_CONFIG_NUM 10
+#define FTM_SESSION_TIMEOUT_MS 10000 /* 10 s per AP */
 
 /** RTT config params */
 typedef struct wifi_rtt_config_params {
 	t_u8 rtt_config_num;
 	wifi_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
 } wifi_rtt_config_params_t;
+
+/** RTT v3 config params container */
+typedef struct wifi_rtt_config_params_v3 {
+	t_u8 rtt_config_num;
+	wifi_rtt_config_v3 rtt_config_v3[MAX_RTT_CONFIG_NUM];
+} wifi_rtt_config_params_v3_t;
 
 /** Pass RTT result element between mlan and moal */
 typedef struct {
@@ -2840,6 +2933,13 @@ typedef struct _mlan_callbacks {
 	/** moal_unmap_memory */
 	mlan_status (*moal_unmap_memory)(t_void *pmoal, t_u8 *pbuf,
 					 t_u64 buf_pa, t_u32 size, t_u32 flag);
+	/**
+	 * moal_dma_wmb - DMA write memory barrier.
+	 * Ensures TX/RX descriptor writes are visible to the device
+	 * before the doorbell (write pointer) register is updated.
+	 * Maps to dma_wmb() = DMB OSHST on ARM64, no-op on x86.
+	 */
+	t_void (*moal_dma_wmb)(t_void *pmoal);
 #endif /* PCIE */
 	/** moal_memset */
 	t_void *(*moal_memset)(t_void *pmoal, t_void *pmem, t_u8 byte,

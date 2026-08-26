@@ -275,8 +275,8 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy,
 				enum nl80211_channel_type channel_type,
 #endif
 				unsigned int duration, u64 *cookie
-#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
-	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) || \
+#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&            \
+     (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) ||                  \
 	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
 				,
 				const u8 *rx_addr
@@ -580,6 +580,11 @@ static struct cfg80211_ops woal_cfg80211_ops = {
 	.add_tx_ts = woal_cfg80211_add_tx_ts,
 	.del_tx_ts = woal_cfg80211_del_tx_ts,
 #endif /* KERNEL_VERSION(3, 8, 0) */
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	.start_pmsr = woal_cfg80211_start_pmsr,
+	.abort_pmsr = woal_cfg80211_abort_pmsr,
+#endif /* KERNEL_VERSION(4, 20, 0) */
 
 };
 
@@ -5878,17 +5883,20 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 			return ret;
 		}
 	}
+
+	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 	if (priv->phandle->scan_request &&
 	    priv->phandle->scan_request != request) {
+		spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 		PRINTM(MCMND,
 		       "different scan_request is coming before previous one is finished on %s...\n",
 		       dev->name);
 		LEAVE();
 		return -EBUSY;
 	}
-	spin_lock_irqsave(&priv->phandle->scan_req_lock, flags);
 	priv->phandle->scan_request = request;
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
+
 	if (is_zero_timeval(priv->phandle->scan_time_start)) {
 		woal_get_monotonic_time(&priv->phandle->scan_time_start);
 		PRINTM(MINFO, "%s : start_timeval=%d:%d\n", __func__,
@@ -5934,22 +5942,21 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	if (scan_cfg.ext_scan == 3)
 		scan_req->ext_scan_type = EXT_SCAN_ENHANCE;
 
-	for (i = 0; i < priv->phandle->scan_request->n_ssids; i++) {
+	for (i = 0; i < request->n_ssids; i++) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 		if (request->scan_6ghz) {
-			if (i &&
-			    !priv->phandle->scan_request->ssids[i].ssid_len)
+			if (i && !request->ssids[i].ssid_len)
 				continue;
 		}
 #endif
 		// ssid_len is validated to ensure safe copying within SSID
-		// buffer size
-		// coverity[cert_arr30_c_violation: SUPPRESS]
+		// buffer size coverity[cert_arr30_c_violation:SUPPRESS]
+		// coverity[overrun:SUPPRESS]
 		moal_memcpy_ext(priv->phandle, scan_req->ssid_list[i].ssid,
-				priv->phandle->scan_request->ssids[i].ssid,
-				priv->phandle->scan_request->ssids[i].ssid_len,
+				request->ssids[i].ssid,
+				request->ssids[i].ssid_len,
 				sizeof(scan_req->ssid_list[i].ssid));
-		if (priv->phandle->scan_request->ssids[i].ssid_len)
+		if (request->ssids[i].ssid_len)
 			scan_req->ssid_list[i].max_len = 0;
 		else
 			scan_req->ssid_list[i].max_len = 0xff;
@@ -5957,8 +5964,7 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT &&
-	    priv->phandle->scan_request->n_ssids) {
+	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT && request->n_ssids) {
 		if (!memcmp(scan_req->ssid_list[0].ssid, "DIRECT-", 7))
 			scan_req->ssid_list[0].max_len = 0xfe;
 	}
@@ -5969,17 +5975,15 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		       "cfg80211_scan: scan_setband mask is set to %d\n",
 		       priv->scan_setband_mask);
 	for (i = 0, num_chans = 0;
-	     i < (int)MIN(WLAN_USER_SCAN_CHAN_MAX,
-			  priv->phandle->scan_request->n_channels);
-	     i++) {
-		chan = priv->phandle->scan_request->channels[i];
+	     i < (int)MIN(WLAN_USER_SCAN_CHAN_MAX, request->n_channels); i++) {
+		chan = request->channels[i];
 		if (is_scan_band_allowed(priv, chan) == MFALSE)
 			continue;
 		scan_req->chan_list[num_chans].chan_number = chan->hw_value;
 		scan_req->chan_list[num_chans].radio_type =
 			woal_ieee_band_to_radio_type(chan->band);
 		if ((chan->flags & IEEE80211_CHAN_PASSIVE_SCAN) ||
-		    !priv->phandle->scan_request->n_ssids)
+		    !request->n_ssids)
 			scan_req->chan_list[num_chans].scan_type =
 				MLAN_SCAN_TYPE_PASSIVE;
 		else if (chan->flags & IEEE80211_CHAN_RADAR)
@@ -5991,15 +5995,14 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 		PRINTM(MCMD_D, "cfg80211_scan: chan=%d chan->flag=0x%x\n",
 		       chan->hw_value, chan->flags);
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
-		scan_req->chan_list[num_chans].scan_time =
-			priv->phandle->scan_request->duration;
+		scan_req->chan_list[num_chans].scan_time = request->duration;
 #else
 		scan_req->chan_list[num_chans].scan_time = 0;
 #endif
 #if defined(WIFI_DIRECT_SUPPORT)
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 		if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT &&
-		    priv->phandle->scan_request->n_ssids) {
+		    request->n_ssids) {
 			if (!memcmp(scan_req->ssid_list[0].ssid, "DIRECT-", 7))
 				scan_req->chan_list[num_chans].scan_time =
 					MIN_SPECIFIC_SCAN_CHAN_TIME;
@@ -6068,19 +6071,16 @@ static int woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	if (scan_req->scan_chan_gap && priv->phandle->pref_mac)
 		scan_req->scan_chan_gap |= GAP_FLAG_OPTIONAL;
 
-	if (priv->phandle->scan_request->ie &&
-	    priv->phandle->scan_request->ie_len) {
-		if (woal_find_wps_ie_in_probereq(
-			    (const t_u8 *)priv->phandle->scan_request->ie,
-			    priv->phandle->scan_request->ie_len)) {
+	if (request->ie && request->ie_len) {
+		if (woal_find_wps_ie_in_probereq((const t_u8 *)request->ie,
+						 request->ie_len)) {
 			PRINTM(MIOCTL,
 			       "Notify firmware only keep probe response\n");
 			scan_req->proberesp_only = MTRUE;
 		}
 		if (woal_cfg80211_mgmt_frame_ie(
 			    priv, NULL, 0, NULL, 0, NULL, 0,
-			    (const t_u8 *)priv->phandle->scan_request->ie,
-			    priv->phandle->scan_request->ie_len,
+			    (const t_u8 *)request->ie, request->ie_len,
 			    MGMT_MASK_PROBE_REQ,
 			    MOAL_IOCTL_WAIT) != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR, "Fail to set scan request IE\n");
@@ -7929,6 +7929,8 @@ done:
  * @param channel_type          Channel type
  * @param duration              Duration for timer
  * @param cookie                A pointer to timer cookie
+ * @param rx_addr               Receiver address (kernel >= 7.1.0 / Android SDK
+ * >= 36)
  *
  * @return                  0 -- success, otherwise fail
  */
@@ -7939,8 +7941,8 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 				enum nl80211_channel_type channel_type,
 #endif
 				unsigned int duration, u64 *cookie
-#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&             \
-	(CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) || \
+#if (defined(ANDROID_SDK_VERSION) && (ANDROID_SDK_VERSION >= 36) &&            \
+     (CFG80211_VERSION_CODE >= KERNEL_VERSION(6, 18, 21))) ||                  \
 	(CFG80211_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
 				,
 				const u8 *rx_addr
@@ -11682,6 +11684,7 @@ mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 	struct wireless_dev *wdev = NULL;
 	int psmode = 0;
 	enum ieee80211_band band;
+	mlan_fw_info fw_info;
 
 	ENTER();
 	wdev = (struct wireless_dev *)&priv->w_dev;
@@ -11742,7 +11745,9 @@ mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 #endif
 		priv->phandle->band = band;
 
-		if (priv->wdev && priv->wdev->wiphy &&
+		memset(&fw_info, 0, sizeof(mlan_fw_info));
+		woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+		if (!fw_info.force_reg && priv->wdev && priv->wdev->wiphy &&
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 		    !(priv->wdev->wiphy->regulatory_flags &
 		      REGULATORY_WIPHY_SELF_MANAGED)
@@ -11773,6 +11778,39 @@ mlan_status woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
  * @param wait_option     Wait option
  * @return                MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+static const struct cfg80211_pmsr_capabilities nxp_pmsr_capa = {
+	.max_peers = 1,
+	.report_ap_tsf = 1,
+	.randomize_mac_addr = 0,
+	.ftm =
+		{
+			.supported = 1,
+			.asap = 1,
+			.non_asap = 1,
+			.request_lci = 1,
+			.request_civicloc = 1,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+			.trigger_based = 1,
+			.non_trigger_based = 1,
+#endif
+			.preambles = BIT(NL80211_PREAMBLE_LEGACY) |
+				     BIT(NL80211_PREAMBLE_HT) |
+				     BIT(NL80211_PREAMBLE_VHT)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+				     | BIT(NL80211_PREAMBLE_HE)
+#endif
+				,
+			.bandwidths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
+				      BIT(NL80211_CHAN_WIDTH_20) |
+				      BIT(NL80211_CHAN_WIDTH_40) |
+				      BIT(NL80211_CHAN_WIDTH_80),
+			.max_bursts_exponent = 15,
+			.max_ftms_per_burst = 31,
+		},
+};
+#endif /* KERNEL_VERSION(4, 20, 0) */
+
 static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 					    struct wiphy *wiphy,
 					    mlan_fw_info *fw_info,
@@ -11930,6 +11968,12 @@ static mlan_status woal_cfg80211_init_wiphy(moal_private *priv,
 	wiphy->available_antennas_tx = radio->param.ant_cfg.tx_antenna;
 	wiphy->available_antennas_rx = radio->param.ant_cfg.rx_antenna;
 #endif /* CFG80211_VERSION_CODE */
+
+	/* Set PMSR capabilities and FTM responder ext feature */
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	wiphy->pmsr_capa = &nxp_pmsr_capa;
+	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_ENABLE_FTM_RESPONDER);
+#endif /* KERNEL_VERSION(4, 20, 0) */
 
 	/* Set retry limit count to wiphy */
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {

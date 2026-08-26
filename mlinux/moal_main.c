@@ -72,11 +72,15 @@
 #endif
 #ifdef IMX_SUPPORT
 #include <linux/of.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 #include <linux/of_gpio.h>
+#endif
 #include <linux/gpio/consumer.h>
 #endif
 #ifdef IMX_SUPPORT
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 #include <linux/of_gpio.h>
+#endif
 #include <linux/gpio/consumer.h>
 #endif /* IMX_SUPPORT */
 
@@ -818,7 +822,7 @@ static struct _card_info card_info_USBIW610 = {
 	.cal_data_cfg = 0,
 	.low_power_enable = 0,
 	.rx_rate_max = 412,
-	.feature_control = FEATURE_CTRL_DEFAULT,
+	.feature_control = FEATURE_CTRL_DEFAULT & (~FEATURE_CTRL_STREAM_2X2),
 	.histogram_table_num = 3,
 	.fw_name = USBIW610_DEFAULT_COMBO_FW_NAME,
 	.fw_name_wlan = USBIW610_DEFAULT_WLAN_FW_NAME,
@@ -924,6 +928,7 @@ static mlan_callbacks woal_callbacks = {
 
 	.moal_map_memory = moal_map_memory,
 	.moal_unmap_memory = moal_unmap_memory,
+	.moal_dma_wmb = moal_dma_wmb,
 #endif /* PCIE */
 	.moal_memset = moal_memset,
 	.moal_memcpy = moal_memcpy,
@@ -2607,6 +2612,17 @@ mlan_status woal_init_sw(moal_handle *handle)
 
 	handle->is_plinkstats_timer_set = MFALSE;
 
+	spin_lock_init(&handle->rtt_result_lock);
+	init_waitqueue_head(&handle->ftm_result_wait_q);
+	handle->ftm_result_wait_q_woken = MFALSE;
+	handle->rtt_range_cancel = MFALSE;
+	handle->rtt_total_ap_count = 0;
+	handle->rtt_completed_ap_count = 0;
+	handle->rtt_result_buf_len = 0;
+	handle->rtt_priv = NULL;
+	MLAN_INIT_WORK(&handle->rtt_work, woal_rtt_work_handler);
+
+	/* RTT Cabability */
 	handle->rtt_capa.rtt_one_sided_supported = MTRUE;
 	handle->rtt_capa.rtt_ftm_supported = MTRUE;
 	handle->rtt_capa.lci_support = MTRUE;
@@ -2617,6 +2633,15 @@ mlan_status woal_init_sw(moal_handle *handle)
 		BW_20_SUPPORT | BW_40_SUPPORT | BW_80_SUPPORT;
 	handle->rtt_capa.responder_supported = MTRUE;
 	handle->rtt_capa.mc_version = 60;
+	/* RTT Capability v3 (11az) */
+	moal_memcpy_ext(handle, &handle->rtt_capa_v3.rtt_capab,
+			&handle->rtt_capa, sizeof(wifi_rtt_capabilities),
+			sizeof(handle->rtt_capa_v3.rtt_capab));
+	handle->rtt_capa_v3.az_preamble_support = PREAMBLE_HE;
+	handle->rtt_capa_v3.az_bw_support =
+		BW_20_SUPPORT | BW_40_SUPPORT | BW_80_SUPPORT;
+	handle->rtt_capa_v3.ntb_initiator_supported = MTRUE;
+	handle->rtt_capa_v3.ntb_responder_supported = MTRUE;
 	handle->is_edmac_enabled = MFALSE;
 	handle->driver_init = MFALSE;
 
@@ -14903,7 +14928,10 @@ irqreturn_t woal_oob_wakeup_irq_handler(int irq, void *priv)
 void woal_regist_ind_rst_gpio(moal_handle *handle)
 {
 	struct device_node *node;
+	struct gpio_desc *gpiod;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 	int gpio = -1;
+#endif
 
 	ENTER();
 
@@ -14917,6 +14945,16 @@ void woal_regist_ind_rst_gpio(moal_handle *handle)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	gpiod = fwnode_gpiod_get_index(of_fwnode_handle(node), "wlan-reset", 0,
+				       GPIOD_OUT_HIGH, "wlan-ind-rst");
+	of_node_put(node);
+	if (IS_ERR(gpiod)) {
+		PRINTM(MERROR, "OOB IND RST: fwnode_gpiod_get_index failed\n");
+		LEAVE();
+		return;
+	}
+#else
 	gpio = of_get_named_gpio(node, "wlan-reset-gpios", 0);
 	of_node_put(node);
 
@@ -14926,18 +14964,19 @@ void woal_regist_ind_rst_gpio(moal_handle *handle)
 		return;
 	}
 
-	handle->ind_rst_gpiod = gpio_to_desc(gpio);
-	if (IS_ERR((struct gpio_desc *)handle->ind_rst_gpiod)) {
+	gpiod = gpio_to_desc(gpio);
+	if (IS_ERR(gpiod)) {
 		PRINTM(MERROR, "OOB IND RST: gpio_to_desc failed for GPIO %d\n",
 		       gpio);
-		handle->ind_rst_gpiod = NULL;
 		LEAVE();
 		return;
 	}
+#endif
 
+	handle->ind_rst_gpiod = gpiod;
 	gpiod_direction_output((struct gpio_desc *)handle->ind_rst_gpiod, 1);
 
-	PRINTM(MINFO, "OOB IND RST: GPIO %d acquired from DT\n", gpio);
+	PRINTM(MINFO, "OOB IND RST: GPIO acquired from DT\n");
 	LEAVE();
 }
 
@@ -15433,6 +15472,7 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 
 err_init_fw:
 	if (handle->is_fw_dump_timer_set) {
+		woal_sched_timeout(3000);
 		woal_cancel_timer(&handle->fw_dump_timer);
 		handle->is_fw_dump_timer_set = MFALSE;
 	}
@@ -16394,7 +16434,9 @@ static struct device_node *woal_find_pdn_regulator_node(void)
 void woal_pull_pdn(void)
 {
 	struct device_node *np = woal_find_pdn_regulator_node();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 	int gpio = -1;
+#endif
 	int val = 0;
 
 	if (!np) {
@@ -16402,6 +16444,16 @@ void woal_pull_pdn(void)
 		return;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+	pdn_gpiod = fwnode_gpiod_get_index(of_fwnode_handle(np), NULL, 0,
+					   GPIOD_OUT_HIGH, "wlan-pdn");
+	of_node_put(np);
+	if (IS_ERR(pdn_gpiod)) {
+		PRINTM(MERROR, "wlan: error pdn_gpiod=%p\n", pdn_gpiod);
+		pdn_gpiod = NULL;
+		return;
+	}
+#else
 	gpio = of_get_named_gpio(np, "gpio", 0);
 	of_node_put(np);
 
@@ -16415,8 +16467,9 @@ void woal_pull_pdn(void)
 		PRINTM(MERROR, "wlan: error pdn_gpiod=%p\n", pdn_gpiod);
 		return;
 	}
+#endif
 
-	PRINTM(MCMND, "wlan: Get PDN gpio=%d\n", gpio);
+	PRINTM(MCMND, "wlan: Get PDN gpiod=%p\n", pdn_gpiod);
 	/* Set to output and set value=1 -> PDN Deasserted (Power On) */
 	gpiod_direction_output(pdn_gpiod, 1);
 

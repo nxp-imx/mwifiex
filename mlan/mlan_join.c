@@ -332,7 +332,7 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 		while (rate1_size && *ptr) {
 			/* loop exits when rate1_size becomes 0 */
 			// coverity[integer_overflow:SUPPRESS]
-			if ((*ptr & 0x7f) == pmpriv->data_rate) {
+			if ((*ptr & 0x7f) == (t_u8)(pmpriv->data_rate / 500)) {
 				ret = MLAN_STATUS_SUCCESS;
 				goto done;
 			}

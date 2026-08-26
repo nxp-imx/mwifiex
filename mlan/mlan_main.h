@@ -2449,6 +2449,10 @@ typedef struct _mlan_pcie_card {
 	t_void *txbd_ring[MLAN_MAX_TXRX_BD];
 	/** A list of mlan_buffer objects used for data tx */
 	mlan_buffer *tx_buf_list[MLAN_MAX_TXRX_BD];
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+	mlan_buffer *dummy_tx_buf;
+#endif
 	/** Flush indicator for txbd_ring */
 	t_bool txbd_flush;
 	/** txrx data dma ring size */
@@ -4623,11 +4627,11 @@ mlan_status wlan_rtt_responder_cfg(pmlan_adapter pmadapter,
 mlan_status wlan_cmd_ftm_session_ctrl(pmlan_private pmpriv,
 				      HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				      t_void *pdata_buf);
-mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
-					    Event_WLS_FTM_t *event_ftm,
-					    t_u32 event_ftm_len,
-					    mlan_event *pevent,
-					    t_u8 is_failure);
+mlan_status wlan_convert_to_wifi_rtt_result_v3(pmlan_private pmpriv,
+					       Event_WLS_FTM_t *event_ftm,
+					       t_u32 event_ftm_len,
+					       mlan_event *pevent,
+					       t_u8 is_failure);
 mlan_status wlan_cmd_ftm_session_cfg(pmlan_private pmpriv,
 				     HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
 				     t_void *pdata_buf);
@@ -4644,6 +4648,12 @@ mlan_status wlan_ftm_session_cfg(pmlan_adapter pmadapter,
 				 pmlan_ioctl_req pioctl_req);
 mlan_status wlan_ftm_session_ctrl(pmlan_adapter pmadapter,
 				  pmlan_ioctl_req pioctl_req);
+/** NTB command builder — dispatched internally via sub_id in
+ * mlan_ftm_session_cfg */
+mlan_status wlan_cmd_ftm_session_cfg_ntb_ranging(pmlan_private pmpriv,
+						 HostCmd_DS_COMMAND *cmd,
+						 t_u16 cmd_action,
+						 t_void *pdata_buf);
 
 mlan_status wlan_get_info_ver_ext(pmlan_adapter pmadapter,
 				  pmlan_ioctl_req pioctl_req);

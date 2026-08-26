@@ -686,7 +686,7 @@ static t_u32 wlan_hexval(t_u8 chr)
 }
 
 /**
- *  @brief This function convert a given string to hex
+ *  @brief This function convert a given 2-char limit string to hex
  *
  *  @param a            A pointer to string to be converted
  *
@@ -696,11 +696,15 @@ static t_u32 wlan_hexval(t_u8 chr)
 static int wlan_atox(const t_u8 *a)
 {
 	int i = 0;
+	int count = 0;
 
 	ENTER();
 
-	while (wlan_isxdigit(*a))
+	/* count limits consumption to exactly 2 hex chars (one output byte). */
+	while (wlan_isxdigit(*a) && (count < 2)) {
 		i = i * 16 + wlan_hexval(*a++);
+		count++;
+	}
 
 	LEAVE();
 	return i;
@@ -2456,6 +2460,7 @@ mlan_status wlan_exec_next_cmd(mlan_adapter *pmadapter)
 	cmd_ctrl_node *pcmd_node = MNULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_COMMAND *pcmd;
+	t_u16 saved_cmd_code = 0;
 
 	ENTER();
 
@@ -2480,9 +2485,35 @@ mlan_status wlan_exec_next_cmd(mlan_adapter *pmadapter)
 						    MNULL, MNULL);
 
 	if (pcmd_node) {
+#ifdef USB
+		/* For USB, cmdbuf is dynamically allocated per command and
+		 * freed asynchronously in mlan_write_data_async_complete() upon
+		 * URB completion. Guard against accessing a NULL/freed cmdbuf
+		 * before the first dereference.
+		 */
+		if (IS_USB(pmadapter->card_type) && !pcmd_node->cmdbuf) {
+			PRINTM(MERROR,
+			       "EXEC_NEXT_CMD: cmdbuf is NULL for USB cmd node, skip\n");
+			wlan_release_cmd_lock(pmadapter);
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+#endif
 		pcmd = (HostCmd_DS_COMMAND *)(pcmd_node->cmdbuf->pbuf +
 					      pcmd_node->cmdbuf->data_offset);
 		priv = pcmd_node->priv;
+#ifdef USB
+		/* Save cmd_code on the stack NOW, before wlan_dnld_cmd_to_fw().
+		 * For USB, that call NULLs pcmd_node->cmdbuf
+		 * (mlan_cmdevt.c:1823) and the URB may complete synchronously
+		 * (softirq preempts kworker on same CPU), freeing cmdbuf before
+		 * the call even returns. The local 'pcmd' pointer becomes stale
+		 * after the call -- never dereference it again for USB. Use
+		 * saved_cmd_code instead.
+		 */
+		if (IS_USB(pmadapter->card_type))
+			saved_cmd_code = pcmd->command;
+#endif
 
 		if (pmadapter->ps_state != PS_STATE_AWAKE) {
 			PRINTM(MERROR,
@@ -2503,7 +2534,12 @@ mlan_status wlan_exec_next_cmd(mlan_adapter *pmadapter)
 		/* We should skip the host sleep configuration command itself
 		 * though
 		 */
-		if (priv && (pcmd->command !=
+		/* Do NOT dereference 'pcmd' after wlan_dnld_cmd_to_fw() for
+		 * USB. cmdbuf is already freed at this point (softirq completed
+		 * URB synchronously). Use saved_cmd_code saved before the call.
+		 */
+		if (priv && ((!IS_USB(pmadapter->card_type) ? pcmd->command :
+							      saved_cmd_code) !=
 			     wlan_cpu_to_le16(HostCmd_CMD_802_11_HS_CFG_ENH))) {
 			if (pmadapter->hs_activated == MTRUE) {
 				PRINTM(MCMND, "hsae 0: exe nxt cmd\n");
@@ -3475,6 +3511,7 @@ mlan_status wlan_cmd_ftm_session_cfg(pmlan_private pmpriv,
 				     t_void *pdata_buf)
 {
 	mlan_ftm_session_cfg *cfg = (mlan_ftm_session_cfg *)pdata_buf;
+	mlan_ftm_session_cfg_initiator *initiator_tlv = &(cfg->initiator_tlv);
 	HostCmd_DS_FTM_SESSION_CFG *ftm_cfg;
 	MrvlIEtypes_FTM_SessionCfg_t *tlv;
 	t_u8 *pos;
@@ -3496,16 +3533,16 @@ mlan_status wlan_cmd_ftm_session_cfg(pmlan_private pmpriv,
 		wlan_cpu_to_le16(sizeof(MrvlIEtypes_FTM_SessionCfg_t) -
 				 sizeof(MrvlIEtypesHeader_t));
 
-	tlv->burst_exponent = cfg->burst_exponent;
-	tlv->burst_duration = cfg->burst_duration;
-	tlv->min_delta_FTM = cfg->min_delta_FTM;
-	tlv->is_ASAP = cfg->is_ASAP;
-	tlv->per_burst_FTM = cfg->per_burst_FTM;
-	tlv->channel_spacing = cfg->channel_spacing;
-	tlv->burst_period = wlan_cpu_to_le16(cfg->burst_period);
-	tlv->iftm_tmo = cfg->iftm_tmo;
-	tlv->lci_request = cfg->lci_request;
-	tlv->civic_request = cfg->civic_request;
+	tlv->burst_exponent = initiator_tlv->burst_exponent;
+	tlv->burst_duration = initiator_tlv->burst_duration;
+	tlv->min_delta_FTM = initiator_tlv->min_delta_FTM;
+	tlv->is_ASAP = initiator_tlv->is_ASAP;
+	tlv->per_burst_FTM = initiator_tlv->per_burst_FTM;
+	tlv->channel_spacing = initiator_tlv->channel_spacing;
+	tlv->burst_period = wlan_cpu_to_le16(initiator_tlv->burst_period);
+	tlv->iftm_tmo = initiator_tlv->iftm_tmo;
+	tlv->lci_request = initiator_tlv->lci_request;
+	tlv->civic_request = initiator_tlv->civic_request;
 
 	cmd->size += sizeof(MrvlIEtypes_FTM_SessionCfg_t);
 	cmd->size = wlan_cpu_to_le16(cmd->size);
@@ -3544,8 +3581,69 @@ mlan_status wlan_cmd_ftm_session_ctrl(pmlan_private pmpriv,
 }
 
 /**
- *  @brief This function converts FTM_COMPLETE/FTM_FAIL event to wifi_rtt_result
- * format
+ *  @brief Prepare FTM Session Config command for NTB ranging (11az)
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action
+ *  @param pdata_buf    A pointer to mlan_ftm_session_cfg_ntb_ranging
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_ftm_session_cfg_ntb_ranging(pmlan_private pmpriv,
+						 HostCmd_DS_COMMAND *cmd,
+						 t_u16 cmd_action,
+						 t_void *pdata_buf)
+{
+	mlan_ftm_session_cfg *cfg = (mlan_ftm_session_cfg *)pdata_buf;
+	mlan_ftm_session_cfg_ntb_ranging *ntb_tlv = &(cfg->ntb_ranging_tlv);
+	HostCmd_DS_FTM_SESSION_CFG *ftm_cfg;
+	MrvlIEtypes_NTB_RangingCfg_t *tlv;
+	t_u8 *pos;
+	t_u16 tlv_type;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_FTM_SESSION_CFG);
+	cmd->size = sizeof(HostCmd_DS_GEN) + sizeof(HostCmd_DS_FTM_SESSION_CFG);
+
+	ftm_cfg = (HostCmd_DS_FTM_SESSION_CFG *)((t_u8 *)cmd +
+						 sizeof(HostCmd_DS_GEN));
+	ftm_cfg->action = wlan_cpu_to_le16(cmd_action);
+
+	pos = (t_u8 *)ftm_cfg + sizeof(HostCmd_DS_FTM_SESSION_CFG);
+
+	tlv_type = (ntb_tlv->protocol_type == PROTO_TYPE_TB) ?
+			   TLV_TYPE_FTM_TB_RANGING_CFG :
+			   TLV_TYPE_FTM_NTB_RANGING_CFG;
+	tlv = (MrvlIEtypes_NTB_RangingCfg_t *)pos;
+	tlv->header.type = wlan_cpu_to_le16(tlv_type);
+	tlv->header.len =
+		wlan_cpu_to_le16(sizeof(MrvlIEtypes_NTB_RangingCfg_t) -
+				 sizeof(MrvlIEtypesHeader_t));
+	tlv->format_bw = ntb_tlv->format_bw;
+	tlv->max_i2r_sts_upto80 = ntb_tlv->max_i2r_sts_upto80;
+	tlv->max_r2i_sts_upto80 = ntb_tlv->max_r2i_sts_upto80;
+	tlv->az_measurement_freq = ntb_tlv->az_measurement_freq;
+	tlv->az_number_of_measurements = ntb_tlv->az_number_of_measurements;
+	tlv->i2r_lmr_feedback = ntb_tlv->i2r_lmr_feedback;
+	tlv->civic_req = ntb_tlv->civic_request;
+	tlv->lci_req = ntb_tlv->lci_request;
+	tlv->az_measurements_per_burst = ntb_tlv->az_measurements_per_burst;
+	tlv->az_burst_spacing_ms = ntb_tlv->az_burst_spacing_ms;
+	tlv->az_burst_duration_ms = ntb_tlv->az_burst_duration_ms;
+
+	cmd->size += sizeof(MrvlIEtypes_NTB_RangingCfg_t);
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Convert FTM_COMPLETE/FTM_FAIL event to wifi_rtt_result_v3 format.
+ *
+ *  Always outputs a wifi_rtt_result_v3 struct (superset of v2/v1).
  *
  *  @param pmpriv       A pointer to mlan_private structure
  *  @param event_ftm    A pointer to Event_WLS_FTM_t structure
@@ -3556,13 +3654,15 @@ mlan_status wlan_cmd_ftm_session_ctrl(pmlan_private pmpriv,
  *
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
-					    Event_WLS_FTM_t *event_ftm,
-					    t_u32 event_ftm_len,
-					    mlan_event *pevent, t_u8 is_failure)
+mlan_status wlan_convert_to_wifi_rtt_result_v3(pmlan_private pmpriv,
+					       Event_WLS_FTM_t *event_ftm,
+					       t_u32 event_ftm_len,
+					       mlan_event *pevent,
+					       t_u8 is_failure)
 {
 	t_u8 *pos = MNULL;
 	wifi_rtt_result_element *rtt_result_elem = MNULL;
+	wifi_rtt_result_v3 *rtt_v3 = MNULL;
 	wifi_rtt_result *rtt_result = MNULL;
 	WLS_SubEvent_FTM_Complete_t *ftm_complete = MNULL;
 	t_u64 distance;
@@ -3571,7 +3671,7 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 
 	if (!event_ftm || !pevent) {
 		PRINTM(MERROR,
-		       "wlan_convert_to_wifi_rtt_result: NULL pointer\n");
+		       "wlan_convert_to_wifi_rtt_result_v3: NULL pointer\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -3606,8 +3706,13 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 	rtt_result_elem = (wifi_rtt_result_element *)pos;
 	pos += sizeof(*rtt_result_elem);
 
-	/* Fill wifi_rtt_result */
-	rtt_result = (wifi_rtt_result *)(rtt_result_elem->data);
+	/* Fill wifi_rtt_result_v3 body */
+	rtt_v3 = (wifi_rtt_result_v3 *)(rtt_result_elem->data);
+	_memset(pmpriv->adapter, rtt_v3, 0, sizeof(wifi_rtt_result_v3));
+
+	/* Base wifi_rtt_result fields are accessed via
+	 * rtt_v3->rtt_result_v2.rtt_result */
+	rtt_result = &rtt_v3->rtt_result_v2.rtt_result;
 
 	/* Copy MAC address */
 	memcpy_ext(pmpriv->adapter, rtt_result->addr, ftm_complete->mac,
@@ -3641,11 +3746,10 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 		}
 	} else {
 		/* FTM_COMPLETE - check if we have successful measurements */
-		if (ftm_complete->protocol_num_measurements > 0) {
-			rtt_result->status = RTT_STATUS_SUCCESS;
-		} else {
-			rtt_result->status = RTT_STATUS_FAILURE;
-		}
+		rtt_result->status =
+			(ftm_complete->protocol_num_measurements > 0) ?
+				RTT_STATUS_SUCCESS :
+				RTT_STATUS_FAILURE;
 	}
 
 	/* Set retry_after_duration (not available in FTM_COMPLETE, set to 0) */
@@ -3654,7 +3758,9 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 	/* Set RTT type based on protocol_type */
 	/* protocol_type: 0=11mc, 1=11az NTB */
 	if (ftm_complete->protocol_type == 0) {
-		rtt_result->type = RTT_TYPE_2_SIDED; /* 11mc is 2-sided */
+		rtt_result->type = RTT_TYPE_2_SIDED_11MC; /* 11mc is 2-sided */
+	} else {
+		rtt_result->type = RTT_TYPE_2_SIDED_11AZ_NTB; /* 11az NTB */
 	}
 
 	/* RSSI - not available in FTM_COMPLETE, set to 0 */
@@ -3698,7 +3804,19 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 	rtt_result->LCI = MNULL;
 	rtt_result->LCR = MNULL;
 
-	pos += sizeof(*rtt_result);
+	/* set all wifi_rtt_result_v2, wifi_rtt_result_v3 specific fields to 0
+	 * as not available in FTM_COMPLETE event;
+	 */
+	rtt_v3->rtt_result_v2.frequency = 0;
+	rtt_v3->rtt_result_v2.packet_bw = 0;
+	rtt_v3->i2r_tx_ltf_repetition_count = 0;
+	rtt_v3->r2i_tx_ltf_repetition_count = 0;
+	rtt_v3->ntb_min_measurement_time = 0;
+	rtt_v3->ntb_max_measurement_time = 0;
+	rtt_v3->num_tx_sts = 0;
+	rtt_v3->num_rx_sts = 0;
+
+	pos += sizeof(wifi_rtt_result_v3);
 
 	/* Set the length of the result element */
 	rtt_result_elem->len = pos - rtt_result_elem->data;
@@ -3707,9 +3825,10 @@ mlan_status wlan_convert_to_wifi_rtt_result(pmlan_private pmpriv,
 	pevent->event_len = pos - pevent->event_buf;
 
 	PRINTM(MEVENT,
-	       "wlan_convert_to_wifi_rtt_result: event_len=%d distance_mm=%d rtt=%lld status=%d\n",
+	       "wlan_convert_to_wifi_rtt_result_v3: event_len=%d distance_mm=%d "
+	       "rtt=%lld status=%d(FTM status code: %d) type=%d\n",
 	       pevent->event_len, rtt_result->distance_mm, rtt_result->rtt,
-	       rtt_result->status);
+	       rtt_result->status, ftm_complete->status_code, rtt_result->type);
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

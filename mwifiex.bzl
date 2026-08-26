@@ -21,8 +21,8 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_module", "kernel_module_group")
 _BASE_COPTS = [
     "-DLINUX",
     "-DMLAN_64BIT",  # CONFIG_64BIT=y
-    "-DMLAN_RELEASE_VERSION=\"552.p2\"",
-    "-DMLAN_EXT_RELEASE_VERSION=\"552.p2\"",
+    "-DMLAN_RELEASE_VERSION=\"552.p22\"",
+    "-DMLAN_EXT_RELEASE_VERSION=\"552.p22\"",
     "-DREL_MILESTONE=\"\"",
     "-DFPNUM=\"92\"",
     "-DDEBUG_LEVEL1",  # CONFIG_DEBUG=1

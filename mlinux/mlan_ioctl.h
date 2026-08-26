@@ -6595,8 +6595,11 @@ typedef struct _mlan_ds_multi_ap {
 	t_u8 multi_ap_flag; /* EASY_MESH_MULTI_AP_BH_BSS/FH_BSS/STA */
 	t_u16 peer_aid; /* AID for per-sta update; 0 = BSS-level */
 } mlan_ds_multi_ap;
-/** mlan_ftm_session_cfg - FTM Session Configuration */
-typedef struct _mlan_ftm_session_cfg {
+/** sub_id values for mlan_ftm_session_cfg */
+#define FTM_SESSION_CFG_SUBID_INITIATOR 0 /* 802.11mc initiator TLV */
+#define FTM_SESSION_CFG_SUBID_NTB_RANGING 1 /* 802.11az NTB ranging TLV */
+/** mlan_ftm_session_cfg_initiator - 802.11mc FTM Session Configuration */
+typedef struct _mlan_ftm_session_cfg_initiator {
 	t_u8 burst_exponent;
 	t_u8 burst_duration;
 	t_u8 min_delta_FTM;
@@ -6609,6 +6612,47 @@ typedef struct _mlan_ftm_session_cfg {
 	t_u8 civic_request;
 	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
 	t_u8 channel;
+} mlan_ftm_session_cfg_initiator;
+
+/** mlan_ftm_session_cfg_ntb_ranging - 802.11az NTB FTM Session Configuration */
+typedef struct _mlan_ftm_session_cfg_ntb_ranging {
+	/** Channel BW: 0=20, 1=40, 2=80 */
+	t_u8 format_bw;
+	/** Max I2R STS for BW <= 80 MHz */
+	t_u8 max_i2r_sts_upto80;
+	/** Max R2I STS for BW <= 80 MHz */
+	t_u8 max_r2i_sts_upto80;
+	/** Measurement frequency in Hz */
+	t_u8 az_measurement_freq;
+	/** Number of measurements for this session */
+	t_u8 az_number_of_measurements;
+	/** Initiator LMR feedback flag */
+	t_u8 i2r_lmr_feedback;
+	/** Civic location request flag */
+	t_u8 civic_request;
+	/** 1=NTB (non_tb), 2=TB (tb) */
+	t_u8 protocol_type;
+	/** LCI request flag */
+	t_u8 lci_request;
+	/** Measurements per burst */
+	t_u8 az_measurements_per_burst;
+	/** Time between measurements in burst (ms) */
+	t_u8 az_burst_spacing_ms;
+	/** Maximum burst duration (ms) */
+	t_u8 az_burst_duration_ms;
+} mlan_ftm_session_cfg_ntb_ranging;
+
+/** mlan_ftm_session_cfg - FTM Session Configuration
+ *  sub_id selects the active TLV variant:
+ *    FTM_SESSION_CFG_SUBID_INITIATOR   (0) -> initiator_tlv (802.11mc)
+ *    FTM_SESSION_CFG_SUBID_NTB_RANGING (1) -> ntb_ranging_tlv (802.11az NTB)
+ */
+typedef struct _mlan_ftm_session_cfg {
+	t_u32 sub_id;
+	union {
+		mlan_ftm_session_cfg_initiator initiator_tlv;
+		mlan_ftm_session_cfg_ntb_ranging ntb_ranging_tlv;
+	};
 } mlan_ftm_session_cfg;
 
 /** mlan_ftm_session_ctrl - FTM Session Control */

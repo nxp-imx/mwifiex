@@ -510,6 +510,13 @@ mlan_status wlan_alloc_pcie_ring_buf(pmlan_adapter pmadapter);
 mlan_status wlan_free_pcie_ring_buf(pmlan_adapter pmadapter);
 /** Ring buffer cleanup function, e.g. on deauth */
 mlan_status wlan_clean_pcie_ring_buf(pmlan_adapter pmadapter);
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+/** Dummy tx buf allocation function */
+mlan_status wlan_alloc_pcie_dummy_tx_buf(pmlan_adapter pmadapter);
+/** Dummy tx buf deallocation function */
+mlan_status wlan_free_pcie_dummy_tx_buf(pmlan_adapter pmadapter);
+#endif
 mlan_status wlan_alloc_ssu_pcie_buf(pmlan_adapter pmadapter);
 mlan_status wlan_free_ssu_pcie_buf(pmlan_adapter pmadapter);
 

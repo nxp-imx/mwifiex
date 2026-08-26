@@ -427,10 +427,25 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef PCIE
 	/* Initialize PCIE ring buffer */
 	if (IS_PCIE(pmadapter->card_type)) {
-		ret = wlan_alloc_pcie_ring_buf(pmadapter);
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		ret = wlan_alloc_pcie_dummy_tx_buf(pmadapter);
 		if (ret != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR,
+			       "Failed to allocate PCIE dummy tx buffer\n");
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+#endif
+		ret = wlan_alloc_pcie_ring_buf(pmadapter);
+		if (MLAN_STATUS_SUCCESS != ret) {
+			PRINTM(MERROR,
 			       "Failed to allocate PCIE host buffers\n");
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+			/* free the dummy tx buffer */
+			wlan_free_pcie_dummy_tx_buf(pmadapter);
+#endif
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
@@ -1632,6 +1647,45 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 	}
 #endif /* PCIE */
 #endif /* MFG_CMD_SUPPORT */
+#if defined(MFG_CMD_SUPPORT)
+	/* In MFG mode, send cal data to FW if available.
+	 * Normal init path sends cal data via init_cmd(), but MFG mode
+	 * skips init_cmd(). Queue the HostCmd_CMD_CFG_DATA command here
+	 * so it is processed during this init sequence. Enable this only for
+	 * Blackbird.
+	 */
+	if (pmadapter->mfg_mode == MTRUE && pmadapter->pcal_data &&
+	    pmadapter->cal_data_len > 0 && IS_CARDAW693(pmadapter->card_type)) {
+		pmlan_private cal_priv =
+			wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+		if (cal_priv) {
+			PRINTM(MMSG,
+			       "MFG mode: queuing cal data cmd (%d bytes)\n",
+			       pmadapter->cal_data_len);
+			ret = wlan_prepare_cmd(cal_priv, HostCmd_CMD_CFG_DATA,
+					       HostCmd_ACT_GEN_SET,
+					       OID_TYPE_CAL, MNULL, MNULL);
+			if (ret == MLAN_STATUS_SUCCESS) {
+				/*
+				 * Set last_init_cmd to CFG_DATA so the
+				 * init state machine in
+				 * wlan_process_cmdresp() can transition
+				 * hw_status from
+				 * WlanHardwareStatusInitializing to
+				 * WlanHardwareStatusInitdone when the
+				 * FW response arrives.
+				 */
+				pmadapter->last_init_cmd = HostCmd_CMD_CFG_DATA;
+				/* Data is copied into cmd buffer by
+				 * wlan_prepare_cmd, clear the pointer
+				 * so it is not used again.
+				 */
+				pmadapter->pcal_data = MNULL;
+				pmadapter->cal_data_len = 0;
+			}
+		}
+	}
+#endif /* MFG_CMD_SUPPORT && NO_EEPROM_SUPPORT */
 	if (wlan_is_cmd_pending(pmadapter)) {
 		/* Send the first command in queue and return */
 		if (mlan_main_process(pmadapter) == MLAN_STATUS_FAILURE)
@@ -1907,6 +1961,12 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		wlan_free_ssu_pcie_buf(pmadapter);
 		/* Free PCIE ring buffers */
 		wlan_free_pcie_ring_buf(pmadapter);
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		/* free the dummy tx buffer */
+		wlan_free_pcie_dummy_tx_buf(pmadapter);
+#endif
 	}
 #endif
 	if (pmadapter->pmlan_cmd_lock) {

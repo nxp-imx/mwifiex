@@ -2869,9 +2869,10 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
 			if (rx_len <= SDIO_INTF_HEADER_LEN ||
 			    (rx_blocks * pmadapter->pcard_sd->sdio_blk_size) >
 				    pmadapter->rx_buf_size) {
-				PRINTM(MERROR, "invalid rx_len=%d\n", rx_len);
-				ret = MLAN_STATUS_FAILURE;
-				goto done;
+				PRINTM(MERROR,
+				       "RX cmd: invalid rx_len=%d, cmd ioport=0x%x\n",
+				       rx_len, ioport);
+				goto handle_data;
 			}
 			rx_len = (t_u16)(rx_blocks *
 					 pmadapter->pcard_sd->sdio_blk_size);
@@ -2916,6 +2917,7 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
 		}
 	}
 
+handle_data:
 	if (sdio_ireg & DN_LD_HOST_INT_STATUS) {
 		if (pmadapter->pcard_sd->mp_wr_bitmap &
 		    pmadapter->pcard_sd->mp_data_port_mask)
@@ -3005,7 +3007,9 @@ static mlan_status wlan_process_sdio_int_status(mlan_adapter *pmadapter,
 			if (rx_len <= SDIO_INTF_HEADER_LEN ||
 			    (rx_blocks * pmadapter->pcard_sd->sdio_blk_size) >
 				    pmadapter->pcard_sd->mpa_rx.buf_size) {
-				PRINTM(MERROR, "invalid rx_len=%d\n", rx_len);
+				PRINTM(MERROR,
+				       "RX data: invalid rx_len=%d, data port=%d\n",
+				       rx_len, port);
 				ret = MLAN_STATUS_FAILURE;
 				goto done;
 			}

@@ -118,10 +118,6 @@ static const struct nl80211_vendor_cmd_info vendor_events[] = {
 		.vendor_id = MRVL_VENDOR_ID,
 		.subcmd = event_rtt_result,
 	}, /*event_id ???*/
-	{
-		.vendor_id = MRVL_VENDOR_ID,
-		.subcmd = event_csi,
-	},
 	/**add vendor event here*/
 };
 
@@ -180,6 +176,7 @@ static const struct nla_policy woal_rtt_policy[ATTR_RTT_MAX + 1] = {
 	[ATTR_RTT_MAX_DUR_SEC] = {.type = NLA_U32},
 	[ATTR_RTT_LCI_INFO] = {.type = NLA_BINARY},
 	[ATTR_RTT_LCR_INFO] = {.type = NLA_BINARY},
+	[ATTR_RTT_CONFIG_V3] = {.type = NLA_BINARY},
 
 };
 
@@ -6709,6 +6706,52 @@ done:
 	return err;
 }
 
+/**
+ * @brief vendor command to get RTT capability v3 (11az support)
+ *
+ * @param wiphy    A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  -1: fail
+ */
+static int woal_cfg80211_subcmd_rtt_get_capa_v3(struct wiphy *wiphy,
+						struct wireless_dev *wdev,
+						const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_handle *handle = priv->phandle;
+	struct sk_buff *skb = NULL;
+	int err = 0;
+
+	ENTER();
+	PRINTM(MCMND, "Get RTT v3 capability, device support: %s\n",
+	       handle->rtt_capa_v3.az_preamble_support ? "11az" : "11mc");
+
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(
+		wiphy, nla_total_size(sizeof(handle->rtt_capa_v3)) +
+			       VENDOR_REPLY_OVERHEAD);
+	if (unlikely(!skb)) {
+		PRINTM(MERROR, "skb alloc failed in %s\n", __func__);
+		goto done;
+	}
+
+	/* Put the attribute to the skb */
+	nla_put(skb, ATTR_RTT_CAPA_V3, sizeof(handle->rtt_capa_v3),
+		&(handle->rtt_capa_v3));
+
+	err = cfg80211_vendor_cmd_reply(skb);
+	if (unlikely(err))
+		PRINTM(MERROR, "Vendor Command reply failed err:%d\n", err);
+
+done:
+	LEAVE();
+	return err;
+}
+
 static void woal_dump_rtt_params(wifi_rtt_config_params_t *rtt_params)
 {
 	int i = 0;
@@ -6749,6 +6792,76 @@ static void woal_dump_rtt_params(wifi_rtt_config_params_t *rtt_params)
 		       rtt_params->rtt_config[i].preamble);
 		PRINTM(MCMD_D, "rtt_config[%d].bw=%d\n", i,
 		       rtt_params->rtt_config[i].bw);
+		PRINTM(MCMD_D, "\n");
+	}
+}
+
+/**
+ * @brief Dump RTT v3 parameters for debugging
+ *
+ * @param rtt_params  Pointer to wifi_rtt_config_params_v3_t
+ */
+static void woal_dump_rtt_params_v3(wifi_rtt_config_params_v3_t *rtt_params)
+{
+	int i = 0;
+
+	PRINTM(MCMD_D, "===== Start DUMP RTT Params V3 =====\n");
+	PRINTM(MCMD_D, "rtt_config_num=%d\n\n", rtt_params->rtt_config_num);
+
+	for (i = 0; i < rtt_params->rtt_config_num; i++) {
+		PRINTM(MCMD_D, "----------[%d]----------\n", i);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.addr=" MACSTR "\n",
+		       i,
+		       MAC2STR(rtt_params->rtt_config_v3[i].rtt_config.addr));
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.type=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.type);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.peer=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.peer);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].rtt_config.channel=[%d %d %d %d]\n",
+		       i, rtt_params->rtt_config_v3[i].rtt_config.channel.width,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.channel.center_freq,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.channel.center_freq0,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.channel.center_freq1);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.burst_period=%d\n",
+		       i, rtt_params->rtt_config_v3[i].rtt_config.burst_period);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.num_burst=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.num_burst);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].rtt_config.num_frames_per_burst=%d\n",
+		       i,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.num_frames_per_burst);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].rtt_config.num_retries_per_rtt_frame=%d\n",
+		       i,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.num_retries_per_rtt_frame);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].rtt_config.num_retries_per_ftmr=%d\n",
+		       i,
+		       rtt_params->rtt_config_v3[i]
+			       .rtt_config.num_retries_per_ftmr);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.LCI_request=%d\n",
+		       i, rtt_params->rtt_config_v3[i].rtt_config.LCI_request);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.LCR_request=%d\n",
+		       i, rtt_params->rtt_config_v3[i].rtt_config.LCR_request);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].rtt_config.burst_duration=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.burst_duration);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.preamble=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.preamble);
+		PRINTM(MCMD_D, "rtt_config_v3[%d].rtt_config.bw=%d\n", i,
+		       rtt_params->rtt_config_v3[i].rtt_config.bw);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].ntb_min_measurement_time=%llu\n", i,
+		       rtt_params->rtt_config_v3[i].ntb_min_measurement_time);
+		PRINTM(MCMD_D,
+		       "rtt_config_v3[%d].ntb_max_measurement_time=%llu\n", i,
+		       rtt_params->rtt_config_v3[i].ntb_max_measurement_time);
 		PRINTM(MCMD_D, "\n");
 	}
 }
@@ -6832,7 +6945,7 @@ static int woal_ftm_session_cfg(moal_private *priv, wifi_rtt_config *rtt_cfg)
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ftm_session_cfg *cfg;
+	mlan_ftm_session_cfg_initiator *cfg;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	int ret = 0;
 
@@ -6849,7 +6962,8 @@ static int woal_ftm_session_cfg(moal_private *priv, wifi_rtt_config *rtt_cfg)
 	req->req_id = MLAN_IOCTL_MISC_CFG;
 	req->action = MLAN_ACT_SET;
 
-	cfg = &misc->param.ftm_session_cfg;
+	misc->param.ftm_session_cfg.sub_id = FTM_SESSION_CFG_SUBID_INITIATOR;
+	cfg = &misc->param.ftm_session_cfg.initiator_tlv;
 
 	/* Convert wifi_rtt_config to mlan_ftm_session_cfg */
 	memcpy(cfg->peer_mac, rtt_cfg->addr, ETH_ALEN);
@@ -6893,6 +7007,107 @@ done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Configure NTB ranging session (11az) via ioctl
+ */
+static int woal_ftm_session_cfg_ntb_ranging(moal_private *priv,
+					    wifi_rtt_config_v3 *rtt_cfg_v3)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_cfg_ntb_ranging *cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+	wifi_rtt_config *rtt_cfg_v1 = &rtt_cfg_v3->rtt_config;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	misc->param.ftm_session_cfg.sub_id = FTM_SESSION_CFG_SUBID_NTB_RANGING;
+	cfg = &misc->param.ftm_session_cfg.ntb_ranging_tlv;
+	cfg->protocol_type = PROTO_TYPE_NTB; /* default NTB */
+	if (rtt_cfg_v1->preamble != WIFI_RTT_PREAMBLE_HE) {
+		PRINTM(MERROR, "Incorrect preamble: %d for 11az",
+		       rtt_cfg_v1->preamble);
+		ret = -EFAULT;
+		goto done;
+	}
+
+	switch (rtt_cfg_v1->bw) {
+	case WIFI_RTT_BW_80:
+		cfg->format_bw = 2;
+		break;
+	case WIFI_RTT_BW_40:
+		cfg->format_bw = 1;
+		break;
+	case WIFI_RTT_BW_20:
+		cfg->format_bw = 0;
+		break;
+	default:
+		PRINTM(MERROR,
+		       "Unsupported RTT BW: %d, using default BW: 20MHz",
+		       rtt_cfg_v1->bw);
+		cfg->format_bw = 0;
+	}
+	cfg->max_i2r_sts_upto80 = MAX_I2R_STS_UPTO80_DEFAULT;
+	cfg->max_r2i_sts_upto80 = MAX_R2I_STS_UPTO80_DEFAULT;
+
+	// rtt_cfg_v3->ntb_max_measurement_time is in units of 10 milliseconds
+	if (rtt_cfg_v3->ntb_max_measurement_time == 0 ||
+	    (rtt_cfg_v3->ntb_max_measurement_time * 10) > HZ_TO_MSEC_FACTOR) {
+		cfg->az_measurement_freq = AZ_MEASUREMENT_FREQ_DEFAULT;
+	} else {
+		cfg->az_measurement_freq =
+			HZ_TO_MSEC_FACTOR /
+			(rtt_cfg_v3->ntb_max_measurement_time * 10);
+	}
+	cfg->az_number_of_measurements = rtt_cfg_v1->num_burst;
+	cfg->i2r_lmr_feedback = 0;
+	cfg->civic_request = rtt_cfg_v1->LCR_request;
+	cfg->lci_request = rtt_cfg_v1->LCI_request;
+	if (rtt_cfg_v1->num_frames_per_burst > DOT11AZ_MAX_PER_BURST) {
+		cfg->az_measurements_per_burst = DOT11AZ_MAX_PER_BURST;
+		cfg->az_number_of_measurements +=
+			(rtt_cfg_v1->num_frames_per_burst / 4);
+	} else {
+		cfg->az_measurements_per_burst =
+			rtt_cfg_v1->num_frames_per_burst;
+	}
+	cfg->az_burst_spacing_ms = AZ_BURST_SPACING_MS_DEFAULT;
+	cfg->az_burst_duration_ms = AZ_BURST_DURATION_MS_DEFAULT;
+
+	PRINTM(MCMND,
+	       "NTB ranging cfg: format_bw=%d max_i2r_sts_upto80=%d max_r2i_sts_upto80=%d"
+	       " az_measurement_freq=%d az_number_of_measurements=%d i2r_lmr_feedback=%d "
+	       "civic_request=%d lci_request=%d az_measurements_per_burst=%d az_burst_spacing_ms=%d "
+	       "az_burst_duration_ms=%d",
+	       cfg->format_bw, cfg->max_i2r_sts_upto80, cfg->max_r2i_sts_upto80,
+	       cfg->az_measurement_freq, cfg->az_number_of_measurements,
+	       cfg->i2r_lmr_feedback, cfg->civic_request, cfg->lci_request,
+	       cfg->az_measurements_per_burst, cfg->az_burst_spacing_ms,
+	       cfg->az_burst_duration_ms);
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
 	LEAVE();
 	return ret;
 }
@@ -7119,6 +7334,159 @@ static int woal_parse_rtt_range_request(moal_handle *handle, const void *data,
 }
 
 /**
+ *  @brief This workqueue Performs sequential FTM session start/wait
+ *         for each AP.
+ *
+ *  @param work A pointer to work_struct
+ */
+void woal_rtt_work_handler(struct work_struct *work)
+{
+	moal_handle *handle =
+		// Coverity violation raised for kernel's API
+		// coverity[cert_arr39_c_violation:SUPPRESS]
+		container_of(work, moal_handle, rtt_work);
+	moal_private *priv = handle->rtt_priv;
+	int ret = 0;
+	int i;
+	long wait_rv;
+	unsigned long flags;
+	t_u8 rtt_config_num;
+	wifi_rtt_config *cfg = NULL;
+	wifi_rtt_config_v3 *cfg_v3 = NULL;
+
+	ENTER();
+
+	if (!priv) {
+		PRINTM(MERROR, "RTT work: rtt_priv is NULL\n");
+		LEAVE();
+		return;
+	}
+
+	if (handle->rtt_version == 3) {
+		rtt_config_num = handle->rtt_params_v3.rtt_config_num;
+	} else {
+		rtt_config_num = handle->rtt_params.rtt_config_num;
+	}
+	PRINTM(MCMND,
+	       "RTT work: starting sequential ranging for %d APs(rtt_version: %d)\n",
+	       rtt_config_num, handle->rtt_version);
+
+	spin_lock_irqsave(&handle->rtt_result_lock, flags);
+	handle->rtt_total_ap_count = rtt_config_num;
+	handle->rtt_completed_ap_count = 0;
+	handle->rtt_result_buf[0] = 0; /* complete=0, set to 1 when all done */
+	handle->rtt_result_buf_len = sizeof(t_u8);
+	spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+
+	for (i = 0; i < rtt_config_num; i++) {
+		if (handle->rtt_version == 3) {
+			cfg_v3 = &handle->rtt_params_v3.rtt_config_v3[i];
+			cfg = &(handle->rtt_params_v3.rtt_config_v3[i]
+					.rtt_config);
+		} else {
+			cfg = &handle->rtt_params.rtt_config[i];
+		}
+
+		if (handle->rtt_range_cancel == MTRUE) {
+			PRINTM(MERROR, "handle->rtt_range_cancel is set. "
+				       "SKIP processing RTT config");
+			break;
+		}
+
+		PRINTM(MCMND, "RTT: starting AP %d/%d " MACSTR "\n", i + 1,
+		       rtt_config_num, MAC2STR(cfg->addr));
+
+		/* Step 1: Configure FTM session */
+		if ((handle->rtt_version == 3) &&
+		    (cfg_v3->rtt_config.type == RTT_TYPE_2_SIDED_11AZ_NTB)) {
+			// 11az NTB ranging
+			ret = woal_ftm_session_cfg_ntb_ranging(priv, cfg_v3);
+			if (ret) {
+				PRINTM(MERROR,
+				       "11az FTM session config failed for target %d\n",
+				       i);
+				spin_lock_irqsave(&handle->rtt_result_lock,
+						  flags);
+				handle->rtt_total_ap_count--;
+				spin_unlock_irqrestore(&handle->rtt_result_lock,
+						       flags);
+				continue;
+			}
+		} else if (((handle->rtt_version == 3) &&
+			    (cfg_v3->rtt_config.type ==
+			     RTT_TYPE_2_SIDED_11MC)) ||
+			   (handle->rtt_version == 1)) {
+			ret = woal_ftm_session_cfg(priv, cfg);
+			if (ret) {
+				PRINTM(MERROR,
+				       "11mc FTM session config failed for target %d, rtt_version: %d\n",
+				       i, handle->rtt_version);
+				spin_lock_irqsave(&handle->rtt_result_lock,
+						  flags);
+				handle->rtt_total_ap_count--;
+				spin_unlock_irqrestore(&handle->rtt_result_lock,
+						       flags);
+				continue;
+			}
+		} else {
+			PRINTM(MERROR,
+			       "Unsupported RTT type. rtt_version: %d, type: %d",
+			       handle->rtt_version, cfg->type);
+			spin_lock_irqsave(&handle->rtt_result_lock, flags);
+			handle->rtt_total_ap_count--;
+			// spinlock is conditionally released and reacquired
+			// within a controlled flow
+			// coverity[double_unlock:SUPPRESS]
+			spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+			continue;
+		}
+
+		/* Step 2: Start FTM session */
+		ret = woal_ftm_session_ctrl(priv, cfg->addr,
+					    cfg->channel.center_freq,
+					    FTM_SESSION_CTRL_ACTION_START);
+		if (ret) {
+			PRINTM(MERROR,
+			       "FTM session start failed for target %d\n", i);
+			spin_lock_irqsave(&handle->rtt_result_lock, flags);
+			handle->rtt_total_ap_count--;
+			spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+			continue;
+		}
+
+		/*
+		 * Step 3: Wait for FTM_COMPLETE or FTM_FAIL for this AP.
+		 * woal_rtt_ap_result_received() sets
+		 * ftm_result_wait_q_woken=MTRUE and calls
+		 * wake_up_interruptible(&handle->ftm_result_wait_q).
+		 */
+		handle->ftm_result_wait_q_woken = MFALSE;
+		// coverity error raised for kernel's API
+		// coverity[check_return:SUPPRESS]
+		wait_rv = wait_event_interruptible_timeout(
+			handle->ftm_result_wait_q,
+			handle->ftm_result_wait_q_woken == MTRUE,
+			msecs_to_jiffies(FTM_SESSION_TIMEOUT_MS));
+		if (wait_rv == 0) {
+			PRINTM(MMSG, "ftm_result_wait_q Timeout occurred\n");
+			spin_lock_irqsave(&handle->rtt_result_lock, flags);
+			handle->rtt_total_ap_count--;
+			spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+		} else if (wait_rv < 0) {
+			PRINTM(MERROR,
+			       "ftm_result_wait_q interrupted by signal\n");
+			spin_lock_irqsave(&handle->rtt_result_lock, flags);
+			handle->rtt_total_ap_count--;
+			spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+		}
+	}
+
+	PRINTM(MCMND, "RTT work: done\n");
+
+	LEAVE();
+}
+
+/**
  *  @brief RTT Range Request vendor command handler
  *
  *  This function handles the RTT range request vendor command from Android HAL.
@@ -7141,7 +7509,6 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 	moal_handle *handle = priv->phandle;
 	wifi_rtt_config_params_t rtt_params;
 	int ret = 0;
-	int i, j;
 
 	ENTER();
 
@@ -7156,47 +7523,28 @@ static int woal_cfg80211_subcmd_rtt_range_request(struct wiphy *wiphy,
 	       rtt_params.rtt_config_num);
 	woal_dump_rtt_params(&rtt_params);
 
-	/* Process each target */
-	for (i = 0; i < rtt_params.rtt_config_num; i++) {
-		wifi_rtt_config *cfg = &rtt_params.rtt_config[i];
+	handle->rtt_priv = priv;
+	handle->rtt_version = 1;
 
-		PRINTM(MCMND, "Processing target %d: " MACSTR "\n", i,
-		       MAC2STR(cfg->addr));
-
-		/* Step 1: Configure FTM session */
-		ret = woal_ftm_session_cfg(priv, cfg);
-		if (ret) {
-			PRINTM(MERROR,
-			       "FTM session config failed for target %d\n", i);
-			continue;
-		}
-
-		/* Step 2: Start FTM session */
-		ret = woal_ftm_session_ctrl(priv, cfg->addr,
-					    cfg->channel.center_freq,
-					    FTM_SESSION_CTRL_ACTION_START);
-		if (ret) {
-			PRINTM(MERROR,
-			       "FTM session start failed for target %d\n", i);
-			continue;
-		}
+	memset(&handle->rtt_params, 0, sizeof(wifi_rtt_config_params_t));
+	moal_memcpy_ext(handle, &handle->rtt_params, &rtt_params,
+			rtt_params.rtt_config_num * sizeof(wifi_rtt_config),
+			sizeof(wifi_rtt_config_params_t));
+	if (handle->rtt_params.rtt_config_num != rtt_params.rtt_config_num) {
+		PRINTM(MERROR,
+		       "Incorrect rtt_config_num: handle->rtt_params.rtt_config_num: %d, "
+		       "rtt_params->rtt_config_num: %d",
+		       handle->rtt_params.rtt_config_num,
+		       rtt_params.rtt_config_num);
+		goto done;
 	}
 
-	for (i = 0; i < rtt_params.rtt_config_num; i++) {
-		for (j = 0; j < handle->rtt_params.rtt_config_num; j++) {
-			if (!memcmp(handle->rtt_params.rtt_config[j].addr,
-				    rtt_params.rtt_config[i].addr,
-				    sizeof(handle->rtt_params.rtt_config[j]
-						   .addr)))
-				break;
-		}
-		moal_memcpy_ext(handle, &(handle->rtt_params.rtt_config[j]),
-				&(rtt_params.rtt_config[i]),
-				sizeof(handle->rtt_params.rtt_config[j]),
-				sizeof(wifi_rtt_config));
-		if (j == handle->rtt_params.rtt_config_num)
-			handle->rtt_params.rtt_config_num++;
-	}
+	/*
+	 * Queue the ranging work and return immediately.
+	 * woal_rtt_work_handler() runs in evt_workqueue context and
+	 * performs the sequential FTM session start/wait for each AP.
+	 */
+	queue_work(handle->evt_workqueue, &handle->rtt_work);
 
 done:
 	LEAVE();
@@ -7268,6 +7616,12 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 
 	moal_memcpy_ext(handle, addr, nla_data(tb[ATTR_RTT_TARGET_ADDR]),
 			nla_len(tb[ATTR_RTT_TARGET_ADDR]), sizeof(addr));
+
+	/* Cancel rtt_work */
+	handle->rtt_range_cancel = MTRUE;
+	handle->ftm_result_wait_q_woken = MTRUE;
+	wake_up_interruptible(&handle->ftm_result_wait_q);
+	cancel_work_sync(&handle->rtt_work);
 
 	for (i = 0; i < target_num; i++)
 		PRINTM(MCMND, "cancel[%d].addr=" MACSTR "\n", i,
@@ -7351,6 +7705,7 @@ static int woal_cfg80211_subcmd_rtt_range_cancel(struct wiphy *wiphy,
 	woal_dump_rtt_params(&(handle->rtt_params));
 
 done:
+	handle->rtt_range_cancel = MFALSE;
 	LEAVE();
 	return err;
 }
@@ -7419,34 +7774,843 @@ done:
 	return ret;
 }
 
-int woal_cfg80211_csi_vendor_event(moal_private *priv, t_u8 *data, int len)
+void woal_rtt_ap_result_received(moal_private *priv, t_u8 *data, int len)
 {
-	struct wiphy *wiphy = priv->wdev->wiphy;
-	struct sk_buff *skb;
-	int event_id = 0;
-	t_u32 vdr_event_len = 0;
+	moal_handle *handle = priv->phandle;
+	unsigned long flags;
+	t_u8 *src;
+	t_u32 src_len;
+	t_u8 all_done = 0;
+	t_u8 *local_buf = NULL;
+	t_u32 local_len = 0;
+	t_u32 buf_size = (t_u32)sizeof(handle->rtt_result_buf);
+	wifi_rtt_result_v3 *result_v3;
+	wifi_rtt_result *result_v1;
+	wifi_rtt_result_element *elem_hdr;
+	t_u8 *dst;
+	t_u32 copy_size;
 
 	ENTER();
 
-	event_id = woal_get_event_id(event_csi);
-	if (event_max == event_id) {
-		PRINTM(MERROR, "Not find event_csi\n");
+	local_buf = kzalloc(buf_size, GFP_KERNEL);
+	if (!local_buf) {
+		PRINTM(MERROR, "RTT: failed to allocate local_buf\n");
+		goto wake;
+	}
+
+	if (len <= (int)sizeof(t_u8) ||
+	    (len < (int)sizeof(wifi_rtt_result_v3))) {
+		PRINTM(MERROR, "RTT: per-AP event buffer too short (%d)\n",
+		       len);
+		goto wake;
+	}
+
+	src = data + sizeof(t_u8);
+	src_len = (t_u32)len - (t_u32)sizeof(t_u8);
+
+	/* Append this AP's rtt_result_element to the accumulation buffer. */
+	spin_lock_irqsave(&handle->rtt_result_lock, flags);
+
+	if (src_len <= ((t_u32)sizeof(handle->rtt_result_buf) -
+			(t_u32)sizeof(t_u8) - handle->rtt_result_buf_len)) {
+		if (handle->rtt_version == 3) {
+			moal_memcpy_ext(handle,
+					handle->rtt_result_buf +
+						handle->rtt_result_buf_len,
+					src, src_len,
+					sizeof(handle->rtt_result_buf) -
+						handle->rtt_result_buf_len);
+			handle->rtt_result_buf_len += src_len;
+			PRINTM(MCMND,
+			       "RTT(v%d): appended %u bytes, total buf_len=%u\n",
+			       handle->rtt_version, src_len,
+			       handle->rtt_result_buf_len);
+		} else if (handle->rtt_version == 1) {
+			/* src already points past the leading t_u8 complete
+			 * byte. It contains: [wifi_rtt_result_element
+			 * hdr][wifi_rtt_result_v3 body] For v1, re-wrap as
+			 * element hdr + wifi_rtt_result only.
+			 */
+			result_v3 =
+				(wifi_rtt_result_v3
+					 *)(src +
+					    sizeof(wifi_rtt_result_element));
+			result_v1 = &(result_v3->rtt_result_v2.rtt_result);
+			dst = handle->rtt_result_buf +
+			      handle->rtt_result_buf_len;
+			copy_size = sizeof(wifi_rtt_result_element) +
+				    sizeof(wifi_rtt_result);
+			elem_hdr = (wifi_rtt_result_element *)dst;
+			elem_hdr->id = 0;
+			elem_hdr->len = sizeof(wifi_rtt_result);
+
+			moal_memcpy_ext(
+				handle, dst + sizeof(wifi_rtt_result_element),
+				result_v1, sizeof(wifi_rtt_result),
+				sizeof(handle->rtt_result_buf) -
+					handle->rtt_result_buf_len -
+					sizeof(wifi_rtt_result_element));
+			handle->rtt_result_buf_len += copy_size;
+			PRINTM(MCMND,
+			       "RTT(v%d): appended %u bytes, total buf_len=%u\n",
+			       handle->rtt_version, copy_size,
+			       handle->rtt_result_buf_len);
+		} else {
+			PRINTM(MERROR,
+			       "RTT: incorrect rtt_version : %d, dropping AP result\n",
+			       handle->rtt_version);
+		}
+	} else {
+		PRINTM(MERROR,
+		       "RTT: result buffer overflow, dropping AP result\n");
+	}
+
+	handle->rtt_completed_ap_count++;
+	PRINTM(MCMND, "RTT: AP result received %d/%d\n",
+	       handle->rtt_completed_ap_count, handle->rtt_total_ap_count);
+
+	if (handle->rtt_total_ap_count > 0 &&
+	    handle->rtt_completed_ap_count >= handle->rtt_total_ap_count) {
+		PRINTM(MCMND,
+		       "RTT: all %d APs done, sending consolidated host "
+		       "event buf_len=%u\n",
+		       handle->rtt_total_ap_count, handle->rtt_result_buf_len);
+
+		/* Mark the consolidated buffer as complete */
+		handle->rtt_result_buf[0] = 1;
+
+		/* Snapshot the buffer before resetting state */
+		local_len = handle->rtt_result_buf_len;
+		moal_memcpy_ext(handle, local_buf, handle->rtt_result_buf,
+				local_len, buf_size);
+
+		/* Reset state atomically so no other thread can re-enter
+		 * the all_done path for this ranging session.
+		 */
+		handle->rtt_params.rtt_config_num = 0;
+		handle->rtt_total_ap_count = 0;
+		handle->rtt_completed_ap_count = 0;
+		handle->rtt_result_buf_len = 0;
+		handle->ftm_session_in_progress = MFALSE;
+		all_done = 1;
+	}
+
+	spin_unlock_irqrestore(&handle->rtt_result_lock, flags);
+
+	/* Send ONE vendor event with all AP results, outside the spinlock
+	 * since cfg80211_vendor_event() uses GFP_KERNEL and may sleep.
+	 */
+	if (all_done) {
+		if (local_len > buf_size) {
+			PRINTM(MERROR, "Incorrect RTT Result len: %d",
+			       local_len);
+			goto wake;
+		}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#ifdef STA_CFG80211
+		if (handle->rtt_version == 3) {
+			/* local_len is checked as <= buf_size above */
+			// coverity[integer_overflow:SUPPRESS]
+			woal_cfg80211_event_rtt_result_v3(priv, local_buf,
+							  local_len);
+		} else {
+			/* local_len is checked as <= buf_size above */
+			// coverity[integer_overflow:SUPPRESS]
+			woal_cfg80211_event_rtt_result(priv, local_buf,
+						       local_len);
+		}
+#endif
+#endif
+	}
+
+wake:
+	/* Signal the range-request loop to start the next AP */
+	handle->ftm_result_wait_q_woken = MTRUE;
+	wake_up_interruptible(&handle->ftm_result_wait_q);
+
+	if (local_buf)
+		kfree(local_buf);
+
+	LEAVE();
+}
+
+/**
+ * @brief vendor event to report RTT v3 Results
+ *
+ */
+mlan_status woal_cfg80211_event_rtt_result_v3(moal_private *priv, t_u8 *data,
+					      int len)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 *pos = data;
+	t_u32 event_left_len = len;
+	struct sk_buff *skb = NULL;
+	t_u32 vdr_event_len = 0;
+	t_u32 complete = 0;
+	wifi_rtt_result_element *rtt_result_elem = NULL;
+	t_u32 num_results = 0;
+
+	ENTER();
+
+	PRINTM(MEVENT, "Enter %s() len=%d\n", __func__, len);
+	vdr_event_len = nla_total_size(sizeof(complete)) +
+			nla_total_size(sizeof(num_results)) +
+			nla_total_size(len) + NLA_ALIGNTO * 16 +
+			VENDOR_REPLY_OVERHEAD;
+	skb = woal_cfg80211_alloc_vendor_event(priv, event_rtt_result,
+					       vdr_event_len);
+	if (!skb)
+		goto done;
+
+	complete = *pos;
+	nla_put(skb, ATTR_RTT_RESULT_COMPLETE, sizeof(complete), &complete);
+	pos++;
+	event_left_len--;
+
+	/*
+	 * Elements in the buffer are wifi_rtt_result_element headers followed
+	 * by wifi_rtt_result_v3 data (len field encodes the payload size).
+	 * Use ATTR_RTT_RESULT_V3 so VHAL can detect v3 by attribute type.
+	 */
+	while (event_left_len > sizeof(wifi_rtt_result_element)) {
+		// rtt_result_elem->len validation done below.
+		//  coverity[integer_overflow:SUPPRESS]
+		rtt_result_elem = (wifi_rtt_result_element *)pos;
+
+		if (rtt_result_elem->len == 0 ||
+		    rtt_result_elem->len > (event_left_len -
+					    sizeof(wifi_rtt_result_element))) {
+			PRINTM(MERROR,
+			       "%s: invalid rtt_result_elem->len=%u, event_left_len=%u\n",
+			       __func__, rtt_result_elem->len, event_left_len);
+			break;
+		}
+
+		nla_put(skb, ATTR_RTT_RESULT_V3, rtt_result_elem->len,
+			rtt_result_elem->data);
+		num_results++;
+
+		pos += sizeof(*rtt_result_elem) + rtt_result_elem->len;
+		event_left_len -=
+			sizeof(*rtt_result_elem) + rtt_result_elem->len;
+	}
+
+	nla_put(skb, ATTR_RTT_RESULT_NUM, sizeof(num_results), &num_results);
+
+	DBG_HEXDUMP(MEVT_D, "v3 rtt result skb->data", (t_u8 *)skb->data,
+		    skb->len);
+	cfg80211_vendor_event(skb, GFP_KERNEL);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Parse RTT v3 range request vendor command data
+ *
+ *  Parses ATTR_RTT_CONFIG_V3 (array of wifi_rtt_config_v3) from NL data.
+ */
+static int
+woal_parse_rtt_range_request_v3(moal_handle *handle, const void *data, int len,
+				wifi_rtt_config_params_v3_t *rtt_params_v3)
+{
+	struct nlattr *tb[ATTR_RTT_MAX + 1];
+	t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0};
+	t_u8 rtt_config_num = 0;
+	wifi_rtt_config_v3 *rtt_config = NULL;
+	t_u8 i = 0;
+	int err = 0;
+	int expected_len;
+
+	ENTER();
+
+	if (!handle || !data || !rtt_params_v3) {
+		PRINTM(MERROR, "%s: invalid parameters\n", __func__);
 		LEAVE();
 		return -EINVAL;
 	}
 
-	vdr_event_len = nla_total_size(len) + VENDOR_REPLY_OVERHEAD;
-	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, vdr_event_len,
-					  event_id, GFP_ATOMIC);
-	if (!skb)
-		return -1;
+	memset(rtt_params_v3, 0, sizeof(wifi_rtt_config_params_v3_t));
 
-	nla_put(skb, ATTR_CSI_CONFIG, len, data);
-	cfg80211_vendor_event(skb, GFP_ATOMIC);
+	err = nla_parse(tb, ATTR_RTT_MAX, data, len, NULL
+#if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+			,
+			NULL
+#endif
+	);
+	if (err) {
+		PRINTM(MERROR, "%s: nla_parse fail\n", __func__);
+		LEAVE();
+		return -EFAULT;
+	}
 
+	if (!tb[ATTR_RTT_TARGET_NUM] || !tb[ATTR_RTT_CONFIG_V3]) {
+		PRINTM(MERROR,
+		       "%s: missing required attrs: TARGET_NUM=%p CONFIG_V3=%p\n",
+		       __func__, tb[ATTR_RTT_TARGET_NUM],
+		       tb[ATTR_RTT_CONFIG_V3]);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	rtt_config_num = (t_u8)nla_get_u8(tb[ATTR_RTT_TARGET_NUM]);
+
+	if (rtt_config_num == 0 || rtt_config_num > MAX_RTT_CONFIG_NUM) {
+		PRINTM(MERROR, "%s: invalid num=%d\n", __func__,
+		       rtt_config_num);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	expected_len = (int)sizeof(wifi_rtt_config_v3) * (int)rtt_config_num;
+	if (nla_len(tb[ATTR_RTT_CONFIG_V3]) != expected_len) {
+		PRINTM(MERROR, "%s: config_v3 len %d != expected %d\n",
+		       __func__, nla_len(tb[ATTR_RTT_CONFIG_V3]), expected_len);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	rtt_config = (wifi_rtt_config_v3 *)nla_data(tb[ATTR_RTT_CONFIG_V3]);
+
+	for (i = 0; i < rtt_config_num; i++) {
+		if (!memcmp(rtt_config[i].rtt_config.addr, zero_mac,
+			    MLAN_MAC_ADDR_LENGTH))
+			continue;
+		moal_memcpy_ext(
+			handle,
+			&rtt_params_v3
+				 ->rtt_config_v3[rtt_params_v3->rtt_config_num],
+			&rtt_config[i], sizeof(wifi_rtt_config_v3),
+			sizeof(wifi_rtt_config_v3));
+		rtt_params_v3->rtt_config_num++;
+	}
+
+	if (!rtt_params_v3->rtt_config_num) {
+		PRINTM(MERROR, "%s: no valid MAC addresses\n", __func__);
+		LEAVE();
+		return -EINVAL;
+	}
+
+	PRINTM(MCMND, "RTT v3 parse: %d valid targets\n",
+	       rtt_params_v3->rtt_config_num);
 	LEAVE();
 	return 0;
 }
+
+/**
+ *  @brief RTT v3 Range Request vendor command handler (11az NTB support)
+ *
+ *  For RTT_TYPE_2_SIDED_11AZ_NTB targets, configures NTB ranging via
+ *  MLAN_OID_MISC_FTM_SESSION_CFG_NTB_RANGING then starts FTM session.
+ *  For RTT_TYPE_2_SIDED_11MC targets, falls back to the v1 path.
+ */
+static int woal_cfg80211_subcmd_rtt_range_request_v3(struct wiphy *wiphy,
+						     struct wireless_dev *wdev,
+						     const void *data, int len)
+{
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	moal_handle *handle = priv->phandle;
+	wifi_rtt_config_params_v3_t *rtt_params_v3 = NULL;
+	int ret = 0;
+
+	ENTER();
+
+	rtt_params_v3 =
+		kzalloc(sizeof(wifi_rtt_config_params_v3_t), GFP_ATOMIC);
+	if (!rtt_params_v3) {
+		PRINTM(MERROR,
+		       "Failed to allocate memory for rtt_params_v3 of size: %d",
+		       (int)sizeof(wifi_rtt_config_params_v3_t));
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	ret = woal_parse_rtt_range_request_v3(handle, data, len, rtt_params_v3);
+	if (ret || rtt_params_v3->rtt_config_num == 0) {
+		PRINTM(MERROR, "Failed to parse RTT v3 range request\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	PRINTM(MCMND, "RTT v3 range request: %d targets\n",
+	       rtt_params_v3->rtt_config_num);
+	woal_dump_rtt_params_v3(rtt_params_v3);
+
+	handle->rtt_version = 3;
+	handle->rtt_priv = priv;
+
+	memset(&handle->rtt_params_v3, 0, sizeof(wifi_rtt_config_params_v3_t));
+	moal_memcpy_ext(handle, &handle->rtt_params_v3, rtt_params_v3,
+			rtt_params_v3->rtt_config_num *
+				sizeof(wifi_rtt_config_v3),
+			sizeof(wifi_rtt_config_params_v3_t));
+	if (handle->rtt_params_v3.rtt_config_num !=
+	    rtt_params_v3->rtt_config_num) {
+		PRINTM(MERROR,
+		       "Incorrect rtt_config_num: handle->rtt_params_v3.rtt_config_num: %d, "
+		       "rtt_params_v3->rtt_config_num: %d",
+		       handle->rtt_params_v3.rtt_config_num,
+		       rtt_params_v3->rtt_config_num);
+		goto done;
+	}
+
+	/*
+	 * Queue ranging work. woal_rtt_work_handler() will call
+	 * woal_ftm_session_cfg() for 11mc or woal_ftm_session_cfg_ntb_ranging()
+	 * for 11az targets based on rtt_type.
+	 */
+	queue_work(handle->evt_workqueue, &handle->rtt_work);
+
+done:
+	if (rtt_params_v3)
+		kfree(rtt_params_v3);
+	LEAVE();
+	return ret;
+}
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+/**
+ * @brief Map cfg80211 channel width to firmware channel spacing value.
+ * @param chandef   Pointer to cfg80211_chan_def
+ * @return          Channel spacing value for firmware
+ */
+static t_u8 woal_chandef_to_channel_spacing(struct cfg80211_chan_def *chandef)
+{
+	switch (chandef->width) {
+	case NL80211_CHAN_WIDTH_20_NOHT:
+	case NL80211_CHAN_WIDTH_20:
+		return FTM_CHAN_SPACING_HT20;
+	case NL80211_CHAN_WIDTH_40:
+		return FTM_CHAN_SPACING_HT40;
+	case NL80211_CHAN_WIDTH_80:
+		return FTM_CHAN_SPACING_VHT80;
+	case NL80211_CHAN_WIDTH_160:
+		return FTM_CHAN_SPACING_VHT160;
+	default:
+		return FTM_CHAN_SPACING_HT20;
+	}
+}
+
+/**
+ * @brief Map center frequency to firmware band config (chanBand).
+ * @param center_freq  Center frequency in MHz
+ * @return             Band config value (0=2.4GHz, 1=5GHz, 2=6GHz)
+ */
+static t_u8 woal_freq_to_chanband_pmsr(t_u32 center_freq)
+{
+	if (center_freq >= 5935 && center_freq <= 7115)
+		return 2;
+	else if (center_freq >= 5150 && center_freq <= 5895)
+		return 1;
+	else
+		return 0;
+}
+
+/**
+ * @brief Determine FTM SESSION_CTRL action based on association status.
+ * @param priv      Pointer to moal_private
+ * @param peer_mac  Peer MAC address
+ * @return          FTM_SESSION_ASSOCIATED or FTM_SESSION_UNASSOCIATED_PASN
+ */
+static t_u16 woal_get_ftm_session_action_pmsr(moal_private *priv,
+					      const t_u8 *peer_mac)
+{
+	mlan_ssid_bssid *ssid_bssid;
+	t_u16 result;
+
+	ssid_bssid = kzalloc(sizeof(*ssid_bssid), GFP_KERNEL);
+	if (!ssid_bssid)
+		return FTM_SESSION_UNASSOCIATED;
+	memcpy(ssid_bssid->bssid, peer_mac, MLAN_MAC_ADDR_LENGTH);
+	result = (woal_is_connected(priv, ssid_bssid) == MTRUE) ?
+			 FTM_SESSION_ASSOCIATED :
+			 FTM_SESSION_UNASSOCIATED;
+	kfree(ssid_bssid);
+	return result;
+}
+
+/**
+ * @brief Map cfg80211 channel width to 11az format_bw field value.
+ * @param chandef   Pointer to cfg80211_chan_def
+ * @return          format_bw value (0=HE20, 1=HE40, 2=HE80, 3=HE80+80, 4=HE160)
+ */
+static t_u8 woal_chandef_to_az_format_bw(struct cfg80211_chan_def *chandef)
+{
+	switch (chandef->width) {
+	case NL80211_CHAN_WIDTH_20_NOHT:
+	case NL80211_CHAN_WIDTH_20:
+		return 0;
+	case NL80211_CHAN_WIDTH_40:
+		return 1;
+	case NL80211_CHAN_WIDTH_80:
+		return 2;
+	case NL80211_CHAN_WIDTH_80P80:
+		return 3;
+	case NL80211_CHAN_WIDTH_160:
+		return 4;
+	default:
+		return 2;
+	}
+}
+
+/**
+ * @brief Send FTM SESSION_CFG command for 11mc ranging via cfg80211 PMSR path.
+ * @param priv      Pointer to moal_private
+ * @param peer      Pointer to cfg80211_pmsr_request_peer
+ * @return          0 on success, negative on failure
+ */
+int woal_ftm_session_cfg_pmsr(moal_private *priv,
+			      struct cfg80211_pmsr_request_peer *peer)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_cfg_initiator *cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	/* mlan_ftm_session_cfg uses sub_id + union */
+	misc->param.ftm_session_cfg.sub_id = FTM_SESSION_CFG_SUBID_INITIATOR;
+	cfg = &misc->param.ftm_session_cfg.initiator_tlv;
+	memcpy(cfg->peer_mac, peer->addr, ETH_ALEN);
+	cfg->channel =
+		ieee80211_frequency_to_channel(peer->chandef.chan->center_freq);
+
+	if (peer->ftm.requested) {
+		cfg->burst_exponent = peer->ftm.num_bursts_exp;
+		cfg->burst_duration = peer->ftm.burst_duration ?
+					      peer->ftm.burst_duration :
+					      FTM_DEFAULT_BURST_DURATION;
+		cfg->per_burst_FTM = peer->ftm.ftms_per_burst ?
+					     peer->ftm.ftms_per_burst :
+					     FTM_DEFAULT_PER_BURST_FTM;
+		cfg->burst_period = peer->ftm.burst_period;
+		cfg->is_ASAP = peer->ftm.asap ? 1 : 0;
+		cfg->lci_request = peer->ftm.request_lci ? 1 : 0;
+		cfg->civic_request = peer->ftm.request_civicloc ? 1 : 0;
+	} else {
+		cfg->burst_exponent = 0; /* BURST_EXP=0 */
+		cfg->burst_duration = 11; /* BURST_DURATION=11 */
+		cfg->per_burst_FTM = 10; /* FTM_PER_BURST=10 */
+		cfg->burst_period = 5; /* BURST_PERIOD=5 */
+		cfg->is_ASAP = 1; /* IS_ASAP=1 */
+		cfg->lci_request = 0;
+		cfg->civic_request = 0;
+	}
+	cfg->min_delta_FTM = 10; /* MIN_DELTA=10 */
+	cfg->iftm_tmo = 250; /* IFTM_TMO=250 */
+	cfg->channel_spacing = woal_chandef_to_channel_spacing(&peer->chandef);
+
+	PRINTM(MCMND,
+	       "FTM 11mc session cfg: ch=%d spacing=%d burst_exp=%d per_burst=%d asap=%d\n",
+	       (int)cfg->channel, (int)cfg->channel_spacing,
+	       (int)cfg->burst_exponent, (int)cfg->per_burst_FTM,
+	       (int)cfg->is_ASAP);
+	PRINTM(MCMND, "FTM 11mc peer=" MACSTR "\n", MAC2STR(cfg->peer_mac));
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Send FTM SESSION_CFG command for 11az NTB/TB ranging via cfg80211 PMSR
+ * path.
+ * @param priv      Pointer to moal_private
+ * @param peer      Pointer to cfg80211_pmsr_request_peer
+ * @return          0 on success, negative on failure
+ */
+int woal_ftm_az_session_cfg_pmsr(moal_private *priv,
+				 struct cfg80211_pmsr_request_peer *peer)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_cfg_ntb_ranging *az_cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CFG;
+	misc->param.ftm_session_cfg.sub_id = FTM_SESSION_CFG_SUBID_NTB_RANGING;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+	az_cfg = &misc->param.ftm_session_cfg.ntb_ranging_tlv;
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	az_cfg->protocol_type =
+		peer->ftm.trigger_based ? PROTO_TYPE_TB : PROTO_TYPE_NTB;
+#else
+	az_cfg->protocol_type = PROTO_TYPE_NTB; /* default NTB */
+#endif
+	az_cfg->format_bw = woal_chandef_to_az_format_bw(&peer->chandef);
+	az_cfg->max_i2r_sts_upto80 = 0; /* MAX_I2R_STS_UPTO80=0 */
+	az_cfg->max_r2i_sts_upto80 = 1; /* MAX_R2I_STS_UPTO80=1 */
+	az_cfg->az_measurement_freq = 2; /* AZ_MEASUREMENT_FREQ=2 */
+	az_cfg->az_number_of_measurements = 6; /* AZ_NUMBER_OF_MEASUREMENTS=6 */
+	az_cfg->i2r_lmr_feedback = 0; /* I2R_LMR_FEEDBACK=0 */
+	az_cfg->lci_request = peer->ftm.request_lci ? 1 : 0;
+	az_cfg->civic_request = peer->ftm.request_civicloc ? 1 : 0;
+	az_cfg->az_measurements_per_burst = DOT11AZ_PER_BURST;
+	az_cfg->az_burst_spacing_ms = AZ_BURST_SPACING_MS_DEFAULT;
+	az_cfg->az_burst_duration_ms = AZ_BURST_DURATION_MS_DEFAULT;
+
+	PRINTM(MCMND, "FTM 11az session cfg: format_bw=%d protocol=%s lmr=%d\n",
+	       (int)az_cfg->format_bw,
+	       (az_cfg->protocol_type == 2) ? "TB" : "NTB",
+	       (int)az_cfg->i2r_lmr_feedback);
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Send FTM SESSION_CTRL command for 11mc ranging via cfg80211 PMSR path.
+ * @param priv        Pointer to moal_private
+ * @param peer_mac    Peer MAC address
+ * @param center_freq Channel center frequency in MHz
+ * @param action_in   FTM_SESSION_CTRL_ACTION_START or STOP
+ * @return            0 on success, negative on failure
+ */
+int woal_ftm_session_ctrl_pmsr(moal_private *priv, const t_u8 *peer_mac,
+			       t_u32 center_freq, t_u16 action_in)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_ctrl *ctrl;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CTRL;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	ctrl = &misc->param.ftm_session_ctrl;
+	ctrl->action =
+		(action_in == FTM_SESSION_CTRL_ACTION_START) ?
+			woal_get_ftm_session_action_pmsr(priv, peer_mac) :
+			action_in;
+	memcpy(ctrl->peer_mac, peer_mac, ETH_ALEN);
+	ctrl->channel = ieee80211_frequency_to_channel(center_freq);
+	ctrl->chanBand = woal_freq_to_chanband_pmsr(center_freq);
+
+	PRINTM(MCMND, "FTM session ctrl (pmsr): action=%d ch=%d band=%d\n",
+	       (int)ctrl->action, (int)ctrl->channel, (int)ctrl->chanBand);
+	PRINTM(MCMND, "FTM session ctrl peer=" MACSTR "\n",
+	       MAC2STR(ctrl->peer_mac));
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief cfg80211 op: start peer measurement for iw/wpa_supplicant PMSR path.
+ *        Handles both 11mc and 11az NTB/TB ranging.
+ * @param priv        Pointer to moal_private
+ * @param peer_mac    Peer MAC address
+ * @param center_freq Channel center frequency in MHz
+ * @param action_in   FTM_SESSION_CTRL_ACTION_START or STOP
+ * @return            0 on success, negative on failure
+ */
+int woal_ftm_az_session_ctrl_pmsr(moal_private *priv, const t_u8 *peer_mac,
+				  t_u32 center_freq, t_u16 action_in)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ftm_session_ctrl *ctrl;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (!req) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_FTM_SESSION_CTRL;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	req->action = MLAN_ACT_SET;
+
+	ctrl = &misc->param.ftm_session_ctrl;
+	ctrl->action = (action_in == FTM_SESSION_CTRL_ACTION_START) ?
+			       FTM_SESSION_UNASSOCIATED_PASN :
+			       action_in;
+	memcpy(ctrl->peer_mac, peer_mac, ETH_ALEN);
+	ctrl->channel = ieee80211_frequency_to_channel(center_freq);
+	ctrl->chanBand = woal_freq_to_chanband_pmsr(center_freq);
+
+	PRINTM(MCMND, "FTM 11az session ctrl (pmsr): action=%d ch=%d band=%d\n",
+	       (int)ctrl->action, (int)ctrl->channel, (int)ctrl->chanBand);
+	PRINTM(MCMND, "FTM 11az session ctrl peer=" MACSTR "\n",
+	       MAC2STR(ctrl->peer_mac));
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS)
+		ret = -EFAULT;
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief cfg80211 op: start peer measurement for iw/wpa_supplicant PMSR path.
+ *        Handles both 11mc and 11az NTB/TB ranging.
+ * @param wiphy     Pointer to wiphy
+ * @param wdev      Pointer to wireless_dev
+ * @param request   Pointer to cfg80211_pmsr_request
+ * @return          0 on success, negative on failure
+ */
+int woal_cfg80211_start_pmsr(struct wiphy *wiphy, struct wireless_dev *wdev,
+			     struct cfg80211_pmsr_request *request)
+{
+	moal_private *priv = woal_get_netdev_priv(wdev->netdev);
+	int i, ret = 0;
+
+	ENTER();
+	priv->pmsr_request = request;
+	/* Set rtt_version=1 so woal_rtt_ap_result_received() handles
+	 * the result correctly (not dropped as "incorrect rtt_version"). */
+	priv->phandle->rtt_version = 1;
+	priv->phandle->rtt_priv = priv;
+	/* Reset result buffer for new PMSR session.
+	 * Keep rtt_total_ap_count=0 so woal_rtt_ap_result_received()
+	 * accumulates without triggering all_done path. */
+	priv->phandle->rtt_result_buf[0] = 0;
+	priv->phandle->rtt_result_buf_len = sizeof(t_u8);
+	priv->phandle->rtt_completed_ap_count = 0;
+
+	for (i = 0; i < request->n_peers; i++) {
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+		struct cfg80211_pmsr_request_peer *peer = &request->peers[i];
+
+		if (peer->ftm.non_trigger_based || peer->ftm.trigger_based) {
+			PRINTM(MCMND, "start_pmsr: peer %d using 11az %s\n", i,
+			       peer->ftm.trigger_based ? "TB" : "NTB");
+			/* First SESSION_CFG: triggers VDLL (11az ranging
+			 * module) download */
+			ret = woal_ftm_az_session_cfg_pmsr(priv, peer);
+			if (ret) {
+				PRINTM(MERROR,
+				       "start_pmsr: 11az session_cfg (1) failed peer %d\n",
+				       i);
+				goto done;
+			}
+			/* Second SESSION_CFG: ensures VDLL load completes
+			 * before SESSION_CTRL */
+			ret = woal_ftm_az_session_cfg_pmsr(priv, peer);
+			if (ret) {
+				PRINTM(MERROR,
+				       "start_pmsr: 11az session_cfg (2) failed peer %d\n",
+				       i);
+				goto done;
+			}
+			ret = woal_ftm_az_session_ctrl_pmsr(
+				priv, peer->addr,
+				peer->chandef.chan->center_freq,
+				FTM_SESSION_CTRL_ACTION_START);
+		} else {
+			PRINTM(MCMND, "start_pmsr: peer %d using 11mc\n", i);
+			ret = woal_ftm_session_cfg_pmsr(priv, peer);
+			if (ret) {
+				PRINTM(MERROR,
+				       "start_pmsr: 11mc session_cfg failed peer %d\n",
+				       i);
+				goto done;
+			}
+			ret = woal_ftm_session_ctrl_pmsr(
+				priv, peer->addr,
+				peer->chandef.chan->center_freq,
+				FTM_SESSION_CTRL_ACTION_START);
+		}
+#endif /* CFG80211_VERSION_CODE >= KERNEL_VERSION(5, 10, 0) */
+		if (ret) {
+			PRINTM(MERROR,
+			       "start_pmsr: session_ctrl failed peer %d\n", i);
+			goto done;
+		}
+	}
+done:
+	if (ret) {
+		priv->phandle->rtt_version = 0;
+		priv->pmsr_request = NULL; /* clear only on failure */
+	}
+	/* On success: pmsr_request stays set until result arrives in
+	 * moal_shim.c */
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief cfg80211 op: abort active peer measurement.
+ * @param wiphy     Pointer to wiphy
+ * @param wdev      Pointer to wireless_dev
+ * @param request   Pointer to cfg80211_pmsr_request
+ */
+void woal_cfg80211_abort_pmsr(struct wiphy *wiphy, struct wireless_dev *wdev,
+			      struct cfg80211_pmsr_request *request)
+{
+	moal_private *priv = woal_get_netdev_priv(wdev->netdev);
+	int i;
+
+	ENTER();
+	for (i = 0; i < request->n_peers; i++) {
+		struct cfg80211_pmsr_request_peer *peer = &request->peers[i];
+		woal_ftm_session_ctrl_pmsr(priv, peer->addr,
+					   peer->chandef.chan->center_freq,
+					   FTM_SESSION_CTRL_ACTION_STOP);
+	}
+	priv->pmsr_request = NULL;
+	LEAVE();
+}
+
+#endif /* KERNEL_VERSION(4, 20, 0) */
 
 /**
  * @brief vendor command to get rtt responder info
@@ -10113,6 +11277,32 @@ static const struct wiphy_vendor_command vendor_commands[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_rtt_set_lcr,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_rtt_policy,
+		.maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_GET_CAPA_V3,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_get_capa_v3,
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+		.policy = woal_rtt_policy,
+		.maxattr = ATTR_RTT_MAX,
+#endif
+	},
+	{
+		.info = {
+				.vendor_id = MRVL_VENDOR_ID,
+				.subcmd = SUBCMD_RTT_RANGE_REQUEST_V3,
+			},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = woal_cfg80211_subcmd_rtt_range_request_v3,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
 		.policy = woal_rtt_policy,
 		.maxattr = ATTR_RTT_MAX,

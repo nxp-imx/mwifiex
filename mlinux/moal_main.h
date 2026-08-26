@@ -387,6 +387,10 @@ typedef t_u8 BOOLEAN;
 #ifndef FW_CAPINFO_EXT_6G
 #define FW_CAPINFO_EXT_6G MBIT(14)
 #endif
+/** FW cap info bit 25: 15.4 radio is not available (IW611) */
+#ifndef FW_CAPINFO_EXT_NO_15_4
+#define FW_CAPINFO_EXT_NO_15_4 MBIT(26)
+#endif
 
 /** Driver version */
 extern char driver_version[MLAN_MAX_VER_STR_LEN];
@@ -2294,6 +2298,13 @@ struct _moal_private {
 #endif
 
 	t_u32 band_ctrl;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	/** Active cfg80211 PMSR request pointer.
+	 * Set by woal_cfg80211_start_pmsr(), cleared after pmsr_complete(). */
+	struct cfg80211_pmsr_request *pmsr_request;
+#endif
+#endif
 };
 
 #ifdef SDIO
@@ -3239,10 +3250,39 @@ struct _moal_handle {
 #endif /* REASSOCIATION */
 	/** RTT capability */
 	wifi_rtt_capabilities rtt_capa;
+	/** RTT capability v3 (11az) */
+	wifi_rtt_capabilities_v3 rtt_capa_v3;
 	/** RTT config */
 	wifi_rtt_config_params_t rtt_params;
+	/** RTT v3 config */
+	wifi_rtt_config_params_v3_t rtt_params_v3;
+	/** RTT API version in use (1=v1, 3=v3) */
+	int rtt_version;
 	/** FTM session in progress flag */
 	BOOLEAN ftm_session_in_progress;
+	/** Private pointer for RTT work — needed by work handler */
+	moal_private *rtt_priv;
+	/** Work struct for async sequential RTT ranging */
+	struct work_struct rtt_work;
+	/** Total number of APs expecting FTM events (successfully started).*/
+	t_u8 rtt_total_ap_count;
+	/** Number of APs completed so far (success or fail) */
+	t_u8 rtt_completed_ap_count;
+	/** Accumulated result buffer: [complete(u8)] + N x [rtt_result_element]
+	 *  Sized for v3 results so both v1 and v3 callers can use it safely. */
+	t_u8 rtt_result_buf[sizeof(t_u8) +
+			    MAX_RTT_CONFIG_NUM *
+				    (sizeof(wifi_rtt_result_element) +
+				     sizeof(wifi_rtt_result_v3))];
+	/** Current write offset into rtt_result_buf */
+	t_u32 rtt_result_buf_len;
+	/** Spinlock protecting rtt_result_buf and rtt_completed_ap_count */
+	spinlock_t rtt_result_lock;
+	/** Wait queue for per-AP FTM session completion */
+	wait_queue_head_t ftm_result_wait_q;
+	/** Woken flag for ftm_ap_wait_q */
+	BOOLEAN ftm_result_wait_q_woken;
+	BOOLEAN rtt_range_cancel;
 	/** Driver workqueue */
 	struct workqueue_struct *workqueue;
 	/** main work */
@@ -5049,4 +5089,7 @@ extern mlan_status woal_get_c_vidpid(char **c_vidpid);
 #if defined(LINUX_THERMAL_SUPPORT) && !defined(ANDROID_SDK_VERSION)
 #include "moal_thermal.h"
 #endif /* LINUX_THERMAL_SUPPORT && !ANDROID_SDK_VERSION */
+#ifdef PCIE
+t_void moal_dma_wmb(t_void *pmoal);
+#endif /* PCIE */
 #endif /* _MOAL_MAIN_H */
