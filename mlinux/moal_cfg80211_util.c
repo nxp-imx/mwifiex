@@ -7073,7 +7073,7 @@ static int woal_ftm_session_cfg_ntb_ranging(moal_private *priv,
 	} else {
 		cfg->az_measurement_freq =
 			HZ_TO_MSEC_FACTOR /
-			(rtt_cfg_v3->ntb_max_measurement_time * 10);
+			(t_u32)(rtt_cfg_v3->ntb_max_measurement_time * 10);
 	}
 	cfg->az_number_of_measurements = rtt_cfg_v1->num_burst;
 	cfg->i2r_lmr_feedback = 0;
