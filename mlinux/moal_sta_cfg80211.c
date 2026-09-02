@@ -269,7 +269,11 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 				enum nl80211_channel_type channel_type,
 #endif
-				unsigned int duration, u64 *cookie);
+				unsigned int duration, u64 *cookie
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+				, const u8 *rx_addr
+#endif
+);
 
 static int woal_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
@@ -7794,7 +7798,11 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 				enum nl80211_channel_type channel_type,
 #endif
-				unsigned int duration, u64 *cookie)
+				unsigned int duration, u64 *cookie
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+				, const u8 *rx_addr
+#endif
+)
 #else
 /**
  * @brief Make chip remain on channel
