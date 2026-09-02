@@ -3204,7 +3204,7 @@ static t_u32 woal_process_init_cfg(moal_handle *handle, const t_u8 *data,
 			else
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
-				strncpy(bss_mac_addr, intf_e + 1,
+				strscpy(bss_mac_addr, intf_e + 1,
 					MAX_MAC_ADDR_LEN - 1);
 				bss_mac_addr[MAX_MAC_ADDR_LEN - 1] = '\0';
 				if ((intf_e - intf_s) > MAX_PARAM_LEN) {
@@ -3220,7 +3220,7 @@ static t_u32 woal_process_init_cfg(moal_handle *handle, const t_u8 *data,
 					       __LINE__);
 					goto done;
 				}
-				strncpy(bss_mac_name, intf_s + 1, j);
+				strscpy(bss_mac_name, intf_s + 1, j);
 				bss_mac_name[j] = '\0';
 				for (i = 0; i < handle->priv_num; i++) {
 					if (!handle->priv[i])
@@ -3301,7 +3301,7 @@ static t_u32 woal_process_init_cfg(moal_handle *handle, const t_u8 *data,
 				intf_e = NULL;
 			if (intf_s != NULL && intf_e != NULL) {
 				/* Copy type */
-				strncpy(type, intf_s + 1, 1);
+				strscpy(type, intf_s + 1, 1);
 				type[1] = '\0';
 			} else {
 				PRINTM(MERROR, "Wrong config file format %d\n",
@@ -3325,7 +3325,7 @@ static t_u32 woal_process_init_cfg(moal_handle *handle, const t_u8 *data,
 					goto done;
 				}
 				/* Copy offset */
-				strncpy(offset, intf_s, j);
+				strscpy(offset, intf_s, j);
 				offset[j] = '\0';
 			} else {
 				PRINTM(MERROR, "Wrong config file format %d\n",
@@ -3409,7 +3409,7 @@ static mlan_status woal_process_hostcmd_cfg(moal_private *priv, t_u8 *data,
 		goto done;
 	}
 	ptr = buf;
-	strncpy(ptr, CMD_STR, CMD_BUF_LEN);
+	strscpy(ptr, CMD_STR, CMD_BUF_LEN);
 	ptr = buf + strlen(CMD_STR) + sizeof(t_u32);
 	while ((pos - data) < size) {
 		temp = pos;
@@ -6597,7 +6597,7 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 		}
 	}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	strncpy(csa_str, "CSA", sizeof(csa_str));
+	strscpy(csa_str, "CSA", sizeof(csa_str));
 	strncat(csa_str, name, sizeof(csa_str) - 4);
 	priv->csa_workqueue = alloc_workqueue(
 		csa_str, WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
@@ -11817,7 +11817,7 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 					     sizeof(path_name));
 #else
 			memset(path_name, 0, sizeof(path_name));
-			strncpy(path_name, "/data", sizeof(path_name));
+			strscpy(path_name, "/data", sizeof(path_name));
 #endif
 			PRINTM(MMSG, "Firmware Dump directory name is %s\n",
 			       path_name);
@@ -13217,7 +13217,7 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country,
 	/* file_path should be Null terminated */
 	if (fw_name) {
 		/* file_path[] needs to be reset to 0 before here */
-		strncpy(file_path, fw_name, sizeof(file_path) - 1);
+		strscpy(file_path, fw_name, sizeof(file_path) - 1);
 		last_slash = strrchr(file_path, '/');
 		if (last_slash)
 			memset(last_slash + 1, 0,
@@ -13232,7 +13232,7 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country,
 
 	if ((strlen(file_path) + strlen(country_name)) <
 	    (sizeof(file_path) - 1))
-		strncpy(file_path + strlen(file_path), country_name,
+		strscpy(file_path + strlen(file_path), country_name,
 			sizeof(file_path) - strlen(file_path) - 1);
 	else {
 		PRINTM(MERROR,
@@ -13275,7 +13275,7 @@ mlan_status woal_request_country_power_table(moal_private *priv, char *country,
 				memset(file_path, 0, sizeof(file_path));
 			if ((strlen(file_path) + strlen(country_name)) <
 			    (sizeof(file_path) - 1))
-				strncpy(file_path + strlen(file_path),
+				strscpy(file_path + strlen(file_path),
 					country_name,
 					sizeof(file_path) - strlen(file_path) -
 						1);
@@ -13332,7 +13332,7 @@ mlan_status woal_dnld_tx_pwr_offset_table(moal_private *priv, char *country,
 		/* Download the 2G mac2 power offset tables */
 		memset(handle->pwr_offset_string, 0,
 		       sizeof(handle->pwr_offset_string));
-		strncpy(handle->pwr_offset_string,
+		strscpy(handle->pwr_offset_string,
 			"region_pwr_offset_cfg_mac2_2G",
 			strlen("region_pwr_offset_cfg_mac2_2G") + 1);
 		if (MLAN_STATUS_SUCCESS !=
@@ -13347,7 +13347,7 @@ mlan_status woal_dnld_tx_pwr_offset_table(moal_private *priv, char *country,
 		/* Download the 2G power offset tables */
 		memset(handle->pwr_offset_string, 0,
 		       sizeof(handle->pwr_offset_string));
-		strncpy(handle->pwr_offset_string, "region_pwr_offset_cfg_2G",
+		strscpy(handle->pwr_offset_string, "region_pwr_offset_cfg_2G",
 			strlen("region_pwr_offset_cfg_2G") + 1);
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_request_country_power_table(priv, country,
@@ -13360,7 +13360,7 @@ mlan_status woal_dnld_tx_pwr_offset_table(moal_private *priv, char *country,
 		/* Download the 5G power offset tables */
 		memset(handle->pwr_offset_string, 0,
 		       sizeof(handle->pwr_offset_string));
-		strncpy(handle->pwr_offset_string, "region_pwr_offset_cfg_5G",
+		strscpy(handle->pwr_offset_string, "region_pwr_offset_cfg_5G",
 			strlen("region_pwr_offset_cfg_5G") + 1);
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_request_country_power_table(priv, country,
@@ -13374,7 +13374,7 @@ mlan_status woal_dnld_tx_pwr_offset_table(moal_private *priv, char *country,
 		/* Download the 6G power offset tables */
 		memset(handle->pwr_offset_string, 0,
 		       sizeof(handle->pwr_offset_string));
-		strncpy(handle->pwr_offset_string, "region_pwr_offset_cfg_6G",
+		strscpy(handle->pwr_offset_string, "region_pwr_offset_cfg_6G",
 			strlen("region_pwr_offset_cfg_6G") + 1);
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_request_country_power_table(priv, country,
@@ -13409,7 +13409,7 @@ mlan_status woal_dnld_ru_power_table(moal_private *priv, char *country,
 		LEAVE();
 		return ret;
 	}
-	strncpy(tmp, priv->phandle->ru_string, sizeof(tmp) - 1);
+	strscpy(tmp, priv->phandle->ru_string, sizeof(tmp) - 1);
 	tmp[sizeof(tmp) - 1] = '\0';
 
 	if (priv->phandle->country_code[0] != 0 &&

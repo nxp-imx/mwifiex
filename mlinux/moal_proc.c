@@ -1652,7 +1652,7 @@ void woal_proc_init(moal_handle *handle)
 		goto done;
 	}
 
-	strncpy(config_proc_dir, "config", sizeof(config_proc_dir));
+	strscpy(config_proc_dir, "config", sizeof(config_proc_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	r = proc_create_data(config_proc_dir, 0666, handle->proc_wlan,
 			     &config_proc_fops, handle);
@@ -1667,7 +1667,7 @@ void woal_proc_init(moal_handle *handle)
 		PRINTM(MERROR, "Fail to create proc config\n");
 
 #ifdef DUMP_TO_PROC
-	strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
+	strscpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	r = proc_create_data(drv_dump_dir, 0644, handle->proc_wlan,
 			     &drv_dump_fops, handle);
@@ -1681,7 +1681,7 @@ void woal_proc_init(moal_handle *handle)
 	if (!r)
 		PRINTM(MERROR, "Failed to create proc drv dump\n");
 
-	strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
+	strscpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	r = proc_create_data(fw_dump_dir, 0644, handle->proc_wlan,
 			     &fw_dump_fops, handle);
@@ -1696,7 +1696,7 @@ void woal_proc_init(moal_handle *handle)
 		PRINTM(MERROR, "Failed to create proc fw dump\n");
 
 #if defined(PCIE)
-	strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
+	strscpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	r = proc_create_data(ssu_dump_dir, 0644, handle->proc_wlan,
 			     &ssu_dump_fops, handle);
@@ -1738,15 +1738,15 @@ void woal_proc_exit(moal_handle *handle)
 
 	PRINTM(MINFO, "Remove Proc Interface %s\n", handle->proc_wlan_name);
 	if (handle->proc_wlan) {
-		strncpy(config_proc_dir, "config", sizeof(config_proc_dir));
+		strscpy(config_proc_dir, "config", sizeof(config_proc_dir));
 		remove_proc_entry(config_proc_dir, handle->proc_wlan);
 #ifdef DUMP_TO_PROC
-		strncpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
+		strscpy(drv_dump_dir, "drv_dump", sizeof(drv_dump_dir));
 		remove_proc_entry(drv_dump_dir, handle->proc_wlan);
-		strncpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
+		strscpy(fw_dump_dir, "fw_dump", sizeof(fw_dump_dir));
 		remove_proc_entry(fw_dump_dir, handle->proc_wlan);
 #if defined(PCIE)
-		strncpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
+		strscpy(ssu_dump_dir, "ssu_dump", sizeof(ssu_dump_dir));
 		remove_proc_entry(ssu_dump_dir, handle->proc_wlan);
 #endif
 #endif
@@ -1861,7 +1861,7 @@ void woal_create_proc_entry(moal_private *priv)
 		atomic_inc(&(priv->phandle->proc_wlan->count));
 #endif /* < 3.10.0 */
 #endif /* < 2.6.26 */
-		strncpy(priv->proc_entry_name, dev->name, IFNAMSIZ - 1);
+		strscpy(priv->proc_entry_name, dev->name, IFNAMSIZ - 1);
 		if (priv->proc_entry) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 			r = proc_create_data("info", 0, priv->proc_entry,

@@ -2154,11 +2154,11 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 #ifdef USB8978
 	if (IS_USB8978(handle->card_type)) {
 		if (strap == CARD_TYPE_USB_UART)
-			strncpy(handle->card_info->fw_name,
+			strscpy(handle->card_info->fw_name,
 				USBUART8978_DEFAULT_COMBO_FW_NAME,
 				FW_NAMW_MAX_LEN);
 		else if (strap != 0)
-			strncpy(handle->card_info->fw_name,
+			strscpy(handle->card_info->fw_name,
 				USBUSB8978_DEFAULT_COMBO_FW_NAME,
 				FW_NAMW_MAX_LEN);
 	}
@@ -2169,10 +2169,10 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		if (cardp->second_mac) {
 			ref_handle = (moal_handle *)handle->pref_mac;
 			if (ref_handle) {
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					ref_handle->card_info->fw_name,
 					FW_NAMW_MAX_LEN);
-				strncpy(handle->card_info->fw_name_wlan,
+				strscpy(handle->card_info->fw_name_wlan,
 					ref_handle->card_info->fw_name_wlan,
 					FW_NAMW_MAX_LEN);
 			}
@@ -2182,15 +2182,15 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9098_Z1Z2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUART9098_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUSB9098_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				USB9098_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case USB9098_A0:
@@ -2198,15 +2198,15 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9098_A2:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUART9098_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUSB9098_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				USB9098_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
@@ -2219,15 +2219,15 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		case USB9097_B1:
 			if (strap != 0) {
 				if (strap == CARD_TYPE_USB_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUART9097_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						USBUSB9097_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				USB9097_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		}
@@ -2238,10 +2238,10 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 		if (boot_mode == 0x03)
 			PRINTM(MMSG, "wlan: USB-IW624 in secure-boot mode\n");
 		if (strap == CARD_TYPE_USB_UART)
-			strncpy(handle->card_info->fw_name,
+			strscpy(handle->card_info->fw_name,
 				USBUARTIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 		else
-			strncpy(handle->card_info->fw_name,
+			strscpy(handle->card_info->fw_name,
 				USBUSBIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 	}
 #endif
@@ -2251,24 +2251,24 @@ static mlan_status woal_usb_get_fw_name(moal_handle *handle)
 			PRINTM(MMSG, "wlan: USB-IW610 in secure-boot mode\n");
 		if (strap == CARD_TYPE_USBIW610_UART) {
 			if (handle->params.dual_nb)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					USBUARTSPIIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					USBUARTIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		} else if (strap == CARD_TYPE_USBIW610_USB) {
 			if (handle->params.dual_nb)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					USBUSBSPIIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					USBUSBIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		}
-		strncpy(handle->card_info->fw_name_wlan,
+		strscpy(handle->card_info->fw_name_wlan,
 			USBIW610_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 		if (boot_mode != 0x03) {
 			/* remove extension .se */
@@ -2321,7 +2321,7 @@ static int parse_config_line(char *line, usb_config_entry_t *entry,
 			}
 
 			current_entry = &entry[*current_entry_idx];
-			strncpy(current_entry->device_name, strim(token),
+			strscpy(current_entry->device_name, strim(token),
 				MAX_DEVICE_NAME - 1);
 			current_entry->device_name[MAX_DEVICE_NAME - 1] = '\0';
 

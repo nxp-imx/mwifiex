@@ -221,7 +221,7 @@ static int woal_get_name(struct net_device *dev, struct iw_request_info *info,
 	char *cwrq = wrqu->name;
 
 	ENTER();
-	strncpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
+	strscpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
 	LEAVE();
 	return 0;
 }
