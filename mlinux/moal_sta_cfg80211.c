@@ -269,7 +269,11 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 				enum nl80211_channel_type channel_type,
 #endif
-				unsigned int duration, u64 *cookie);
+				unsigned int duration, u64 *cookie
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+				, const u8 *rx_addr
+#endif
+);
 
 static int woal_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
@@ -5406,7 +5410,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 			if (handle->second_mac &&
 			    IS_CARDAW693(priv->phandle->card_type) &&
 			    wiphy->bands[IEEE80211_BAND_2GHZ]) {
-				strncpy(handle->ru_string,
+				strscpy(handle->ru_string,
 					"subband_ru_power_cfg_mac2_2G",
 					strlen("subband_ru_power_cfg_mac2_2G") +
 						1);
@@ -5422,7 +5426,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 				 * tables */
 				memset(handle->ru_string, 0,
 				       sizeof(handle->ru_string));
-				strncpy(handle->ru_string,
+				strscpy(handle->ru_string,
 					"subband_ru_power_cfg_2G_5G",
 					strlen("subband_ru_power_cfg_2G_5G") +
 						1);
@@ -5438,7 +5442,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 				/* Download the 6G RU power table */
 				memset(handle->ru_string, 0,
 				       sizeof(handle->ru_string));
-				strncpy(handle->ru_string,
+				strscpy(handle->ru_string,
 					"subband_ru_power_cfg_6G",
 					strlen("subband_ru_power_cfg_6G") + 1);
 				if (MLAN_STATUS_SUCCESS !=
@@ -7794,7 +7798,11 @@ woal_cfg80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
 				enum nl80211_channel_type channel_type,
 #endif
-				unsigned int duration, u64 *cookie)
+				unsigned int duration, u64 *cookie
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+				, const u8 *rx_addr
+#endif
+)
 #else
 /**
  * @brief Make chip remain on channel
@@ -8054,7 +8062,7 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 		priv->scan_cfg.start_later = MTRUE;
 	for (i = 0; i < request->n_ssids; i++) {
 		ssid = &request->ssids[i];
-		strncpy(priv->scan_cfg.ssid_list[index].ssid, ssid->ssid,
+		strscpy(priv->scan_cfg.ssid_list[index].ssid, ssid->ssid,
 			ssid->ssid_len);
 		if (ssid->ssid_len) {
 			priv->scan_cfg.ssid_list[index].max_len = 0;
@@ -8073,7 +8081,7 @@ int woal_cfg80211_sched_scan_start(struct wiphy *wiphy, struct net_device *dev,
 				break;
 		}
 		if (j == request->n_ssids) {
-			strncpy(priv->scan_cfg.ssid_list[index].ssid,
+			strscpy(priv->scan_cfg.ssid_list[index].ssid,
 				match_ssid->ssid, match_ssid->ssid_len);
 			priv->scan_cfg.ssid_list[index].max_len =
 				match_ssid->ssid_len;
@@ -12679,13 +12687,13 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 	/* Indoor Mode */
 	case AP_MODE_IND: {
 		/* Copy the initial Reg power string */
-		strncpy(priv->phandle->mode_psd_string,
+		strscpy(priv->phandle->mode_psd_string,
 			"region_pwr_cfg_6G_PSD_",
 			strlen("region_pwr_cfg_6G_PSD_") + 1);
-		strncpy(priv->phandle->pwr_offset_string,
+		strscpy(priv->phandle->pwr_offset_string,
 			"region_pwr_offset_cfg_6G_PSD_",
 			strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-		strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+		strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 			strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 		/* Prepare the 6E operation mode/psd based string */
 		switch (priv->phandle->dfs_region) {
@@ -12730,13 +12738,13 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 	/* Standard Power Mode */
 	case AP_MODE_SP: {
 		/* Copy the initial Reg power string */
-		strncpy(priv->phandle->mode_psd_string,
+		strscpy(priv->phandle->mode_psd_string,
 			"region_pwr_cfg_6G_PSD_",
 			strlen("region_pwr_cfg_6G_PSD_") + 1);
-		strncpy(priv->phandle->pwr_offset_string,
+		strscpy(priv->phandle->pwr_offset_string,
 			"region_pwr_offset_cfg_6G_PSD_",
 			strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-		strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+		strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 			strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 		/* Prepare the 6E operation mode/psd based string */
 		switch (priv->phandle->dfs_region) {
@@ -12781,13 +12789,13 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 	/* Very Low Power Mode */
 	case AP_MODE_VLP: {
 		/* Copy the initial Reg power string */
-		strncpy(priv->phandle->mode_psd_string,
+		strscpy(priv->phandle->mode_psd_string,
 			"region_pwr_cfg_6G_PSD_",
 			strlen("region_pwr_cfg_6G_PSD_") + 1);
-		strncpy(priv->phandle->pwr_offset_string,
+		strscpy(priv->phandle->pwr_offset_string,
 			"region_pwr_offset_cfg_6G_PSD_",
 			strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-		strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+		strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 			strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 		/* Prepare the 6E operation mode/psd based string */
 		switch (priv->phandle->dfs_region) {
@@ -12856,7 +12864,7 @@ void woal_dnld_sta_6e_psd_table(moal_private *priv, t_u8 *resp_buf,
 	       sizeof(priv->phandle->pwr_offset_string));
 
 	/* Download the ex-AP mode specific PSD RU table */
-	strncpy(priv->phandle->ru_string, tmp,
+	strscpy(priv->phandle->ru_string, tmp,
 		sizeof(priv->phandle->ru_string) - 1);
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_dnld_ru_power_table(priv, country_code, MOAL_NO_WAIT)) {
@@ -12893,9 +12901,9 @@ mlan_status woal_dnld_default_6e_psd_table(moal_private *priv)
 	       sizeof(priv->phandle->pwr_offset_string));
 	memset(priv->phandle->ru_string, 0, sizeof(priv->phandle->ru_string));
 	/* Copy the initial Reg power string */
-	strncpy(priv->phandle->mode_psd_string, "region_pwr_cfg_6G",
+	strscpy(priv->phandle->mode_psd_string, "region_pwr_cfg_6G",
 		strlen("region_pwr_cfg_6G") + 1);
-	strncpy(priv->phandle->pwr_offset_string, "region_pwr_offset_cfg_6G",
+	strscpy(priv->phandle->pwr_offset_string, "region_pwr_offset_cfg_6G",
 		strlen("region_pwr_offset_cfg_6G") + 1);
 
 	PRINTM(MMSG, "Opmode string = %s\n", priv->phandle->mode_psd_string);
@@ -12918,7 +12926,7 @@ mlan_status woal_dnld_default_6e_psd_table(moal_private *priv)
 	}
 	memset(priv->phandle->pwr_offset_string, 0,
 	       sizeof(priv->phandle->pwr_offset_string));
-	strncpy(priv->phandle->ru_string, "subband_ru_power_cfg_6G",
+	strscpy(priv->phandle->ru_string, "subband_ru_power_cfg_6G",
 		strlen("subband_ru_power_cfg_6G") + 1);
 
 	if (MLAN_STATUS_SUCCESS !=

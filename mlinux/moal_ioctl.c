@@ -2342,17 +2342,17 @@ mlan_status woal_request_get_fw_info(moal_private *priv, t_u8 wait_option,
 				&info->param.fw_info.fw_ver,
 				sizeof(info->param.fw_info.fw_ver),
 				sizeof(priv->phandle->fw_release_number));
-		strncpy(priv->phandle->fw_ver_milestone,
+		strscpy(priv->phandle->fw_ver_milestone,
 			info->param.fw_info.fw_ver_milestone,
 			sizeof(priv->phandle->fw_ver_milestone) - 1);
 		priv->phandle->fw_ver_milestone
 			[sizeof(priv->phandle->fw_ver_milestone) - 1] = '\0';
-		strncpy(priv->phandle->fw_ver_buildtype,
+		strscpy(priv->phandle->fw_ver_buildtype,
 			info->param.fw_info.fw_ver_buildtype,
 			sizeof(priv->phandle->fw_ver_buildtype) - 1);
 		priv->phandle->fw_ver_buildtype
 			[sizeof(priv->phandle->fw_ver_buildtype) - 1] = '\0';
-		strncpy(priv->phandle->fw_ver_data,
+		strscpy(priv->phandle->fw_ver_data,
 			info->param.fw_info.fw_ver_data,
 			sizeof(priv->phandle->fw_ver_data) - 1);
 		priv->phandle
@@ -6442,7 +6442,7 @@ mlan_status woal_set_bg_scan(moal_private *priv, char *buf, int length)
 			}
 			if (ssid_len &&
 			    (num_ssid < (MRVDRV_MAX_SSID_LIST_LENGTH - 1))) {
-				strncpy(priv->scan_cfg.ssid_list[num_ssid].ssid,
+				strscpy(priv->scan_cfg.ssid_list[num_ssid].ssid,
 					ptr + 2, ssid_len);
 				priv->scan_cfg.ssid_list[num_ssid].max_len = 0;
 				PRINTM(MIOCTL, "BG scan: ssid=%s\n",
@@ -6554,7 +6554,7 @@ void woal_config_bgscan_and_rssi(moal_private *priv, t_u8 set_rssi)
 		return;
 	}
 	memset(&priv->scan_cfg, 0, sizeof(priv->scan_cfg));
-	strncpy(priv->scan_cfg.ssid_list[0].ssid, bss_info.ssid.ssid,
+	strscpy(priv->scan_cfg.ssid_list[0].ssid, bss_info.ssid.ssid,
 		bss_info.ssid.ssid_len);
 	priv->scan_cfg.ssid_list[0].max_len = 0;
 
@@ -7133,7 +7133,7 @@ int woal_set_combo_scan(moal_private *priv, char *buf, int length)
 			}
 			if (ssid_len &&
 			    (num_ssid < (MRVDRV_MAX_SSID_LIST_LENGTH - 1))) {
-				strncpy(scan_cfg->ssid_list[num_ssid].ssid,
+				strscpy(scan_cfg->ssid_list[num_ssid].ssid,
 					ptr + 2, ssid_len);
 				scan_cfg->ssid_list[num_ssid].max_len = 0;
 				PRINTM(MIOCTL, "Combo scan: ssid=%s\n",
@@ -9479,7 +9479,7 @@ static int parse_set_debug_temperature(const char *s, size_t len,
 		goto done;
 	}
 
-	strncpy(string, s + prefix_len, MAX_THERMAL_SIMULATION_LEN - 1);
+	strscpy(string, s + prefix_len, MAX_THERMAL_SIMULATION_LEN - 1);
 	string[MAX_THERMAL_SIMULATION_LEN - 1] = '\0';
 
 	temp = strstrip(string);

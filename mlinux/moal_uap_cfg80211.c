@@ -1418,13 +1418,13 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 		/* Indoor Mode */
 		case UAP_MODE_IND: {
 			/* Copy the initial Reg power string */
-			strncpy(priv->phandle->mode_psd_string,
+			strscpy(priv->phandle->mode_psd_string,
 				"region_pwr_cfg_6G_PSD_",
 				strlen("region_pwr_cfg_6G_PSD_") + 1);
-			strncpy(priv->phandle->pwr_offset_string,
+			strscpy(priv->phandle->pwr_offset_string,
 				"region_pwr_offset_cfg_6G_PSD_",
 				strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-			strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+			strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 				strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 			/* Prepare the 6E operation mode/psd based string */
 			switch (priv->phandle->dfs_region) {
@@ -1476,13 +1476,13 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 		/* Standard Power Mode */
 		case UAP_MODE_SP: {
 			/* Copy the initial Reg power string */
-			strncpy(priv->phandle->mode_psd_string,
+			strscpy(priv->phandle->mode_psd_string,
 				"region_pwr_cfg_6G_PSD_",
 				strlen("region_pwr_cfg_6G_PSD_") + 1);
-			strncpy(priv->phandle->pwr_offset_string,
+			strscpy(priv->phandle->pwr_offset_string,
 				"region_pwr_offset_cfg_6G_PSD_",
 				strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-			strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+			strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 				strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 
 			/* Prepare the 6E operation mode/psd based string */
@@ -1535,13 +1535,13 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 		/* Very Low Power Mode */
 		case UAP_MODE_VLP: {
 			/* Copy the initial Reg power string */
-			strncpy(priv->phandle->mode_psd_string,
+			strscpy(priv->phandle->mode_psd_string,
 				"region_pwr_cfg_6G_PSD_",
 				strlen("region_pwr_cfg_6G_PSD_") + 1);
-			strncpy(priv->phandle->pwr_offset_string,
+			strscpy(priv->phandle->pwr_offset_string,
 				"region_pwr_offset_cfg_6G_PSD_",
 				strlen("region_pwr_offset_cfg_6G_PSD_") + 1);
-			strncpy(tmp, "subband_ru_power_cfg_6G_PSD_",
+			strscpy(tmp, "subband_ru_power_cfg_6G_PSD_",
 				strlen("subband_ru_power_cfg_6G_PSD_") + 1);
 			/* Prepare the 6E operation mode/psd based string */
 			switch (priv->phandle->dfs_region) {
@@ -1623,7 +1623,7 @@ void woal_dnld_uap_6e_psd_table(moal_private *priv, const t_u8 *beacon_buf,
 		       sizeof(priv->phandle->pwr_offset_string));
 
 		/* Download the uAP mode specific PSD RU table */
-		strncpy(priv->phandle->ru_string, tmp,
+		strscpy(priv->phandle->ru_string, tmp,
 			sizeof(priv->phandle->ru_string) - 1);
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_dnld_ru_power_table(priv, country_code,

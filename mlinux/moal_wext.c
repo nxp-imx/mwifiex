@@ -353,7 +353,7 @@ static int woal_get_nick(struct net_device *dev, struct iw_request_info *info,
 	/*
 	 * Get the Nick Name saved
 	 */
-	strncpy(extra, (char *)priv->nick_name, 16);
+	strscpy(extra, (char *)priv->nick_name, 16);
 	extra[16] = '\0';
 	/*
 	 * If none, we may want to get the one that was set
@@ -403,7 +403,7 @@ static int woal_get_name(struct net_device *dev, struct iw_request_info *info,
 	char *cwrq = wrqu->name;
 
 	ENTER();
-	strncpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
+	strscpy(cwrq, "IEEE 802.11-DS", IFNAMSIZ);
 	LEAVE();
 	return 0;
 }

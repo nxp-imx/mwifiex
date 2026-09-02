@@ -7797,7 +7797,7 @@ static int woal_priv_regrdwr(moal_private *priv, t_u8 *respbuf,
 		ret = -ENOMEM;
 		goto done;
 	}
-	strncpy(arguments, respbuf + header_len,
+	strscpy(arguments, respbuf + header_len,
 		strlen(respbuf) * sizeof(char));
 	/* respbuf is already null-terminated by calling function and hence
 	 * arguments is also null-terminated

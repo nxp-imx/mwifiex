@@ -1307,7 +1307,7 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			if (params->txpwrlimit_cfg) {
 				memset(handle->mode_psd_file, 0,
 				       sizeof(handle->mode_psd_file));
-				strncpy(handle->mode_psd_file,
+				strscpy(handle->mode_psd_file,
 					params->txpwrlimit_cfg,
 					sizeof(handle->mode_psd_file) - 1);
 				handle->mode_psd_file
@@ -2243,7 +2243,7 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 
 	if (handle->params.txpwrlimit_cfg) {
 		memset(handle->mode_psd_file, 0, sizeof(handle->mode_psd_file));
-		strncpy(handle->mode_psd_file, handle->params.txpwrlimit_cfg,
+		strscpy(handle->mode_psd_file, handle->params.txpwrlimit_cfg,
 			sizeof(handle->mode_psd_file) - 1);
 		handle->mode_psd_file[sizeof(handle->mode_psd_file) - 1] = '\0';
 		PRINTM(MINFO, "Mode PSD file name: %s", handle->mode_psd_file);

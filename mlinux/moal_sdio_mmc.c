@@ -1912,21 +1912,21 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	if (IS_SD8977(handle->card_type)) {
 		switch (revision_id) {
 		case SD8977_V0:
-			strncpy(handle->card_info->fw_name, SD8977_V0_FW_NAME,
+			strscpy(handle->card_info->fw_name, SD8977_V0_FW_NAME,
 				FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD8977_WLAN_V0_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SD8977_V1:
-			strncpy(handle->card_info->fw_name, SD8977_V1_FW_NAME,
+			strscpy(handle->card_info->fw_name, SD8977_V1_FW_NAME,
 				FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD8977_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SD8977_V2:
-			strncpy(handle->card_info->fw_name, SD8977_V2_FW_NAME,
+			strscpy(handle->card_info->fw_name, SD8977_V2_FW_NAME,
 				FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD8977_WLAN_V2_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		default:
@@ -1939,15 +1939,15 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		/* Check revision ID */
 		switch (revision_id) {
 		case SD8887_A0:
-			strncpy(handle->card_info->fw_name, SD8887_A0_FW_NAME,
+			strscpy(handle->card_info->fw_name, SD8887_A0_FW_NAME,
 				FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD8887_WLAN_A0_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SD8887_A2:
-			strncpy(handle->card_info->fw_name, SD8887_A2_FW_NAME,
+			strscpy(handle->card_info->fw_name, SD8887_A2_FW_NAME,
 				FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD8887_WLAN_A2_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		default:
@@ -1960,11 +1960,11 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	if (IS_SD8987(handle->card_type)) {
 		if (magic == CHIP_MAGIC_VALUE) {
 			if (strap == CARD_TYPE_SD_UART)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUART8987_DEFAULT_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDSD8987_DEFAULT_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		}
@@ -1975,11 +1975,11 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 	if (IS_SD8978(handle->card_type)) {
 		if (magic == CHIP_MAGIC_VALUE) {
 			if (strap == CARD_TYPE_SD_UART)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUART8978_DEFAULT_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDSD8978_DEFAULT_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		}
@@ -1993,15 +1993,15 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SD9098_Z1Z2:
 			if (magic == CHIP_MAGIC_VALUE) {
 				if (strap == CARD_TYPE_SD_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDUART9098_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDSD9098_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD9098_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SD9098_A0:
@@ -2009,19 +2009,19 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SD9098_A2:
 			if (magic == CHIP_MAGIC_VALUE) {
 				if (strap == CARD_TYPE_SD_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDUART9098_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDSD9098_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			} else {
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUART9098_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD9098_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		default:
@@ -2036,15 +2036,15 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SD9097_B1:
 			if (magic == CHIP_MAGIC_VALUE) {
 				if (strap == CARD_TYPE_SD_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDUART9097_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDSD9097_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD9097_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		default:
@@ -2061,26 +2061,26 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		switch (revision_id) {
 		case SDAW693_A0:
 			if (strap == CARD_TYPE_SDAW693_UART)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDSDIW693_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SDIW693_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SDAW693_A1:
 			if (strap == CARD_TYPE_SDAW693_UART)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDSDIW693_COMBO_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SDIW693_WLAN_V1_FW_NAME, FW_NAMW_MAX_LEN);
 			if (magic != 0x03) {
 				/* remove extension .se */
@@ -2108,24 +2108,24 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			PRINTM(MMSG, "wlan: SDIW624 in secure-boot mode\n");
 		if (strap == CARD_TYPE_SDIW624_UARTSPI) {
 			if (handle->params.dual_nb)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTSPIIW624_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTIW624_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		} else if (strap == CARD_TYPE_SDIW624_UARTUART) {
 			if (handle->params.dual_nb)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTUARTIW624_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTIW624_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		} else {
-			strncpy(handle->card_info->fw_name,
+			strscpy(handle->card_info->fw_name,
 				SDSDIW624_COMBO_FW_NAME, FW_NAMW_MAX_LEN);
 		}
 	}
@@ -2137,58 +2137,58 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 		case SD9177_A0:
 			if (magic == CHIP_MAGIC_VALUE) {
 				if (strap == CARD_TYPE_SD9177_UART)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDUART9177_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDSD9177_DEFAULT_COMBO_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
-			strncpy(handle->card_info->fw_name_wlan,
+			strscpy(handle->card_info->fw_name_wlan,
 				SD9177_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 			break;
 		case SD9177_A1:
 			if (magic == CHIP_MAGIC_VALUE) {
 				if (strap == CARD_TYPE_SD9177_UART) {
 					if (handle->params.rf_test_mode)
-						strncpy(handle->card_info
+						strscpy(handle->card_info
 								->fw_name,
 							SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME,
 							FW_NAMW_MAX_LEN);
 					else
-						strncpy(handle->card_info
+						strscpy(handle->card_info
 								->fw_name,
 							SDUART9177_DEFAULT_COMBO_V1_FW_NAME,
 							FW_NAMW_MAX_LEN);
 				} else {
 					if (handle->params.rf_test_mode)
-						strncpy(handle->card_info
+						strscpy(handle->card_info
 								->fw_name,
 							SDSD9177_DEFAULT_RFTM_COMBO_V1_FW_NAME,
 							FW_NAMW_MAX_LEN);
 					else
-						strncpy(handle->card_info
+						strscpy(handle->card_info
 								->fw_name,
 							SDSD9177_DEFAULT_COMBO_V1_FW_NAME,
 							FW_NAMW_MAX_LEN);
 				}
 			} else {
 				if (handle->params.rf_test_mode)
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SDUART9177_DEFAULT_RFTM_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 				else
-					strncpy(handle->card_info->fw_name,
+					strscpy(handle->card_info->fw_name,
 						SD9177_DEFAULT_COMBO_V1_FW_NAME,
 						FW_NAMW_MAX_LEN);
 			}
 			if (handle->params.rf_test_mode)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SD9177_DEFAULT_RFTM_WLAN_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name_wlan,
+				strscpy(handle->card_info->fw_name_wlan,
 					SD9177_DEFAULT_WLAN_V1_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			break;
@@ -2205,15 +2205,15 @@ static mlan_status woal_sdiommc_get_fw_name(moal_handle *handle)
 			PRINTM(MMSG, "wlan: SDIW610 in secure-boot mode\n");
 		if (strap == CARD_TYPE_SDIW610_UART) {
 			if (handle->params.dual_nb)
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTSPIIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 			else
-				strncpy(handle->card_info->fw_name,
+				strscpy(handle->card_info->fw_name,
 					SDUARTIW610_COMBO_FW_NAME,
 					FW_NAMW_MAX_LEN);
 		}
-		strncpy(handle->card_info->fw_name_wlan,
+		strscpy(handle->card_info->fw_name_wlan,
 			SDIW610_DEFAULT_WLAN_FW_NAME, FW_NAMW_MAX_LEN);
 		if (magic != 0x03) {
 			/* remove extension .se */
@@ -2425,7 +2425,7 @@ void woal_dump_firmware_info_v2(moal_handle *phandle)
 	woal_create_dump_dir(phandle, path_name, sizeof(path_name));
 #else
 	memset(path_name, 0, sizeof(path_name));
-	strncpy(path_name, "/data", sizeof(path_name));
+	strscpy(path_name, "/data", sizeof(path_name));
 #endif
 	PRINTM(MMSG, "Directory name is %s\n", path_name);
 
@@ -2659,7 +2659,7 @@ void woal_dump_firmware_info_v3(moal_handle *phandle)
 	woal_create_dump_dir(phandle, path_name, sizeof(path_name));
 #else
 	memset(path_name, 0, sizeof(path_name));
-	strncpy(path_name, "/data", sizeof(path_name));
+	strscpy(path_name, "/data", sizeof(path_name));
 #endif
 	PRINTM(MMSG, "Directory name is %s\n", path_name);
 	ref_handle = (moal_handle *)phandle->pref_mac;

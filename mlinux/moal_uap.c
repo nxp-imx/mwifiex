@@ -4084,7 +4084,7 @@ static int woal_uap_ap_cfg_parse_data(moal_private *priv,
 					goto done;
 				}
 				ap_cfg->ssid.ssid_len = strlen(value);
-				strncpy((char *)ap_cfg->ssid.ssid, value,
+				strscpy((char *)ap_cfg->ssid.ssid, value,
 					MLAN_MAX_SSID_LENGTH - 1);
 				ap_cfg->ssid.ssid[MLAN_MAX_SSID_LENGTH - 1] =
 					'\0';

@@ -1002,7 +1002,7 @@ static int woal_cfg80211_subcmd_set_country_code(struct wiphy *wiphy,
 		type = nla_type(iter);
 		switch (type) {
 		case ATTR_COUNTRY_CODE:
-			strncpy(country, nla_data(iter),
+			strscpy(country, nla_data(iter),
 				MIN((int)sizeof(country) - 1, nla_len(iter)));
 			break;
 		default:
@@ -1302,7 +1302,7 @@ static int woal_cfg80211_subcmd_start_logging(struct wiphy *wiphy,
 		type = nla_type(iter);
 		switch (type) {
 		case ATTR_WIFI_LOGGER_RING_ID:
-			strncpy(ring_name, nla_data(iter),
+			strscpy(ring_name, nla_data(iter),
 				MIN(sizeof(ring_name) - 1, nla_len(iter)));
 			break;
 		case ATTR_WIFI_LOGGER_VERBOSE_LEVEL:
@@ -1397,7 +1397,7 @@ static int woal_cfg80211_subcmd_get_ring_data(struct wiphy *wiphy,
 		type = nla_type(iter);
 		switch (type) {
 		case ATTR_WIFI_LOGGER_RING_ID:
-			strncpy(ring_name, nla_data(iter),
+			strscpy(ring_name, nla_data(iter),
 				MIN(sizeof(ring_name) - 1, nla_len(iter)));
 			break;
 		default:
