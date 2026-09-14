@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_shim.h
  *
  * @brief This file contains declaration referring to
@@ -7,18 +7,25 @@
  *
  * Copyright 2008-2021, 2025-2026 NXP
  *
- * This software file (the File) is distributed by NXP
- * under the terms of the GNU General Public License Version 2, June 1991
- * (the License).  You may use, redistribute and/or modify the File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * NXP CONFIDENTIAL
+ * The source code contained or described herein and all documents related to
+ * the source code (Materials) are owned by NXP, its
+ * suppliers and/or its licensors. Title to the Materials remains with NXP,
+ * its suppliers and/or its licensors. The Materials contain
+ * trade secrets and proprietary and confidential information of NXP, its
+ * suppliers and/or its licensors. The Materials are protected by worldwide
+ * copyright and trade secret laws and treaty provisions. No part of the
+ * Materials may be used, copied, reproduced, modified, published, uploaded,
+ * posted, transmitted, distributed, or disclosed in any way without NXP's prior
+ * express written permission.
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
+ * No license under any patent, copyright, trade secret or other intellectual
+ * property right is granted to or conferred upon you by disclosure or delivery
+ * of the Materials, either expressly, by implication, inducement, estoppel or
+ * otherwise. Any license under such intellectual property rights must be
+ * express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
  *
  */
 /*************************************************************
@@ -43,6 +50,7 @@ mlan_status moal_alloc_mlan_buffer(t_void *pmoal, t_u32 size,
 mlan_status moal_free_mlan_buffer(t_void *pmoal, pmlan_buffer pmbuf);
 mlan_status moal_send_packet_complete(t_void *pmoal, pmlan_buffer pmbuf,
 				      mlan_status status);
+t_u8 moal_get_suspend_state(t_void *pmoal);
 #ifdef USB
 mlan_status moal_recv_complete(t_void *pmoal, pmlan_buffer pmbuf, t_u32 port,
 			       mlan_status status);
@@ -108,6 +116,7 @@ mlan_status moal_spin_unlock(t_void *pmoal, t_void *plock);
 t_void moal_print(t_void *pmoal, t_u32 level, char *pformat, IN...);
 t_void moal_print_netintf(t_void *pmoal, t_u32 bss_index, t_u32 level);
 t_void moal_assert(t_void *pmoal, t_u32 cond);
+t_u32 moal_random(t_void *pmoal);
 t_void moal_hist_data_add(t_void *pmoal, t_u32 bss_index, t_u16 rx_rate,
 			  t_s8 snr, t_s8 nflr, t_u8 antenna);
 

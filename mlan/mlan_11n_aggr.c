@@ -6,25 +6,33 @@
  *
  *  Copyright 2008-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 11/10/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -35,20 +43,23 @@
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
 #include "mlan_11n_aggr.h"
+#ifdef PCIE
+#include "mlan_pcie.h"
+#endif
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Aggregate individual packets into one AMSDU packet
@@ -116,17 +127,18 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 {
 	TxPD *ptx_pd;
 	mlan_adapter *pmadapter = priv->adapter;
+	t_u8 radio_idx = 0;
 
 	ENTER();
 
 	ptx_pd = (TxPD *)mbuf->pbuf;
 	_memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
-
 	/*
 	 * Original priority has been overwritten
 	 */
 	ptx_pd->priority = (t_u8)mbuf->priority;
-	ptx_pd->bss_num = GET_BSS_NUM(priv);
+	ptx_pd->bss_num =
+		TxPD_SET_BSS_NUM_RADIO_IDX(GET_BSS_NUM(priv), radio_idx);
 	ptx_pd->bss_type = priv->bss_type;
 	/* Always zero as the data is followed by TxPD */
 	ptx_pd->tx_pkt_offset = Tx_PD_SIZEOF(pmadapter);
@@ -148,29 +160,7 @@ static void wlan_11n_form_amsdu_txpd(mlan_private *priv, mlan_buffer *mbuf)
 	LEAVE();
 }
 
-/**
- *  @brief free pkts in amsdu_txq
- *
- *  @param pmadapter A pointer to mlan_adapter structure
- *
- *  @return  N/A
- */
-static INLINE void wlan_free_amsdu_txq(pmlan_adapter pmadapter)
-{
-	pmlan_buffer pmbuf;
-
-	ENTER();
-	while ((pmbuf = (pmlan_buffer)util_peek_list(pmadapter->pmoal_handle,
-						     &pmadapter->amsdu_txq,
-						     MNULL, MNULL))) {
-		util_unlink_list(pmadapter->pmoal_handle, &pmadapter->amsdu_txq,
-				 (pmlan_linked_list)pmbuf, MNULL, MNULL);
-		wlan_write_data_complete(pmadapter, pmbuf, MLAN_STATUS_FAILURE);
-	}
-	LEAVE();
-}
-
-#ifdef PCIEAW693
+#if defined(PCIEAW693)
 /**
  *  @brief Add TxPD to AMSDU header
  *
@@ -190,6 +180,7 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	t_u32 data_len = pmbuf->data_len;
 	t_u16 len = 0;
 	t_s32 offset = 0;
+	t_u8 radio_idx = 0;
 
 	ENTER();
 
@@ -202,7 +193,8 @@ static t_u16 wlan_form_amsdu_txpd(mlan_private *priv, mlan_buffer *pmbuf,
 	_memset(pmadapter, ptx_pd, 0, Tx_PD_SIZEOF(pmadapter));
 
 	/* Set the BSS number to TxPD */
-	ptx_pd->bss_num = GET_BSS_NUM(priv);
+	ptx_pd->bss_num =
+		TxPD_SET_BSS_NUM_RADIO_IDX(GET_BSS_NUM(priv), radio_idx);
 	ptx_pd->bss_type = priv->bss_type;
 	ptx_pd->priority = (t_u8)pmbuf->priority;
 	ptx_pd->tx_pkt_type = PKT_TYPE_AMSDU;
@@ -414,7 +406,7 @@ static int wlan_11n_get_num_aggrpkts(mlan_private *priv, t_u8 *data,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -686,7 +678,7 @@ done:
 	return ret;
 }
 
-#ifdef PCIEAW693
+#if defined(PCIEAW693)
 /**
  *  @brief Send amsdu subframe list to interface
  *
@@ -725,6 +717,7 @@ static int wlan_send_amsdu_subframe_list(mlan_private *priv,
 	}
 
 	max_msdu_count = pmadapter->ops.get_max_msdu_cnt(pmadapter);
+
 	pmbuf_src = (pmlan_buffer)util_peek_list(
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
 	if (pmbuf_src) {
@@ -801,7 +794,6 @@ static int wlan_send_amsdu_subframe_list(mlan_private *priv,
 	/* Last AMSDU packet does not need padding */
 	pkt_size -= pad;
 	pmbuf_last->data_len -= pad;
-
 	pkt_size += wlan_form_amsdu_txpd(priv, pmbuf_first, pkt_size);
 	/* Collects TP statistics */
 	if (pmadapter->tp_state_on) {
@@ -843,6 +835,7 @@ exit:
 	return pkt_size;
 }
 #endif
+
 /**
  *  @brief Aggregate multiple packets into one single AMSDU packet
  *
@@ -881,12 +874,14 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 		return MLAN_STATUS_FAILURE;
 	}
 	PRINTM(MDAT_D, "Handling Aggr packet\n");
-#ifdef PCIEAW693
+#if defined(PCIEAW693)
 	if (!wlan_copy_on_tx_enabled(pmadapter) &&
-	    IS_PCIEAW693(pmadapter->card_type))
+	    (IS_PCIEAW693(pmadapter->card_type))) {
 		return wlan_send_amsdu_subframe_list(priv, pra_list, headroom,
 						     ptrindex);
+	}
 #endif
+
 	pmbuf_src = (pmlan_buffer)util_peek_list(
 		pmadapter->pmoal_handle, &pra_list->buf_head, MNULL, MNULL);
 	if (pmbuf_src) {

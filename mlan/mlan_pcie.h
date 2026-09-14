@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_pcie.h
  *
  *  @brief This file contains definitions for PCIE interface.
@@ -7,29 +7,38 @@
  *
  *  Copyright 2008-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 02/01/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #ifndef _MLAN_PCIE_H_
 #define _MLAN_PCIE_H_
+
 /** Tx DATA */
 #define ADMA_TX_DATA 0
 /** Rx DATA */
@@ -471,6 +480,7 @@ enum RX_UPDATE_ACTION {
 };
 
 extern mlan_adapter_operations mlan_pcie_ops;
+extern struct fwload_interface_ops mlan_pcie_fwload_intf_ops;
 
 /* Get pcie device from card type */
 mlan_status wlan_get_pcie_device(pmlan_adapter pmadapter);
@@ -485,12 +495,10 @@ mlan_status wlan_cmd_pcie_host_buf_cfg(pmlan_private pmpriv,
 				       t_u16 cmd_action, t_pvoid pdata_buf);
 #endif
 
-#if defined(PCIE)
 /** Prepare command PCIE host buffer config */
 mlan_status wlan_cmd_pcie_adma_init(pmlan_private pmpriv,
 				    pHostCmd_DS_COMMAND cmd, t_u16 cmd_action,
 				    t_pvoid pdata_buf);
-#endif
 
 /** Wakeup PCIE card */
 mlan_status wlan_pcie_wakeup(pmlan_adapter pmadapter);
@@ -510,6 +518,13 @@ mlan_status wlan_alloc_pcie_ring_buf(pmlan_adapter pmadapter);
 mlan_status wlan_free_pcie_ring_buf(pmlan_adapter pmadapter);
 /** Ring buffer cleanup function, e.g. on deauth */
 mlan_status wlan_clean_pcie_ring_buf(pmlan_adapter pmadapter);
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+/** Dummy tx buf allocation function */
+mlan_status wlan_alloc_pcie_dummy_tx_buf(pmlan_adapter pmadapter);
+/** Dummy tx buf deallocation function */
+mlan_status wlan_free_pcie_dummy_tx_buf(pmlan_adapter pmadapter);
+#endif
 mlan_status wlan_alloc_ssu_pcie_buf(pmlan_adapter pmadapter);
 mlan_status wlan_free_ssu_pcie_buf(pmlan_adapter pmadapter);
 

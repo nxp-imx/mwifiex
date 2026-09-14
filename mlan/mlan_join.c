@@ -10,25 +10,33 @@
  *
  *  Copyright 2008-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /******************************************************
  * Change log:
  * 10/30/2008: initial version
- * ****************************************************
+ ******************************************************
  */
 
 #include "mlan.h"
@@ -43,22 +51,22 @@
 #include "mlan_11h.h"
 /********************************************************
  * Local Constants
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Append a generic IE as a pass through TLV to a TLV buffer.
@@ -332,7 +340,7 @@ static mlan_status wlan_get_common_rates(mlan_private *pmpriv, t_u8 *rate1,
 		while (rate1_size && *ptr) {
 			/* loop exits when rate1_size becomes 0 */
 			// coverity[integer_overflow:SUPPRESS]
-			if ((*ptr & 0x7f) == pmpriv->data_rate) {
+			if ((*ptr & 0x7f) == (t_u8)(pmpriv->data_rate / 500)) {
 				ret = MLAN_STATUS_SUCCESS;
 				goto done;
 			}
@@ -663,7 +671,7 @@ static t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 #endif
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -687,7 +695,7 @@ static int wlan_update_rsn_ie(mlan_private *pmpriv,
 	t_u16 pairwise_cipher_count = 0;
 	t_u16 akm_suite_count = 0;
 	t_u16 pmkid_count = 0;
-	t_u8 i;
+	t_u16 i;
 
 #define PREFERENCE_TKIP 1
 	/* Cipher Perference Order:
@@ -1295,8 +1303,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	       pmpriv->config_bands & BAND_AN) &&
 	      (pbss_desc->pht_cap))) {
 		/* Append a channel TLV for the channel the attempted AP was
-		 * found on
-		 */
+		 * found on BW 20 only */
 		pchan_tlv = (MrvlIEtypes_ChanListParamSet_t *)pos;
 		pchan_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_CHANLIST);
 		pchan_tlv->header.len =
@@ -1311,11 +1318,13 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 
 		pchan_tlv->chan_scan_param[0].bandcfg.chanBand =
 			wlan_band_to_radio_type(pbss_desc->bss_band);
-		if (pbss_desc->bss_band == BAND_6G)
-			pchan_tlv->chan_scan_param[0].bandcfg.chanWidth =
-				wlan_get_6g_ap_bandconfig(
-					pbss_desc,
-					&pchan_tlv->chan_scan_param[0].bandcfg);
+
+		if (pbss_desc->bss_band == BAND_6G) {
+			wlan_get_6g_ap_bandconfig(
+				pmadapter, pbss_desc,
+				&pchan_tlv->chan_scan_param[0].bandcfg);
+		}
+
 		PRINTM(MINFO, "Assoc: TLV Bandcfg = %x\n",
 		       pchan_tlv->chan_scan_param[0].bandcfg);
 		pos += sizeof(pchan_tlv->header) + sizeof(ChanScanParamSet_t);
@@ -2074,6 +2083,8 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 
 	pmpriv->curr_bss_params.band = pbss_desc->bss_band;
 
+	pmpriv->curr_channel = pmpriv->curr_bss_params.bss_descriptor.channel;
+	pmpriv->curr_bandcfg.chanBand = pmpriv->curr_bss_params.band;
 	/* Store current channel for further reference.
 	 * This would save one extra call to get current
 	 * channel when disconnect/bw_ch event is raised.
@@ -2186,7 +2197,6 @@ mlan_status wlan_ret_802_11_associate(mlan_private *pmpriv,
 						.mac_address);
 		wlan_11n_cleanup_reorder_tbl(pmpriv);
 		wlan_11n_deleteall_txbastream_tbl(pmpriv);
-
 	} else
 		wlan_ralist_add(
 			pmpriv,

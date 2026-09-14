@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_tlv_ids.h
  *
  *  @brief This file contains TLV ID definitions.
@@ -6,18 +6,26 @@
  *
  *  Copyright 2023-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
@@ -398,11 +406,15 @@
 #define TLV_TYPE_UAP_TX_BEACON_RATE (PROPRIETARY_TLV_BASE_ID + 288) /* 0x0220  \
 								     */
 #endif /* UAP_SUPPORT */
-/** TLV for RTT Range Request */
-#define TLV_TYPE_RTT_RANGE_REQUEST (PROPRIETARY_TLV_BASE_ID + 293) /* 0x0225   \
-								    */
-/** TLV for RTT Range Cancel */
-#define TLV_TYPE_RTT_RANGE_CANCEL (PROPRIETARY_TLV_BASE_ID + 294) /* 0x0226 */
+/* FTM Session Config TLVs */
+#define TLV_TYPE_FTM_SESSION_CFG_INITIATOR                                     \
+	(PROPRIETARY_TLV_BASE_ID + 273) /* 0x0211 */
+/** FTM 11az NTB ranging config TLV */
+#define TLV_TYPE_FTM_NTB_RANGING_CFG                                           \
+	(PROPRIETARY_TLV_BASE_ID + 343) /* 0x0257 */
+/** TLV for FTM 11az TB Ranging Config */
+#define TLV_TYPE_FTM_TB_RANGING_CFG (PROPRIETARY_TLV_BASE_ID + 344) /* 0x0258  \
+								     */
 /** TLV for RTT Result */
 #define TLV_TYPE_RTT_RESULT (PROPRIETARY_TLV_BASE_ID + 295) /* 0x0227 */
 /** TLV for RTTResponderInfo */
@@ -484,10 +496,14 @@
 
 #define VENDOR_IE_OUIS_TLV_ID (PROPRIETARY_TLV_BASE_ID + 357) /* 0x0265 */
 #define TLV_TYPE_AP_INFO (PROPRIETARY_TLV_BASE_ID + 358) /* 0x0266 */
+
 #define TLV_TYPE_CSI_AGC_CONFIG (PROPRIETARY_TLV_BASE_ID + 363) /* 0x026b */
 #define NXP_VERSION_COMPONENTS_TLV_ID                                          \
 	(PROPRIETARY_TLV_BASE_ID + 364) /* 0x026c */
 #define TLV_TYPE_PER_BAND_TXPWR_CAP (PROPRIETARY_TLV_BASE_ID + 365) /* 0x026d  \
 								     */
 #define TLV_HOST_MAX_RX_BUF_SIZE (PROPRIETARY_TLV_BASE_ID + 367) /* 0x026f */
+
+#define TLV_TYPE_PARTIAL_IO_CFG (PROPRIETARY_TLV_BASE_ID + 373) /* 0x0275 */
+
 #endif /* !MLAN_TLV_IDS_H_ */

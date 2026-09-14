@@ -6,25 +6,33 @@
  *
  *  Copyright 2008-2022, 2024-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 10/13/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -41,12 +49,12 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -411,7 +419,7 @@ static void wlan_process_nan_event(pmlan_private pmpriv, pmlan_buffer pmbuf)
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function handles disconnect event, reports disconnect
@@ -546,7 +554,6 @@ t_void wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 	wlan_recv_event(priv, MLAN_EVENT_ID_FW_DISCONNECTED, pevent);
 	priv->disconnect_reason_code = 0;
 	priv->delay_link_lost = MFALSE;
-
 	LEAVE();
 }
 
@@ -570,14 +577,33 @@ t_void wlan_2040_coex_event(pmlan_private pmpriv)
 			    ->ieee_hdr.element_id == OVERLAPBSSSCANPARAM) {
 		ele_len = pmpriv->curr_bss_params.bss_descriptor
 				  .poverlap_bss_scan_param->ieee_hdr.len;
+		/* Sanity check: ele_len must not exceed the event_buf
+		 * payload capacity (event_buf[100] minus mlan_event header)
+		 * mlan_scan.c already rejects OBSS IEs with len !=
+		 * sizeof(OBSSScanParam_t), so this is a defence-in-depth
+		 * guard.
+		 */
+		if (ele_len > (t_u8)(sizeof(event_buf) - sizeof(mlan_event))) {
+			PRINTM(MERROR,
+			       "wlan_2040_coex_event: OBSS IE len %u exceeds "
+			       "event_buf capacity, dropping\n",
+			       ele_len);
+			LEAVE();
+			return;
+		}
+		ele_len = MIN(ele_len, (t_u8)sizeof(OBSSScanParam_t));
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM;
 		pevent->event_len = ele_len;
-		/* Copy OBSS scan parameters */
+		/* Copy OBSS scan parameters; pass actual destination capacity
+		 * as dest_size so memcpy_ext() can enforce the bound even if
+		 * the length check above is somehow bypassed.
+		 */
 		memcpy_ext(pmpriv->adapter, (t_u8 *)pevent->event_buf,
 			   (t_u8 *)&pmpriv->curr_bss_params.bss_descriptor
 				   .poverlap_bss_scan_param->obss_scan_param,
-			   ele_len, pevent->event_len);
+			   ele_len,
+			   (t_u32)(sizeof(event_buf) - sizeof(mlan_event)));
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_OBSS_SCAN_PARAM,
 				pevent);
 	}
@@ -738,7 +764,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	chan_band_info *pchan_band_info = MNULL;
 	t_u8 radar_chan;
 	t_u8 bandwidth;
-	MrvlIEtypes_chan_band_reginfo_t *psta_info = MNULL;
+	chan_band_reginfo_t *psta_info = MNULL;
 	chan_band_reginfo_t *psta_reg_info = MNULL;
 	t_u16 enable = 0;
 	Event_Link_Lost *link_lost_evt = MNULL;
@@ -1032,6 +1058,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				(MrvlIEtypes_channel_band_t
 					 *)(pmadapter->event_body);
 			t_u8 channel = pchan_info->channel;
+			t_u8 bw = 0;
+			t_u8 band_width = 0;
 			chan_freq_power_t *cfp = MNULL;
 
 			DBG_HEXDUMP(MCMD_D, "chan band config",
@@ -1039,6 +1067,8 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				    sizeof(MrvlIEtypes_channel_band_t));
 			PRINTM(MEVENT, "Switch to channel %d success!\n",
 			       channel);
+			pmpriv->curr_channel = pchan_info->channel;
+			pmpriv->curr_bandcfg = pchan_info->bandcfg;
 #define MAX_CHANNEL_BAND_B 14
 			if (channel <= MAX_CHANNEL_BAND_B)
 				cfp = wlan_find_cfp_by_band_and_channel(
@@ -1077,11 +1107,18 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 				   sizeof(pchan_info->bandcfg),
 				   sizeof(pchan_band_info->bandcfg));
 			pchan_band_info->channel = pchan_info->channel;
-			if (pchan_band_info->bandcfg.chanWidth == CHAN_BW_80MHZ)
+			bw = BANDCFG_GET_CHANWIDTH(
+				pchan_band_info->bandcfg.chanWidthExt,
+				pchan_band_info->bandcfg.chanWidth);
+			if (bw == CHAN_BW_80MHZ)
+				band_width = CHANNEL_BW_80MHZ;
+			else if (bw == CHAN_BW_160MHZ)
+				band_width = CHANNEL_BW_160MHZ;
+			if (bw == CHAN_BW_80MHZ || bw == CHAN_BW_160MHZ)
 				pchan_band_info
 					->center_chan = wlan_get_center_freq_idx(
 					priv, pchan_band_info->bandcfg.chanBand,
-					pchan_info->channel, CHANNEL_BW_80MHZ);
+					pchan_info->channel, band_width);
 			wlan_recv_event(pmpriv,
 					MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE,
 					pevent);
@@ -1445,11 +1482,13 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		PRINTM(MEVENT, "EVENT: EVENT_SSU_DUMP_DMA\n");
 		if (!pmadapter->ssu_buf || !pmadapter->ssu_buf->pbuf)
 			break;
+
 		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
 				       pmadapter->ssu_buf->pbuf +
 					       pmadapter->ssu_buf->data_offset,
 				       pmadapter->ssu_buf->buf_pa,
 				       MLAN_SSU_BUF_SIZE, PCI_DMA_FROMDEVICE);
+
 		/* If ADMA is supported, SSU header could not be received with
 		 * SSU data. Instead, SSU header is received through this event.
 		 * So, copy the header into the buffer before passing the buffer
@@ -1493,23 +1532,31 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		break;
 	case EVENT_CLOUD_KEEP_ALIVE_RETRY_FAIL:
 		break;
-	case EVENT_WLS_FTM_COMPLETE:
+	case EVENT_WLS_FTM_GENERIC:
 		PRINTM(MEVENT, "EVENT: FTM_GENERIC_EVENT\n");
 		pevent->bss_index = pmpriv->bss_index;
 		event_ftm =
 			(Event_WLS_FTM_t *)(pmbuf->pbuf + pmbuf->data_offset);
-		if (event_ftm->sub_event_id == WLS_SUB_EVENT_RTT_RESULTS)
-			wlan_fill_hal_rtt_results(pmpriv, event_ftm,
-						  pmbuf->data_len, pevent);
-		else {
-			pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
-			// Ensure event_len does not exceed buffer size
-			pevent->event_len =
-				MIN(pmbuf->data_len, MAX_EVENT_SIZE);
-			memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
-				   pmbuf->pbuf + pmbuf->data_offset,
-				   pevent->event_len, pevent->event_len);
+		PRINTM(MEVENT, "EVENT: FTM_GENERIC_EVENT, sub_event: %d\n",
+		       event_ftm->sub_event_id);
+		if (event_ftm->sub_event_id == WLS_SUB_EVENT_FTM_COMPLETE ||
+		    event_ftm->sub_event_id == WLS_SUB_EVENT_FTM_FAIL) {
+			t_u8 is_failure = (event_ftm->sub_event_id ==
+					   WLS_SUB_EVENT_FTM_FAIL);
+			/* Send to Android/wifi_hal + iw PMSR path via
+			 * RTT_RESULT event. PASSTHRU for mlanwls is handled
+			 * below */
+			wlan_convert_to_wifi_rtt_result_v3(pmpriv, event_ftm,
+							   pmbuf->data_len,
+							   pevent, is_failure);
+			wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		}
+		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
+		// Ensure event_len does not exceed buffer size
+		pevent->event_len = MIN(pmbuf->data_len, MAX_EVENT_SIZE);
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset, pevent->event_len,
+			   pevent->event_len);
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		break;
 	case EVENT_VDLL_IND:
@@ -1601,8 +1648,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	case EVENT_CHANNEL_SWITCH_REGINFO:
 		PRINTM(MEVENT, "EVENT: Channel Switch Reginfo (%#x)\n",
 		       eventcause);
-		psta_info = (MrvlIEtypes_chan_band_reginfo_t
-				     *)(pmadapter->event_body);
+		psta_info = (chan_band_reginfo_t *)(pmadapter->event_body);
 		DBG_HEXDUMP(MCMD_D, "chan band reginfo", (t_u8 *)psta_info,
 			    sizeof(MrvlIEtypes_chan_band_reginfo_t));
 		/* Setup event buffer */

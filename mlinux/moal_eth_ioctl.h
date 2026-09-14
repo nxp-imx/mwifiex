@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
-
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file moal_eth_ioctl.h
  *
  * @brief This file contains definition for private IOCTL call.
@@ -7,25 +6,32 @@
  *
  * Copyright 2008-2026 NXP
  *
- * This software file (the File) is distributed by NXP
- * under the terms of the GNU General Public License Version 2, June 1991
- * (the License).  You may use, redistribute and/or modify the File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * NXP CONFIDENTIAL
+ * The source code contained or described herein and all documents related to
+ * the source code (Materials) are owned by NXP, its
+ * suppliers and/or its licensors. Title to the Materials remains with NXP,
+ * its suppliers and/or its licensors. The Materials contain
+ * trade secrets and proprietary and confidential information of NXP, its
+ * suppliers and/or its licensors. The Materials are protected by worldwide
+ * copyright and trade secret laws and treaty provisions. No part of the
+ * Materials may be used, copied, reproduced, modified, published, uploaded,
+ * posted, transmitted, distributed, or disclosed in any way without NXP's prior
+ * express written permission.
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
+ * No license under any patent, copyright, trade secret or other intellectual
+ * property right is granted to or conferred upon you by disclosure or delivery
+ * of the Materials, either expressly, by implication, inducement, estoppel or
+ * otherwise. Any license under such intellectual property rights must be
+ * express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
  *
  */
 
 /********************************************************
  * Change log:
  * 01/05/2012: initial version
- * ******************************************************
+ ********************************************************
  */
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
@@ -405,6 +411,8 @@ typedef struct _ssu_params_cfg {
 
 #define PRIV_CMD_CSI "csi"
 
+#define PRIV_CMD_KEEP_CONNECT "keep_connect"
+
 #define PRIV_CMD_BOOTSLEEP "bootsleep"
 
 /** Private command ID to config txwatchdog enable/disable */
@@ -724,6 +732,7 @@ typedef struct _mcast_aggr_group {
 } mcast_aggr_group, *pmcast_aggr_group;
 
 typedef struct _txrate_setting {
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 preamble : 2; /*BIT1-BIT0:
 			     *  For legacy 11b: preamble type
 			     *    00    = long
@@ -741,6 +750,7 @@ typedef struct _txrate_setting {
 			     *    10 = HE-MU
 			     *    11 = HE trigger based
 			     */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 bandwidth : 3; /* BIT2- BIT4
 			      * For 11n and 11ac traffic: Bandwidth
 			      *    0 = 20Mhz
@@ -772,6 +782,7 @@ typedef struct _txrate_setting {
 			      * Mhz of the preamble the primary 40 Mhz is
 			      * present.
 			      */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 shortGI : 2; /*BIT5- BIT6
 			    *  For legacy: not used
 			    *  For 11n: 00 = normal, 01 =shortGI, 10/11 =
@@ -783,20 +794,26 @@ typedef struct _txrate_setting {
 			    * 4xHELTF+GI0.8 usec if both DCM and STBC are 1
 			    *                4xHELTF+GI3.2 usec otherwise
 			    */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 stbc : 1; // BIT7, 0: no STBC; 1: STBC
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 dcm : 1; // BIT8, 0: no DCM; 1: DCM used.
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 adv_coding : 1; // BIT9, 0: BCC; 1: LDPC.
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 doppler : 2; /* BIT11-BIT10,
 00: Doppler0
 01: Doppler 1 with Mma =10
 10: Doppler 1 with Mma =20
 			    */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 max_pktext : 2; /*BIT12-BIT13:
 			       * Max packet extension
 			       *  0 - 0 usec
 			       *  1 - 8 usec
 			       *  2 - 16 usec.
 			       */
+	// coverity[misra_c_2012_rule_6_1_violation:SUPPRESS]
 	t_u16 reserverd : 2; // BIT14-BIT15
 } __ATTRIB_PACK__ txrate_setting;
 
@@ -921,5 +938,7 @@ typedef struct {
 #endif
 
 #define PRIV_CMD_ECSA_CNT_CFG "ecsacntcfg"
+
+#define PRIV_CMD_PROBE_REQ_RANDOM_SN "random_sn"
 
 #endif /* _WOAL_ETH_PRIV_H_ */

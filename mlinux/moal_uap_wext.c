@@ -6,25 +6,32 @@
  *
  * Copyright 2010-2021, 2025-2026 NXP
  *
- * This software file (the File) is distributed by NXP
- * under the terms of the GNU General Public License Version 2, June 1991
- * (the License).  You may use, redistribute and/or modify the File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * NXP CONFIDENTIAL
+ * The source code contained or described herein and all documents related to
+ * the source code (Materials) are owned by NXP, its
+ * suppliers and/or its licensors. Title to the Materials remains with NXP,
+ * its suppliers and/or its licensors. The Materials contain
+ * trade secrets and proprietary and confidential information of NXP, its
+ * suppliers and/or its licensors. The Materials are protected by worldwide
+ * copyright and trade secret laws and treaty provisions. No part of the
+ * Materials may be used, copied, reproduced, modified, published, uploaded,
+ * posted, transmitted, distributed, or disclosed in any way without NXP's prior
+ * express written permission.
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
+ * No license under any patent, copyright, trade secret or other intellectual
+ * property right is granted to or conferred upon you by disclosure or delivery
+ * of the Materials, either expressly, by implication, inducement, estoppel or
+ * otherwise. Any license under such intellectual property rights must be
+ * express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
  *
  */
 
 /************************************************************************
  * Change log:
  * 08/06/2010: initial version
- * **********************************************************************
+ ************************************************************************
  */
 
 #include "moal_main.h"
@@ -34,7 +41,7 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 typedef struct _chan_to_freq_t {
 	/** Channel */
@@ -131,7 +138,7 @@ static const struct iw_priv_args woal_uap_priv_args[] = {
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -374,6 +381,7 @@ static int woal_set_freq(struct net_device *dev, struct iw_request_info *info,
 		ret = -EFAULT;
 		goto done;
 	}
+	// coverity[UNUSED_VALUE:SUPPRESS]
 	i = ap_cfg->num_of_chan;
 
 	/* Initialize the invalid values so that the correct values
@@ -601,12 +609,15 @@ static int woal_set_encode(struct net_device *dev, struct iw_request_info *info,
 				pkey = &sys_cfg->wep_cfg.key0;
 			if (ap_cfg->wep_cfg.key1.is_default)
 				pkey = &sys_cfg->wep_cfg.key1;
-			if (ap_cfg->wep_cfg.key2.is_default)
+			if (ap_cfg->wep_cfg.key2.is_default) {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				pkey = &sys_cfg->wep_cfg.key2;
-			if (ap_cfg->wep_cfg.key3.is_default)
+			}
+			if (ap_cfg->wep_cfg.key3.is_default) {
+				// coverity[UNUSED_VALUE:SUPPRESS]
 				pkey = &sys_cfg->wep_cfg.key3;
-			else { /* Something wrong, select first key as default
-				*/
+			} else { /* Something wrong, select first key as default
+				  */
 				PRINTM(MERROR,
 				       "No default key set! Selecting first key.\n");
 				pkey = &sys_cfg->wep_cfg.key0;
@@ -1205,6 +1216,7 @@ static int woal_set_mlme(struct net_device *dev, struct iw_request_info *info,
 					sizeof(mlan_ds_sta_list),
 					sizeof(mlan_ds_sta_list));
 			kfree(req);
+			// coverity[UNUSED_VALUE:SUPPRESS]
 			req = NULL;
 		}
 		req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_bss));
@@ -1907,7 +1919,7 @@ static const iw_handler woal_private_handler[] = {
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #ifdef CONFIG_WIRELESS_EXT

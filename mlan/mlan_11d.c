@@ -6,24 +6,32 @@
  *
  *  Copyright 2008-2022, 2024-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -35,7 +43,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 #ifdef STA_SUPPORT
@@ -189,12 +197,12 @@ static chan_freq_power_t channel_freq_power_UN_6G[] = {
 	{233, 7115, TX_PWR_DEFAULT, MFALSE, {0x10, 0, 0}}};
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 #ifdef STA_SUPPORT
 /**
@@ -769,7 +777,7 @@ wlan_11d_set_domain_info(mlan_private *pmpriv, t_u16 band,
 
 /********************************************************
  * Global functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -1090,7 +1098,7 @@ wlan_cmd_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	HostCmd_DS_802_11D_DOMAIN_INFO *pdomain_info =
 		&pcmd->params.domain_info;
-	MrvlIEtypes_DomainParamSet_t *domain = &pdomain_info->domain;
+	MrvlIEtypes_DomainParamSet_t *domain = MNULL;
 	t_u8 no_of_sub_band = 0;
 	t_u8 *tlv = MNULL;
 	t_u8 i;
@@ -1147,8 +1155,6 @@ wlan_cmd_802_11d_custom_bcn_country_ie_info(mlan_private *pmpriv,
 		pcmd->size += sizeof(pdomain_info->action) +
 			      domain->header.len + sizeof(MrvlIEtypesHeader_t) +
 			      S_DS_GEN;
-
-		tlv += domain->header.len + sizeof(MrvlIEtypesHeader_t);
 	} else {
 		pcmd->size = sizeof(pdomain_info->action) + S_DS_GEN;
 	}

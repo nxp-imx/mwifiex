@@ -7,25 +7,33 @@
  *
  *  Copyright 2008-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 10/13/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -51,12 +59,12 @@
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /*******************************************************
  * Local Functions
- * ******************************************************
+ *******************************************************
  */
 
 /**
@@ -200,10 +208,21 @@ static mlan_status vdll_init(pmlan_adapter pmadapter)
 static t_void vdll_deinit(pmlan_adapter pmadapter)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	vdll_dnld_ctrl *ctrl = &pmadapter->vdll_ctrl;
 
 	ENTER();
 	if (pmadapter->vdll_ctrl.vdll_mem != MNULL) {
-		if (pcb->moal_vmalloc && pcb->moal_vfree)
+#if defined(PCIE)
+		if (pmadapter->vdll_ctrl.mem_for_dma) {
+			if (pcb->moal_unmap_memory(
+				    pmadapter->pmoal_handle, ctrl->vdll_mem,
+				    ctrl->buf_pa, ctrl->vdll_len,
+				    PCI_DMA_TODEVICE) == MLAN_STATUS_FAILURE)
+				PRINTM(MERROR,
+				       "VDLL: failed to moal_unmap_memory\n");
+		}
+#endif
+		if (pcb->moal_vmalloc && pcb->moal_vfree && !ctrl->mem_for_dma)
 			pcb->moal_vfree(pmadapter->pmoal_handle,
 					(t_u8 *)pmadapter->vdll_ctrl.vdll_mem);
 		else
@@ -224,7 +243,7 @@ static t_void vdll_deinit(pmlan_adapter pmadapter)
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -407,14 +426,34 @@ mlan_status wlan_allocate_adapter(pmlan_adapter pmadapter)
 		wlan_alloc_mlan_buffer(pmadapter,
 				       sizeof(opt_sleep_confirm_buffer), 0,
 				       MOAL_MALLOC_BUFFER);
+	if (!pmadapter->psleep_cfm) {
+		PRINTM(MERROR, "Failed to allocate SleepCfm buffer\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 #ifdef PCIE
 	/* Initialize PCIE ring buffer */
 	if (IS_PCIE(pmadapter->card_type)) {
-		ret = wlan_alloc_pcie_ring_buf(pmadapter);
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		ret = wlan_alloc_pcie_dummy_tx_buf(pmadapter);
 		if (ret != MLAN_STATUS_SUCCESS) {
 			PRINTM(MERROR,
+			       "Failed to allocate PCIE dummy tx buffer\n");
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+#endif
+		ret = wlan_alloc_pcie_ring_buf(pmadapter);
+		if (MLAN_STATUS_SUCCESS != ret) {
+			PRINTM(MERROR,
 			       "Failed to allocate PCIE host buffers\n");
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+			/* free the dummy tx buffer */
+			wlan_free_pcie_dummy_tx_buf(pmadapter);
+#endif
 			LEAVE();
 			return MLAN_STATUS_FAILURE;
 		}
@@ -630,7 +669,6 @@ mlan_status wlan_init_priv(pmlan_private priv)
 	}
 #endif
 	ret = wlan_add_bsspriotbl(priv);
-
 	LEAVE();
 	return ret;
 }
@@ -744,9 +782,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->ecsa_enable = MFALSE;
 	pmadapter->getlog_enable = MFALSE;
 
-	if (!pmadapter->init_para.ps_mode)
+	if (!pmadapter->init_para.ps_mode) {
 		pmadapter->ps_mode = DEFAULT_PS_MODE;
-	else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
+	} else if (pmadapter->init_para.ps_mode == MLAN_INIT_PARA_DISABLED)
 		pmadapter->ps_mode = Wlan802_11PowerModeCAM;
 	else
 		pmadapter->ps_mode = Wlan802_11PowerModePSP;
@@ -914,7 +952,6 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 
 	if (pmadapter->psleep_cfm) {
 		pmadapter->psleep_cfm->buf_type = MLAN_BUF_TYPE_CMD;
-		pmadapter->psleep_cfm->data_len = sizeof(OPT_Confirm_Sleep);
 		memset(pmadapter, &sleep_cfm_buf->ps_cfm_sleep, 0,
 		       sizeof(OPT_Confirm_Sleep));
 		sleep_cfm_buf->ps_cfm_sleep.command =
@@ -927,11 +964,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 		sleep_cfm_buf->ps_cfm_sleep.sleep_cfm.resp_ctrl =
 			wlan_cpu_to_le16(RESP_NEEDED);
 #ifdef USB
-		if (IS_USB(pmadapter->card_type)) {
+		if (IS_USB(pmadapter->card_type))
 			sleep_cfm_buf->hdr =
 				wlan_cpu_to_le32(MLAN_USB_TYPE_CMD);
-			pmadapter->psleep_cfm->data_len += MLAN_TYPE_LEN;
-		}
 #endif
 	}
 	memset(pmadapter, &pmadapter->sleep_params, 0,
@@ -1005,6 +1040,9 @@ t_void wlan_init_adapter(pmlan_adapter pmadapter)
 #endif
 	}
 #endif
+
+	pmadapter->probe_req_rand_sn = pmadapter->init_para.probe_req_rand_sn;
+
 	LEAVE();
 	return;
 }
@@ -1617,6 +1655,45 @@ mlan_status wlan_init_fw(pmlan_adapter pmadapter)
 	}
 #endif /* PCIE */
 #endif /* MFG_CMD_SUPPORT */
+#if defined(MFG_CMD_SUPPORT)
+	/* In MFG mode, send cal data to FW if available.
+	 * Normal init path sends cal data via init_cmd(), but MFG mode
+	 * skips init_cmd(). Queue the HostCmd_CMD_CFG_DATA command here
+	 * so it is processed during this init sequence. Enable this only for
+	 * Blackbird.
+	 */
+	if (pmadapter->mfg_mode == MTRUE && pmadapter->pcal_data &&
+	    pmadapter->cal_data_len > 0 && IS_CARDAW693(pmadapter->card_type)) {
+		pmlan_private cal_priv =
+			wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+		if (cal_priv) {
+			PRINTM(MMSG,
+			       "MFG mode: queuing cal data cmd (%d bytes)\n",
+			       pmadapter->cal_data_len);
+			ret = wlan_prepare_cmd(cal_priv, HostCmd_CMD_CFG_DATA,
+					       HostCmd_ACT_GEN_SET,
+					       OID_TYPE_CAL, MNULL, MNULL);
+			if (ret == MLAN_STATUS_SUCCESS) {
+				/*
+				 * Set last_init_cmd to CFG_DATA so the
+				 * init state machine in
+				 * wlan_process_cmdresp() can transition
+				 * hw_status from
+				 * WlanHardwareStatusInitializing to
+				 * WlanHardwareStatusInitdone when the
+				 * FW response arrives.
+				 */
+				pmadapter->last_init_cmd = HostCmd_CMD_CFG_DATA;
+				/* Data is copied into cmd buffer by
+				 * wlan_prepare_cmd, clear the pointer
+				 * so it is not used again.
+				 */
+				pmadapter->pcal_data = MNULL;
+				pmadapter->cal_data_len = 0;
+			}
+		}
+	}
+#endif /* MFG_CMD_SUPPORT && NO_EEPROM_SUPPORT */
 	if (wlan_is_cmd_pending(pmadapter)) {
 		/* Send the first command in queue and return */
 		if (mlan_main_process(pmadapter) == MLAN_STATUS_FAILURE)
@@ -1775,13 +1852,6 @@ static void wlan_update_hw_spec(pmlan_adapter pmadapter)
 				else
 					user_he_cap_5g_tlv->he_mac_cap[0] &=
 						~HE_MAC_CAP_TWT_REQ_SUPPORT;
-				PRINTM(MERROR,
-				       "LHX|hw_spec=%d, user_2g_he_cap=%p\n", i,
-				       pmadapter->priv[i]->user_2g_he_cap);
-				DBG_HEXDUMP(
-					MERROR, "LHX|hw_spec",
-					user_he_cap_2g_tlv->he_phy_cap,
-					sizeof(user_he_cap_2g_tlv->he_phy_cap));
 			}
 		}
 	}
@@ -1899,9 +1969,19 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		wlan_free_ssu_pcie_buf(pmadapter);
 		/* Free PCIE ring buffers */
 		wlan_free_pcie_ring_buf(pmadapter);
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+		/* free the dummy tx buffer */
+		wlan_free_pcie_dummy_tx_buf(pmadapter);
+#endif
 	}
 #endif
-	wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
+	if (pmadapter->pmlan_cmd_lock) {
+		PRINTM(MMSG, "Free adapter: Cancel all pending command\n");
+		wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
+	}
+
 	/* Free command buffer */
 	PRINTM(MINFO, "Free Command buffer\n");
 	wlan_free_cmd_buffer(pmadapter);

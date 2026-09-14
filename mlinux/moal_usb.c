@@ -7,25 +7,32 @@
  *
  * Copyright 2008-2021, 2024-2026 NXP
  *
- * This software file (the File) is distributed by NXP
- * under the terms of the GNU General Public License Version 2, June 1991
- * (the License).  You may use, redistribute and/or modify the File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * NXP CONFIDENTIAL
+ * The source code contained or described herein and all documents related to
+ * the source code (Materials) are owned by NXP, its
+ * suppliers and/or its licensors. Title to the Materials remains with NXP,
+ * its suppliers and/or its licensors. The Materials contain
+ * trade secrets and proprietary and confidential information of NXP, its
+ * suppliers and/or its licensors. The Materials are protected by worldwide
+ * copyright and trade secret laws and treaty provisions. No part of the
+ * Materials may be used, copied, reproduced, modified, published, uploaded,
+ * posted, transmitted, distributed, or disclosed in any way without NXP's prior
+ * express written permission.
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
+ * No license under any patent, copyright, trade secret or other intellectual
+ * property right is granted to or conferred upon you by disclosure or delivery
+ * of the Materials, either expressly, by implication, inducement, estoppel or
+ * otherwise. Any license under such intellectual property rights must be
+ * express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
  *
  */
 
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "moal_main.h"
@@ -34,7 +41,7 @@ extern struct semaphore AddRemoveCardSem;
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
@@ -177,18 +184,20 @@ static struct usb_driver REFDATA woal_usb_driver = {
 #endif /* CONFIG_PM */
 };
 
+MODULE_DEVICE_TABLE(usb, woal_usb_table);
+MODULE_DEVICE_TABLE(usb, woal_usb_table_skip_fwdnld);
 
 /* moal interface ops */
 static moal_if_ops usb_ops;
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
@@ -492,7 +501,7 @@ rx_ret:
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #if defined(USB9098) || defined(USB9097) || defined(USB8978) ||                \
@@ -1180,7 +1189,6 @@ static int woal_usb_probe(struct usb_interface *intf,
 	}
 error:
 	kfree(usb_cardp);
-	usb_cardp = NULL;
 	LEAVE();
 	return -ENXIO;
 }
@@ -1283,6 +1291,7 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	mlan_ds_ps_info pm_info;
 	int i;
 	int ret = 0;
+	int hs_actived = 0;
 
 	ENTER();
 
@@ -1325,9 +1334,29 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		goto done;
 	}
 
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			netif_device_detach(handle->priv[i]->netdev);
+		}
+	}
+
 	woal_sched_timeout(200);
 	/* Enable Host Sleep */
-	woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
+	hs_actived = woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
+
+	if (hs_actived) {
+		PRINTM(MCMND, "%s: HS actived!", __FUNCTION__);
+	} else {
+		PRINTM(MMSG, "HS not actived, suspend fail!");
+		handle->suspend_fail = MTRUE;
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i]) {
+				netif_device_attach(handle->priv[i]->netdev);
+			}
+		}
+		ret = -EBUSY;
+		goto done;
+	}
 
 	/* Indicate device suspended */
 	/* The flag must be set here before the usb_kill_urb() calls.
@@ -1336,10 +1365,6 @@ static int woal_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	 * between a suspended state and a 'disconnect' one.
 	 */
 	handle->is_suspended = MTRUE;
-	for (i = 0; i < handle->priv_num; i++) {
-		if (handle->priv[i])
-			netif_carrier_off(handle->priv[i]->netdev);
-	}
 
 	/* Unlink Rx cmd URB */
 	if (atomic_read(&cardp->rx_cmd_urb_pending) && cardp->rx_cmd.urb)
@@ -1417,10 +1442,11 @@ static int woal_usb_resume(struct usb_interface *intf)
 					       MLAN_RX_CMD_BUF_SIZE);
 	}
 
-	for (i = 0; i < handle->priv_num; i++)
-		if (handle->priv[i] &&
-		    handle->priv[i]->media_connected == MTRUE)
-			netif_carrier_on(handle->priv[i]->netdev);
+	for (i = 0; i < handle->priv_num; i++) {
+		if (handle->priv[i]) {
+			netif_device_attach(handle->priv[i]->netdev);
+		}
+	}
 
 	/* Disable Host Sleep */
 	if (handle->hs_activated)

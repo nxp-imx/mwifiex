@@ -6,25 +6,33 @@
  *
  *  Copyright 2009-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 02/05/2009: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -41,7 +49,7 @@
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -112,7 +120,7 @@ static mlan_status wlan_upload_uap_rx_packet(pmlan_adapter pmadapter,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function fill the txpd for tx packet
@@ -129,6 +137,7 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 	t_u8 *head_ptr = MNULL;
 	t_u32 pkt_type;
 	t_u32 tx_control;
+	t_u8 radio_idx = 0;
 	t_u8 dst_mac[MLAN_MAC_ADDR_LENGTH];
 	tx_ctrl *ctrl;
 
@@ -174,7 +183,8 @@ t_void *wlan_ops_uap_process_txpd(t_void *priv, pmlan_buffer pmbuf)
 		Tx_PD_SIZEOF(pmpriv->adapter));
 
 	/* Set the BSS number to TxPD */
-	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
+	plocal_tx_pd->bss_num =
+		TxPD_SET_BSS_NUM_RADIO_IDX(GET_BSS_NUM(pmpriv), radio_idx);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
 
 	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
@@ -343,10 +353,9 @@ mlan_status wlan_ops_uap_process_rx_packet(t_void *adapter, pmlan_buffer pmbuf)
 
 	if (priv->rx_pkt_info) {
 		ext_rate_info = (t_u8)(prx_pd->rx_info >> 16);
-		pmbuf->u.rx_info.data_rate =
-			wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
-						prx_pd->rate_info,
-						ext_rate_info);
+		pmbuf->u.rx_info.data_rate = wlan_index_to_data_rate(
+			priv->adapter, prx_pd->rx_rate, prx_pd->rate_info,
+			ext_rate_info, ext_rate_info & MBIT(6));
 		pmbuf->u.rx_info.channel =
 			(prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
 		pmbuf->u.rx_info.antenna = prx_pd->antenna;
@@ -820,8 +829,7 @@ mlan_status wlan_process_uap_rx_packet(mlan_private *priv, pmlan_buffer pmbuf)
 				if (dest_sta && !dest_sta->is_multi_ap) {
 					/* Destination is a fronthaul client
 					 * (3-address mode) Clear EASYMESH flag
-					 * to convert 4-addr to 3-addr
-					 */
+					 * to convert 4-addr to 3-addr */
 					pmbuf->flags &= ~MLAN_BUF_FLAG_EASYMESH;
 				}
 			}

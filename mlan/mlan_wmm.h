@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_wmm.h
  *
  *  @brief This file contains related macros, enum, and struct
@@ -7,25 +7,33 @@
  *
  *  Copyright 2008-2021, 2024-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /****************************************************
  * Change log:
  * 10/24/2008: initial version
- * **************************************************
+ ****************************************************
  */
 
 #ifndef _MLAN_WMM_H_
@@ -48,9 +56,9 @@ static INLINE t_u32 wlan_get_tid(pmlan_adapter pmadapter, praListTbl ptr)
 					    &ptr->buf_head, MNULL, MNULL);
 	LEAVE();
 
-	if (!mbuf)
+	if (!mbuf) {
 		return 0; // The default TID,BE
-	else
+	} else
 		return mbuf->priority;
 }
 
@@ -256,6 +264,14 @@ mlan_status wlan_wmm_cfg_ioctl(pmlan_adapter pmadapter,
 
 void wlan_wmm_update_sta_tx_rate(pmlan_private priv, t_u8 *mac,
 				 HostCmd_TX_RATE_QUERY *rate);
+
+t_u32 wlan_wmm_get_eht_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs,
+			    t_u32 dcm);
+
+t_u32 wlan_wmm_get_he_rate(t_u32 bw, t_u32 gi, t_u32 nss, t_u32 mcs);
+t_u32 wlan_wmm_get_vht_rate(t_u32 bw, t_u32 sgi, t_u32 nss, t_u32 mcs);
+t_u32 wlan_wmm_get_ht_rate(t_u32 bw, t_u32 sgi, t_u32 mcs);
+t_u32 wlan_wmm_get_legacy_rate(t_u32 rate_idx);
 
 void wlan_wmm_consume_byte_budget(raListTbl *ra_list, mlan_buffer *pmbuf);
 void wlan_wmm_consume_mpdu_budget(raListTbl *ra_list);

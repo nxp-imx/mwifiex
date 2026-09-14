@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_decl.h
  *
  *  @brief This file declares the generic data structures and APIs.
@@ -6,18 +6,26 @@
  *
  *  Copyright 2008-2022, 2024-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
@@ -277,12 +285,16 @@ typedef t_s32 t_sval;
 #define FW_RELOAD_PCIE_INBAND_RESET 6
 /** pcie reset through PDN from userspace*/
 #define FW_RELOAD_PCIE_PDN_FROM_USERSPACE 7
+/** OOB independent reset via host GPIO toggle (any interface) */
+#define FW_RELOAD_OOB_IND_RST 8
 /** auto fw reload enable */
 #define AUTO_FW_RELOAD_ENABLE MBIT(0)
 /** auto fw reload enable pcie inband reset */
 #define AUTO_FW_RELOAD_PCIE_INBAND_RESET MBIT(1)
 /** auto fw reload through PDn from Userspace method */
 #define AUTO_FW_RELOAD_PCIE_PDN_FROM_USERSPACE MBIT(2)
+/** auto fw reload through OOB IND RST GPIO toggle (any interface) */
+#define AUTO_FW_RELOAD_OOB_IND_RST MBIT(3)
 
 #ifdef PCIE
 /* Interrupt type */
@@ -362,6 +374,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define MLAN_SDIO_IO_PORT_MASK 0xfffff
 /** SDIO Block/Byte mode mask */
 #define MLAN_SDIO_BYTE_MODE_MASK 0x80000000
+/** SDIO OPCODE_MASK */
+#define MLAN_SDIO_OP_CODE_MASK 0x04000000
 #endif /* SDIO */
 
 /** SD Interface */
@@ -466,6 +480,8 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define CARD_SD9098 "SD9098"
 /** SD9177 Card */
 #define CARD_SD9177 "SDIW612"
+/** SDIW611 Card */
+#define CARD_SDIW611 "SDIW611"
 /** SD8801 Card */
 #define CARD_SD8801 "SD8801"
 /** SDIW624 Card */
@@ -656,6 +672,13 @@ typedef enum {
 #define MLAN_BUF_FLAG_XDP MBIT(20)
 #endif
 
+#define MLAN_BUF_FLAG_PN MBIT(22)
+
+#if defined(PCIE9098) || defined(PCIE9097) || defined(PCIEAW693) ||            \
+	defined(PCIEIW624)
+#define MLAN_BUF_FLAG_DUMMY_FRAME MBIT(23)
+#endif
+
 #ifdef DEBUG_LEVEL1
 /** Debug level bit definition */
 #define MMSG MBIT(0)
@@ -683,6 +706,8 @@ typedef enum {
 #ifdef SECURE_HOST
 #define MSHC_D MBIT(23)
 #endif
+#define MEMERG MBIT(24)
+
 #define MENTRY MBIT(28)
 #define MWARN MBIT(29)
 #define MINFO MBIT(30)
@@ -1046,19 +1071,34 @@ enum {
 	SEC_CHAN_BELOW = 3
 };
 
+// Usage: bw_ext : 1 bit and Chan BW : 2 bits
+#define BANDCFG_GET_CHANWIDTH(chanWidthExt, chanWidth)                         \
+	(((chanWidthExt)&1) ? (((chanWidth)&0x3) + 4) : ((chanWidth)&0x3))
+
+#define BANDCFG_SET_CHANWIDTH_EXT(chanWidth) ((((chanWidth)&0x7) >= 4) ? 1 : 0)
+
+#define BANDCFG_SET_CHANWIDTH(chanWidth) ((chanWidth)&0x3)
+typedef enum _chan_ext_t {
+	NO_CH_EXT = 0,
+	CH_EXT = 1,
+} bw_ext_t;
+
 /** channel bandwidth */
 enum {
 	CHAN_BW_20MHZ = 0,
 	CHAN_BW_10MHZ,
 	CHAN_BW_40MHZ,
 	CHAN_BW_80MHZ,
+	CHAN_BW_160MHZ,
+	CHAN_BW_8080MHZ,
+	CHAN_BW_5MHZ,
+	CHAN_BW_320HZ,
 };
 
 /** scan mode */
 enum {
 	SCAN_MODE_MANUAL = 0,
 	SCAN_MODE_ACS,
-	SCAN_MODE_USER,
 };
 
 /** DFS state */
@@ -1109,23 +1149,35 @@ typedef enum _dfs_moe_t {
 /** Band_Config_t */
 typedef MLAN_PACK_START struct _Band_Config_t {
 #ifdef BIG_ENDIAN_SUPPORT
-	/** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
-	t_u8 scanMode : 2;
+	/** Channel Width Ext - (0)=normal BW, (1)=extended BW (160MHz/320MHz)
+	 */
+	t_u8 chanWidthExt : 1;
+	/** Channel Selection Mode - (0)=manual, (1)=ACS */
+	t_u8 scanMode : 1;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
 	t_u8 chan2Offset : 2;
-	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	/** Channel Width - when bw_ext=0: (00)=20MHz, (01)=10MHz, (10)=40MHz,
+	 * (11)=80MHz
+	 *   			  - when bw_ext=1: (00)=160MHz, (01)=80+80MHz,
+	 * (10)=5MHz, (11)=320MHz */
 	t_u8 chanWidth : 2;
 	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
 #else
 	/** Band Info - (00)=2.4GHz, (01)=5GHz, (10)=6GHz */
 	t_u8 chanBand : 2;
-	/** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	/** Channel Width - when bw_ext=0: (00)=20MHz, (01)=10MHz, (10)=40MHz,
+	 * (11)=80MHz
+	 *   			  - when bw_ext=1: (00)=160MHz, (01)=80+80MHz,
+	 * (10)=5MHz, (11)=320MHz */
 	t_u8 chanWidth : 2;
 	/** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
 	t_u8 chan2Offset : 2;
-	/** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
-	t_u8 scanMode : 2;
+	/** Channel Selection Mode - (0)=manual, (1)=ACS */
+	t_u8 scanMode : 1;
+	/** Channel Width Ext - (0)=normal BW, (1)=extended BW (160MHz/320MHz)
+	 */
+	t_u8 chanWidthExt : 1;
 #endif
 } MLAN_PACK_END Band_Config_t;
 
@@ -1992,7 +2044,7 @@ typedef struct {
 
 /** wifi rate */
 typedef struct {
-	/** 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
+	/** 0: OFDM, 1:CCK, 2:HT 3:VHT 4:HE 5:EHT 6..7 reserved */
 	t_u32 preamble : 3;
 	/** 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
 	t_u32 nss : 2;
@@ -2008,12 +2060,33 @@ typedef struct {
 	t_u32 bitrate;
 } wifi_rate;
 
+typedef enum {
+	WIFI_LL_PREAMBLE_OFDM = 0,
+	WIFI_LL_PREAMBLE_CCK = 1,
+	WIFI_LL_PREAMBLE_HT = 2,
+	WIFI_LL_PREAMBLE_VHT = 3,
+	WIFI_LL_PREAMBLE_HE = 4,
+	WIFI_LL_PREAMBLE_EHT = 5,
+} wifi_ll_preamble;
+
 /** wifi Preamble type */
 typedef enum {
-	WIFI_PREAMBLE_LEGACY = 0x1,
-	WIFI_PREAMBLE_HT = 0x2,
-	WIFI_PREAMBLE_VHT = 0x4
-} wifi_preamble;
+	WIFI_RTT_PREAMBLE_LEGACY = 0x1,
+	WIFI_RTT_PREAMBLE_HT = 0x2,
+	WIFI_RTT_PREAMBLE_VHT = 0x4,
+	WIFI_RTT_PREAMBLE_HE = 0x8,
+	WIFI_RTT_PREAMBLE_EHT = 0x10,
+} wifi_rtt_preamble;
+
+/** FTM Session Control Actions */
+#define FTM_SESSION_CTRL_ACTION_START 1
+#define FTM_SESSION_CTRL_ACTION_STOP 2
+
+/* Specific action codes  for FTM_SESSION_CTRL_ACTION_START */
+#define FTM_SESSION_ASSOCIATED 1 /* Associated FTM */
+#define FTM_SESSION_ASSOCIATED_PMF 3 /* Associated with PMF */
+#define FTM_SESSION_UNASSOCIATED 4 /* Unassociated FTM */
+#define FTM_SESSION_UNASSOCIATED_PASN 5 /* Unassociated with PASN */
 
 /** timeval */
 typedef struct {
@@ -2328,6 +2401,39 @@ typedef struct {
 	0x00000080 /** all contention (min, max, avg) statistics (within ac    \
 		     statisctics) */
 
+/*Defaults set as per ftm.conf */
+#define FTM_DEFAULT_BURST_DURATION 11
+#define FTM_DEFAULT_BURST_PERIOD 5
+#define FTM_DEFAULT_PER_BURST_FTM 10
+#define FTM_DEFAULT_ASAP 1
+#define FTM_DEFAULT_MIN_DELTA_FTM 35
+#define FTM_DEFAULT_IFTM_TMO 10
+#define MAX_I2R_STS_UPTO80_DEFAULT 0
+#define MAX_R2I_STS_UPTO80_DEFAULT 1
+#define AZ_MEASUREMENT_FREQ_DEFAULT 2
+#define AZ_BURST_SPACING_MS_DEFAULT 20
+#define AZ_BURST_DURATION_MS_DEFAULT 50
+
+#define HZ_TO_MSEC_FACTOR 1000
+#define DOT11AZ_MAX_PER_BURST 4
+#define DOT11AZ_PER_BURST 2
+#define PROTO_TYPE_NTB 1
+#define PROTO_TYPE_TB 2
+/** FTM session config TLV channel_spacing encoding (from ftm.conf)
+ *  2.4/5GHz HT:  9=HT20,  11=HT40
+ *  5GHz VHT:     10=VHT20, 12=VHT40, 13=VHT80
+ *  6GHz HE:      17=HE20,  18=HE40,  19=HE80
+ */
+#define FTM_CHAN_SPACING_HT20 9
+#define FTM_CHAN_SPACING_HT40 11
+#define FTM_CHAN_SPACING_VHT20 10
+#define FTM_CHAN_SPACING_VHT40 12
+#define FTM_CHAN_SPACING_VHT80 13
+#define FTM_CHAN_SPACING_VHT160 14
+#define FTM_CHAN_SPACING_HE20 17
+#define FTM_CHAN_SPACING_HE40 18
+#define FTM_CHAN_SPACING_HE80 19
+
 /** =========== Define Copied from HAL START =========== */
 /** Ranging status */
 typedef enum {
@@ -2385,7 +2491,11 @@ typedef enum {
 /** RTT Type */
 typedef enum {
 	RTT_TYPE_1_SIDED = 0x1,
+	/* Deprecated. Use RTT_TYPE_2_SIDED_11MC instead. */
 	RTT_TYPE_2_SIDED = 0x2,
+	RTT_TYPE_2_SIDED_11MC = RTT_TYPE_2_SIDED,
+	RTT_TYPE_2_SIDED_11AZ_NTB = 0x3,
+	RTT_TYPE_2_SIDED_11AZ_NTB_SECURE = 0x4,
 } wifi_rtt_type;
 
 /** RTT configuration */
@@ -2448,10 +2558,23 @@ typedef struct {
 	 */
 	t_u32 burst_duration;
 	/** RTT preamble to be used in the RTT frames */
-	wifi_preamble preamble;
+	wifi_rtt_preamble preamble;
 	/** RTT BW to be used in the RTT frames */
 	wifi_rtt_bw bw;
 } wifi_rtt_config;
+
+/** RTT v3 configuration (11az NTB support)
+ */
+typedef struct {
+	/** Base RTT config */
+	wifi_rtt_config rtt_config;
+	/** 11az Non-Trigger-based (non-TB) minimum measurement time in
+	 *  units of 100 microseconds */
+	t_u64 ntb_min_measurement_time;
+	/** 11az Non-Trigger-based (non-TB) maximum measurement time in
+	 *  units of 10 milliseconds */
+	t_u64 ntb_max_measurement_time;
+} wifi_rtt_config_v3;
 
 /** Format of information elements found in the beacon */
 typedef struct {
@@ -2533,10 +2656,46 @@ typedef struct {
 	wifi_information_element *LCR;
 } wifi_rtt_result;
 
+/** RTT results version 2 */
+typedef struct {
+	/** Legacy wifi rtt result structure */
+	wifi_rtt_result rtt_result;
+	/** Primary channel frequency (MHz) used for ranging measurements.
+	 *  If frequency is unknown, set to UNSPECIFIED (-1). */
+	int frequency;
+	/** RTT packet bandwidth — average BW of the BWs of RTT frames,
+	 *  capped to a specific valid RttBw. */
+	wifi_rtt_bw packet_bw;
+} wifi_rtt_result_v2;
+
+/** RTT results v3 (11az support) */
+typedef struct {
+	/** v2 result */
+	wifi_rtt_result_v2 rtt_result_v2;
+	/** Multiple transmissions of HE-LTF symbols in an HE (I2R) Ranging NDP.
+	 *  A value of 1 indicates no repetitions. */
+	t_u8 i2r_tx_ltf_repetition_count;
+	/** Multiple transmissions of HE-LTF symbols in an HE (R2I) Ranging NDP.
+	 *  A value of 1 indicates no repetitions. */
+	t_u8 r2i_tx_ltf_repetition_count;
+	/** Minimum non-TB dynamic measurement time in units of 100 microseconds
+	 *  assigned by the 11az responder. */
+	t_u64 ntb_min_measurement_time;
+	/** Maximum non-TB dynamic measurement time in units of 10 milliseconds
+	 *  assigned by the 11az responder. */
+	t_u64 ntb_max_measurement_time;
+	/** Number of transmit space-time streams used. */
+	t_u8 num_tx_sts;
+	/** Number of receive space-time streams used. */
+	t_u8 num_rx_sts;
+} wifi_rtt_result_v3;
+
 /** Preamble definition for bit mask used in wifi_rtt_capabilities */
 #define PREAMBLE_LEGACY 0x1
 #define PREAMBLE_HT 0x2
 #define PREAMBLE_VHT 0x4
+#define PREAMBLE_HE 0x8
+#define PREAMBLE_EHT 0x10
 
 /** BW definition for bit mask used in wifi_rtt_capabilities */
 #define BW_5_SUPPORT 0x1
@@ -2545,6 +2704,7 @@ typedef struct {
 #define BW_40_SUPPORT 0x8
 #define BW_80_SUPPORT 0x10
 #define BW_160_SUPPORT 0x20
+#define BW_320_SUPPORT 0x40
 
 /** RTT Capabilities */
 typedef struct {
@@ -2567,6 +2727,20 @@ typedef struct {
 	 */
 	t_u8 mc_version;
 } wifi_rtt_capabilities;
+
+/** RTT Capabilities v3 (11az support) */
+typedef struct {
+	/** Legacy/11mc capabilities */
+	wifi_rtt_capabilities rtt_capab;
+	/** bit mask indicates what 11az preamble is supported by initiator */
+	t_u8 az_preamble_support;
+	/** bit mask indicates what 11az BW is supported by initiator */
+	t_u8 az_bw_support;
+	/** if 11az NTB initiator mode is supported */
+	t_u8 ntb_initiator_supported;
+	/** if 11az NTB responder mode is supported */
+	t_u8 ntb_responder_supported;
+} wifi_rtt_capabilities_v3;
 
 /** API for setting LCI/LCR information to be provided to a requestor */
 typedef enum {
@@ -2617,12 +2791,13 @@ typedef struct {
  */
 typedef struct {
 	wifi_channel_info channel;
-	wifi_preamble preamble;
+	wifi_rtt_preamble preamble;
 } wifi_rtt_responder;
 
 /** =========== Define Copied from HAL END =========== */
 
 #define MAX_RTT_CONFIG_NUM 10
+#define FTM_SESSION_TIMEOUT_MS 10000 /* 10 s per AP */
 
 /** RTT config params */
 typedef struct wifi_rtt_config_params {
@@ -2630,8 +2805,11 @@ typedef struct wifi_rtt_config_params {
 	wifi_rtt_config rtt_config[MAX_RTT_CONFIG_NUM];
 } wifi_rtt_config_params_t;
 
-#define OID_RTT_REQUEST 0
-#define OID_RTT_CANCEL 1
+/** RTT v3 config params container */
+typedef struct wifi_rtt_config_params_v3 {
+	t_u8 rtt_config_num;
+	wifi_rtt_config_v3 rtt_config_v3[MAX_RTT_CONFIG_NUM];
+} wifi_rtt_config_params_v3_t;
 
 /** Pass RTT result element between mlan and moal */
 typedef struct {
@@ -2673,6 +2851,8 @@ typedef struct _mlan_callbacks {
 	mlan_status (*moal_get_fw_data)(t_void *pmoal, t_u32 offset, t_u32 len,
 					t_u8 *pbuf);
 	mlan_status (*moal_get_vdll_data)(t_void *pmoal, t_u32 len, t_u8 *pbuf);
+	/** moal_get_suspend_state */
+	t_u8 (*moal_get_suspend_state)(t_void *pmoal);
 	/** moal_get_hw_spec_complete */
 	mlan_status (*moal_get_hw_spec_complete)(t_void *pmoal,
 						 mlan_status status,
@@ -2761,6 +2941,13 @@ typedef struct _mlan_callbacks {
 	/** moal_unmap_memory */
 	mlan_status (*moal_unmap_memory)(t_void *pmoal, t_u8 *pbuf,
 					 t_u64 buf_pa, t_u32 size, t_u32 flag);
+	/**
+	 * moal_dma_wmb - DMA write memory barrier.
+	 * Ensures TX/RX descriptor writes are visible to the device
+	 * before the doorbell (write pointer) register is updated.
+	 * Maps to dma_wmb() = DMB OSHST on ARM64, no-op on x86.
+	 */
+	t_void (*moal_dma_wmb)(t_void *pmoal);
 #endif /* PCIE */
 	/** moal_memset */
 	t_void *(*moal_memset)(t_void *pmoal, t_void *pmem, t_u8 byte,
@@ -2863,6 +3050,7 @@ typedef struct _mlan_callbacks {
 #endif
 	t_u32 (*moal_crc32_be)(t_u32 initial_crc, t_u8 const *data,
 			       unsigned long len);
+	t_u32 (*moal_random)(t_void *pmoal);
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */
@@ -2907,11 +3095,10 @@ typedef struct _mlan_callbacks {
 #endif
 
 /*
- * #define DRV_MODE_NAN                 MBIT(4)
- * #define DRV_MODE_11P                 MBIT(5)
- * #define DRV_MODE_MAC80211            MBIT(6)
- * #define DRV_MODE_DFS                 MBIT(7)
- */
+#define DRV_MODE_NAN                 MBIT(4)
+#define DRV_MODE_11P                 MBIT(5)
+#define DRV_MODE_MAC80211            MBIT(6)
+#define DRV_MODE_DFS                 MBIT(7)*/
 #define DRV_MODE_MASK (MBIT(4) | MBIT(5) | MBIT(6) | MBIT(7))
 
 /** mlan_device data structure */
@@ -2993,6 +3180,10 @@ typedef struct _mlan_device {
 	t_u8 indication_gpio;
 	/** Dynamic MIMO-SISO switch for hscfg*/
 	t_u8 hs_mimo_switch;
+	/** Suspend with sdio pull down mode */
+	t_u32 sdio_pd;
+	/** Partial IO mode */
+	t_u32 partial_io;
 	/** channel time and mode for DRCS*/
 	t_u32 drcs_chantime_mode;
 #ifdef USB
@@ -3049,6 +3240,8 @@ typedef struct _mlan_device {
 #ifdef SECURE_HOST
 	t_u32 secure_host;
 #endif
+	/** random SN in probe req */
+	t_u8 probe_req_rand_sn;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

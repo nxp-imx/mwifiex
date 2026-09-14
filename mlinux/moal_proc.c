@@ -1,30 +1,37 @@
 // SPDX-License-Identifier: GPL-2.0
-/**  @file moal_proc.c
+/** @file moal_proc.c
  *
  * @brief This file contains functions for proc file.
  *
  *
  * Copyright 2008-2022, 2025-2026 NXP
  *
- * This software file (the File) is distributed by NXP
- * under the terms of the GNU General Public License Version 2, June 1991
- * (the License).  You may use, redistribute and/or modify the File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * NXP CONFIDENTIAL
+ * The source code contained or described herein and all documents related to
+ * the source code (Materials) are owned by NXP, its
+ * suppliers and/or its licensors. Title to the Materials remains with NXP,
+ * its suppliers and/or its licensors. The Materials contain
+ * trade secrets and proprietary and confidential information of NXP, its
+ * suppliers and/or its licensors. The Materials are protected by worldwide
+ * copyright and trade secret laws and treaty provisions. No part of the
+ * Materials may be used, copied, reproduced, modified, published, uploaded,
+ * posted, transmitted, distributed, or disclosed in any way without NXP's prior
+ * express written permission.
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
+ * No license under any patent, copyright, trade secret or other intellectual
+ * property right is granted to or conferred upon you by disclosure or delivery
+ * of the Materials, either expressly, by implication, inducement, estoppel or
+ * otherwise. Any license under such intellectual property rights must be
+ * express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
  *
  */
 
 /********************************************************
  * Change log:
  * 10/21/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "moal_main.h"
@@ -42,7 +49,7 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 #ifdef CONFIG_PROC_FS
 #define STATUS_PROC "wifi_status"
@@ -70,13 +77,13 @@ static char *szModes[] = {
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 int wifi_status;
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Proc read function for info
@@ -713,6 +720,20 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 #endif /* SD */
 	if (!strncmp(databuf, "debug_dump", strlen("debug_dump"))) {
 		PRINTM(MERROR, "Recevie debug_dump command\n");
+#ifdef DUMP_TO_PROC
+		/* Check if firmware dump already exists */
+		if (handle->fw_dump_buf && handle->fw_dump_len > 0) {
+			PRINTM(MERROR,
+			       "====================================================\n"
+			       "Firmware dump already exists!\n"
+			       "      Size: %ld bytes\n"
+			       "      Read the existing dump first.\n"
+			       "====================================================\n",
+			       (long)handle->fw_dump_len);
+			ret = -EEXIST;
+			goto done;
+		}
+#endif
 #ifdef USB
 		if (!IS_USB(handle->card_type))
 #endif
@@ -873,6 +894,12 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		     strlen("set_debug_temperature=")) &&
 	    count > strlen("set_debug_temperature="))
 		cmd = MFG_CMD_SET_DEBUG_TEMPERATURE;
+#if defined(SD9177)
+	if (!strncmp(databuf, "rf_rx_bssid_filter_addr=",
+		     strlen("rf_rx_bssid_filter_addr=")) &&
+	    count > strlen("rf_rx_bssid_filter_addr="))
+		cmd = MFG_CMD_RF_RX_BSSID_FILTER;
+#endif
 	if (!strncmp(databuf, "generic_cmd=", strlen("generic_cmd=")) &&
 	    count > strlen("generic_cmd="))
 		cmd = MFG_CMD_CONFIG_GENERIC_CMD;
@@ -891,6 +918,9 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		    MLAN_STATUS_SUCCESS)
 			PRINTM(MERROR, "Could not set Antenna Diversity!!\n");
 	}
+#ifdef DUMP_TO_PROC
+done:
+#endif
 	MODULE_PUT;
 	kfree(databuf);
 	LEAVE();
@@ -1140,6 +1170,18 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 			handle->rf_data->mfg_debug_temp.rfu_temperature[0][1],
 			handle->rf_data->mfg_debug_temp.rfu_temperature[1][0],
 			handle->rf_data->mfg_debug_temp.rfu_temperature[1][1]);
+
+#if defined(SD9177)
+		seq_puts(sfp, "\n");
+		seq_puts(sfp, "rf_rx_bssid_filter_addr=");
+		seq_printf(sfp, " %02x:%02x:%02x:%02x:%02x:%02x\n",
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[0],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[1],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[2],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[3],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[4],
+			   handle->rf_data->mfg_rx_bssid_addr.bssid[5]);
+#endif
 
 		seq_puts(sfp, "\n");
 
@@ -1502,7 +1544,7 @@ static const struct file_operations wifi_status_proc_fops = {
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief Convert string to number

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /** @file mlan_hostcmd_ids.h
  *
  *  @brief This file contains host command ID definitions.
@@ -6,18 +6,26 @@
  *
  *  Copyright 2023-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
@@ -165,8 +173,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	/** Host Command ID : Cal data dnld */
 	ENUM_ELEMENT(HostCmd_CMD_CFG_DATA, 0x008f),
 
+#ifdef SDIO
 	/** Host Command ID : SDIO pull control */
 	ENUM_ELEMENT(HostCmd_CMD_SDIO_PULL_CTRL, 0x0093),
+#endif
 
 	/** Host Command ID : ECL system clock configuration */
 	ENUM_ELEMENT(HostCmd_CMD_ECL_SYSTEM_CLOCK_CONFIG, 0x0094),
@@ -418,7 +428,7 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 	ENUM_ELEMENT(HostCmd_CMD_RATE_ADAPT_CFG, 0x0264),
 	ENUM_ELEMENT(HostCmd_CMD_CCK_DESENSE_CFG, 0x0265),
 
-	ENUM_ELEMENT(HostCmd_CMD_FTM_CONFIG_SESSION_PARAMS, 0x024d),
+	ENUM_ELEMENT(HostCmd_CMD_FTM_SESSION_CFG, 0x024d),
 	ENUM_ELEMENT(HostCmd_CMD_FTM_SESSION_CTRL, 0x024e),
 	ENUM_ELEMENT(HostCmd_CMD_FTM_FEATURE_CTRL, 0x024f),
 	ENUM_ELEMENT(HostCmd_CMD_WLS_REQ_FTM_RANGE, 0x0250),
@@ -506,6 +516,10 @@ ENUM_ELEMENT(HostCmd_CMD_GET_HW_SPEC, 0x0003),
 
 	/** Host Command ID : Channel switch count configuration */
 	ENUM_ELEMENT(HostCmd_CMD_APCMD_CHAN_SWITCH_CNT_CFG, 0x0298),
+#if defined(PCIE)
+	/** Host Command ID : VDLL ENTRYS DETAILS */
+	ENUM_ELEMENT(HostCmd_CMD_VDLL_ENTRYS_DETAILS, 0X0299),
+#endif
 
 	/* Always keep this last */
 	ENUM_ELEMENT_LAST(__HostCmd_CMD_Last)

@@ -1,19 +1,27 @@
 #  File: Makefile
 #
-#  Copyright 2008-2025 NXP
+#  Copyright 2014-2026 NXP
 #
-#  This software file (the File) is distributed by NXP
-#  under the terms of the GNU General Public License Version 2, June 1991
-#  (the License).  You may use, redistribute and/or modify the File in
-#  accordance with the terms and conditions of the License, a copy of which
-#  is available by writing to the Free Software Foundation, Inc.,
-#  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
-#  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+#  NXP CONFIDENTIAL
+#  The source code contained or described herein and all documents related to
+#  the source code (Materials) are owned by NXP, its
+#  suppliers and/or its licensors. Title to the Materials remains with NXP,
+#  its suppliers and/or its licensors. The Materials contain
+#  trade secrets and proprietary and confidential information of NXP, its
+#  suppliers and/or its licensors. The Materials are protected by worldwide copyright
+#  and trade secret laws and treaty provisions. No part of the Materials may be
+#  used, copied, reproduced, modified, published, uploaded, posted,
+#  transmitted, distributed, or disclosed in any way without NXP's prior
+#  express written permission.
 #
-#  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
-#  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
-#  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
-#  this warranty disclaimer.
+#  No license under any patent, copyright, trade secret or other intellectual
+#  property right is granted to or conferred upon you by disclosure or delivery
+#  of the Materials, either expressly, by implication, inducement, estoppel or
+#  otherwise. Any license under such intellectual property rights must be
+#  express and approved by NXP in writing.
+#
+#  Alternatively, this software may be distributed under the terms of GPL v2.
+#  SPDX-License-Identifier:    GPL-2.0
 #
 
 CONFIG_COMPATDIR=n
@@ -35,23 +43,23 @@ CONFIG_SD8897=n
 CONFIG_USB8897=n
 CONFIG_PCIE8897=n
 CONFIG_SD8977=n
-CONFIG_SD8978=y
+CONFIG_SD8978=n
 CONFIG_USB8978=n
-CONFIG_SD8987=y
+CONFIG_SD8987=n
 CONFIG_SD9097=n
 CONFIG_SD9177=y
 CONFIG_USB9097=n
 CONFIG_PCIE9097=n
-CONFIG_SD9098=y
+CONFIG_SD9098=n
 CONFIG_USB9098=n
-CONFIG_PCIE9098=y
-CONFIG_SDIW610=y
-CONFIG_USBIW610=y
+CONFIG_PCIE9098=n
+CONFIG_SDIW610=n
+CONFIG_USBIW610=n
 CONFIG_SDIW624=n
-CONFIG_SDAW693=y
+CONFIG_SDAW693=n
 CONFIG_PCIEIW624=n
 CONFIG_USBIW624=n
-CONFIG_PCIEAW693=y
+CONFIG_PCIEAW693=n
 
 
 # Debug Option
@@ -71,7 +79,7 @@ CONFIG_UAP_SUPPORT=y
 CONFIG_WIFI_DIRECT_SUPPORT=y
 
 # Enable WIFIDISPLAY support
-CONFIG_WIFI_DISPLAY_SUPPORT=n
+CONFIG_WIFI_DISPLAY_SUPPORT=y
 
 # Re-association in driver
 CONFIG_REASSOCIATION=y
@@ -97,12 +105,17 @@ CONFIG_SDIO_SUSPEND_RESUME=y
 # DFS testing support
 CONFIG_DFS_TESTING_SUPPORT=y
 
-# Multi-channel support
-CONFIG_MULTI_CHAN_SUPPORT=y
 
 
+CONFIG_LINUX_THERMAL_SUPPORT=n
+
+# Disable DUMP overwrite flag by default
+CONFIG_OVERWRITE_DUMP_DATA=n
 # Enable driver/FW dump to proc
 CONFIG_DUMP_TO_PROC=y
+
+# Enable FW dump via driver print
+CONFIG_FWDUMP_VIA_PRINT=n
 
 # Enable tasklet support (PCIe only)
 CONFIG_TASKLET_SUPPORT=n
@@ -111,9 +124,10 @@ CONFIG_TASKLET_SUPPORT=n
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
+ifeq ($(ANDROID),)
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
-        ccflags-y += -Wno-packed-bitfield-compat
+	ccflags-y += -Wno-packed-bitfield-compat
 endif
 WimpGCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1 -d.`| bc )
 ifeq ($(shell test $(WimpGCC_VERSION) -ge 7; echo $$?),0)
@@ -132,11 +146,81 @@ endif
 #ccflags-y += -Wstringop-truncation
 #ccflags-y += -Wmisleading-indentation
 #ccflags-y += -Wunused-const-variable
+endif
 
+#############################################################################
+# Enable Feature Config
+#############################################################################
+ifneq ($(KERNELRELEASE),)
+ifeq ($(CONFIG_WIRELESS_EXT),y)
+ifeq ($(CONFIG_WEXT_PRIV),y)
+	# Enable WEXT for STA
+	CONFIG_STA_WEXT=y
+	# Enable WEXT for uAP
+	CONFIG_UAP_WEXT=y
+else
+# Disable WEXT for STA
+	CONFIG_STA_WEXT=n
+# Disable WEXT for uAP
+	CONFIG_UAP_WEXT=n
+endif
+endif
+# Enable CFG80211 for STA
+ifeq ($(CONFIG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CONFIG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+# OpenWrt
+ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
+ifeq ($(CPTCFG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CPTCFG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+endif
+# Enable CFG80211 for uAP
+ifeq ($(CONFIG_CFG80211),y)
+	CONFIG_UAP_CFG80211=y
+else ifeq ($(CONFIG_CFG80211),m)
+	CONFIG_UAP_CFG80211=y
+else
+	CONFIG_UAP_CFG80211=n
+endif
+# OpenWrt
+ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
+ifeq ($(CPTCFG_CFG80211),y)
+	CONFIG_STA_CFG80211=y
+else ifeq ($(CPTCFG_CFG80211),m)
+	CONFIG_STA_CFG80211=y
+else
+	CONFIG_STA_CFG80211=n
+endif
+endif
+#--------------------------------------------------
+# Disable Feature if STA and UAP is not supported
+#--------------------------------------------------
+ifneq ($(CONFIG_STA_SUPPORT),y)
+	CONFIG_WIFI_DIRECT_SUPPORT=n
+	CONFIG_WIFI_DISPLAY_SUPPORT=n
+	CONFIG_STA_WEXT=n
+	CONFIG_STA_CFG80211=n
+endif
+ifneq ($(CONFIG_UAP_SUPPORT),y)
+	CONFIG_WIFI_DIRECT_SUPPORT=n
+	CONFIG_WIFI_DISPLAY_SUPPORT=n
+	CONFIG_UAP_WEXT=n
+	CONFIG_UAP_CFG80211=n
+endif
+endif
 #############################################################################
 # Select Platform Tools
 #############################################################################
-ifeq ($(ANDROID_BUILD), yes)
+ifeq ($(ANDROID), yes)
 # Set target Android SDK version.
 # ANDROID_SDK_VERSION 29 corresponds to Android 10 Android 10
 # ANDROID_SDK_VERSION 30 corresponds to Android 11 (Red Velvet Cake)
@@ -150,6 +234,7 @@ ifeq ($(ANDROID_BUILD), yes)
     KERNELDIR ?= $(KERNEL_SRC)
     ccflags-y += -DANDROID_SDK_VERSION=$(ANDROID_SDK_VERSION)
     CONFIG_SD8978=n
+    CONFIG_LINUX_THERMAL_SUPPORT=n
 endif
 
 MODEXT = ko
@@ -174,7 +259,7 @@ endif
 
 LD += -S
 
-BINDIR = bin_wlan
+BINDIR = ../bin_wlan
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -182,8 +267,8 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 #############################################################################
 
 	ccflags-y += -I$(KERNELDIR)/include
-	ccflags-y += -DMLAN_RELEASE_VERSION='"543.p18"'
-	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"543.p18"'
+	ccflags-y += -DMLAN_RELEASE_VERSION='"552.p22"'
+	ccflags-y += -DMLAN_EXT_RELEASE_VERSION='"552.p22"'
 	ccflags-y += -DREL_MILESTONE='""'
 
 	ccflags-y += -DFPNUM='"92"'
@@ -207,18 +292,11 @@ ifeq ($(CONFIG_STA_SUPPORT),y)
 ifeq ($(CONFIG_REASSOCIATION),y)
 	ccflags-y += -DREASSOCIATION
 endif
-else
-CONFIG_WIFI_DIRECT_SUPPORT=n
-CONFIG_STA_WEXT=n
-CONFIG_STA_CFG80211=n
 endif
 
 ifeq ($(CONFIG_UAP_SUPPORT),y)
 	ccflags-y += -DUAP_SUPPORT
-else
-CONFIG_WIFI_DIRECT_SUPPORT=n
-CONFIG_UAP_WEXT=n
-CONFIG_UAP_CFG80211=n
+
 endif
 
 ifeq ($(CONFIG_WIFI_DIRECT_SUPPORT),y)
@@ -244,10 +322,6 @@ ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	ccflags-y += -DSDIO_SUSPEND_RESUME
 endif
 
-ifeq ($(CONFIG_MULTI_CHAN_SUPPORT),y)
-	ccflags-y += -DMULTI_CHAN_SUPPORT
-endif
-
 ifeq ($(CONFIG_DFS_TESTING_SUPPORT),y)
 	ccflags-y += -DDFS_TESTING_SUPPORT
 endif
@@ -262,6 +336,17 @@ ifeq ($(CONFIG_DUMP_TO_PROC), y)
 	ccflags-y += -DDUMP_TO_PROC
 endif
 
+
+ifeq ($(CONFIG_OVERWRITE_DUMP_DATA), y)
+ifneq ($(CONFIG_DUMP_TO_PROC),y)
+        ccflags-y += -DOVERWRITE_DUMP_DATA
+endif
+endif
+
+ifeq ($(CONFIG_FWDUMP_VIA_PRINT), y)
+	ccflags-y += -DFWDUMP_VIA_PRINT
+endif
+
 ifeq ($(CONFIG_TASKLET_SUPPORT), y)
 	ccflags-y += -DTASKLET_SUPPORT
 endif
@@ -270,11 +355,6 @@ ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
 	ccflags-y += -DOPENWRT
 endif
 
-ifeq ($(CONFIG_T50), y)
-	ccflags-y += -DT50
-	ccflags-y += -DT40
-	ccflags-y += -DT3T
-endif
 
 ifeq ($(CONFIG_SD8887),y)
 	CONFIG_SDIO=y
@@ -313,7 +393,7 @@ ifeq ($(CONFIG_SDAW693),y)
 	ccflags-y += -DSDAW693
 	CONFIG_SECURE_HOST=n
         ifeq ($(CONFIG_SECURE_HOST), y)
-            BINDIR = secure_hostif_wlan_bin
+            BINDIR = ../secure_hostif_wlan_bin
         endif
 endif
 ifeq ($(CONFIG_SD9177),y)
@@ -373,8 +453,11 @@ ifeq ($(ANDROID_BUILD), 1)
 endif
 	CONFIG_SECURE_HOST=n
         ifeq ($(CONFIG_SECURE_HOST), y)
-            BINDIR = secure_hostif_wlan_bin
+            BINDIR = ../secure_hostif_wlan_bin
         endif
+#ifdef LINUX_THERMAL_SUPPORT
+	CONFIG_LINUX_THERMAL_SUPPORT=y
+#endif
 endif
 ifeq ($(CONFIG_SDIO),y)
 	ccflags-y += -DSDIO
@@ -392,96 +475,13 @@ ifeq ($(CONFIG_XDP_SUPPORT), y)
 	ccflags-y += -DXDP_SUPPORT
 endif
 
-ifeq ($(CONFIG_MAC80211_SUPPORT),y)
-	ccflags-y += -DMAC80211_SUPPORT
-endif
-ifeq ($(CONFIG_MAC80211_SUPPORT_UAP),y)
-	ccflags-y += -DMAC80211_SUPPORT_UAP
-endif
-ifeq ($(CONFIG_MAC80211_SUPPORT_MESH),y)
-	ccflags-y += -DMAC80211_SUPPORT_MESH
-endif
+
 
 #############################################################################
 # Make Targets
 #############################################################################
 
 ifneq ($(KERNELRELEASE),)
-
-ifeq ($(CONFIG_WIRELESS_EXT),y)
-ifeq ($(CONFIG_WEXT_PRIV),y)
-	# Enable WEXT for STA
-	CONFIG_STA_WEXT=y
-	# Enable WEXT for uAP
-	CONFIG_UAP_WEXT=y
-else
-# Disable WEXT for STA
-	CONFIG_STA_WEXT=n
-# Disable WEXT for uAP
-	CONFIG_UAP_WEXT=n
-endif
-endif
-
-# Enable CFG80211 for STA
-ifeq ($(CONFIG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CONFIG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-
-# OpenWrt
-ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
-ifeq ($(CPTCFG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CPTCFG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-endif
-
-# Enable CFG80211 for uAP
-ifeq ($(CONFIG_CFG80211),y)
-	CONFIG_UAP_CFG80211=y
-else
-ifeq ($(CONFIG_CFG80211),m)
-	CONFIG_UAP_CFG80211=y
-else
-	CONFIG_UAP_CFG80211=n
-endif
-endif
-
-# OpenWrt
-ifeq ($(CONFIG_OPENWRT_SUPPORT), y)
-ifeq ($(CPTCFG_CFG80211),y)
-	CONFIG_STA_CFG80211=y
-else
-ifeq ($(CPTCFG_CFG80211),m)
-	CONFIG_STA_CFG80211=y
-else
-	CONFIG_STA_CFG80211=n
-endif
-endif
-endif
-
-ifneq ($(CONFIG_STA_SUPPORT),y)
-	CONFIG_WIFI_DIRECT_SUPPORT=n
-	CONFIG_STA_WEXT=n
-	CONFIG_STA_CFG80211=n
-endif
-
-ifneq ($(CONFIG_UAP_SUPPORT),y)
-	CONFIG_WIFI_DIRECT_SUPPORT=n
-	CONFIG_UAP_WEXT=n
-	CONFIG_UAP_CFG80211=n
-endif
-
 ifeq ($(CONFIG_STA_SUPPORT),y)
 ifeq ($(CONFIG_STA_WEXT),y)
 	ccflags-y += -DSTA_WEXT
@@ -519,8 +519,13 @@ endif
 
 # Default for out-of-tree builds
 CONFIG_NXP_WLAN_DRIVER ?= m
+
 ifeq ($(CONFIG_SECURE_HOST), y)
        ccflags-y += -DSECURE_HOST
+endif
+
+ifeq ($(CONFIG_LINUX_THERMAL_SUPPORT), y)
+       ccflags-y += -DLINUX_THERMAL_SUPPORT
 endif
 
 MOALOBJS =	mlinux/moal_main.o \
@@ -528,6 +533,10 @@ MOALOBJS =	mlinux/moal_main.o \
 		mlinux/moal_shim.o \
 		mlinux/moal_eth_ioctl.o \
 		mlinux/moal_init.o
+
+ifeq ($(CONFIG_LINUX_THERMAL_SUPPORT), y)
+MOALOBJS += mlinux/moal_thermal.o
+endif
 
 MLANOBJS =	mlan/mlan_shim.o mlan/mlan_init.o \
 		mlan/mlan_txrx.o \
@@ -596,10 +605,7 @@ endif
 
 
 
-ifeq ($(CONFIG_MAC80211_SUPPORT),y)
-MOALOBJS += mlinux/moal_mac80211.o
-MLANOBJS += mlan/mlan_mac80211.o
-endif
+
 
 
 
@@ -630,6 +636,8 @@ MOALOBJS += nanotls/lib/src/blockwise.o \
             mlinux/moal_shc.o
 endif
 
+
+
 obj-$(CONFIG_NXP_WLAN_DRIVER) := mlan.o
 mlan-objs := $(MLANOBJS)
 
@@ -657,10 +665,33 @@ endif
 
 export		CC LD ccflags-y KERNELDIR
 
-.PHONY: mapp/mlanutl clean distclean
+ifeq ($(CONFIG_STA_SUPPORT),y)
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+.PHONY: mapp/mlanconfig mapp/mlan2040coex mapp/mlanevent mapp/uaputl mapp/mlanutl clean distclean
+else
+.PHONY: mapp/mlanconfig mapp/mlanevent mapp/mlan2040coex mapp/mlanutl mapp/nanapp clean distclean
+endif
+else
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+.PHONY: mapp/mlanevent mapp/uaputl clean distclean
+endif
+endif
 	@echo "Finished Making NXP Wlan Linux Driver"
 
+ifeq ($(CONFIG_STA_SUPPORT),y)
+mapp/mlanconfig:
 mapp/mlanutl:
+	$(MAKE) -C $@
+mapp/mlan2040coex:
+	$(MAKE) -C $@
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+mapp/uaputl:
+	$(MAKE) -C $@
+endif
+mapp/mlanevent:
+	$(MAKE) -C $@
+mapp/nanapp:
 	$(MAKE) -C $@
 
 echo:
@@ -671,11 +702,26 @@ appsbuild:
 		mkdir $(BINDIR); \
 	fi
 
+ifeq ($(CONFIG_STA_SUPPORT),y)
+	cp -f README_MLAN $(BINDIR)
 	cp -f README $(BINDIR)
-
+	cp -f README_RBC $(BINDIR)
 ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
+	$(MAKE) -C mapp/mlan2040coex $@ INSTALLDIR=$(BINDIR)
+endif
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+	cp -f README_UAP $(BINDIR)
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/uaputl $@ INSTALLDIR=$(BINDIR)
+endif
+endif
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/mlanevent $@ INSTALLDIR=$(BINDIR)
+endif
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/nanapp $@ INSTALLDIR=$(BINDIR)
 endif
 
 build:		echo default
@@ -687,12 +733,29 @@ build:		echo default
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
 
 	cp -f moal.$(MODEXT) $(BINDIR)/moal$(DBG).$(MODEXT)
+	cp -rpf script/load $(BINDIR)/
+	cp -rpf script/unload $(BINDIR)/
 
+ifeq ($(CONFIG_STA_SUPPORT),y)
+	cp -f README_MLAN $(BINDIR)
 	cp -f README $(BINDIR)
-
+	cp -f README_RBC $(BINDIR)
 ifneq ($(APPDIR),)
-	cp -rf mapp/mlanconfig/config $(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
+	$(MAKE) -C mapp/mlan2040coex $@ INSTALLDIR=$(BINDIR)
+endif
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+	cp -f README_UAP $(BINDIR)
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/uaputl $@ INSTALLDIR=$(BINDIR)
+endif
+endif
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/mlanevent $@ INSTALLDIR=$(BINDIR)
+endif
+ifneq ($(APPDIR),)
+	$(MAKE) -C mapp/nanapp $@ INSTALLDIR=$(BINDIR)
 endif
 
 clean:
@@ -705,9 +768,19 @@ clean:
 	-find . -name "modules.order" -exec rm {} \;
 	-find . -name ".*.dwo" -exec rm {} \;
 	-find . -name "*dwo" -exec rm {} \;
+	-find . -name "*.mod" -exec rm {} \;
+	-find . -name ".*.o.d" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
+ifeq ($(CONFIG_STA_SUPPORT),y)
 	$(MAKE) -C mapp/mlanutl $@
+	$(MAKE) -C mapp/mlan2040coex $@
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+	$(MAKE) -C mapp/uaputl $@
+endif
+	$(MAKE) -C mapp/mlanevent $@
+	$(MAKE) -C mapp/nanapp $@
 endif
 #ifdef SDIO
 #endif // SDIO
@@ -734,9 +807,19 @@ distclean:
 	-find . -name "*.mod.c" -exec rm {} \;
 	-find . -name ".*.dwo" -exec rm {} \;
 	-find . -name "*dwo" -exec rm {} \;
+	-find . -name "*.mod" -exec rm {} \;
+	-find . -name ".*.o.d" -exec rm {} \;
 	-rm -rf .tmp_versions
 ifneq ($(APPDIR),)
+ifeq ($(CONFIG_STA_SUPPORT),y)
 	$(MAKE) -C mapp/mlanutl $@
+	$(MAKE) -C mapp/mlan2040coex $@
+endif
+ifeq ($(CONFIG_UAP_SUPPORT),y)
+	$(MAKE) -C mapp/uaputl $@
+endif
+	$(MAKE) -C mapp/mlanevent $@
+	$(MAKE) -C mapp/nanapp $@
 endif
 
 # End of file

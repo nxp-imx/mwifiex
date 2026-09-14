@@ -7,25 +7,33 @@
  *
  *  Copyright 2008-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 11/10/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -39,17 +47,17 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 /**
  *  @brief This function will dispatch amsdu packet and
@@ -247,7 +255,7 @@ static t_void wlan_11n_display_tbl_ptr(pmlan_adapter pmadapter,
 {
 	ENTER();
 
-	DBG_HEXDUMP(MDAT_D, "Reorder ptr", rx_reor_tbl_ptr->rx_reorder_ptr,
+	DBG_HEXDUMP(MINFO, "Reorder ptr", rx_reor_tbl_ptr->rx_reorder_ptr,
 		    sizeof(t_void *) * rx_reor_tbl_ptr->win_size);
 
 	LEAVE();
@@ -477,6 +485,13 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 		return;
 	}
 
+	if (win_size == 0 || win_size > priv->add_ba_param.rx_win_size) {
+		PRINTM(MERROR,
+		       "wlan_11n_create_rxreorder_tbl: invalid win_size = %d\n",
+		       win_size);
+		LEAVE();
+		return;
+	}
 	/*
 	 * If we get a TID, ta pair which is already present dispatch all the
 	 * packets and move the window size until the ssn
@@ -561,7 +576,7 @@ static t_void wlan_11n_create_rxreorder_tbl(mlan_private *priv, t_u8 *ta,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -1333,8 +1348,8 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	MrvlIEtypes_RxBaSync_t *tlv_rxba = (MrvlIEtypes_RxBaSync_t *)event_buf;
 	t_u16 tlv_type, tlv_len;
 	RxReorderTbl *rx_reor_tbl_ptr = MNULL;
-	t_u8 i, j;
-	t_u16 seq_num = 0;
+	t_u8 j;
+	t_u16 seq_num = 0, i;
 	int tlv_buf_left = len;
 
 	ENTER();
@@ -1343,22 +1358,19 @@ void wlan_11n_rxba_sync_event(mlan_private *priv, t_u8 *event_buf, t_u16 len)
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypes_RxBaSync_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv_rxba->header.type);
 		tlv_len = wlan_le16_to_cpu(tlv_rxba->header.len);
+
 		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
 			PRINTM(MERROR,
-			       "11n rxba sync event: incorrect tlv, tlv->len=%d tlv_buf_left=%d\n",
+			       "11n rxba sync event: incorrect tlv length, tlv->len=%d tlv_buf_left=%d\n",
 			       tlv_len, tlv_buf_left);
 			break;
 		}
+
 		if (tlv_type != TLV_TYPE_RXBA_SYNC) {
 			PRINTM(MERROR, "Wrong TLV id=0x%x\n", tlv_type);
 			goto done;
 		}
-		if (tlv_buf_left < (sizeof(MrvlIEtypesHeader_t) + tlv_len)) {
-			PRINTM(MERROR,
-			       "11n rxba sync event: wrong tlv, tlv_len=%d, tlv_buf_left=%d\n",
-			       tlv_len, tlv_buf_left);
-			break;
-		}
+
 		tlv_rxba->seq_num = wlan_le16_to_cpu(tlv_rxba->seq_num);
 		tlv_rxba->bitmap_len = wlan_le16_to_cpu(tlv_rxba->bitmap_len);
 		PRINTM(MEVENT, MACSTR " tid=%d seq_num=%d bitmap_len=%d\n",

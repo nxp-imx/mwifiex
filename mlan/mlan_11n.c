@@ -6,25 +6,33 @@
  *
  *  Copyright 2008-2021, 2025-2026 NXP
  *
- *  This software file (the File) is distributed by NXP
- *  under the terms of the GNU General Public License Version 2, June 1991
- *  (the License).  You may use, redistribute and/or modify the File in
- *  accordance with the terms and conditions of the License, a copy of which
- *  is available by writing to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *  NXP CONFIDENTIAL
+ *  The source code contained or described herein and all documents related to
+ *  the source code (Materials) are owned by NXP, its
+ *  suppliers and/or its licensors. Title to the Materials remains with NXP,
+ *  its suppliers and/or its licensors. The Materials contain
+ *  trade secrets and proprietary and confidential information of NXP, its
+ *  suppliers and/or its licensors. The Materials are protected by worldwide
+ *  copyright and trade secret laws and treaty provisions. No part of the
+ *  Materials may be used, copied, reproduced, modified, published, uploaded,
+ *  posted, transmitted, distributed, or disclosed in any way without NXP's
+ *  prior express written permission.
  *
- *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- *  this warranty disclaimer.
+ *  No license under any patent, copyright, trade secret or other intellectual
+ *  property right is granted to or conferred upon you by disclosure or delivery
+ *  of the Materials, either expressly, by implication, inducement, estoppel or
+ *  otherwise. Any license under such intellectual property rights must be
+ *  express and approved by NXP in writing.
+ *
+ *  Alternatively, this software may be distributed under the terms of GPL v2.
+ *
  *
  */
 
 /********************************************************
  * Change log:
  * 11/10/2008: initial version
- * ******************************************************
+ ********************************************************
  */
 
 #include "mlan.h"
@@ -39,17 +47,17 @@
 
 /********************************************************
  * Local Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Global Variables
- * ******************************************************
+ ********************************************************
  */
 
 /********************************************************
  * Local Functions
- * ******************************************************
+ ********************************************************
  */
 
 /**
@@ -529,12 +537,12 @@ static mlan_status wlan_11n_ioctl_addba_param(pmlan_adapter pmadapter,
 		timeout = pmpriv->add_ba_param.timeout;
 		/* WACP supports the MAX TX ba timeout */
 		if (pmadapter->tx_ba_timeout_support ||
-		    pmadapter->init_para.wacp_mode)
+		    pmadapter->init_para.wacp_mode) {
 			pmpriv->add_ba_param.timeout =
 				cfg->param.addba_param.timeout;
-		else
+		} else {
 			pmpriv->add_ba_param.timeout = 0;
-
+		}
 		pmpriv->add_ba_param.tx_win_size =
 			cfg->param.addba_param.txwinsize;
 
@@ -1296,7 +1304,7 @@ static TxBAStreamTbl *wlan_11n_get_txbastream_status(mlan_private *priv,
 
 /********************************************************
  * Global Functions
- * ******************************************************
+ ********************************************************
  */
 
 #ifdef STA_SUPPORT
@@ -1789,14 +1797,14 @@ mlan_status wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 	TxBAStreamTbl *ptx_ba_tbl;
 	raListTbl *ra_list = MNULL;
 	int tid_down;
-
 	ENTER();
 
 	padd_ba_rsp->block_ack_param_set =
 		wlan_le16_to_cpu(padd_ba_rsp->block_ack_param_set);
 	padd_ba_rsp->block_ack_tmo =
 		wlan_le16_to_cpu(padd_ba_rsp->block_ack_tmo);
-	padd_ba_rsp->ssn = (wlan_le16_to_cpu(padd_ba_rsp->ssn)) & SSN_MASK;
+	padd_ba_rsp->ssn =
+		((wlan_le16_to_cpu(padd_ba_rsp->ssn)) & SSN_MASK) >> 4;
 	padd_ba_rsp->status_code = wlan_le16_to_cpu(padd_ba_rsp->status_code);
 
 	tid = (padd_ba_rsp->block_ack_param_set & BLOCKACKPARAM_TID_MASK) >>
@@ -2560,7 +2568,7 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 
 		/** check if need support 80+80MHZ */
 		/** reset the 2 spatial stream rate for 80 + 80 Mhz */
-		if (wlan_is_80_80_support(pmpriv, pbss_desc))
+		if (wlan_is_bw_160or8080_support(pmpriv, pbss_desc))
 			pht_cap->ht_cap.supported_mcs_set[1] = 0;
 		HEXDUMP("HT_CAPABILITIES IE", (t_u8 *)pht_cap,
 			sizeof(MrvlIETypes_HTCap_t));
@@ -2593,13 +2601,10 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		    (!(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_80MHZ)) &&
 		    wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band) &&
 		    pbss_desc->pvht_oprat &&
-		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
-			pchan_list->chan_scan_param[0].bandcfg.chanWidth =
-				CHAN_BW_80MHZ;
-			pchan_list->chan_scan_param[0].bandcfg.chan2Offset =
-				GET_SECONDARYCHAN(
-					pbss_desc->pht_info->ht_info.field2);
-			pbss_desc->curr_bandwidth = BW_80MHZ;
+		    pbss_desc->pvht_oprat->chan_width >= VHT_OPER_CHWD_80MHZ) {
+			wlan_get_ac_ap_bandconfig(
+				pmadapter, pbss_desc,
+				&pchan_list->chan_scan_param[0].bandcfg);
 		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 			   ISALLOWED_CHANWIDTH40(
 				   pbss_desc->pht_info->ht_info.field2) &&
@@ -2611,12 +2616,15 @@ int wlan_cmd_append_11n_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			pbss_desc->curr_bandwidth = BW_40MHZ;
 			pchan_list->chan_scan_param[0].bandcfg.chanWidth =
 				CHAN_BW_40MHZ;
+			pchan_list->chan_scan_param[0].bandcfg.chanWidthExt =
+				NO_CH_EXT;
 		}
+
 		pchan_list->chan_scan_param[0].bandcfg.scanMode =
-			SCAN_MODE_USER;
-		HEXDUMP("ChanList", (t_u8 *)pchan_list,
-			sizeof(ChanScanParamSet_t) +
-				sizeof(MrvlIEtypesHeader_t));
+			SCAN_MODE_MANUAL;
+		DBG_HEXDUMP(MCMD_D, "AssocChanList", (t_u8 *)pchan_list,
+			    sizeof(ChanScanParamSet_t) +
+				    sizeof(MrvlIEtypesHeader_t));
 		HEXDUMP("pht_info", (t_u8 *)pbss_desc->pht_info,
 			sizeof(MrvlIETypes_HTInfo_t) - 2);
 		*ppbuffer += sizeof(ChanScanParamSet_t) +
