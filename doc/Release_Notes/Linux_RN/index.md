@@ -42,6 +42,7 @@
         -   [Known issues](topics/known_issues_04.md)
         -   [Notes](topics/notes_04.md)
     -   [SDIO-UART IW610](topics/sd-uart_iw610.md)
+        -   [Bluetooth controller certification](topics/bluetooth_controller_certification_iw610_sd.md)
         -   [Wi-Fi throughput](topics/wi-fi_throughput_iw610.md)
         -   [EU conformance tests](topics/eu_conformance_tests_iw610.md)
         -   [Bug fixes/feature enhancements](topics/bug_fixes_feature_enhancements_iw610.md)

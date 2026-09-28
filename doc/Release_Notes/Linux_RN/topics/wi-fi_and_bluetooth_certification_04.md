@@ -13,7 +13,8 @@ The certification is obtained with the following combinations.
 -   STA \| VU
 -   STA \| FFD
 -   STA \| Security Improvement
--   STA \| WPA-SAE R3
+-   STA \| WPA2
+-   STA \| WPA3
 -   STA \| Agile Multiband \(MBO\)
 
 ## Bluetooth controller certification

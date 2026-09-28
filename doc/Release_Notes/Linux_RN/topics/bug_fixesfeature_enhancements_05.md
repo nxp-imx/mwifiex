@@ -84,3 +84,9 @@ None.
 
 **Bluetooth**
 - Fixed same EN_RAND value being generated on every AES-CCM encryption, causing predictable random number in BT pairing.
+
+## Firmware version 16.92.21.p156.2 to 16.92.21.p156.4
+
+**Wi-Fi**
+- Fixed the Wi-Fi driver becoming unresponsive to connections with scans returning zero results after long-duration traffic.
+- Fixed frequent kernel crashes seen on real-time (PREEMPT_RT) kernels.

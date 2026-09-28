@@ -95,6 +95,7 @@
 |802.1x EAP authentication Methods \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |WPA2-Enterprise GCMP \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|N|Y|
 |WPA2-Enterprise Mixed Mode \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
+|WPA3 Enterprise \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |WPA3-Enterprise \(Suite-B\) \|National Security Algorithm \(CSNA\) \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|N|Y|
 |802.11w - PMF \(Protected Management Frames\) \| WPA Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |WAPI \| WPA Supplicant|Y|Y|Y|Y|Y|N|Y|N|Y|
@@ -105,7 +106,6 @@
 |STA - WPA+WPA2 PSK Mixed Mode \| Embedded Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |STA - WPA3-SAE \(Simultaneous authentication of Equals\) \| Embedded Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |STA - 802.11w - PMF \(Protected Management Frames\) \| Embedded Supplicant|Y|Y|Y|Y|Y|Y|Y|Y|Y|
-|WPA3 Enterprise|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |**802.11r Fast BSS Transition \(FT\)**||||||||||
 |FT over Air and over DS \(Distribution System\) \[Open, WPA2 security\]|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 |**802.11k**||||||||||

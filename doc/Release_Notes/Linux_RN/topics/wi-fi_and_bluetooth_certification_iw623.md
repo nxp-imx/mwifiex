@@ -13,7 +13,8 @@ The Wi-Fi and Bluetooth certification is obtained with the following combination
 -   STA – uAP \| PMF
 -   STA \| VU
 -   STA – uAP \| Security improvement
--   STA – uAP \| WPA-SAE R3
+-   STA – uAP \| WPA2
+-   STA – uAP \| WPA3
 -   STA – uAP \| WPS2.0
 -   STA \| Enterprise Suite B
 -   STA \| Agile Multiband \(MBO\)

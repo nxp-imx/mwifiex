@@ -81,3 +81,22 @@
 - HFP audio becomes distorted at a Bluetooth RSSI level of -65 dBm in the presence of ongoing WLAN Tx traffic
 - Sometimes Wi-fi Association failed during HFP call
 - WLAN TP is reduced when HFP call ongoing and DUT is in peripheral role
+
+## Firmware version 18.99.2.p230.2 to 18.99.7.p308
+
+**WI-Fi**
+- STAUT connected to a 5 GHz external AP experiences a spurious LINK_LOST (reason 0x0) because the off-channel GAS/ANQP query triggered by wpa_supplicant is misinterpreted as a beacon-miss link loss.
+- 8th external STA (ex-STA) failed to connect to the AP-UT when the max_sta=8 driver load parameter was configured.
+- FW crash seen randomly when STAUT is connected with 5GHz AP.
+- FW crash observed in stress test when executing netmon.
+- During AP (2GHz) + AP (5GHz) LTE coex operation, when Type0 messages are sent back-to-back for both interfaces without any delay, stability issues like FW crash or Ex-STA disconnect is seen (Issues are NOT seen for single AP interface or if there is slight delay between the back-to-back Type0 messages.)
+- Improvement: Wi-Fi Channel avoidance feature working when uAP is enabled using uap1 MAC2 (single AP mode)
+- Kernel panic observed due to an S2MPU fault triggered after Suspend-to-RAM (S2R) in the head unit.
+- Fixed Coverity reported issues on Wi-Fi Driver
+
+**Bluetooth/LE**
+- Connection timeout observed in scatternet scenario where 1st link is having active eSCO and 2nd link in sniff (T_sniff=800).
+
+**Coex**
+- WLAN RX throughput optimization when doing Paging/Inq parallelly with other BT profile active.
+- Wifi Throughput optimization in low Wi-Fi and BT antenna isolation (~15db).

@@ -11,7 +11,8 @@ The Wi-Fi and Bluetooth certification is obtained with the following combination
 -   STA \| PMF
 -   STA \| FFD
 -   STA \| Security Improvement
--   STA \| WPA3-R3
+-   STA \| WPA2
+-   STA \| WPA3
 -   STA \| VU
 
 See [AN12976](references.md).

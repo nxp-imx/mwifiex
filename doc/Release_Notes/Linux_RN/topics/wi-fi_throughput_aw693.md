@@ -54,17 +54,26 @@ STA Mode Throughput - BGN Mode|2.4 GHz Band|20 MHz
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|119|125|127|130|
-|WPA2-AES|119|118|127|123|
-|WPA3-SAE|118|124|127|127|
+|Open Security|118|125|127|128|
+|WPA2-AES|118|123|127|127|
+|WPA3-SAE|119|123|127|126|
+
+STA Mode Throughput - BGN Mode|2.4 GHz Band|40 MHz
+
+|Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
+|--------|--------------|---------------|--------------|--------------|
+|Direction|TX|RX|TX|RX|
+|Open Security|221|251|252|260|
+|WPA2-AES|220|249|250|270|
+|WPA3-SAE|222|248|251|256|
 
 STA Mode Throughput - AN Mode|5 GHz Band|20 MHz (HT)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|120|126|127|129|
-|WPA2-AES|120|125|127|128|
+|Open Security|120|126|127|131|
+|WPA2-AES|119|125|127|129|
 |WPA3-SAE|120|125|127|128|
 
 STA Mode Throughput - AN Mode|5 GHz Band|40 MHz (HT)
@@ -72,26 +81,26 @@ STA Mode Throughput - AN Mode|5 GHz Band|40 MHz (HT)
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|227|254|253|263|
-|WPA2-AES|232|252|253|257|
-|WPA3-SAE|226|252|253|260|
+|Open Security|228|254|253|263|
+|WPA2-AES|229|251|253|261|
+|WPA3-SAE|227|251|253|260|
 
 STA Mode Throughput - AC Mode|5 GHz Band|20 MHz (VHT)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|147|153|155|158|
-|WPA2-AES|147|152|155|157|
-|WPA3-SAE|147|152|156|156|
+|Open Security|147|153|156|158|
+|WPA2-AES|147|152|155|154|
+|WPA3-SAE|147|152|155|154|
 
 STA Mode Throughput - AC Mode|5 GHz Band|40 MHz (VHT)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|336|346|354|352|
-|WPA2-AES|333|340|353|355|
+|Open Security|336|346|354|357|
+|WPA2-AES|333|344|353|355|
 |WPA3-SAE|334|344|353|356|
 
 STA Mode Throughput - AC Mode|5 GHz Band|80 MHz (VHT)
@@ -99,69 +108,75 @@ STA Mode Throughput - AC Mode|5 GHz Band|80 MHz (VHT)
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|709|713|752|759|
-|WPA2-AES|713|711|748|754|
-|WPA3-SAE|712|710|748|754|
+|Open Security|710|714|752|759|
+|WPA2-AES|714|711|747|753|
+|WPA3-SAE|714|710|747|755|
 
 STA Mode Throughput - AX Mode|2.4 GHz Band|20 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|236|239|255|245|
-|WPA2-AES|236|235|254|242|
-|WPA3-SAE|237|230|255|243|
+|Open Security|236|237|255|245|
+|WPA2-AES|234|236|254|240|
+|WPA3-SAE|235|237|253|246|
+
+STA Mode Throughput - AX Mode|2.4 GHz Band|40 MHz (HE)
+
+|Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
+|--------|--------------|---------------|--------------|--------------|
+|Direction|TX|RX|TX|RX|
+|Open Security|469|437|497|455|
+|WPA2-AES|464|435|495|455|
+|WPA3-SAE|466|436|495|454|
 
 STA Mode Throughput - AX Mode|5 GHz Band|20 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|472|440|501|456|
-|WPA2-AES|471|439|498|458|
-|WPA3-SAE|471|438|498|459|
+|Open Security|238|243|256|250|
+|WPA2-AES|238|240|255|253|
+|WPA3-SAE|238|245|255|253|
 
 STA Mode Throughput - AX Mode|5 GHz Band|40 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|474|485|502|500|
-|WPA2-AES|472|483|499|504|
-|WPA3-SAE|473|482|499|505|
+|Open Security|474|486|502|507|
+|WPA2-AES|472|481|499|504|
+|WPA3-SAE|473|483|499|504|
 
 STA Mode Throughput - AX Mode|5 GHz Band|80 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|Open Security|934|931|956|953|
-|WPA2-AES|927|913|957|953|
-|WPA3-SAE|929|917|957|953|
+|Open Security|939|932|957|953|
+|WPA2-AES|922|932|957|953|
+|WPA3-SAE|928|932|957|953|
 
 STA Mode Throughput - AX Mode|6 GHz Band|20 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|WPA3-SAE|238|249|256|254|
-|WPA3-OWE|237|250|256|254|
+|WPA3-SAE|238|247|256|258|
 
 STA Mode Throughput - AX Mode|6 GHz Band|40 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|WPA3-SAE|468|482|501|505|
-|WPA3-OWE|473|484|501|505|
+|WPA3-SAE|474|483|500|497|
 
 STA Mode Throughput - AX Mode|6 GHz Band|80 MHz (HE)
 
 |Protocol|TCP \(Mbit/s\)|TCP \(Mbit/s\) |UDP \(Mbit/s\)|UDP \(Mbit/s\)|
 |--------|--------------|---------------|--------------|--------------|
 |Direction|TX|RX|TX|RX|
-|WPA3-SAE|929|932|956|952|
-|WPA3-OWE|934|933|957|953|
+|WPA3-SAE|930|933|957|950|
 
 <a name="p2pgo-throughput"></a>
 ## P2P-GO throughput

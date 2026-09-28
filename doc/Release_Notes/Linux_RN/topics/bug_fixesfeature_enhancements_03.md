@@ -171,3 +171,17 @@ None.
 
 **Wi-Fi**
 - Fixed STA transmitting unencrypted data frames during roaming.
+
+# Firmware version 17.92.1.p214.1 to 17.92.1.p149.159
+
+**Wi-Fi**
+- Fixed 0xA4 command timeout during roaming.
+- Fixed missing deauth forwarding leaving DUT stuck reassociating
+- Fixed build error related to sa_data.
+- Fixed firmware crash when running netmon on both interfaces.
+- Added 100 ms noise-monitor readout to survey dump command.
+- Fixed slow recovery leaving STA disconnected too long.
+- Fixed a scan command parameter descrepancy that could be set incorrectly, improving scan reliability.
+- Fixed an issue where the STA sent unencrypted ping (data) frames during roaming.
+- Fixed a firmware crash observed during stress testing when running network monitor (netmon) concurrently on multiple interfaces.
+- Fixed internal power-state flags on sleep-confirm timeout so the device reliably transitions back to full-power mode.

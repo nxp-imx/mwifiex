@@ -141,7 +141,8 @@
 |LE Audio Unicast Encrypted Audio|N|Y|Y|N|Y|N|N|N|N|
 |LE Audio ISO Interval for LE Audio 7.5ms 10ms 20ms 29ms|N|Y|Y|N|Y|N|N|N|N|
 |LE Audio Unicast Audio Source 2-CIS Stream|N|Y|Y|N|Y|N|N|N|N|
-|LE Audio Bridging A2DP Sink + Unicast Audio Source|N|Y|Y|N|Y|N|N|N|N|
+|LE Audio Bridging A2DP Sink + Unicast Audio Source|N|Y|Y|N|N|N|N|N|N|
+|LE Audio Bridging A2DP Sink + Broadcast Audio Source|N|N|N|N|Y|N|N|N|N|
 |LE Audio GAF Layers \(BAP,CAP, CAS, CSIP, MCP, MCS, MICP, VCP, BASS, CCP\)|N|Y|Y|N|Y|N|N|N|N|
 |Bluetooth LE_Audio support for the 3 CIS stream|N|N|N|N|Y|N|N|N|N|
 |Bluetooth LE_Audio_LE 2 CIS + HFP|N|N|N|N|Y|N|N|N|N|

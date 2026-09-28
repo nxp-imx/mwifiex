@@ -131,3 +131,8 @@ None.
 
 **Coex**
 - Resolved Wi-Fi data stall and reduced BLE advertising reports in uAP+BLE scan coexistence scenarios
+
+## Firmware version 16.92.21.p160 to 16.92.21.p164
+
+**Wi-Fi**
+- Fixed frequent kernel crashes seen on real-time (PREEMPT_RT) kernels.

@@ -114,3 +114,36 @@
 
 **Coex (Wi-Fi & OpenThread)**
 - Fixed Wi-Fi command timeout during Wi-Fi (STA + uAP) + OpenThread coexistence test.
+
+## Firmware version 18.99.8.p52 to 18.99.8.p136
+
+**Wi-Fi**
+- Fixed unexpected STA disconnect in monitor mode when other client disconnects from AP.
+- Added support for 11az station-to-station ranging mode and fixed the mlancsi application hanging after initialization.
+- Fixed Wi-Fi RF Test Mode continuous-wave tone transmission stopping during long runs.
+- Fixed 802.11mc FTM ranging failures with QCA-based Aruba and Google access points; ACK now forces MCS0 to resolve the interop issue.
+- Fixed a duplicate QoS Control field in host-injected QoS data frames; injected frames now carry a single, correct QoS Control field.
+- Fixed a command timeout that occurred during Thread and Wi-Fi coexistence; concurrent Thread plus Wi-Fi operation now runs without command timeouts.
+- Added ability to configure VHT capabilities on the P2P interface.
+- Fixed incorrect Tx power readout via mlanutl txpwr.
+- Fixed missing deauth on P2P client removal.
+- Fixed incorrect behavior during sleep with Wake-on-WLAN.
+- Fixed the "Card is removed" issue during USB suspend; the driver now detaches network interfaces before suspend and restores them if suspend fails.
+- Removed the unsupported 2x2 stream control feature for USB-IW610, aligning driver capabilities with the hardware and preventing incorrect antenna-stream configuration on that interface.
+- Fixed an SSID heap overflow in Multi-BSSID descriptor parsing; the driver now rejects SSIDs longer than 32 bytes and uses the correct destination buffer size.
+- Added missing information-element bounds check.
+- Fixed IE length underflow causing out-of-bounds read.
+- Added element-length capping to close OOB patterns.
+- Fixed a truncated length check in non-transmitted BSSID profile parsing; removing an 8-bit cast ensures oversized information elements are correctly rejected instead of accepted.
+- Fixed an out-of-bounds write in non-transmitted extended supported rates handling; the driver now passes the correct remaining buffer size to the copy operation.
+- Fixed STA association failure under stress testing.
+- Fixed 0xA4 timeout after long idle period.
+- Fixed a possible kernel stack overflow in OBSS coexistence event handling; the driver now validates the overlapping-BSS information-element length before copying it into the stack buffer.
+- Fixed incorrect power-table values in mlanutl cfpinfo
+
+**Bluetooth/LE**
+- Fixed two LE connections to different devices sharing the same connection handle; each LE connection now receives its own unique handle.
+
+**ZIgbee**
+- Added a workaround for an assert in zdo_secur.c during network join, preventing the crash and allowing devices to join successfully.
+- Added BRF support to enable or disable 15.4 channel-26 transmit power clamping

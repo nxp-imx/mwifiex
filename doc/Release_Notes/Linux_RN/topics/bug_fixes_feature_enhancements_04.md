@@ -318,3 +318,39 @@ Crash occurs during execution of Bluetooth Classic TX/RX test.
 
 **Bluetooth**
 - Fixed BT power off failure
+
+## Firmware version 18.99.8.p52.1 to 18.99.8.p136
+
+**Wi-Fi**
+- Fixed a use-after-free crash in the Wi-Fi receive path where throughput accounting ran after the network stack had already freed the packet buffer.
+- Fixed 2.4 GHz receive rate dropping to legacy 11 Mbps so HT and HE capabilities stay consistent.
+- Fixed KASAN and lockdep warnings on arm64 caused.
+- Fixed mlanutl cfginfo showing incorrect 5 GHz power-table values.
+- Documented the meaning of each dev_cap_mask bit (Bit0–Bit15) in the driver README.
+- Fixed the firmware dump file growing without limit across reboots.
+- Added support for RTT ranging with multiple APs in one request.
+- Fixed command timeouts during Wi-Fi streaming even when an invalid receive length occurs on the command port.
+- Fixed the self-managed regulatory table not regenerating after radio re-insert by avoiding overwriting channel information that already comes from OTP.
+- Fixed antenna diversity failure caused by incorrect calibration-data parsing.
+- Fixed Wi-Fi RF Test Mode continuous-wave tone transmission stopping when run for a long duration (30 seconds to 15 minutes)
+- Fixed 802.11mc FTM ranging negotiation and measurement failures seen with Aruba and Google access points across various channels.
+- Fixed incorrect QoS Control field handling during IEEE 802.11 data-frame injection, ensuring injected frames carry the correct QoS information.
+- Fixed SDIO-UART combo firmware load failure seen with FSDKs releases.
+- Fixed a firmware crash triggered when entering RF Test Mode; the device now enters and runs RF Test Mode without crashing.
+- Fixed ECSA (0xE4) firmware crash dumps reported from field devices; extended channel switch announcements are now handled without crashing.
+
+**Bluetooth/LE**
+- Fixed missing HCI Synchronous Connection Complete event when handling an eSCO connection request.
+- Fixed BLE frontend-loss setting not taking effect in 0.5 dB steps.
+- Separated transmit statistics for each data rate, giving more accurate per-rate visibility that improves rate-adaptation decisions and debugging.
+- Enabled flow control and loopback mode for SCO-over-HCI, allowing correct SCO audio transport and validation over the HCI interface.
+- Fixed two LE connections to different devices being established using the same connection handle.
+- Fixed a Bluetooth power-off failure; BT now shuts down cleanly and reliably without getting stuck during power-off.
+- mSBC audio glitches heard for SCO over HCI.
+
+**Wi-Fi, Bluetooth and 802.15.4 (Open Thread) Coex**
+- Fixed uAP start failure caused when the 0xB1 command returned two responses with different status
+
+**Zigbee**
+- Added a workaround for an assert in zdo_secur.c seen during network join, preventing the crash and allowing joining to complete.
+- Fixed zb_mux keeping high CPU load after the application terminated; CPU usage now returns to normal once the ZigBee stack stops
