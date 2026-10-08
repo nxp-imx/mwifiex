@@ -27,6 +27,8 @@
  * 05/12/2009: initial version
  *************************************************************
  */
+#include <linux/math64.h>
+
 #include "mlan.h"
 #include "mlan_util.h"
 #ifdef STA_SUPPORT
@@ -3784,7 +3786,7 @@ mlan_status wlan_convert_to_wifi_rtt_result_v3(pmlan_private pmpriv,
 	/* speed_of_light = 299792458 m/s ≈ 0.0003 m/ps */
 	/* distance_mm = (tof_ps * 0.3 / 1000) * 1000 = tof_ps * 0.3 = tof_ps *
 	 * 3 / 10 */
-	distance = (t_u64)wlan_le32_to_cpu(ftm_complete->avg_tof) * 3 / 10;
+	distance = div_u64((t_u64)wlan_le32_to_cpu(ftm_complete->avg_tof) * 3, 10);
 	rtt_result->distance_mm = (int)distance;
 
 	/* Distance standard deviation and spread - not available, set to 0 */
